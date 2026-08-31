@@ -202,6 +202,21 @@ export function firstLeftoverLastReturn(
   let pendingSitOut: PendingLeftoverSitOut | null = null;
   let pendingRemaining: PendingRemainingLeftover | null = null;
 
+  const restartTrackingFromCurrentSection = (
+    sectionLabel: string,
+    sittingOut: NamedGraphNode[]
+  ): void => {
+    pendingSitOut = null;
+    pendingRemaining = null;
+    if (sittingOut.length === 0) {
+      reducedFrom = null;
+      sittingOutIds = null;
+      return;
+    }
+    reducedFrom = sectionLabel;
+    sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
+  };
+
   for (const sectionValue of song.sections) {
     if (!isRuntimeObject(sectionValue)) {
       return null;
@@ -219,6 +234,12 @@ export function firstLeftoverLastReturn(
     const sittingOut = nodes.filter((node) => node.active === false);
 
     if (pendingRemaining) {
+      const trackedRemainingIds = new Set(pendingRemaining.remainingIds);
+      if (sittingOut.some((node) => !trackedRemainingIds.has(node.roleId))) {
+        restartTrackingFromCurrentSection(sectionLabel, sittingOut);
+        continue;
+      }
+
       const remainingNodes: NamedGraphNode[] = [];
       for (const remainingId of pendingRemaining.remainingIds) {
         const remainingNode = nodes.find((node) => node.roleId === remainingId);
@@ -232,20 +253,22 @@ export function firstLeftoverLastReturn(
       const stillRemaining = remainingNodes.filter((node) => node.active === false);
 
       if (returningLast.length > 0 && stillRemaining.length === 0) {
-        let last = returningLast[0]!;
+        if (returningLast.length !== 1) {
+          restartTrackingFromCurrentSection(sectionLabel, sittingOut);
+          continue;
+        }
+
+        const last = returningLast[0]!;
         if (activeRole) {
           const activeRoleNode = nodes.find((node) => node.roleId === activeRole);
           if (!activeRoleNode) {
             return null;
           }
-          if (!activeRoleNode.active) {
-            const selectedLast = returningLast.find((node) => node.roleId === activeRole);
-            if (!selectedLast) {
-              continue;
-            }
-            last = selectedLast;
-          }
-          if (!selectedPartBelongs(pendingRemaining, last.roleId, activeRole)) {
+          if (
+            !activeRoleNode.active ||
+            !selectedPartBelongs(pendingRemaining, last.roleId, activeRole)
+          ) {
+            restartTrackingFromCurrentSection(sectionLabel, sittingOut);
             continue;
           }
         }
@@ -284,12 +307,18 @@ export function firstLeftoverLastReturn(
       const remainingLeftovers = leftoverNodes.filter((node) => node!.active === false);
 
       if (returningLeftovers.length > 0 && remainingLeftovers.length > 0) {
+        const remainingIds = remainingLeftovers.map((node) => node!.roleId);
+        const remainingIdSet = new Set(remainingIds);
+        if (sittingOut.some((node) => !remainingIdSet.has(node.roleId))) {
+          restartTrackingFromCurrentSection(sectionLabel, sittingOut);
+          continue;
+        }
         pendingRemaining = {
           leftoverSectionLabel: pendingSitOut.leftoverSectionLabel,
           remainingSectionLabel: sectionLabel,
           fromSectionLabel: pendingSitOut.fromSectionLabel,
           leftoverIds: pendingSitOut.leftoverIds,
-          remainingIds: remainingLeftovers.map((node) => node!.roleId),
+          remainingIds,
           originalSitOutIds: pendingSitOut.originalSitOutIds
         };
         pendingSitOut = null;
