@@ -19,6 +19,7 @@ describe("copyFirstRangeAction", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     Reflect.deleteProperty(document, "execCommand");
+    document.body.replaceChildren();
   });
 
   it("fails closed on blank or non-string payloads without touching the clipboard", async () => {
@@ -64,6 +65,24 @@ describe("copyFirstRangeAction", () => {
 
     expect(await copyFirstRangeAction(firstCheck)).toBe("copied");
     expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(document.body.querySelector("textarea")).toBeNull();
+  });
+
+  it("restores the previously focused control after the execCommand fallback", async () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Copy tonight's first check";
+    document.body.appendChild(trigger);
+    trigger.focus();
+    expect(document.activeElement).toBe(trigger);
+
+    stubExecCommand(() => {
+      document.querySelector("textarea")?.focus();
+      return true;
+    });
+    vi.stubGlobal("navigator", {});
+
+    expect(await copyFirstRangeAction(firstCheck)).toBe("copied");
+    expect(document.activeElement).toBe(trigger);
     expect(document.body.querySelector("textarea")).toBeNull();
   });
 
