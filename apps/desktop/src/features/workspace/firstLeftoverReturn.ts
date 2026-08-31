@@ -124,11 +124,15 @@ function namedGraphNodes(
   return seenRoleIds.size === namedRoles.size ? nodes : null;
 }
 
+type PendingLeftoverRole = {
+  roleId: string;
+  roleName: string;
+};
+
 type PendingLeftover = {
   leftoverSectionLabel: string;
   fromSectionLabel: string;
-  leftoverRoleId: string;
-  leftoverRoleName: string;
+  eligibleRoles: PendingLeftoverRole[];
 };
 
 /**
@@ -137,13 +141,15 @@ type PendingLeftover = {
  * A leftover sit-out is the first later named section where at least one member
  * of the current reduced cohort has returned and at least one remains out. The
  * leftover return is the first named section after that leftover sit-out where
- * the leftover part is own-property active. A tutti, come-in, continued sit-out,
- * or a new dropout after a full original return is not a leftover return.
+ * any eligible leftover part is own-property active. A tutti, come-in,
+ * continued sit-out, or a new dropout after a full original return is not a
+ * leftover return.
  *
  * Inherited/missing activity, incomplete or contradictory graphs, unnamed
  * roles, and malformed runtime data fail closed. When a role is selected, a
  * leftover return is shown only after a leftover sit-out that includes that
- * named part, so a silent new dropout is never told to come back.
+ * named part. If the selected part belongs to a later reduction instead, the
+ * search rebases to that reduction rather than attaching another cohort's cue.
  */
 export function firstLeftoverReturn(
   song: RehearsalSong | unknown,
@@ -177,18 +183,21 @@ export function firstLeftoverReturn(
     }
 
     if (pending) {
-      const leftoverNode = nodes.find((node) => node.roleId === pending.leftoverRoleId);
-      if (!leftoverNode) {
-        return null;
-      }
-      if (leftoverNode.active) {
-        return {
-          sectionLabel,
-          leftoverSectionLabel: pending.leftoverSectionLabel,
-          fromSectionLabel: pending.fromSectionLabel,
-          leftoverRoleId: pending.leftoverRoleId,
-          leftoverRoleName: pending.leftoverRoleName
-        };
+      const currentPending = pending;
+      for (const candidate of currentPending.eligibleRoles) {
+        const candidateNode = nodes.find((node) => node.roleId === candidate.roleId);
+        if (!candidateNode) {
+          return null;
+        }
+        if (candidateNode.active) {
+          return {
+            sectionLabel,
+            leftoverSectionLabel: currentPending.leftoverSectionLabel,
+            fromSectionLabel: currentPending.fromSectionLabel,
+            leftoverRoleId: candidate.roleId,
+            leftoverRoleName: candidate.roleName
+          };
+        }
       }
       continue;
     }
@@ -210,25 +219,33 @@ export function firstLeftoverReturn(
     const leftovers = sittingOut.filter((node) => baselineIds.has(node.roleId));
 
     if (returning.length > 0 && leftovers.length > 0) {
-      let leftover = leftovers[0]!;
+      let eligibleLeftovers = leftovers;
       if (activeRole) {
         const activeRoleNode = nodes.find((node) => node.roleId === activeRole);
         if (!activeRoleNode) {
           return null;
+        }
+        if (!baselineIds.has(activeRole)) {
+          reducedFrom = sectionLabel;
+          sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
+          continue;
         }
         if (!activeRoleNode.active) {
           const selectedLeftover = leftovers.find((node) => node.roleId === activeRole);
           if (!selectedLeftover) {
             continue;
           }
-          leftover = selectedLeftover;
+          eligibleLeftovers = [selectedLeftover];
         }
       }
+
       pending = {
         leftoverSectionLabel: sectionLabel,
         fromSectionLabel: reducedFrom,
-        leftoverRoleId: leftover.roleId,
-        leftoverRoleName: namedRoles.get(leftover.roleId)!
+        eligibleRoles: eligibleLeftovers.map((leftover) => ({
+          roleId: leftover.roleId,
+          roleName: namedRoles.get(leftover.roleId)!
+        }))
       };
       continue;
     }
