@@ -47,8 +47,8 @@ export function firstHandoffAction(song: RehearsalSong): MetadataHandoffFirstAct
         continue;
       }
       const roleId = meaningfulRangeText(roleValue.id);
-      const roleName = meaningfulRangeText(roleValue.name);
-      if (!roleId || !roleName) {
+      const roleName = roleValue.name;
+      if (!roleId || typeof roleName !== "string" || !meaningfulRangeText(roleName)) {
         continue;
       }
       if (!isRuntimeObject(roleValue.range)) {
