@@ -203,6 +203,49 @@ describe("firstLeftover", () => {
     expect(firstLeftover(song, "missing-role")).toBeNull();
   });
 
+  it("keeps a selected inactive part from receiving a play instruction", () => {
+    const seed = createDemoRehearsalSong();
+    const template = seed.sections[0]!;
+    const reduction = sectionWithInactiveRoles(
+      template,
+      "verse-1",
+      "verse",
+      0,
+      ["bass-guitar", "lead-vocal", "keys-right"]
+    );
+    const partial = sectionWithInactiveRoles(
+      template,
+      "chorus-1",
+      "chorus",
+      20,
+      ["lead-vocal", "keys-right"]
+    );
+    partial.partGraph = [
+      ...partial.partGraph.filter((node) => node.role_id === "lead-vocal"),
+      ...partial.partGraph.filter(
+        (node) => node.role_id !== "lead-vocal" && node.role_id !== "keys-right"
+      ),
+      ...partial.partGraph.filter((node) => node.role_id === "keys-right")
+    ];
+    const song: RehearsalSong = { ...seed, sections: [reduction, partial] };
+
+    expect(firstLeftover(song, "keys-right")).toEqual({
+      sectionLabel: "chorus",
+      fromSectionLabel: "verse",
+      leftoverRoleId: "keys-right",
+      leftoverRoleName: "Keyboard 1 Right Hand"
+    });
+
+    const newDropout: RehearsalSong = {
+      ...seed,
+      sections: [
+        sectionWithInactiveRoles(template, "verse-1", "verse", 0, ["bass-guitar", "keys-right"]),
+        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, ["lead-vocal", "keys-right"])
+      ]
+    };
+    expect(firstLeftover(newDropout, "lead-vocal")).toBeNull();
+  });
+
   it("ignores inherited is_active evidence", () => {
     const song = withChorus(createDemoRehearsalSong());
     const inherited = Object.create({
