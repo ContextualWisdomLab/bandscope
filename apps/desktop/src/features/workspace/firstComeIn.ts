@@ -36,7 +36,10 @@ function namedRoleOnSection(
   sectionValue: Record<string, unknown>,
   roleId: string
 ): string | undefined {
-  if (!Array.isArray(sectionValue.roles)) {
+  if (
+    !Object.prototype.hasOwnProperty.call(sectionValue, "roles") ||
+    !Array.isArray(sectionValue.roles)
+  ) {
     return undefined;
   }
   for (const roleValue of sectionValue.roles) {
@@ -66,8 +69,9 @@ type SitOutEvidence = {
  * sat out (`is_active: false`) is own-property active again. Section identity
  * is tracked by iteration index so repeated form labels remain valid later
  * returns while false/true evidence inside one section is rejected. Inherited
- * `is_active`, missing graph nodes, blank labels, unnamed roles, and malformed
- * roots fail closed. When a role is selected, only that part's return is named.
+ * `is_active`, inherited role registries, missing graph nodes, blank labels,
+ * unnamed roles, and malformed roots fail closed. When a role is selected,
+ * only that part's return is named.
  */
 export function firstComeIn(
   song: RehearsalSong | unknown,
@@ -135,6 +139,7 @@ export function firstComeIn(
 
       const roleName = namedRoleOnSection(sectionValue, roleId);
       if (!roleName) {
+        sittingOut.delete(roleId);
         continue;
       }
 
