@@ -71,9 +71,9 @@ describe("firstLeftoverLastDropoutRemainingReturn simultaneous return", () => {
       leftoverSectionLabel: "chorus",
       fromSectionLabel: "verse",
       remainingRoleId: "keys-right",
-      remainingRoleName: "Keys (Right Hand)",
+      remainingRoleName: "Keyboard 1 Right Hand",
       returningRoleId: "keys-right",
-      returningRoleName: "Keys (Right Hand)"
+      returningRoleName: "Keyboard 1 Right Hand"
     });
   });
 
