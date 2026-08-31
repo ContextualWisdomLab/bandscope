@@ -62,6 +62,37 @@ describe("firstTutti", () => {
     });
   });
 
+  it("uses production-shaped inactive graph evidence omitted from the section role list", () => {
+    const song = withReducedThenTutti(createDemoRehearsalSong(), "keys-right");
+    song.sections[0] = {
+      ...song.sections[0]!,
+      roles: song.sections[0]!.roles.filter((role) => role.id !== "keys-right")
+    };
+    expect(firstTutti(song)).toEqual({
+      sectionLabel: "chorus",
+      fromSectionLabel: "verse"
+    });
+  });
+
+  it("fails closed when a candidate graph omits an expected song role", () => {
+    const song = withReducedThenTutti(createDemoRehearsalSong(), "keys-right");
+    song.sections[1] = {
+      ...song.sections[1]!,
+      partGraph: song.sections[1]!.partGraph.filter((node) => node.role_id !== "keys-right")
+    };
+    expect(firstTutti(song)).toBeNull();
+  });
+
+  it("fails closed when duplicate graph identities inflate the active node count", () => {
+    const song = withReducedThenTutti(createDemoRehearsalSong(), "keys-right");
+    const leadNode = song.sections[1]!.partGraph.find((node) => node.role_id === "lead-vocal")!;
+    song.sections[1] = {
+      ...song.sections[1]!,
+      partGraph: [leadNode, { ...leadNode }]
+    };
+    expect(firstTutti(song)).toBeNull();
+  });
+
   it("skips blank tutti labels until a named full-band hit exists", () => {
     const song = withReducedThenTutti(createDemoRehearsalSong(), "keys-right");
     song.sections[1] = {
