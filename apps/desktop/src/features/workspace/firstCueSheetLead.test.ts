@@ -40,6 +40,52 @@ describe("firstCueSheetLead", () => {
     );
   });
 
+  it("keeps the lead row on the exact repeated section selected by the squeeze", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections[0]!;
+    const bass = section.roles[0]!;
+
+    song.sections = [
+      {
+        ...section,
+        id: "repeat-verse-earlier",
+        label: "verse",
+        groove: "Earlier groove",
+        roles: [
+          {
+            ...bass,
+            harmony: { ...bass.harmony, chord: "Am7" },
+            cue: { ...bass.cue, value: "Earlier cue" },
+            rehearsalPriority: "low",
+            overlapWarnings: []
+          }
+        ]
+      },
+      {
+        ...section,
+        id: "repeat-verse-later",
+        label: "verse",
+        groove: "Later clash groove",
+        roles: [
+          {
+            ...bass,
+            harmony: { ...bass.harmony, chord: "D7" },
+            cue: { ...bass.cue, value: "Later cue" },
+            rehearsalPriority: "high",
+            overlapWarnings: ["Register clash"]
+          }
+        ]
+      }
+    ];
+
+    expect(firstCueSheetLead(song, "bass-guitar", t)).toMatchObject({
+      groove: "Later clash groove",
+      harmony: "D7",
+      cue: "Later cue",
+      priority: "high"
+    });
+  });
+
   it("returns null when no named span exists", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
