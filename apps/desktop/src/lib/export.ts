@@ -138,15 +138,25 @@ export function createMetadataHandoffArtifact(
 
   if (options.firstAction) {
     return parseMetadataHandoffArtifact({
-      ...payload,
+      artifactKind: payload.artifactKind,
       artifactVersion: 2,
-      firstAction: options.firstAction
+      createdAt: payload.createdAt,
+      workspace: payload.workspace,
+      song: payload.song,
+      firstAction: options.firstAction,
+      sections: payload.sections,
+      sourceAssets: payload.sourceAssets
     });
   }
 
   return parseMetadataHandoffArtifact({
-    ...payload,
-    artifactVersion: 1
+    artifactKind: payload.artifactKind,
+    artifactVersion: 1,
+    createdAt: payload.createdAt,
+    workspace: payload.workspace,
+    song: payload.song,
+    sections: payload.sections,
+    sourceAssets: payload.sourceAssets
   });
 }
 
