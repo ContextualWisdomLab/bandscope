@@ -17,6 +17,47 @@ function runtimeText(value: unknown): string {
 }
 
 /**
+ * Resolve a role filter against the song currently being exported.
+ *
+ * Workspace can replace its song without unmounting, so React state may still
+ * contain a role id from the previous project for one render. A well-formed
+ * current song that no longer contains that id means "no current filter";
+ * malformed role evidence remains a fail-closed condition instead of silently
+ * broadening the export.
+ */
+function currentSongRoleFilter(
+  songValue: unknown,
+  activeRole: string | null
+): string | null | undefined {
+  if (!activeRole) {
+    return null;
+  }
+  if (!isRuntimeObject(songValue) || !Array.isArray(songValue.sections)) {
+    return undefined;
+  }
+
+  for (const sectionValue of songValue.sections) {
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+      return undefined;
+    }
+    for (const roleValue of sectionValue.roles) {
+      if (!isRuntimeObject(roleValue) || !Object.prototype.hasOwnProperty.call(roleValue, "id")) {
+        return undefined;
+      }
+      const roleId = meaningfulRangeText(roleValue.id);
+      if (!roleId) {
+        return undefined;
+      }
+      if (roleId === activeRole) {
+        return activeRole;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Build the cue-sheet lead row for tonight's first playable-range action.
  *
  * Retains the exact section/role target chosen by the range selector instead
@@ -28,13 +69,18 @@ export function firstCueSheetLead(
   activeRole: string | null,
   t: Translator
 ): CueSheetLeadRow | null {
-  const target = firstRangeSqueezeTarget(song, activeRole);
+  const runtimeSong: unknown = song;
+  const currentActiveRole = currentSongRoleFilter(runtimeSong, activeRole);
+  if (currentActiveRole === undefined) {
+    return null;
+  }
+
+  const target = firstRangeSqueezeTarget(song, currentActiveRole);
   if (!target) {
     return null;
   }
   const { squeeze } = target;
 
-  const runtimeSong: unknown = song;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
@@ -57,7 +103,7 @@ export function firstCueSheetLead(
   if (meaningfulRangeText(roleValue.id) !== target.roleId) {
     return null;
   }
-  if (activeRole && target.roleId !== activeRole) {
+  if (currentActiveRole && target.roleId !== currentActiveRole) {
     return null;
   }
   if (meaningfulRangeText(roleValue.name) !== squeeze.roleName) {
