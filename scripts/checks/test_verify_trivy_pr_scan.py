@@ -10,7 +10,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER = REPO_ROOT / "scripts" / "checks" / "verify_trivy_pr_scan.py"
 
-MALFORMED_WORKFLOW = """name: trivy
+MISSING_PR_TARGETS = """name: trivy
 
 on:
   push:
@@ -24,19 +24,75 @@ jobs:
   trivy-fs-scan:
     steps:
       - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
         with:
           format: sarif
-      - uses: github/codeql-action/upload-sarif@0123456789abcdef
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
 """
 
+DISCONNECTED_SARIF = """name: trivy
 
-def main() -> int:
-    """Reject a PR trigger that borrows protected-branch names from push."""
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Unrelated formatter
+        run: echo harmless
+        with:
+          format: sarif
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: table
+          output: trivy-results.txt
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: unrelated.sarif
+"""
+
+MISMATCHED_SARIF = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: different-results.sarif
+"""
+
+CASES = {
+    "missing protected PR targets": MISSING_PR_TARGETS,
+    "SARIF format detached from the Trivy action": DISCONNECTED_SARIF,
+    "Trivy output and upload paths disagree": MISMATCHED_SARIF,
+}
+
+
+def _run_checker(workflow: str) -> subprocess.CompletedProcess[str]:
+    """Run the production checker against one isolated workflow fixture."""
     with tempfile.TemporaryDirectory() as temp_dir:
         workflow_path = Path(temp_dir) / ".github" / "workflows" / "trivy.yml"
         workflow_path.parent.mkdir(parents=True)
-        workflow_path.write_text(MALFORMED_WORKFLOW, encoding="utf-8")
-        result = subprocess.run(
+        workflow_path.write_text(workflow, encoding="utf-8")
+        return subprocess.run(
             [sys.executable, str(CHECKER)],
             cwd=temp_dir,
             capture_output=True,
@@ -44,13 +100,20 @@ def main() -> int:
             text=True,
         )
 
-    if result.returncode == 0:
-        print(
-            "Trivy PR contract regression: checker accepted pull_request without "
-            "develop/main branch targets"
-        )
+
+def main() -> int:
+    """Reject triggers or scan/upload wiring that can lose PR SARIF evidence."""
+    accepted: list[str] = []
+    for name, workflow in CASES.items():
+        if _run_checker(workflow).returncode == 0:
+            accepted.append(name)
+
+    if accepted:
+        print("Trivy PR contract regression: checker accepted malformed workflows:")
+        for name in accepted:
+            print(f"- {name}")
         return 1
-    print("Trivy PR contract regression passed")
+    print("Trivy PR contract regressions passed")
     return 0
 
 
