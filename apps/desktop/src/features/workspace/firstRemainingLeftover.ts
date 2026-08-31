@@ -130,6 +130,7 @@ function namedGraphNodes(
 type PendingLeftoverSitOut = {
   leftoverSectionLabel: string;
   fromSectionLabel: string;
+  reducedCohortIds: string[];
   leftoverIds: string[];
 };
 
@@ -147,8 +148,9 @@ type PendingLeftoverSitOut = {
  *
  * Inherited/missing activity, incomplete or contradictory graphs, unnamed
  * roles, and malformed runtime data fail closed. When a role is selected, a
- * remaining leftover is shown only after a leftover sit-out that includes that
- * named part, so a silent new dropout is never told to stay out as leftover.
+ * remaining leftover is shown only when that named part belonged to the
+ * originating reduced cohort. A selected part that drops out again later must
+ * itself be one of the remaining leftovers before that cue can be shown.
  */
 export function firstRemainingLeftover(
   song: RehearsalSong | unknown,
@@ -198,6 +200,9 @@ export function firstRemainingLeftover(
         let remaining = remainingLeftovers[0]!;
         const returning = returningLeftovers[0]!;
         if (activeRole) {
+          if (!pending.reducedCohortIds.includes(activeRole)) {
+            continue;
+          }
           const activeRoleNode = nodes.find((node) => node.roleId === activeRole);
           if (!activeRoleNode) {
             return null;
@@ -253,6 +258,7 @@ export function firstRemainingLeftover(
       pending = {
         leftoverSectionLabel: sectionLabel,
         fromSectionLabel: reducedFrom,
+        reducedCohortIds: [...baselineIds],
         leftoverIds: leftovers.map((node) => node.roleId)
       };
       continue;
