@@ -362,14 +362,14 @@ describe("Workspace", () => {
     );
   });
 
-  it("asks the player to confirm leftover last-dropout remaining last-return tutti when every part stays active", () => {
+  it("asks the player to verify the required not-yet-all-in then all-in order", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-leftover-last-dropout-remaining-last-return-tutti")).toHaveTextContent(
-      "Tonight's first leftover last-dropout remaining last-return tutti still needs leftover last-dropout remaining last-return that is not already all-in, then a later all-in. Confirm leftover last-dropout remaining last-return is all-in before the first section."
+      "This cue needs a last-return section where someone is still out, followed by a later section where everyone is in. Before rehearsing, confirm that order in the map."
     );
   });
 
