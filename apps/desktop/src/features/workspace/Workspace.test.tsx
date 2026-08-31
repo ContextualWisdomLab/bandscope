@@ -140,6 +140,202 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
+  it("names tonight's first leftover last-dropout remaining return after leftover last-dropout remaining", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      },
+      {
+        ...verse,
+        id: "tag-1",
+        label: "tag",
+        timeRange: {
+          start: verse.timeRange.end + 60,
+          end: verse.timeRange.end + 80
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "bass-guitar"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "coda-1",
+        label: "stop",
+        timeRange: {
+          start: verse.timeRange.end + 80,
+          end: verse.timeRange.end + 100
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "ending-1",
+        label: "ending",
+        timeRange: {
+          start: verse.timeRange.end + 100,
+          end: verse.timeRange.end + 120
+        }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-leftover-last-dropout-remaining-return");
+    expect(callout).toHaveTextContent("Tonight's first leftover last-dropout remaining return");
+    expect(callout).toHaveTextContent(
+      "Bass Guitar comes back at ending after staying out through leftover last-dropout remaining at stop. Count Bass Guitar in from the top of ending."
+    );
+  });
+
+  it("tells the leftover last-dropout remaining return to come back after leftover last-dropout remaining", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      },
+      {
+        ...verse,
+        id: "tag-1",
+        label: "tag",
+        timeRange: {
+          start: verse.timeRange.end + 60,
+          end: verse.timeRange.end + 80
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "bass-guitar"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "coda-1",
+        label: "stop",
+        timeRange: {
+          start: verse.timeRange.end + 80,
+          end: verse.timeRange.end + 100
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "ending-1",
+        label: "ending",
+        timeRange: {
+          start: verse.timeRange.end + 100,
+          end: verse.timeRange.end + 120
+        }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("first-leftover-last-dropout-remaining-return")).toHaveTextContent(
+      "Bass Guitar comes back at ending after staying out through leftover last-dropout remaining at stop. Come back from leftover last-dropout remaining at the top of ending."
+    );
+  });
+
+  it("asks the player to confirm leftover last-dropout remaining return when every part stays active", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-leftover-last-dropout-remaining-return")).toHaveTextContent(
+      "Tonight's first leftover last-dropout remaining return still needs a named leftover last-dropout remaining and a later remaining return. Confirm who comes back after leftover last-dropout remaining before the first section."
+    );
+  });
+
   it("names tonight's first playable range and the next instrument check", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
