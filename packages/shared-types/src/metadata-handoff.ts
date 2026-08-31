@@ -28,6 +28,26 @@ export type MetadataHandoffArtifactV2 = Omit<MetadataHandoffArtifactV1, "artifac
 /** A metadata handoff accepted by this BandScope version. */
 export type MetadataHandoffArtifact = MetadataHandoffArtifactV1 | MetadataHandoffArtifactV2;
 
+const NATURAL_PITCH_CLASS = {
+  C: 0,
+  D: 2,
+  E: 4,
+  F: 5,
+  G: 7,
+  A: 9,
+  B: 11
+} as const;
+
+const ACCIDENTAL_OFFSET: Record<string, number> = {
+  "": 0,
+  "#": 1,
+  "♯": 1,
+  b: -1,
+  "♭": -1
+};
+
+const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
+
 function invalidField(path: string): Error {
   return new Error(`Invalid rehearsal song contract: invalid field '${path}'`);
 }
@@ -40,7 +60,20 @@ function isSectionFormLabel(value: unknown): value is SectionFormLabel {
   return typeof value === "string" && (SECTION_FORM_LABELS as readonly string[]).includes(value);
 }
 
-function validateFirstAction(value: unknown): void {
+/** Convert a supported scientific-pitch label into chromatic ordering. */
+function notePitchValue(note: string): number | null {
+  const match = NOTE_PATTERN.exec(note.trim());
+  if (!match) {
+    return null;
+  }
+
+  const letter = match[1].toUpperCase() as keyof typeof NATURAL_PITCH_CLASS;
+  const octave = Number(match[3]);
+  return (octave + 1) * 12 + NATURAL_PITCH_CLASS[letter] + ACCIDENTAL_OFFSET[match[2]];
+}
+
+/** Shape-check the v2 lead and verify its playable span before it becomes authority. */
+function validateFirstAction(value: unknown): MetadataHandoffFirstAction {
   if (!isRecord(value)) {
     throw invalidField("firstAction");
   }
@@ -72,6 +105,41 @@ function validateFirstAction(value: unknown): void {
   if (typeof value.clash !== "boolean") {
     throw invalidField("firstAction.clash");
   }
+
+  const lowestPitch = notePitchValue(value.lowestNote as string);
+  if (lowestPitch === null) {
+    throw invalidField("firstAction.lowestNote");
+  }
+  const highestPitch = notePitchValue(value.highestNote as string);
+  if (highestPitch === null || lowestPitch > highestPitch) {
+    throw invalidField("firstAction.highestNote");
+  }
+
+  return value as MetadataHandoffFirstAction;
+}
+
+/** Require the v2 lead to point at exactly one exported section and role bucket. */
+function validateFirstActionReferences(
+  firstAction: MetadataHandoffFirstAction,
+  artifact: MetadataHandoffArtifactV1
+): void {
+  const matchingSections = artifact.sections.filter((section) => section.id === firstAction.sectionId);
+  if (matchingSections.length !== 1) {
+    throw invalidField("firstAction.sectionId");
+  }
+
+  const section = matchingSections[0]!;
+  if (section.label !== firstAction.sectionLabel) {
+    throw invalidField("firstAction.sectionLabel");
+  }
+
+  const matchingRoles = section.roleBuckets.filter((role) => role.id === firstAction.roleId);
+  if (matchingRoles.length !== 1) {
+    throw invalidField("firstAction.roleId");
+  }
+  if (matchingRoles[0]!.name !== firstAction.roleName) {
+    throw invalidField("firstAction.roleName");
+  }
 }
 
 /**
@@ -96,12 +164,13 @@ export function parseMetadataHandoffArtifact(value: unknown): MetadataHandoffArt
     throw invalidField("firstAction");
   }
 
-  validateFirstAction(value.firstAction);
+  const firstAction = validateFirstAction(value.firstAction);
   const { firstAction: _firstAction, ...legacyFields } = value;
-  parseLegacyMetadataHandoffArtifact({
+  const legacyArtifact = parseLegacyMetadataHandoffArtifact({
     ...legacyFields,
     artifactVersion: 1
   });
+  validateFirstActionReferences(firstAction, legacyArtifact);
 
   return structuredClone(value as MetadataHandoffArtifactV2);
 }
