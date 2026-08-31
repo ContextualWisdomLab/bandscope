@@ -2,6 +2,7 @@ import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-t
 import { describe, expect, it } from "vitest";
 import { firstLeftoverLastDropoutRemainingReturn } from "./firstLeftoverLastDropoutRemainingReturn";
 
+/** Build a timeline section whose activity graph marks only the supplied roles inactive. */
 function sectionWithInactiveRoles(
   template: RehearsalSong["sections"][number],
   id: string,
