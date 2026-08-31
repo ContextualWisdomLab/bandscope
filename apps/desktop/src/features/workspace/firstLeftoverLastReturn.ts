@@ -202,6 +202,12 @@ export function firstLeftoverLastReturn(
   let pendingSitOut: PendingLeftoverSitOut | null = null;
   let pendingRemaining: PendingRemainingLeftover | null = null;
 
+  /**
+   * Reset partial-return tracking and make the current section the new reduction baseline.
+   *
+   * @param sectionLabel Named section that interrupted the tracked sequence.
+   * @param sittingOut Own-property inactive roles observed in that section.
+   */
   const restartTrackingFromCurrentSection = (
     sectionLabel: string,
     sittingOut: NamedGraphNode[]
@@ -245,13 +251,17 @@ export function firstLeftoverLastReturn(
 
       const returningLast = remainingNodes.filter((node) => node.active);
       const stillRemaining = remainingNodes.filter((node) => node.active === false);
+      const trackedRemainingIds = new Set(pendingRemaining.remainingIds);
+      const untrackedDropout = sittingOut.some(
+        (node) => !trackedRemainingIds.has(node.roleId)
+      );
+      if (untrackedDropout) {
+        restartTrackingFromCurrentSection(sectionLabel, sittingOut);
+        continue;
+      }
 
       if (returningLast.length > 0 && stillRemaining.length === 0) {
-        const trackedRemainingIds = new Set(pendingRemaining.remainingIds);
-        const concurrentDropout = sittingOut.some(
-          (node) => !trackedRemainingIds.has(node.roleId)
-        );
-        if (concurrentDropout || returningLast.length !== 1) {
+        if (returningLast.length !== 1) {
           restartTrackingFromCurrentSection(sectionLabel, sittingOut);
           continue;
         }
@@ -305,12 +315,22 @@ export function firstLeftoverLastReturn(
       const remainingLeftovers = leftoverNodes.filter((node) => node!.active === false);
 
       if (returningLeftovers.length > 0 && remainingLeftovers.length > 0) {
+        const remainingIds = remainingLeftovers.map((node) => node!.roleId);
+        const remainingIdSet = new Set(remainingIds);
+        const concurrentDropout = sittingOut.some(
+          (node) => !remainingIdSet.has(node.roleId)
+        );
+        if (concurrentDropout) {
+          restartTrackingFromCurrentSection(sectionLabel, sittingOut);
+          continue;
+        }
+
         pendingRemaining = {
           leftoverSectionLabel: pendingSitOut.leftoverSectionLabel,
           remainingSectionLabel: sectionLabel,
           fromSectionLabel: pendingSitOut.fromSectionLabel,
           leftoverIds: pendingSitOut.leftoverIds,
-          remainingIds: remainingLeftovers.map((node) => node!.roleId),
+          remainingIds,
           originalSitOutIds: pendingSitOut.originalSitOutIds
         };
         pendingSitOut = null;
