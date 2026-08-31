@@ -23,7 +23,7 @@ function sectionWithInactiveRoles(
 }
 
 describe("firstLeftoverLastReturn selected-role search", () => {
-  it("keeps searching after the selected part newly drops out during remaining leftover", () => {
+  it("invalidates the earlier sequence when the selected part newly drops out during remaining leftover", () => {
     const seed = createDemoRehearsalSong();
     const template = seed.sections[0]!;
     const song: RehearsalSong = {
@@ -47,14 +47,7 @@ describe("firstLeftoverLastReturn selected-role search", () => {
       ]
     };
 
-    expect(firstLeftoverLastReturn(song, "bass-guitar")).toEqual({
-      sectionLabel: "outro",
-      remainingSectionLabel: "bridge",
-      leftoverSectionLabel: "chorus",
-      fromSectionLabel: "verse",
-      lastRoleId: "lead-vocal",
-      lastRoleName: "Lead Vocal"
-    });
+    expect(firstLeftoverLastReturn(song, "bass-guitar")).toBeNull();
   });
 
   it("does not tell a new dropout to come in last from an earlier leftover sit-out", () => {
