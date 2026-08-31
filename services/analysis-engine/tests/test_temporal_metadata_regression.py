@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -41,7 +42,8 @@ def test_temporal_failure_keeps_operator_recording_label(tmp_path: Path) -> None
 
 
 def test_pre_temporal_full_analysis_cache_is_invalidated(tmp_path: Path) -> None:
-    """Reject schema-v1 full results while retaining the independent feature cache schema."""
+    """Invalidate old full results without discarding compatible stem features."""
+    request = _local_request(tmp_path)
     legacy_cache = tmp_path / "legacy-analysis.json"
     legacy_cache.write_text(
         json.dumps(
@@ -70,6 +72,22 @@ def test_pre_temporal_full_analysis_cache_is_invalidated(tmp_path: Path) -> None
     assert analysis_api._load_cached_analysis(legacy_cache) is None
     assert analysis_api.FEATURE_CACHE_SCHEMA_VERSION == 1
 
-    new_cache_path = analysis_api._analysis_cache_path(_local_request(tmp_path))
+    new_cache_path = analysis_api._analysis_cache_path(request)
     assert new_cache_path is not None
     assert new_cache_path.parent.name == "analysis-cache-v2"
+
+    local_source = request["localSource"]
+    legacy_feature_key = {
+        "schemaVersion": analysis_api.FEATURE_CACHE_SCHEMA_VERSION,
+        "projectId": request["projectId"],
+        "sourcePath": local_source["sourcePath"],
+        "fileName": local_source["fileName"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    legacy_digest = hashlib.sha256(
+        json.dumps(legacy_feature_key, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    assert analysis_api._feature_cache_paths(request) == (
+        tmp_path / "analysis-cache-v1" / f"{legacy_digest}.features.json",
+        tmp_path / "analysis-cache-v1" / f"{legacy_digest}.features.npz",
+    )
