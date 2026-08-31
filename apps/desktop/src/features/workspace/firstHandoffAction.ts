@@ -36,9 +36,14 @@ export function firstHandoffAction(song: RehearsalSong): MetadataHandoffFirstAct
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
       continue;
     }
-    const sectionId = meaningfulRangeText(sectionValue.id);
+    const sectionId = sectionValue.id;
     const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (!sectionId || !sectionLabel || !isSectionFormLabel(sectionLabel)) {
+    if (
+      typeof sectionId !== "string" ||
+      !meaningfulRangeText(sectionId) ||
+      !sectionLabel ||
+      !isSectionFormLabel(sectionLabel)
+    ) {
       continue;
     }
 
@@ -46,9 +51,14 @@ export function firstHandoffAction(song: RehearsalSong): MetadataHandoffFirstAct
       if (!isRuntimeObject(roleValue)) {
         continue;
       }
-      const roleId = meaningfulRangeText(roleValue.id);
+      const roleId = roleValue.id;
       const roleName = roleValue.name;
-      if (!roleId || typeof roleName !== "string" || !meaningfulRangeText(roleName)) {
+      if (
+        typeof roleId !== "string" ||
+        !meaningfulRangeText(roleId) ||
+        typeof roleName !== "string" ||
+        !meaningfulRangeText(roleName)
+      ) {
         continue;
       }
       if (!isRuntimeObject(roleValue.range)) {
