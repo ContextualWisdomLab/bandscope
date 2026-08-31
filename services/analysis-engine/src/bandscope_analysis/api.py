@@ -86,7 +86,7 @@ class RangePayload(TypedDict):
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal results."""
+    """Typed harmony payload nested inside rehearsal roles."""
 
     chord: str
     functionLabel: str
@@ -618,11 +618,7 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
         return None
 
     digest = _cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION)
-    return (
-        Path(cache_root)
-        / f"analysis-cache-v{ANALYSIS_CACHE_SCHEMA_VERSION}"
-        / f"{digest}.json"
-    )
+    return Path(cache_root) / f"analysis-cache-v{ANALYSIS_CACHE_SCHEMA_VERSION}" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
