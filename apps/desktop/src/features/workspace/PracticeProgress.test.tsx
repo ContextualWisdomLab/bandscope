@@ -29,6 +29,21 @@ describe("PracticeProgress", () => {
     expect(screen.getByText("50%")).toBeTruthy();
   });
 
+  it("renders the next-action copy when a practice step is named", () => {
+    const handleChange = vi.fn();
+    render(
+      <PracticeProgress
+        progress={0}
+        onChange={handleChange}
+        nextActionCopy="Check Bass Guitar's first range, then mark this part started."
+      />
+    );
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Check Bass Guitar's first range, then mark this part started."
+    );
+  });
+
   it("calls onChange with increased value when increase button is clicked", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);

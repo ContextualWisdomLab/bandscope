@@ -5,7 +5,11 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  practiceProgressNextAction,
+  type PracticeProgressNextAction
+} from "./practiceProgressNextAction";
+import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -50,6 +54,20 @@ function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
 /** Documented. */
 function formatStatusLabel(status: string): string {
   return status.replaceAll("_", " ");
+}
+
+/** Map a practice-progress step onto bilingual workspace copy. */
+function practiceProgressCopyKey(kind: PracticeProgressNextAction["kind"]): TranslationKey {
+  if (kind === "start") {
+    return "workspacePracticeProgressStart";
+  }
+  if (kind === "continue") {
+    return "workspacePracticeProgressContinue";
+  }
+  if (kind === "ready-next") {
+    return "workspacePracticeProgressReadyNext";
+  }
+  return "workspacePracticeProgressReadyDone";
 }
 
 /** Documented. */
@@ -163,6 +181,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const practiceNext = useMemo(
+    () => practiceProgressNextAction(song, activeRole),
+    [activeRole, song]
+  );
+  const practiceNextCopy = practiceNext
+    ? fillRangeCopy(t(practiceProgressCopyKey(practiceNext.kind)), {
+        roleName: practiceNext.roleName,
+        nextRoleName: practiceNext.nextRoleName ?? ""
+      })
+    : undefined;
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -497,7 +525,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     </div>
                   </div>
                 )}
-                <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
+                <PracticeProgress
+                  progress={activeRoleDetails?.practiceProgress}
+                  onChange={handlePracticeProgressChange}
+                  nextActionCopy={practiceNextCopy}
+                />
                 <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
               </div>
             )}

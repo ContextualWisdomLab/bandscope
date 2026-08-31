@@ -47,6 +47,14 @@ BandScope models a song as rehearsal-facing roles, not only as a single global h
 - Exports should be compact rehearsal artifacts rather than DAW sessions or engraved notation.
 - Acceptable examples include cue sheets, section roadmaps, role notes, lyric-linked anchors, and chart-style summaries.
 - Export formats must stay aligned with `docs/security/app-security.md` export safety rules.
+- When every named part is marked ready, the selected-part practice tracker names downloading tonight's cue sheet and sending it to the group as the next action.
+
+## Practice progress
+
+- Each named role may record a 0–100 `practiceProgress` percentage for tonight's prep.
+- Missing progress means the part has not been marked started.
+- After a named part is selected, the workspace must name the next action: start, continue, switch to the next unready named part, or send the cue sheet.
+- Inherited, non-finite, out-of-range, unnamed, duplicated, or conflicting section copies fail closed and must not become rehearsal authority.
 
 ## Rehearsal prioritization
 

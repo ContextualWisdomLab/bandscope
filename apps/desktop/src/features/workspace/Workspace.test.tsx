@@ -16,6 +16,20 @@ function setNavigatorLanguage(language: string) {
   });
 }
 
+function withProgress(song: RehearsalSong, progressByRoleId: Record<string, number>): RehearsalSong {
+  return {
+    ...song,
+    sections: song.sections.map((section) => ({
+      ...section,
+      roles: section.roles.map((role) =>
+        Object.prototype.hasOwnProperty.call(progressByRoleId, role.id)
+          ? { ...role, practiceProgress: progressByRoleId[role.id] }
+          : role
+      )
+    }))
+  };
+}
+
 describe("Workspace", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
@@ -194,6 +208,83 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Check that span on your instrument before the verse."
     );
+  });
+
+  it("names the start step after the unstarted bass part is selected", () => {
+    setNavigatorLanguage("en-US");
+
+    render(<Workspace song={createDemoRehearsalSong()} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Check Bass Guitar's first range, then mark this part started."
+    );
+  });
+
+  it("names the continue step while the selected bass part is still below ready", () => {
+    setNavigatorLanguage("en-US");
+    const song = withProgress(createDemoRehearsalSong(), { "bass-guitar": 50 });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Keep practicing Bass Guitar until this part is ready for the room."
+    );
+  });
+
+  it("names the next unready part after bass is marked ready", () => {
+    setNavigatorLanguage("en-US");
+    const song = withProgress(createDemoRehearsalSong(), { "bass-guitar": 100 });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Bass Guitar is ready. Switch to Keyboard 1 Right Hand and check that part's range."
+    );
+  });
+
+  it("names the cue-sheet send when every named part is marked ready", () => {
+    setNavigatorLanguage("en-US");
+    const song = withProgress(createDemoRehearsalSong(), {
+      "bass-guitar": 100,
+      "keys-right": 100,
+      "lead-vocal": 100
+    });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Every named part is marked ready. Download tonight's cue sheet and send it to the group."
+    );
+  });
+
+  it("hides practice next-action copy when section copies disagree", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [
+      {
+        ...song.sections[0]!,
+        id: "verse-1",
+        roles: song.sections[0]!.roles.map((role) =>
+          role.id === "bass-guitar" ? { ...role, practiceProgress: 100 } : role
+        )
+      },
+      {
+        ...song.sections[0]!,
+        id: "chorus-1",
+        roles: song.sections[0]!.roles.map((role) =>
+          role.id === "bass-guitar" ? { ...role, practiceProgress: 40 } : role
+        )
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.queryByTestId("practice-progress-next-action")).toBeNull();
   });
 
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {

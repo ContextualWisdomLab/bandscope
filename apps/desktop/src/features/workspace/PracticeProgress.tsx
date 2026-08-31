@@ -2,14 +2,15 @@ import { memo, useCallback } from "react";
 import { Minus, Plus } from "lucide-react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 
-/** Documented. */
+/** Selected-part practice tracker with an optional named next rehearsal step. */
 interface PracticeProgressProps {
   progress?: number;
   onChange: (newProgress: number) => void;
+  nextActionCopy?: string;
 }
 
 /** Documented. */
-function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressProps) {
+function PracticeProgressComponent({ progress = 0, onChange, nextActionCopy }: PracticeProgressProps) {
   const t = createTranslator(detectPreferredLocale());
 
   const handleDecrease = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -47,6 +48,12 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
         </label>
         <span className="text-sm font-semibold text-slate-200">{progress}%</span>
       </div>
+
+      {nextActionCopy ? (
+        <p className="mb-3 text-sm leading-6 text-slate-100" data-testid="practice-progress-next-action">
+          {nextActionCopy}
+        </p>
+      ) : null}
 
       <div className="flex items-center gap-4">
         <button
