@@ -23,37 +23,63 @@ function sectionWithInactiveRoles(
   };
 }
 
-describe("firstLeftoverLastDropoutRemainingReturn simultaneous return", () => {
-  it("fails closed when multiple still-out roles return together", () => {
-    const seed = createDemoRehearsalSong();
-    const template = seed.sections[0]!;
-    const song: RehearsalSong = {
-      ...seed,
-      sections: [
-        sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
-          "bass-guitar",
-          "keys-right",
-          "lead-vocal"
-        ]),
-        sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
-          "keys-right",
-          "lead-vocal"
-        ]),
-        sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["lead-vocal"]),
-        sectionWithInactiveRoles(template, "outro-1", "outro", 60, []),
-        sectionWithInactiveRoles(template, "tag-1", "tag", 80, [
-          "bass-guitar",
-          "keys-right",
-          "lead-vocal"
-        ]),
-        sectionWithInactiveRoles(template, "coda-1", "coda", 100, [
-          "bass-guitar",
-          "keys-right"
-        ]),
-        sectionWithInactiveRoles(template, "ending-1", "ending", 120, [])
-      ]
-    };
+/** Build a sequence whose final two still-out roles return in the same section. */
+function simultaneousRemainingReturnSong(): RehearsalSong {
+  const seed = createDemoRehearsalSong();
+  const template = seed.sections[0]!;
+  return {
+    ...seed,
+    sections: [
+      sectionWithInactiveRoles(template, "verse-1", "verse", 0, [
+        "bass-guitar",
+        "keys-right",
+        "lead-vocal"
+      ]),
+      sectionWithInactiveRoles(template, "chorus-1", "chorus", 20, [
+        "keys-right",
+        "lead-vocal"
+      ]),
+      sectionWithInactiveRoles(template, "bridge-1", "bridge", 40, ["lead-vocal"]),
+      sectionWithInactiveRoles(template, "outro-1", "outro", 60, []),
+      sectionWithInactiveRoles(template, "tag-1", "tag", 80, [
+        "bass-guitar",
+        "keys-right",
+        "lead-vocal"
+      ]),
+      sectionWithInactiveRoles(template, "coda-1", "coda", 100, [
+        "bass-guitar",
+        "keys-right"
+      ]),
+      sectionWithInactiveRoles(template, "ending-1", "ending", 120, [])
+    ]
+  };
+}
 
-    expect(firstLeftoverLastDropoutRemainingReturn(song)).toBeNull();
+describe("firstLeftoverLastDropoutRemainingReturn simultaneous return", () => {
+  it("fails closed when multiple still-out roles return together without a selected role", () => {
+    expect(firstLeftoverLastDropoutRemainingReturn(simultaneousRemainingReturnSong())).toBeNull();
+  });
+
+  it("returns the selected role when that role is one of simultaneous returners", () => {
+    expect(
+      firstLeftoverLastDropoutRemainingReturn(simultaneousRemainingReturnSong(), "keys-right")
+    ).toEqual({
+      sectionLabel: "ending",
+      remainingSectionLabel: "coda",
+      dropoutSectionLabel: "tag",
+      lastReturnSectionLabel: "outro",
+      leftoverSectionLabel: "chorus",
+      fromSectionLabel: "verse",
+      remainingRoleId: "keys-right",
+      remainingRoleName: "Keys (Right Hand)",
+      returningRoleId: "keys-right",
+      returningRoleName: "Keys (Right Hand)"
+    });
+  });
+
+  it("fails closed when the selected role cannot disambiguate simultaneous returners", () => {
+    expect(
+      firstLeftoverLastDropoutRemainingReturn(simultaneousRemainingReturnSong(), "lead-vocal")
+    ).toBeNull();
   });
 });
