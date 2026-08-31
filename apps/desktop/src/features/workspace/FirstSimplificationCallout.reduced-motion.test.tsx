@@ -21,8 +21,7 @@ describe("FirstSimplificationCallout reduced motion", () => {
     }));
 
     const grid = document.createElement("div");
-    grid.setAttribute("role", "region");
-    grid.setAttribute("aria-label", "Scrollable song structure timeline");
+    grid.dataset.testid = "song-structure-grid";
     const target = document.createElement("div");
     target.dataset.sectionIndex = "0";
     const scrollIntoView = vi.fn();
