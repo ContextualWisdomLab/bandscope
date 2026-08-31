@@ -7,7 +7,7 @@ import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 type Translator = (key: TranslationKey) => string;
 
 /**
- * Build tonight's first-action lead for the rehearsal chart JSON.
+ * Build tonight's first-action lead for the full-band rehearsal chart JSON.
  *
  * Uses the same playable-span authority as the ready map. Values stay
  * literal so JSON encoding, not this helper, is the serialization boundary.
@@ -18,7 +18,9 @@ export function firstChartAction(
   activeRole: string | null,
   t: Translator
 ): ChartFirstAction | null {
-  const squeeze = firstRangeSqueeze(song, activeRole);
+  // The chart body always contains the full band, so a transient UI role filter must not alter its lead.
+  void activeRole;
+  const squeeze = firstRangeSqueeze(song, null);
   if (!squeeze) {
     return null;
   }
