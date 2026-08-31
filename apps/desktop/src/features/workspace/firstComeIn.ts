@@ -91,6 +91,7 @@ export function firstComeIn(
       continue;
     }
 
+    const sectionActivity = new Map<string, boolean>();
     for (const nodeValue of sectionValue.partGraph) {
       if (
         !isRuntimeObject(nodeValue) ||
@@ -107,13 +108,23 @@ export function firstComeIn(
       }
 
       const activeFlag = ownActiveFlag(nodeValue);
+      if (activeFlag === null) {
+        continue;
+      }
+      const existingFlag = sectionActivity.get(roleId);
+      if (existingFlag !== undefined && existingFlag !== activeFlag) {
+        return null;
+      }
+      if (existingFlag === undefined) {
+        sectionActivity.set(roleId, activeFlag);
+      }
+    }
+
+    for (const [roleId, activeFlag] of sectionActivity) {
       if (activeFlag === false) {
         if (!sittingOut.has(roleId)) {
           sittingOut.set(roleId, { sectionIndex, sectionLabel });
         }
-        continue;
-      }
-      if (activeFlag !== true) {
         continue;
       }
 
