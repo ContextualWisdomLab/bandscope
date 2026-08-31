@@ -305,22 +305,30 @@ export function firstLeftoverLastDropoutRemainingLastReturnTutti(
     if (pendingTutti) {
       const pending = pendingTutti;
       if (activeRole && !selectedPartBelongs(pending, activeRole)) {
+        pendingTutti = null;
+        if (sittingOut.length === 0) {
+          reducedFrom = null;
+          sittingOutIds = null;
+        } else {
+          reducedFrom = sectionLabel;
+          sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
+        }
+      } else {
+        if (sittingOut.length === 0) {
+          return {
+            sectionLabel,
+            remainingLastReturnSectionLabel: pending.remainingLastReturnSectionLabel,
+            remainingSectionLabel: pending.remainingDropoutSectionLabel,
+            dropoutSectionLabel: pending.dropoutSectionLabel,
+            lastReturnSectionLabel: pending.lastReturnSectionLabel,
+            leftoverSectionLabel: pending.leftoverSectionLabel,
+            fromSectionLabel: pending.fromSectionLabel,
+            remainingRoleId: pending.lastRoleId,
+            remainingRoleName: namedRoles.get(pending.lastRoleId)!
+          };
+        }
         continue;
       }
-      if (sittingOut.length === 0) {
-        return {
-          sectionLabel,
-          remainingLastReturnSectionLabel: pending.remainingLastReturnSectionLabel,
-          remainingSectionLabel: pending.remainingDropoutSectionLabel,
-          dropoutSectionLabel: pending.dropoutSectionLabel,
-          lastReturnSectionLabel: pending.lastReturnSectionLabel,
-          leftoverSectionLabel: pending.leftoverSectionLabel,
-          fromSectionLabel: pending.fromSectionLabel,
-          remainingRoleId: pending.lastRoleId,
-          remainingRoleName: namedRoles.get(pending.lastRoleId)!
-        };
-      }
-      continue;
     }
 
     if (pendingRemainingDropout) {
@@ -471,6 +479,14 @@ export function firstLeftoverLastDropoutRemainingLastReturnTutti(
     }
 
     if (pendingRemaining) {
+      const originalSitOutIds = new Set(pendingRemaining.originalSitOutIds);
+      if (sittingOut.some((node) => !originalSitOutIds.has(node.roleId))) {
+        pendingRemaining = null;
+        reducedFrom = sectionLabel;
+        sittingOutIds = new Set(sittingOut.map((node) => node.roleId));
+        continue;
+      }
+
       const remainingNodes: NamedGraphNode[] = [];
       for (const remainingId of pendingRemaining.remainingIds) {
         const remainingNode = nodes.find((node) => node.roleId === remainingId);
