@@ -135,8 +135,9 @@ function namedGraphNodes(
  * so repeated form labels never collapse distinct timeline positions.
  *
  * Inherited/missing activity, incomplete or contradictory graphs, unnamed
- * roles, and malformed runtime data fail closed. When a role is selected, only
- * a transition in a song that contains that trustworthy role is shown.
+ * roles, and malformed runtime data fail closed. When a role is selected, a
+ * selected inactive part is shown only when it is itself a leftover from the
+ * tracked reduced cohort, so the workspace never tells a silent part to play.
  */
 export function firstLeftover(
   song: RehearsalSong | unknown,
@@ -182,9 +183,20 @@ export function firstLeftover(
     const returning = nodes.filter(
       (node) => node.active === true && baselineIds.has(node.roleId)
     );
-    const leftover = sittingOut.find((node) => baselineIds.has(node.roleId));
+    const leftovers = sittingOut.filter((node) => baselineIds.has(node.roleId));
 
-    if (returning.length > 0 && leftover) {
+    if (returning.length > 0 && leftovers.length > 0) {
+      let leftover = leftovers[0]!;
+      if (activeRole) {
+        const activeRoleNode = nodes.find((node) => node.roleId === activeRole)!;
+        if (!activeRoleNode.active) {
+          const selectedLeftover = leftovers.find((node) => node.roleId === activeRole);
+          if (!selectedLeftover) {
+            return null;
+          }
+          leftover = selectedLeftover;
+        }
+      }
       return {
         sectionLabel,
         fromSectionLabel: reducedFrom,
@@ -193,7 +205,7 @@ export function firstLeftover(
       };
     }
 
-    if (returning.length === baselineIds.size && !leftover) {
+    if (returning.length === baselineIds.size && leftovers.length === 0) {
       if (sittingOut.length === 0) {
         reducedFrom = null;
         sittingOutIds = null;
