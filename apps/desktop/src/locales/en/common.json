@@ -156,6 +156,7 @@
   "workspaceFirstLeftoverReturnTitle": "Tonight's first leftover return",
   "workspaceFirstLeftoverReturnNamed": "{leftoverRoleName} comes back at {sectionLabel} after staying out of {leftoverSectionLabel}. Count {leftoverRoleName} in from the top of {sectionLabel}.",
   "workspaceFirstLeftoverReturnComeBack": "{leftoverRoleName} comes back at {sectionLabel} after staying out of {leftoverSectionLabel}. Play from the top of {sectionLabel}.",
+  "workspaceFirstLeftoverReturnNone": "No leftover return is needed: every named part stays active. Rehearse from the first section without a count-back cue.",
   "workspaceFirstLeftoverReturnMissing": "Tonight's first leftover return still needs a named leftover part that comes back after a leftover sit-out. Confirm where that leftover part returns before the first section.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
