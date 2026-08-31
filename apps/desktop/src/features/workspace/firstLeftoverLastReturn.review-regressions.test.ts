@@ -9,6 +9,13 @@ function sectionWithInactiveRoles(
   start: number,
   inactiveRoleIds: readonly string[]
 ): RehearsalSong["sections"][number] {
+  const knownRoleIds = new Set(template.partGraph.map((node) => node.role_id));
+  for (const inactiveRoleId of inactiveRoleIds) {
+    if (!knownRoleIds.has(inactiveRoleId)) {
+      throw new Error(`Unknown test role id: ${inactiveRoleId}`);
+    }
+  }
+
   const inactive = new Set(inactiveRoleIds);
   return {
     ...template,
@@ -22,10 +29,44 @@ function sectionWithInactiveRoles(
   };
 }
 
+function templateWithAdditionalRole(
+  template: RehearsalSong["sections"][number],
+  roleId: string,
+  roleName: string
+): RehearsalSong["sections"][number] {
+  const sourceRole = template.roles[0]!;
+  const sourceNode = template.partGraph[0]!;
+  return {
+    ...template,
+    roles: [
+      ...template.roles,
+      {
+        ...sourceRole,
+        id: roleId,
+        name: roleName,
+        overlapWarnings: []
+      }
+    ],
+    partGraph: [
+      ...template.partGraph,
+      {
+        ...sourceNode,
+        role_id: roleId,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ]
+  };
+}
+
 describe("firstLeftoverLastReturn review regressions", () => {
   it("fails closed when several remaining parts return together", () => {
     const seed = createDemoRehearsalSong();
-    const template = seed.sections[0]!;
+    const template = templateWithAdditionalRole(
+      seed.sections[0]!,
+      "acoustic-guitar",
+      "Acoustic Guitar"
+    );
     const song: RehearsalSong = {
       ...seed,
       sections: [
@@ -156,11 +197,9 @@ describe("firstLeftoverLastReturn review regressions", () => {
       sections: [
         sectionWithInactiveRoles(selectedTemplate, "verse-1", "verse", 0, [
           "keys-right",
-          "acoustic-guitar",
           "lead-vocal"
         ]),
         sectionWithInactiveRoles(selectedTemplate, "chorus-1", "chorus", 20, [
-          "acoustic-guitar",
           "lead-vocal"
         ]),
         sectionWithInactiveRoles(selectedTemplate, "bridge-1", "bridge", 40, [
