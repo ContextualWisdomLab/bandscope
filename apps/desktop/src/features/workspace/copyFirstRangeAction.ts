@@ -42,6 +42,7 @@ function execCommandWriter(): ClipboardTextWriter | null {
 
   return {
     writeText: async (text: string): Promise<boolean> => {
+      const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       const textarea = document.createElement("textarea");
       textarea.value = text;
       textarea.setAttribute("readonly", "");
@@ -57,6 +58,13 @@ function execCommandWriter(): ClipboardTextWriter | null {
         return false;
       } finally {
         textarea.remove();
+        if (previouslyFocused?.isConnected) {
+          try {
+            previouslyFocused.focus({ preventScroll: true });
+          } catch {
+            // Focus restoration is best-effort and must not turn a successful copy into an error.
+          }
+        }
       }
     }
   };
