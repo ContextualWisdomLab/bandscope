@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-08-31 - Replace Array.find with for-loop in fallback mechanisms
+**Learning:** Using `Array.prototype.find()` creates closure allocations which can add overhead when polling is used in a fallback mechanism that checks an array frequently.
+**Action:** Replace `Array.prototype.find()` with a simple `for...of` loop and early `break` to avoid closure allocation overhead when iterating over small static arrays.
