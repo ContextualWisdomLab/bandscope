@@ -196,20 +196,20 @@ describe("Workspace", () => {
     );
   });
 
-  it("names tonight's first breath and the next last-line inhale", () => {
+  it("names tonight's first section finish and the section-boundary action", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
     render(<Workspace song={song} />);
 
     const callout = screen.getByTestId("first-breath");
-    expect(callout).toHaveTextContent("Tonight's first breath");
+    expect(callout).toHaveTextContent("Tonight's first section finish");
     expect(callout).toHaveTextContent(
-      "verse ends at 0:30. Breathe together before the last line of the verse."
+      "verse ends at 0:30. Finish together at the section boundary."
     );
   });
 
-  it("keeps the selected active part on tonight's first breath", () => {
+  it("keeps the selected active part on tonight's first section finish", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
 
@@ -217,11 +217,11 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
 
     expect(screen.getByTestId("first-breath")).toHaveTextContent(
-      "verse ends at 0:30. Breathe together before the last line of the verse."
+      "verse ends at 0:30. Finish together at the section boundary."
     );
   });
 
-  it("asks the player to confirm the last-line breath when the selected part sits out", () => {
+  it("asks the player to confirm the section finish when the selected part sits out", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections[0] = {
@@ -235,7 +235,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
 
     expect(screen.getByTestId("first-breath")).toHaveTextContent(
-      "Tonight's first breath still needs an end time. Confirm the last-line breath before you leave the first section."
+      "Tonight's first section finish still needs a valid end time. Confirm the section ending before rehearsal starts."
     );
   });
 
@@ -368,6 +368,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
-    expect(screen.getByText("오늘 먼저 맞출 숨")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 맞출 구간 끝")).toBeTruthy();
   });
 });
