@@ -234,12 +234,6 @@ export function firstLeftoverLastReturn(
     const sittingOut = nodes.filter((node) => node.active === false);
 
     if (pendingRemaining) {
-      const trackedRemainingIds = new Set(pendingRemaining.remainingIds);
-      if (sittingOut.some((node) => !trackedRemainingIds.has(node.roleId))) {
-        restartTrackingFromCurrentSection(sectionLabel, sittingOut);
-        continue;
-      }
-
       const remainingNodes: NamedGraphNode[] = [];
       for (const remainingId of pendingRemaining.remainingIds) {
         const remainingNode = nodes.find((node) => node.roleId === remainingId);
@@ -253,7 +247,11 @@ export function firstLeftoverLastReturn(
       const stillRemaining = remainingNodes.filter((node) => node.active === false);
 
       if (returningLast.length > 0 && stillRemaining.length === 0) {
-        if (returningLast.length !== 1) {
+        const trackedRemainingIds = new Set(pendingRemaining.remainingIds);
+        const concurrentDropout = sittingOut.some(
+          (node) => !trackedRemainingIds.has(node.roleId)
+        );
+        if (concurrentDropout || returningLast.length !== 1) {
           restartTrackingFromCurrentSection(sectionLabel, sittingOut);
           continue;
         }
@@ -307,18 +305,12 @@ export function firstLeftoverLastReturn(
       const remainingLeftovers = leftoverNodes.filter((node) => node!.active === false);
 
       if (returningLeftovers.length > 0 && remainingLeftovers.length > 0) {
-        const remainingIds = remainingLeftovers.map((node) => node!.roleId);
-        const remainingIdSet = new Set(remainingIds);
-        if (sittingOut.some((node) => !remainingIdSet.has(node.roleId))) {
-          restartTrackingFromCurrentSection(sectionLabel, sittingOut);
-          continue;
-        }
         pendingRemaining = {
           leftoverSectionLabel: pendingSitOut.leftoverSectionLabel,
           remainingSectionLabel: sectionLabel,
           fromSectionLabel: pendingSitOut.fromSectionLabel,
           leftoverIds: pendingSitOut.leftoverIds,
-          remainingIds,
+          remainingIds: remainingLeftovers.map((node) => node!.roleId),
           originalSitOutIds: pendingSitOut.originalSitOutIds
         };
         pendingSitOut = null;
