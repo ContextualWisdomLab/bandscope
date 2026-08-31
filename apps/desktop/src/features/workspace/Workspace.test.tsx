@@ -227,9 +227,9 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const callout = screen.getByTestId("first-leftover-last-dropout-remaining-last-return");
-    expect(callout).toHaveTextContent("Tonight's first leftover last-dropout remaining last-return");
+    expect(callout).toHaveTextContent("Tonight's first final re-entry");
     expect(callout).toHaveTextContent(
-      "Bass Guitar comes back at ending after leftover last-dropout remaining at stop. Count Bass Guitar in from the top of ending."
+      "Bass Guitar is the last part back at ending; the others started returning at stop. Count Bass Guitar in from the top of ending."
     );
   });
 
@@ -321,7 +321,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     expect(screen.getByTestId("first-leftover-last-dropout-remaining-last-return")).toHaveTextContent(
-      "Bass Guitar comes back at ending after leftover last-dropout remaining at stop. Come in from the top of ending."
+      "Bass Guitar is the last part back at ending; the others started returning at stop. Come in from the top of ending."
     );
   });
 
@@ -332,7 +332,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-leftover-last-dropout-remaining-last-return")).toHaveTextContent(
-      "Tonight's first leftover last-dropout remaining last-return still needs leftover last-dropout remaining and a later leftover last-dropout remaining last-return. Confirm who comes back last after leftover last-dropout remaining before the first section."
+      "No final re-entry is confirmed yet. Before the first section, check which part returns last after the band begins coming back in."
     );
   });
 
