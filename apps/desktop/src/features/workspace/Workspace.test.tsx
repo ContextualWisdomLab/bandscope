@@ -192,9 +192,9 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     const callout = screen.getByTestId("first-leftover-last-return");
-    expect(callout).toHaveTextContent("Tonight's first leftover last-return");
+    expect(callout).toHaveTextContent("Tonight's first final re-entry");
     expect(callout).toHaveTextContent(
-      "Lead Vocal comes back last at outro after staying leftover from bridge. Count Lead Vocal in from the top of outro."
+      "Lead Vocal is the last part back at outro; the others started returning at bridge. Count Lead Vocal in from the top of outro."
     );
   });
 
@@ -251,7 +251,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
 
     expect(screen.getByTestId("first-leftover-last-return")).toHaveTextContent(
-      "Lead Vocal comes back last at outro after staying leftover from bridge. Come in from the top of outro."
+      "Lead Vocal is the last part back at outro; the others started returning at bridge. Come in from the top of outro."
     );
   });
 
@@ -262,7 +262,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-leftover-last-return")).toHaveTextContent(
-      "Tonight's first leftover last-return still needs a named leftover part that comes back last after remaining leftover. Confirm who comes in last at that return before the first section."
+      "No final re-entry is confirmed yet. Before the first section, check which part returns last after the band begins coming back in."
     );
   });
 
