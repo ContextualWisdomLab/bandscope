@@ -6,7 +6,7 @@ import { firstTacet } from "./firstTacet";
 function withSitOut(
   song: RehearsalSong,
   roleId: string,
-  isActive: boolean | undefined = false
+  isActive: boolean | "omit" = false
 ): RehearsalSong {
   return {
     ...song,
@@ -18,7 +18,7 @@ function withSitOut(
               if (node.role_id !== roleId) {
                 return node;
               }
-              if (isActive === undefined) {
+              if (isActive === "omit") {
                 const rest: Record<string, unknown> = {
                   role_id: node.role_id,
                   handoff_to: node.handoff_to,
@@ -34,6 +34,20 @@ function withSitOut(
   };
 }
 
+function withFollowingSection(song: RehearsalSong): RehearsalSong {
+  const verse = song.sections[0]!;
+  const chorus = {
+    ...verse,
+    id: "chorus-1",
+    label: "chorus" as RehearsalSong["sections"][number]["label"],
+    timeRange: {
+      start: verse.timeRange.end,
+      end: verse.timeRange.end + 20
+    }
+  };
+  return { ...song, sections: [verse, chorus] };
+}
+
 describe("firstTacet", () => {
   it("returns null on the demo song where every graph node is active", () => {
     expect(firstTacet(createDemoRehearsalSong())).toBeNull();
@@ -46,9 +60,25 @@ describe("firstTacet", () => {
     });
   });
 
+  it("uses song-wide role metadata when production omits an inactive role from the section", () => {
+    const song = withSitOut(withFollowingSection(createDemoRehearsalSong()), "keys-right");
+    song.sections[0] = {
+      ...song.sections[0]!,
+      roles: song.sections[0]!.roles.filter((role) => role.id !== "keys-right")
+    };
+
+    expect(firstTacet(song)).toEqual({
+      sectionLabel: "verse",
+      roleName: "Keyboard 1 Right Hand"
+    });
+  });
+
   it("skips blank labels until a named sit-out exists", () => {
     const song = withSitOut(createDemoRehearsalSong(), "keys-right");
-    song.sections[0] = { ...song.sections[0]!, label: "none" as RehearsalSong["sections"][number]["label"] };
+    song.sections[0] = {
+      ...song.sections[0]!,
+      label: "none" as RehearsalSong["sections"][number]["label"]
+    };
     expect(firstTacet(song)).toBeNull();
   });
 
@@ -63,7 +93,10 @@ describe("firstTacet", () => {
 
   it("ignores inherited is_active evidence", () => {
     const song = createDemoRehearsalSong();
-    const inherited = Object.create({ is_active: false, role_id: "keys-right" }) as RehearsalSong["sections"][number]["partGraph"][number];
+    const inherited = Object.create({
+      is_active: false,
+      role_id: "keys-right"
+    }) as RehearsalSong["sections"][number]["partGraph"][number];
     song.sections[0] = {
       ...song.sections[0]!,
       partGraph: [inherited, ...song.sections[0]!.partGraph]
@@ -72,7 +105,27 @@ describe("firstTacet", () => {
   });
 
   it("does not treat a missing is_active flag as a sit-out", () => {
-    expect(firstTacet(withSitOut(createDemoRehearsalSong(), "keys-right", undefined))).toBeNull();
+    expect(firstTacet(withSitOut(createDemoRehearsalSong(), "keys-right", "omit"))).toBeNull();
+  });
+
+  it("rejects inherited roles as display-name authority", () => {
+    const song = withSitOut(createDemoRehearsalSong(), "keys-right");
+    const section = song.sections[0]!;
+    const inherited = Object.assign(Object.create({ roles: section.roles }), {
+      id: section.id,
+      label: section.label,
+      confidence: section.confidence,
+      timeRange: section.timeRange,
+      chords: section.chords,
+      roles: undefined,
+      cues: section.cues,
+      partGraph: section.partGraph,
+      practice_progress: section.practice_progress
+    });
+    delete inherited.roles;
+    song.sections[0] = inherited as RehearsalSong["sections"][number];
+
+    expect(firstTacet(song)).toBeNull();
   });
 
   it("fails closed on malformed runtime roots", () => {
