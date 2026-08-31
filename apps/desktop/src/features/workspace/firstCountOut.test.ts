@@ -1,4 +1,8 @@
-import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
+import {
+  createDemoRehearsalSong,
+  parseRehearsalSong,
+  type RehearsalSong
+} from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
 import { fillRangeCopy } from "./firstRangeSqueeze";
 import { firstCountOut, formatCountOutTime } from "./firstCountOut";
@@ -39,6 +43,18 @@ describe("firstCountOut", () => {
       sectionLabel: "verse",
       endTime: "0:30"
     });
+  });
+
+  it("does not turn migrated legacy timing placeholders into count-out evidence", () => {
+    const seed = createDemoRehearsalSong();
+    const legacySong = {
+      ...seed,
+      sections: seed.sections.map(({ timeRange: _timeRange, ...section }) => section)
+    };
+    const migrated = parseRehearsalSong(legacySong);
+
+    expect(migrated.sections[0]!.timeRange).toEqual({ start: 0, end: 1 });
+    expect(firstCountOut(migrated)).toBeNull();
   });
 
   it("skips blank labels until a named section end exists", () => {
