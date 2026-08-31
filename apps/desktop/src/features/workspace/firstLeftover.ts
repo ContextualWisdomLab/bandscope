@@ -192,7 +192,7 @@ export function firstLeftover(
         if (!activeRoleNode.active) {
           const selectedLeftover = leftovers.find((node) => node.roleId === activeRole);
           if (!selectedLeftover) {
-            return null;
+            continue;
           }
           leftover = selectedLeftover;
         }
