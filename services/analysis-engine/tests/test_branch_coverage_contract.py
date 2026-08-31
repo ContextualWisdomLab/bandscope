@@ -108,7 +108,7 @@ def test_temporal_feature_builder_returns_none_for_non_local_or_missing_source()
 
 
 def test_temporal_feature_builder_recovers_when_source_path_cannot_be_read() -> None:
-    """Fall back to no temporal features when the analyzer cannot open the path."""
+    """Keep the source label when the analyzer cannot open the recording path."""
     request = {
         "sourceKind": "local_audio",
         "sourceLabel": "song.wav",
@@ -119,7 +119,7 @@ def test_temporal_feature_builder_recovers_when_source_path_cannot_be_read() -> 
         "TemporalAnalyzer",
         side_effect=FileNotFoundError("no such file"),
     ):
-        assert analysis_api._build_local_temporal_features(request) is None
+        assert analysis_api._build_local_temporal_features(request) == {"title": "song.wav"}
 
 
 def test_chart_section_without_active_roles_and_duplicate_priority_footer() -> None:
