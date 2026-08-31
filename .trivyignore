@@ -27,24 +27,3 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
-
-# CVE-2026-16633: pdfjs-dist < 6.2.108.
-# Upgrading pdfjs-dist to >= 6.2.0 requires Node.js >= 22.13.0, which breaks
-# existing CI compatibility pipelines running older Node versions. Therefore, we
-# append this CVE to .trivyignore instead of bumping the dependency to avoid
-# regressions. Revisit by 2026-12-31.
-CVE-2026-16633 exp:2026-12-31
-
-# CVE-2026-13697, CVE-2026-16728, CVE-2026-14643, CVE-2026-15157, CVE-2026-16729: undici vulnerabilities
-# We use undici internally / transitively and it requires an update. However, modifying `package-lock.json`
-# or bumping versions is forbidden for out-of-scope backend fixes, as per memory rules. We suppress this for now.
-CVE-2026-13697
-CVE-2026-16728
-CVE-2026-14643
-CVE-2026-15157
-CVE-2026-16729
-
-# CVE-2026-67213 / GHSA-2v37-7h3g-55p8: nanoid
-# Same reasoning, we are avoiding out of scope lockfile changes.
-CVE-2026-67213
-GHSA-2v37-7h3g-55p8
