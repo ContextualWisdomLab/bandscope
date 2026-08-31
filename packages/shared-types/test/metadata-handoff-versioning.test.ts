@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createDemoRehearsalSong, parseMetadataHandoffArtifact } from "../src/index";
+import {
+  createDemoRehearsalSong,
+  isMetadataHandoffArtifact,
+  parseMetadataHandoffArtifact
+} from "../src/index";
 
 function legacyV1Artifact() {
   const song = createDemoRehearsalSong();
@@ -48,21 +52,41 @@ const firstAction = {
   clash: true
 } as const;
 
+function v2(overrides: Record<string, unknown> = {}) {
+  return {
+    ...legacyV1Artifact(),
+    artifactVersion: 2,
+    firstAction,
+    ...overrides
+  };
+}
+
 describe("metadata handoff versioning", () => {
-  it("keeps the shipped v1 schema strict and accepts firstAction only under v2", () => {
+  it("keeps the v1 schema strict and accepts the first-action field only under v2", () => {
     const v1 = legacyV1Artifact();
 
     expect(parseMetadataHandoffArtifact(v1)).toEqual(v1);
     expect(() => parseMetadataHandoffArtifact({ ...v1, firstAction })).toThrow("firstAction");
+    expect(parseMetadataHandoffArtifact(v2())).toEqual(v2());
+  });
 
-    expect(parseMetadataHandoffArtifact({
-      ...v1,
-      artifactVersion: 2,
-      firstAction
-    })).toEqual({
-      ...v1,
-      artifactVersion: 2,
-      firstAction
-    });
+  it("fails closed on unsupported or malformed v2 envelopes", () => {
+    expect(() => parseMetadataHandoffArtifact(null)).toThrow("root");
+    expect(() => parseMetadataHandoffArtifact({ ...legacyV1Artifact(), artifactVersion: 3 })).toThrow("artifactVersion");
+    expect(() => parseMetadataHandoffArtifact({ ...legacyV1Artifact(), artifactVersion: 2 })).toThrow("firstAction");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: null }))).toThrow("firstAction");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, extraField: true } }))).toThrow("firstAction.extraField");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, sectionId: 3 } }))).toThrow("firstAction.sectionId");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, roleId: "   " } }))).toThrow("firstAction.roleId");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, sectionLabel: 3 } }))).toThrow("firstAction.sectionLabel");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, sectionLabel: "solo" } }))).toThrow("firstAction.sectionLabel");
+    expect(() => parseMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, clash: "yes" } }))).toThrow("firstAction.clash");
+    expect(() => parseMetadataHandoffArtifact(v2({ unexpected: true }))).toThrow("unexpected");
+  });
+
+  it("exposes a boolean guard for both supported versions and invalid input", () => {
+    expect(isMetadataHandoffArtifact(legacyV1Artifact())).toBe(true);
+    expect(isMetadataHandoffArtifact(v2())).toBe(true);
+    expect(isMetadataHandoffArtifact(v2({ firstAction: { ...firstAction, roleName: "" } }))).toBe(false);
   });
 });
