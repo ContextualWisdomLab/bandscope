@@ -71,6 +71,8 @@ describe("export sanitization", () => {
       // Prevent bypasses using NUL bytes
       expect(escapeCsvField("\x00=1+2")).toBe("'\x00=1+2");
       expect(escapeCsvField("  \x00@cmd")).toBe("'  \x00@cmd");
+      expect(escapeCsvField("\x00\x00=1+2")).toBe("'\x00\x00=1+2");
+      expect(escapeCsvField("  \x00\x00@cmd")).toBe("'  \x00\x00@cmd");
     });
 
     it("handles combined scenarios: formula injection with structural characters", () => {
