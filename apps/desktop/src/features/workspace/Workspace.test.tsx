@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalClipboard = navigator.clipboard;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -20,6 +21,10 @@ describe("Workspace", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
     vi.restoreAllMocks();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: originalClipboard
+    });
     Object.defineProperty(URL, "createObjectURL", {
       configurable: true,
       value: originalCreateObjectUrl
@@ -28,6 +33,7 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    Reflect.deleteProperty(document, "execCommand");
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -196,6 +202,76 @@ describe("Workspace", () => {
     );
   });
 
+  it("copies tonight's first check for the band chat", async () => {
+    setNavigatorLanguage("en-US");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy tonight's first check" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
+      );
+    });
+    expect(screen.getByTestId("first-range-copy-status")).toHaveTextContent(
+      "Copied. Paste it in the band chat before the first section."
+    );
+  });
+
+  it("names a next action when clipboard write is blocked without exposing the failure", async () => {
+    setNavigatorLanguage("en-US");
+    const writeText = vi.fn().mockRejectedValue(new Error("/Users/md/secret-job.json"));
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockReturnValue(false)
+    });
+
+    render(<Workspace song={createDemoRehearsalSong()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy tonight's first check" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("first-range-copy-status")).toHaveTextContent(
+        "Clipboard is blocked in this window. Select tonight's first check and copy it before the first section."
+      );
+    });
+    expect(screen.queryByText(/secret-job/i)).toBeNull();
+  });
+
+  it("copies the missing-range next action when no named span exists", async () => {
+    setNavigatorLanguage("en-US");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      range: { lowestNote: "", highestNote: "none" },
+      overlapWarnings: []
+    }));
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy tonight's first check" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section."
+      );
+    });
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +401,27 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "오늘 첫 확인 복사" })).toBeTruthy();
+  });
+
+  it("copies the Korean first-check sentence for the band chat", async () => {
+    setNavigatorLanguage("ko-KR");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText }
+    });
+
+    render(<Workspace song={createDemoRehearsalSong()} />);
+    fireEvent.click(screen.getByRole("button", { name: "오늘 첫 확인 복사" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        "verse의 Bass Guitar은 C#2–E3이고 다른 파트와 겹칩니다. verse 들어가기 전에 그 충돌을 악기로 들어 보세요."
+      );
+    });
+    expect(screen.getByTestId("first-range-copy-status")).toHaveTextContent(
+      "복사했습니다. 첫 구간 전에 밴드 채팅에 붙여 넣으세요."
+    );
   });
 });
