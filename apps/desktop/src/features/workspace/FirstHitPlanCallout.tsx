@@ -23,13 +23,13 @@ type OpenedHitPlan = Readonly<{
   landingRoleId: string;
   hitPlan: string;
   hitPlanSource: ProvenanceSource;
+  hitPlanTargetWasTruncated: boolean;
   atSeconds: number;
 }>;
 
 const GENERATED_ACTIVITY_HIT_PLAN =
   /^Land this hit with (.+); don't drift past the downbeat\.$/u;
 const GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET = "the rest of the band";
-const MAX_GENERATED_HIT_PLAN_CHARACTERS = 180;
 /** Engine-owned source labels that can appear as targets without being section lineup names. */
 const GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS = new Set<string>([
   GENERATED_ACTIVITY_HIT_PLAN_BAND_TARGET,
@@ -47,18 +47,16 @@ function formatHitPlanCopy(template: string, values: HitPlanCopyValues): string 
 /**
  * Admit a truncated generated target only when it uniquely prefixes one active lineup name.
  *
- * The resolver bounds model-owned guidance to 180 Unicode code points while preserving the
- * generated sentence shape. A long role name can therefore be truncated inside that sentence.
- * Prefix inference is safe only for a sentence that reached that bound and only when one active
- * role extends the bounded target; ordinary short prefixes remain verbatim and ambiguous long
- * prefixes fail closed.
+ * Prefix inference is safe only when the resolver explicitly records that it shortened the
+ * generated target itself. An untruncated sentence at the same display length carries no such
+ * authority. Ambiguous truncated prefixes also fail closed.
  */
 function uniquelyMatchesBoundedLineupTarget(
-  hitPlan: string,
+  targetWasTruncated: boolean,
   targetRole: string,
   knownSectionRoleNames: readonly string[]
 ): boolean {
-  if (Array.from(hitPlan).length !== MAX_GENERATED_HIT_PLAN_CHARACTERS) {
+  if (!targetWasTruncated) {
     return false;
   }
   return knownSectionRoleNames.filter((name) => name.startsWith(targetRole)).length === 1;
@@ -68,6 +66,7 @@ function uniquelyMatchesBoundedLineupTarget(
 function localizedHitPlan(
   hitPlan: string,
   hitPlanSource: ProvenanceSource,
+  hitPlanTargetWasTruncated: boolean,
   generatedTemplate: string,
   generatedBandTemplate: string,
   knownSectionRoleNames: readonly string[]
@@ -86,11 +85,15 @@ function localizedHitPlan(
   if (GENERATED_ACTIVITY_HIT_PLAN_ENGINE_TARGETS.has(targetRole)) {
     return generatedTemplate.replace("{target}", () => targetRole);
   }
-  // An exact active-part name is authoritative. When the resolver had to bound a generated
-  // sentence, a unique long-name prefix is equivalent evidence; short or ambiguous prefixes are not.
+  // An exact active-part name is authoritative. A unique prefix is equivalent evidence only when
+  // the resolver explicitly proved that it truncated the generated target at the display boundary.
   const matchesLineup =
     knownSectionRoleNames.some((name) => name === targetRole) ||
-    uniquelyMatchesBoundedLineupTarget(hitPlan, targetRole, knownSectionRoleNames);
+    uniquelyMatchesBoundedLineupTarget(
+      hitPlanTargetWasTruncated,
+      targetRole,
+      knownSectionRoleNames
+    );
   if (!matchesLineup) {
     return hitPlan;
   }
@@ -139,6 +142,7 @@ export function FirstHitPlanCallout({ song, songInstanceToken }: FirstHitPlanCal
     named?.landingRoleId,
     named?.hitPlan,
     named?.hitPlanSource,
+    named?.hitPlanTargetWasTruncated,
     named?.atSeconds
   ]);
 
@@ -165,6 +169,7 @@ export function FirstHitPlanCallout({ song, songInstanceToken }: FirstHitPlanCal
     openedHitPlan.landingRoleId === named.landingRoleId &&
     openedHitPlan.hitPlan === named.hitPlan &&
     openedHitPlan.hitPlanSource === named.hitPlanSource &&
+    openedHitPlan.hitPlanTargetWasTruncated === named.hitPlanTargetWasTruncated &&
     openedHitPlan.atSeconds === named.atSeconds;
   const at = formatHitPlanTime(named.atSeconds);
   const copyValues: HitPlanCopyValues = {
@@ -178,6 +183,7 @@ export function FirstHitPlanCallout({ song, songInstanceToken }: FirstHitPlanCal
   const hitPlan = localizedHitPlan(
     named.hitPlan,
     named.hitPlanSource,
+    named.hitPlanTargetWasTruncated,
     t("firstHitPlanGeneratedGuidance"),
     t("firstHitPlanGeneratedBandGuidance"),
     named.sectionRoleNames
@@ -217,6 +223,7 @@ export function FirstHitPlanCallout({ song, songInstanceToken }: FirstHitPlanCal
             landingRoleId: named.landingRoleId,
             hitPlan: named.hitPlan,
             hitPlanSource: named.hitPlanSource,
+            hitPlanTargetWasTruncated: named.hitPlanTargetWasTruncated,
             atSeconds: named.atSeconds
           });
         }}
