@@ -26,30 +26,53 @@ function ownActiveFlag(value: Record<string, unknown>): boolean | null {
   return null;
 }
 
+type NamedRoleCatalog = Map<string, string>;
+
 /**
- * Resolve a named role from a section's own-property `roles` list.
+ * Build trustworthy role identity evidence across the whole song.
  *
- * Blank, `none`, inherited, or non-string names are not rehearsal authority.
+ * Production analysis deliberately keeps inactive roles out of each section's
+ * `roles` array while retaining them in `partGraph`. A song-wide catalog lets
+ * those inactive graph nodes remain valid reduction evidence without treating
+ * an unnamed, duplicate, or contradictory role entry as authority.
  */
-function namedRoleOnSection(
-  sectionValue: Record<string, unknown>,
-  roleId: string
-): string | undefined {
-  if (!Array.isArray(sectionValue.roles)) {
-    return undefined;
+function namedSongRoles(songValue: Record<string, unknown>): NamedRoleCatalog | null {
+  if (!Array.isArray(songValue.sections)) {
+    return null;
   }
-  for (const roleValue of sectionValue.roles) {
-    if (!isRuntimeObject(roleValue) || !Object.prototype.hasOwnProperty.call(roleValue, "id")) {
-      continue;
+
+  const namedRoles: NamedRoleCatalog = new Map();
+  for (const sectionValue of songValue.sections) {
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+      return null;
     }
-    if (meaningfulRangeText(roleValue.id) !== roleId) {
-      continue;
+
+    const sectionRoleIds = new Set<string>();
+    for (const roleValue of sectionValue.roles) {
+      if (
+        !isRuntimeObject(roleValue) ||
+        !Object.prototype.hasOwnProperty.call(roleValue, "id") ||
+        !Object.prototype.hasOwnProperty.call(roleValue, "name")
+      ) {
+        return null;
+      }
+
+      const roleId = meaningfulRangeText(roleValue.id);
+      const roleName = meaningfulRangeText(roleValue.name);
+      if (!roleId || !roleName || sectionRoleIds.has(roleId)) {
+        return null;
+      }
+      sectionRoleIds.add(roleId);
+
+      const knownName = namedRoles.get(roleId);
+      if (knownName && knownName !== roleName) {
+        return null;
+      }
+      namedRoles.set(roleId, roleName);
     }
-    return meaningfulRangeText(
-      Object.prototype.hasOwnProperty.call(roleValue, "name") ? roleValue.name : undefined
-    );
   }
-  return undefined;
+
+  return namedRoles.size >= 2 ? namedRoles : null;
 }
 
 type NamedGraphNode = {
@@ -58,52 +81,66 @@ type NamedGraphNode = {
 };
 
 /**
- * Collect named graph nodes whose `is_active` flag is own-property evidence.
+ * Collect a section's complete, unique graph against the song-wide role catalog.
  *
- * A node with a blank role, unnamed part, inherited flag, or missing graph
- * identity is isolated instead of becoming tutti or reduction authority.
+ * Every expected role needs exactly one own-property boolean activity flag.
+ * Missing, unknown, duplicate, inherited, or malformed graph evidence fails
+ * closed instead of manufacturing a reduction or full-band hit.
  */
-function namedGraphNodes(sectionValue: Record<string, unknown>): NamedGraphNode[] | null {
+function namedGraphNodes(
+  sectionValue: Record<string, unknown>,
+  namedRoles: NamedRoleCatalog
+): NamedGraphNode[] | null {
   if (!Array.isArray(sectionValue.partGraph)) {
     return null;
   }
 
   const nodes: NamedGraphNode[] = [];
+  const seenRoleIds = new Set<string>();
   for (const nodeValue of sectionValue.partGraph) {
     if (
       !isRuntimeObject(nodeValue) ||
       !Object.prototype.hasOwnProperty.call(nodeValue, "role_id")
     ) {
-      continue;
+      return null;
     }
+
     const roleId = meaningfulRangeText(nodeValue.role_id);
-    if (!roleId) {
-      continue;
+    if (!roleId || !namedRoles.has(roleId) || seenRoleIds.has(roleId)) {
+      return null;
     }
+
     const active = ownActiveFlag(nodeValue);
     if (active === null) {
-      continue;
+      return null;
     }
-    if (!namedRoleOnSection(sectionValue, roleId)) {
-      continue;
-    }
+
+    seenRoleIds.add(roleId);
     nodes.push({ roleId, active });
   }
+
+  if (seenRoleIds.size !== namedRoles.size) {
+    return null;
+  }
+  for (const roleId of namedRoles.keys()) {
+    if (!seenRoleIds.has(roleId)) {
+      return null;
+    }
+  }
+
   return nodes;
 }
 
 /**
- * Pick the first full-band hit a player should take after a reduced section.
+ * Pick the first complete full-band hit a player should take after a reduction.
  *
- * Uses existing `partGraph` `is_active` authority already produced by
- * analysis. A tutti is the first later named section where every named
- * graph node is own-property active after an earlier named section had at
- * least one own-property sit-out. It is not a come-in, tacet, dropout,
- * handoff, Fine, last-line breath, or the song's opening full-band
- * entrance. Inherited `is_active`, missing graph nodes, blank labels,
- * unnamed roles, single-part hits, same-section false-then-true nodes, and
- * malformed roots fail closed. When a role is selected, only a tutti that
- * includes that named part is shown.
+ * Uses the existing song-wide named role evidence and each section's complete
+ * `partGraph`. A reduction is a named section with at least one own-property
+ * inactive role. A tutti is the first later named section where every expected
+ * role has one own-property active graph node. The song's opening all-active
+ * section is not returned because no earlier reduction exists. Incomplete,
+ * duplicate, contradictory, inherited, unnamed, or malformed evidence fails
+ * closed. When a role is selected, only a tutti containing that role is shown.
  */
 export function firstTutti(
   song: RehearsalSong | unknown,
@@ -113,19 +150,24 @@ export function firstTutti(
     return null;
   }
 
+  const namedRoles = namedSongRoles(song);
+  if (!namedRoles) {
+    return null;
+  }
+
   let reducedFrom: string | null = null;
 
   for (const sectionValue of song.sections) {
     if (!isRuntimeObject(sectionValue)) {
-      continue;
+      return null;
     }
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     if (!sectionLabel) {
       continue;
     }
 
-    const nodes = namedGraphNodes(sectionValue);
-    if (!nodes || nodes.length === 0) {
+    const nodes = namedGraphNodes(sectionValue, namedRoles);
+    if (!nodes) {
       continue;
     }
 
@@ -140,7 +182,7 @@ export function firstTutti(
     if (!reducedFrom || reducedFrom === sectionLabel) {
       continue;
     }
-    if (nodes.length < 2 || nodes.some((node) => node.active !== true)) {
+    if (nodes.some((node) => node.active !== true)) {
       continue;
     }
     if (activeRole && !nodes.some((node) => node.roleId === activeRole)) {
