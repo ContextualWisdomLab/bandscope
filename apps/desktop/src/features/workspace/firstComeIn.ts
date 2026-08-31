@@ -53,16 +53,21 @@ function namedRoleOnSection(
   return undefined;
 }
 
+type SitOutEvidence = {
+  sectionIndex: number;
+  sectionLabel: string;
+};
+
 /**
  * Pick the first explicit return a player should take after sitting out.
  *
  * Uses existing `partGraph` `is_active` authority already produced by
  * analysis. A come-in is the first later named section where a part that
- * sat out (`is_active: false`) is own-property active again. It is not a
- * tacet, dropout, handoff, Fine, first breath, or the song's opening
- * entrance. Inherited `is_active`, missing graph nodes, blank labels,
- * unnamed roles, same-section false-then-true nodes, and malformed roots
- * fail closed. When a role is selected, only that part's return is named.
+ * sat out (`is_active: false`) is own-property active again. Section identity
+ * is tracked by iteration index so repeated form labels remain valid later
+ * returns while false/true evidence inside one section is rejected. Inherited
+ * `is_active`, missing graph nodes, blank labels, unnamed roles, and malformed
+ * roots fail closed. When a role is selected, only that part's return is named.
  */
 export function firstComeIn(
   song: RehearsalSong | unknown,
@@ -72,9 +77,9 @@ export function firstComeIn(
     return null;
   }
 
-  const sittingOut = new Map<string, string>();
+  const sittingOut = new Map<string, SitOutEvidence>();
 
-  for (const sectionValue of song.sections) {
+  for (const [sectionIndex, sectionValue] of song.sections.entries()) {
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
@@ -104,7 +109,7 @@ export function firstComeIn(
       const activeFlag = ownActiveFlag(nodeValue);
       if (activeFlag === false) {
         if (!sittingOut.has(roleId)) {
-          sittingOut.set(roleId, sectionLabel);
+          sittingOut.set(roleId, { sectionIndex, sectionLabel });
         }
         continue;
       }
@@ -112,8 +117,8 @@ export function firstComeIn(
         continue;
       }
 
-      const fromSectionLabel = sittingOut.get(roleId);
-      if (!fromSectionLabel || fromSectionLabel === sectionLabel) {
+      const sitOut = sittingOut.get(roleId);
+      if (!sitOut || sitOut.sectionIndex === sectionIndex) {
         continue;
       }
 
@@ -122,7 +127,7 @@ export function firstComeIn(
         continue;
       }
 
-      return { sectionLabel, roleName, fromSectionLabel };
+      return { sectionLabel, roleName, fromSectionLabel: sitOut.sectionLabel };
     }
   }
 
