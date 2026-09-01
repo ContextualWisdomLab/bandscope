@@ -9,7 +9,7 @@ import {
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 const MAX_ROLE_NAME_CHARACTERS = 80;
 
-/** Tonight's first part handoff: the earliest labeled section and the parts that own the pass. */
+/** Tonight's first part handoff: the destination section and the parts that own the pass into it. */
 export type FirstPartHandoff = {
   section: RehearsalSection;
   givingRole: RehearsalRole;
@@ -129,6 +129,20 @@ function hasBoundedTimeRange(section: RehearsalSection): boolean {
     Number.isInteger(end) &&
     end > start &&
     end <= MAX_SECTION_TIME_SECONDS
+  );
+}
+
+/** Return whether a section has safe identity, label, and timing for buyer-visible navigation. */
+function isSafeSection(section: RehearsalSection): boolean {
+  return (
+    isRuntimeObject(section) &&
+    hasOwnData(section, "label") &&
+    typeof section.label === "string" &&
+    section.label.trim().length > 0 &&
+    hasOwnData(section, "id") &&
+    typeof section.id === "string" &&
+    section.id.trim().length > 0 &&
+    hasBoundedTimeRange(section)
   );
 }
 
@@ -254,95 +268,101 @@ function ownedGraphNode(section: RehearsalSection, roleId: string): PartGraphNod
   return matches.length === 1 ? (matches[0] ?? null) : null;
 }
 
-/** Resolve a corroborated outgoing pass after the runtime root has passed its structural boundary checks. */
+/** Return whether a source receiver edge is corroborated and becomes active in the destination. */
+function isCorroboratedReceiver(
+  source: RehearsalSection,
+  destination: RehearsalSection,
+  givingRoleId: string,
+  receivingRoleId: string
+): boolean {
+  const sourceReceiverNode = ownedGraphNode(source, receivingRoleId);
+  const destinationReceiverNode = ownedGraphNode(destination, receivingRoleId);
+  const destinationGivingNode = ownedGraphNode(destination, givingRoleId);
+  if (
+    sourceReceiverNode === null ||
+    destinationReceiverNode === null ||
+    destinationGivingNode === null ||
+    !hasOwnData(sourceReceiverNode, "handoff_from") ||
+    !hasOwnData(sourceReceiverNode, "is_active") ||
+    sourceReceiverNode.is_active !== false ||
+    !hasOwnData(destinationReceiverNode, "is_active") ||
+    destinationReceiverNode.is_active !== true ||
+    !hasOwnData(destinationGivingNode, "is_active") ||
+    destinationGivingNode.is_active !== false
+  ) {
+    return false;
+  }
+  const incoming = ownedUniqueEdgeIds(sourceReceiverNode.handoff_from);
+  return incoming !== null && incoming.includes(givingRoleId);
+}
+
+/** Resolve a corroborated source-to-destination pass after the runtime root passes structural checks. */
 function resolveSafeFirstPartHandoff(song: RehearsalSong): FirstPartHandoff | null {
   if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
     return null;
   }
 
-  const candidates = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        hasOwnData(section, "label") &&
-        typeof section.label === "string" &&
-        section.label.trim().length > 0 &&
-        hasOwnData(section, "id") &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
-    .flatMap((section) => {
-      const activeRoles = rankedActiveRoles(section);
-      const byId = new Map(activeRoles.map((role) => [role.id, role]));
-      const passes = activeRoles.flatMap((givingRole) => {
-        const givingNode = ownedGraphNode(section, givingRole.id);
-        if (
-          givingNode === null ||
-          !hasOwnData(givingNode, "handoff_to") ||
-          !hasOwnData(givingNode, "is_active") ||
-          givingNode.is_active !== true
-        ) {
-          return [];
-        }
-        const outgoing = ownedUniqueEdgeIds(givingNode.handoff_to);
-        if (outgoing === null) {
-          return [];
-        }
-        const receivingRoles = outgoing
-          .filter((roleId) => roleId !== givingRole.id)
-          .map((roleId) => byId.get(roleId))
-          .filter((role): role is RehearsalRole => role !== undefined)
-          .filter((receivingRole) => {
-            const receivingNode = ownedGraphNode(section, receivingRole.id);
-            if (
-              receivingNode === null ||
-              !hasOwnData(receivingNode, "handoff_from") ||
-              !hasOwnData(receivingNode, "is_active") ||
-              receivingNode.is_active !== true
-            ) {
-              return false;
-            }
-            const incoming = ownedUniqueEdgeIds(receivingNode.handoff_from);
-            return incoming !== null && incoming.includes(givingRole.id);
-          });
-        const receivingRole = pickRankedRole(receivingRoles);
-        if (!receivingRole) {
-          return [];
-        }
-        return [{ givingRole, receivingRole }];
-      });
-      const chosen = pickRankedRole(passes.map((pass) => pass.givingRole));
-      if (!chosen) {
-        return [];
-      }
-      const matched = passes.find((pass) => pass.givingRole.id === chosen.id);
-      if (!matched) {
-        return [];
-      }
-      const givingName = ownedRoleName(matched.givingRole);
-      const receivingName = ownedRoleName(matched.receivingRole);
-      if (!givingName || !receivingName) {
-        return [];
-      }
-      return [
-        {
-          section,
-          givingRole: matched.givingRole,
-          receivingRole: matched.receivingRole,
-          givingName,
-          receivingName,
-          atSeconds: section.timeRange.start
-        }
-      ];
-    })
-    .sort((left, right) => {
-      if (left.atSeconds !== right.atSeconds) {
-        return left.atSeconds - right.atSeconds;
-      }
-      return compareStableId(left.section.id, right.section.id);
-    });
+  const candidates: FirstPartHandoff[] = [];
+  for (let sectionIndex = 0; sectionIndex < song.sections.length - 1; sectionIndex += 1) {
+    const source = song.sections[sectionIndex];
+    const destination = song.sections[sectionIndex + 1];
+    if (!source || !destination || !isSafeSection(source) || !isSafeSection(destination)) {
+      continue;
+    }
 
+    const sourceActiveRoles = rankedActiveRoles(source);
+    const destinationActiveRoles = rankedActiveRoles(destination);
+    const destinationById = new Map(destinationActiveRoles.map((role) => [role.id, role]));
+    const passes = sourceActiveRoles.flatMap((givingRole) => {
+      const givingNode = ownedGraphNode(source, givingRole.id);
+      if (
+        givingNode === null ||
+        !hasOwnData(givingNode, "handoff_to") ||
+        !hasOwnData(givingNode, "is_active") ||
+        givingNode.is_active !== true
+      ) {
+        return [];
+      }
+      const outgoing = ownedUniqueEdgeIds(givingNode.handoff_to);
+      if (outgoing === null) {
+        return [];
+      }
+      const receivingRoles = outgoing
+        .filter((roleId) => roleId !== givingRole.id)
+        .map((roleId) => destinationById.get(roleId))
+        .filter((role): role is RehearsalRole => role !== undefined)
+        .filter((receivingRole) =>
+          isCorroboratedReceiver(source, destination, givingRole.id, receivingRole.id)
+        );
+      const receivingRole = pickRankedRole(receivingRoles);
+      return receivingRole ? [{ givingRole, receivingRole }] : [];
+    });
+    const chosen = pickRankedRole(passes.map((pass) => pass.givingRole));
+    const matched = chosen ? passes.find((pass) => pass.givingRole.id === chosen.id) : undefined;
+    if (!matched) {
+      continue;
+    }
+    const givingName = ownedRoleName(matched.givingRole);
+    const receivingName = ownedRoleName(matched.receivingRole);
+    if (!givingName || !receivingName) {
+      continue;
+    }
+    candidates.push({
+      section: destination,
+      givingRole: matched.givingRole,
+      receivingRole: matched.receivingRole,
+      givingName,
+      receivingName,
+      atSeconds: destination.timeRange.start
+    });
+  }
+
+  candidates.sort((left, right) => {
+    if (left.atSeconds !== right.atSeconds) {
+      return left.atSeconds - right.atSeconds;
+    }
+    return compareStableId(left.section.id, right.section.id);
+  });
   return candidates[0] ?? null;
 }
 
