@@ -313,11 +313,11 @@ git rev-parse develop
 # organization-wide open PR count; -f remains a GET query because the method is explicit
 gh api --method GET search/issues -f q='org:ContextualWisdomLab is:pr is:open' --jq '.total_count'
 
-# BandScope current queue
-gh pr list --state open --limit 500 --json number --jq 'length'
+# BandScope current PR count plus search completeness
+gh api --method GET search/issues -f q='repo:ContextualWisdomLab/bandscope is:pr is:open' --jq '{total_count,incomplete_results}'
 
-# BandScope current issue count
-gh issue list --state open --limit 500 --json number --jq 'length'
+# BandScope current issue count plus search completeness
+gh api --method GET search/issues -f q='repo:ContextualWisdomLab/bandscope is:issue is:open' --jq '{total_count,incomplete_results}'
 
 # exact-head merge evidence for a candidate
 gh pr view <PR> --json number,state,isDraft,headRefOid,baseRefOid,reviews,statusCheckRollup
