@@ -24,6 +24,7 @@ REPOSITORY = "ContextualWisdomLab/bandscope"
 BASE_BRANCH = "develop"
 GITHUB_API_HOST = "api.github.com"
 REPOSITORY_API_PREFIX = f"/repos/{REPOSITORY}/"
+BRANCH_REF_PREFIX = "refs/heads/"
 PAGE_SIZE = 100
 MAX_PAGES = 10
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
@@ -300,6 +301,34 @@ def fetch_live_branch_sha(branch_ref: str, token: str | None) -> str:
     return _require_sha(commit.get("sha"), "branch.commit.sha")
 
 
+def fetch_live_branch_index(token: str | None) -> dict[str, str]:
+    """Resolve all branch tips from one bounded Git refs snapshot."""
+    target = f"{REPOSITORY_API_PREFIX}git/matching-refs/heads/"
+    payload, _ = _request_github_json(target, token)
+    refs = _require_list(payload, "branch snapshot")
+    branch_index: dict[str, str] = {}
+    for index, raw_ref in enumerate(refs):
+        ref_record = _require_record(raw_ref, f"branch snapshot[{index}]")
+        full_ref = _require_text(ref_record.get("ref"), f"branch snapshot[{index}].ref")
+        if not full_ref.startswith(BRANCH_REF_PREFIX) or full_ref == BRANCH_REF_PREFIX:
+            _fail(f"branch snapshot[{index}].ref must be a refs/heads branch")
+        branch_ref = full_ref[len(BRANCH_REF_PREFIX) :]
+        target_object = _require_record(
+            ref_record.get("object"), f"branch snapshot[{index}].object"
+        )
+        if target_object.get("type") != "commit":
+            _fail(f"branch snapshot[{index}].object.type must be commit")
+        branch_sha = _require_sha(
+            target_object.get("sha"), f"branch snapshot[{index}].object.sha"
+        )
+        if branch_ref in branch_index:
+            _fail(f"branch snapshot contains duplicate branch ref: {branch_ref}")
+        branch_index[branch_ref] = branch_sha
+    if BASE_BRANCH not in branch_index:
+        _fail(f"live branch snapshot is missing protected base {BASE_BRANCH}")
+    return branch_index
+
+
 def fetch_live_base_sha(token: str | None) -> str:
     """Resolve the current protected develop tip for backward-compatible callers."""
     return fetch_live_branch_sha(BASE_BRANCH, token)
@@ -331,7 +360,7 @@ def fetch_live_pull_page(
 
 
 def resolve_live_base_tips(live_result: object, token: str | None) -> dict[str, str]:
-    """Resolve every distinct current PR base branch after the complete live inventory read."""
+    """Select every current PR target from one independently resolved branch snapshot."""
     live = _require_record(live_result, "live result")
     if live.get("incomplete_results") is not False:
         _fail("live pull-request inventory is incomplete")
@@ -341,7 +370,12 @@ def resolve_live_base_tips(live_result: object, token: str | None) -> dict[str, 
         pr = _require_record(raw_pr, f"pull_requests[{index}]")
         base = _require_record(pr.get("base"), f"pull_requests[{index}].base")
         base_refs.add(_require_text(base.get("ref"), f"pull_requests[{index}].base.ref"))
-    return {branch_ref: fetch_live_branch_sha(branch_ref, token) for branch_ref in sorted(base_refs)}
+
+    branch_index = fetch_live_branch_index(token)
+    missing = sorted(base_refs - branch_index.keys())
+    if missing:
+        _fail(f"target base ref is absent from the live branch snapshot: {missing[0]}")
+    return {branch_ref: branch_index[branch_ref] for branch_ref in sorted(base_refs)}
 
 
 def _write_manifest_atomic(manifest: dict[str, Any]) -> None:
