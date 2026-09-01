@@ -1,12 +1,14 @@
 # BandScope
 
-BandScope is a local-first desktop rehearsal assistant that turns a song into a practical rehearsal map: section-aware harmony, role-specific cues, tempo and groove guidance, rough stem previews, playable ranges, simplification and transposition hints, confidence, and rehearsal priorities without DAW complexity.
+BandScope is a local-first rehearsal assistant that turns a song into a practical rehearsal map: section-aware harmony, role-specific cues, song form, tempo and groove guidance, stem previews, playable ranges, overlap warnings, simplification/transposition hints, visible confidence, and rehearsal priorities without DAW complexity.
+
+**귀로만 버티던 카피를, 눈으로 정리해 합주 시간을 음악에 더 쓰게 합니다.**
 
 [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/bandscope)
 
 ## Start here
 
-- [Repository README](https://github.com/ContextualWisdomLab/bandscope/blob/develop/README.md) — setup, workspace layout, verification, and public repository baseline.
+- [Repository README](https://github.com/ContextualWisdomLab/bandscope/blob/develop/README.md) — product value, setup, boundaries, verification, and licensing status.
 - [Brand story](brand-story.md) — product promise, audience, positioning, and voice.
 - [Architecture](https://github.com/ContextualWisdomLab/bandscope/blob/develop/ARCHITECTURE.md) — product boundaries, runtime structure, and integration decisions.
 - [Application security](security/app-security.md) — desktop trust boundaries and safe-failure expectations.
@@ -21,9 +23,9 @@ BandScope is a local-first desktop rehearsal assistant that turns a song into a 
 
 ## Product and architecture
 
-BandScope keeps rehearsal guidance local-first and separates user-facing rehearsal decisions from lower-level analysis evidence. The desktop shell is built with Tauri and React, shared TypeScript contracts define cross-boundary data, and the Python analysis engine performs offline audio analysis. Product surfaces should expose confidence and limitations rather than imply notation-grade transcription or DAW-style production editing.
+BandScope is built for rehearsal decisions rather than production editing. Its analysis target is `song → section → role`, so different players can receive different guidance in the same section instead of one flattened global chord label. Automatic analysis stays editable and confidence/provenance should remain visible when uncertainty can change rehearsal decisions.
 
-Changes involving files, URLs, subprocesses, IPC, WebView, model loading, updates, cache, logs, telemetry, export behavior, dependencies, bundled binaries, or model artifacts must follow the repository security and supply-chain contracts. Cross-platform packaging remains governed by the documented Windows and macOS build gates.
+The desktop shell and offline analysis engine are separated by explicit shared contracts. Files, URLs, subprocesses, IPC, WebView, model loading, updates, cache, logs, telemetry, exports, dependencies, bundled binaries, and model artifacts remain governed by the repository security and supply-chain controls.
 
 ## Onboarding and verification
 
@@ -34,6 +36,16 @@ Install the Node and Python dependencies described in the README, then use the r
 ```
 
 The optional Rust/Tauri lane can be enabled with `BANDSCOPE_ENABLE_RUST_CHECK=1`. A pull request is not release-ready merely because documentation source exists; repository and central CI, security, SAST, SBOM, coverage, cross-platform build, and review gates remain authoritative.
+
+## Commercial licensing status
+
+BandScope's ContextualWisdomLab-owned source is provided under the repository's MIT License. Third-party source, native libraries, and model artifacts remain under their own licenses and must satisfy dependency/SBOM policy.
+
+The current Python analysis dependency set includes `soundfile>=0.13.1`. SoundFile itself is BSD-3-Clause, but its documented binary-wheel/runtime path relies on and can bundle LGPL libsndfile. [Issue #1129](https://github.com/ContextualWisdomLab/bandscope/issues/1129) owns replacement/removal of that native path. Until it closes with equivalent real-audio and Windows/macOS evidence, the current analysis stack is not represented as fully compliant with ContextualWisdomLab's commercial inbound-license baseline.
+
+- [MIT project license](https://github.com/ContextualWisdomLab/bandscope/blob/develop/LICENSE)
+- [Dependency policy](security/dependency-policy.md)
+- [SBOM policy](security/sbom-policy.md)
 
 ## Releases and deeper exploration
 
