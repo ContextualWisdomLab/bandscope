@@ -23,7 +23,8 @@ export function sanitizeFilename(title: string): string {
 export function escapeCsvField(value: string): string {
   let escapedValue = value;
   // Prevent CSV formula injection by prefixing problematic leading characters with a single quote
-  if (/^[\s\uFEFF\xA0]*[=+\-@\t\r\n]/.test(value)) {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\s\uFEFF\xA0\x00]*[=+\-@\t\r\n\x00]/.test(value)) {
     escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
