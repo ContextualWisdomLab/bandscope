@@ -43,7 +43,9 @@ def test_role_extractor_basic() -> None:
 
     assert "topologies" in result
     assert "extraction_notes" in result
-    assert result["extraction_notes"] == "Extracted roles using heuristic fallback; handoffs unavailable."
+    assert result["extraction_notes"] == (
+        "Extracted roles using heuristic fallback; handoffs unavailable."
+    )
     assert len(result["topologies"]) == 2
 
     # Check intro section
