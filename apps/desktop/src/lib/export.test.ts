@@ -204,13 +204,24 @@ describe("export generation", () => {
   });
 
   it("leads the handoff JSON with tonight's first action when a lead is provided", () => {
-    const jsonStr = generateMetadataHandoffJson(mockSong, {
+    const formulaRoleName = '=HYPERLINK("http://evil")';
+    const songWithFormulaRoleName: RehearsalSong = {
+      ...mockSong,
+      sections: [{
+        ...mockSong.sections[0]!,
+        roles: [{
+          ...mockSong.sections[0]!.roles[0]!,
+          name: formulaRoleName
+        }]
+      }]
+    };
+    const jsonStr = generateMetadataHandoffJson(songWithFormulaRoleName, {
       createdAt: "2026-06-15T08:30:00.000Z",
       firstAction: {
         sectionId: "s1",
         sectionLabel: "verse",
         roleId: "r1",
-        roleName: '=HYPERLINK("http://evil")',
+        roleName: formulaRoleName,
         lowestNote: "C2",
         highestNote: "C3",
         clash: false
@@ -231,7 +242,7 @@ describe("export generation", () => {
       sectionId: "s1",
       sectionLabel: "verse",
       roleId: "r1",
-      roleName: '=HYPERLINK("http://evil")',
+      roleName: formulaRoleName,
       lowestNote: "C2",
       highestNote: "C3",
       clash: false
