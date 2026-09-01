@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CHECKER = REPO_ROOT / "scripts" / "checks" / "verify_trivy_pr_scan.py"
+TRIVY_CONTRACT_CHECKER = REPO_ROOT / "scripts" / "checks" / "verify_trivy_pr_scan.py"
 
 MISSING_PR_TARGETS = """name: trivy
 
@@ -245,14 +245,14 @@ VALID_CASES = {
 }
 
 
-def _run_checker(workflow: str) -> subprocess.CompletedProcess[str]:
+def _run_checker(workflow_text: str) -> subprocess.CompletedProcess[str]:
     """Run the production checker against one isolated workflow fixture."""
     with tempfile.TemporaryDirectory() as temp_dir:
         workflow_path = Path(temp_dir) / ".github" / "workflows" / "trivy.yml"
         workflow_path.parent.mkdir(parents=True)
-        workflow_path.write_text(workflow, encoding="utf-8")
+        workflow_path.write_text(workflow_text, encoding="utf-8")
         return subprocess.run(
-            [sys.executable, str(CHECKER)],
+            [sys.executable, str(TRIVY_CONTRACT_CHECKER)],
             cwd=temp_dir,
             capture_output=True,
             check=False,
@@ -262,19 +262,23 @@ def _run_checker(workflow: str) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     """Reject unsafe wiring without rejecting valid YAML scalar comments."""
-    accepted = [
-        name for name, workflow in INVALID_CASES.items() if _run_checker(workflow).returncode == 0
+    accepted_invalid_case_names = [
+        case_name
+        for case_name, workflow_text in INVALID_CASES.items()
+        if _run_checker(workflow_text).returncode == 0
     ]
-    rejected = [
-        name for name, workflow in VALID_CASES.items() if _run_checker(workflow).returncode != 0
+    rejected_valid_case_names = [
+        case_name
+        for case_name, workflow_text in VALID_CASES.items()
+        if _run_checker(workflow_text).returncode != 0
     ]
 
-    if accepted or rejected:
+    if accepted_invalid_case_names or rejected_valid_case_names:
         print("Trivy PR contract regression:")
-        for name in accepted:
-            print(f"- accepted malformed workflow: {name}")
-        for name in rejected:
-            print(f"- rejected valid workflow: {name}")
+        for case_name in accepted_invalid_case_names:
+            print(f"- accepted malformed workflow: {case_name}")
+        for case_name in rejected_valid_case_names:
+            print(f"- rejected valid workflow: {case_name}")
         return 1
     print("Trivy PR contract regressions passed")
     return 0
