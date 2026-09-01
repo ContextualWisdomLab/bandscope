@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_resource_policy import AudioResourcePolicyError
 
 
 def _info(*, frames: int = 44_100, samplerate: int = 44_100, channels: int = 2) -> SimpleNamespace:
@@ -36,9 +37,9 @@ def test_preflight_accepts_metadata_and_rewinds_the_caller_handle(mock_info: obj
 @pytest.mark.parametrize(
     ("info", "reason"),
     [
-        (_info(frames=44_100 * 901), "audio resource policy"),
-        (_info(samplerate=7_999), "audio resource policy"),
-        (_info(channels=3), "audio resource policy"),
+        (_info(frames=44_100 * 901), "duration_exceeded"),
+        (_info(samplerate=7_999), "sampling_rate_unsupported"),
+        (_info(channels=3), "channel_count_unsupported"),
     ],
 )
 @patch("bandscope_analysis.audio_metadata.soundfile.info")
@@ -50,19 +51,26 @@ def test_preflight_rejects_untrusted_source_metadata(
     """Source duration, rate, and channel bounds fail before PCM decode."""
     mock_info.return_value = info  # type: ignore[attr-defined]
 
-    with pytest.raises(ValueError, match=reason):
+    with pytest.raises(AudioResourcePolicyError, match="audio resource policy") as error:
         preflight_audio_metadata(io.BytesIO(b"header"))
 
+    assert error.value.reason == reason
 
-@patch(
-    "bandscope_analysis.audio_metadata.soundfile.info",
-    side_effect=RuntimeError("decoder detail"),
-)
-def test_preflight_maps_parser_failures_to_payload_free_policy_error(_mock_info: object) -> None:
-    """Container parser failures do not leak decoder details."""
-    with pytest.raises(ValueError, match="audio resource policy") as error:
-        preflight_audio_metadata(io.BytesIO(b"bad-header"))
 
+@pytest.mark.parametrize("dependency_error", [RuntimeError("decoder detail"), ValueError("decoder detail")])
+def test_preflight_maps_parser_failures_to_payload_free_policy_error(
+    dependency_error: Exception,
+) -> None:
+    """Container parser failures cannot masquerade as policy errors or leak decoder detail."""
+    with patch(
+        "bandscope_analysis.audio_metadata.soundfile.info",
+        side_effect=dependency_error,
+    ):
+        with pytest.raises(AudioResourcePolicyError, match="audio resource policy") as error:
+            preflight_audio_metadata(io.BytesIO(b"bad-header"))
+
+    assert error.value.reason == "malformed_header"
+    assert error.value.policy_version == "1"
     assert "decoder detail" not in str(error.value)
 
 
@@ -87,7 +95,9 @@ def test_preflight_maps_rewind_failures_to_payload_free_policy_error(mock_info: 
 
     mock_info.return_value = _info()  # type: ignore[attr-defined]
 
-    with pytest.raises(ValueError, match="audio resource policy") as error:
+    with pytest.raises(AudioResourcePolicyError, match="audio resource policy") as error:
         preflight_audio_metadata(SeekFailsAfterProbe())
 
+    assert error.value.reason == "malformed_header"
+    assert error.value.policy_version == "1"
     assert "rewind failed" not in str(error.value)
