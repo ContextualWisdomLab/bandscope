@@ -258,6 +258,7 @@ export function RehearsalPlayer({
       }
     };
   }, [audioSourceUrl, hasNativeAudioConversionError]);
+
   useEffect(() => {
     setTransport((current) => {
       if (
