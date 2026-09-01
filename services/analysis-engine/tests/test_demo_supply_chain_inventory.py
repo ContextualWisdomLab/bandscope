@@ -22,7 +22,7 @@ def test_demo_package_is_listed_in_supplemental_inventory() -> None:
     actual_demo_assets = {
         asset_path.name
         for asset_path in DEMO_RESOURCE_ROOT.iterdir()
-        if asset_path.is_file()
+        if not asset_path.is_symlink() and asset_path.is_file()
     }
     assert actual_demo_assets == set(EXPECTED_DEMO_ASSETS)
 
