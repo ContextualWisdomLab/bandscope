@@ -52,7 +52,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     } as unknown as PDFDocumentLoadingTask);
   });
 
-  it("associates the disabled boundary explanation with the unavailable page button", async () => {
+  it("shows the unavailable boundary explanation on pointer hover or keyboard focus", async () => {
     render(<ScoreViewer data={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
@@ -60,10 +60,19 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     const nextButton = screen.getByRole("button", { name: "Next page" });
     const previousDescriptionId = previousButton.getAttribute("aria-describedby");
 
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
+    expect(previousButton).not.toHaveAttribute("title");
     expect(previousDescriptionId).toBeTruthy();
-    expect(document.getElementById(previousDescriptionId!)).toHaveTextContent(
-      "Previous page (Unavailable)"
+
+    const previousReason = screen.getByRole("tooltip");
+    expect(previousReason).toHaveAttribute("id", previousDescriptionId);
+    expect(previousReason).toHaveTextContent("Previous page (Unavailable)");
+    expect(previousReason).toHaveClass(
+      "group-hover:opacity-100",
+      "group-focus-within:opacity-100"
     );
+    previousButton.focus();
+    expect(previousButton).toHaveFocus();
     expect(nextButton).not.toHaveAttribute("aria-describedby");
 
     fireEvent.click(nextButton);
@@ -71,10 +80,19 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     expect(await screen.findByText("Page 3 of 3")).toBeInTheDocument();
 
     const nextDescriptionId = nextButton.getAttribute("aria-describedby");
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
+    expect(nextButton).not.toHaveAttribute("title");
     expect(nextDescriptionId).toBeTruthy();
-    expect(document.getElementById(nextDescriptionId!)).toHaveTextContent(
-      "Next page (Unavailable)"
+
+    const nextReason = screen.getByRole("tooltip");
+    expect(nextReason).toHaveAttribute("id", nextDescriptionId);
+    expect(nextReason).toHaveTextContent("Next page (Unavailable)");
+    expect(nextReason).toHaveClass(
+      "group-hover:opacity-100",
+      "group-focus-within:opacity-100"
     );
+    nextButton.focus();
+    expect(nextButton).toHaveFocus();
     expect(previousButton).not.toHaveAttribute("aria-describedby");
   });
 });
