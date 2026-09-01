@@ -853,7 +853,7 @@ describe("RehearsalPlayer", () => {
     ).toMatch(/Count in 4 beats at 150 BPM/i);
 
     act(() => {
-      vi.advanceTimersByTime(369);
+      vi.advanceTimersByTime(49);
     });
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
