@@ -3,20 +3,18 @@
 from __future__ import annotations
 
 import io
-import warnings
 from dataclasses import dataclass
 
 import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_decode import decode_mono_audio
 from bandscope_analysis.audio_resource_policy import (
     MAX_DURATION_SECONDS,
     MAX_ENCODED_FILE_BYTES,
     AudioResourcePolicyError,
     policy_rejection_message,
-    validate_decoded_audio,
 )
 
 TARGET_SR = 22050  # pYIN feature DSP rate after canonical resource validation
@@ -54,21 +52,14 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
             policy_rejection_message("encoded_file_too_large"),
         )
 
-    fileobj = io.BytesIO(stem_data)
-    preflight_audio_metadata(fileobj)
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
-        y, sr = librosa.load(
-            fileobj,
-            sr=TARGET_SR,
-            mono=True,
-            duration=MAX_TRANSCRIPTION_DURATION_SECONDS,
-        )
+    y_array, sr = decode_mono_audio(
+        io.BytesIO(stem_data),
+        target_sample_rate_hz=TARGET_SR,
+        max_duration_seconds=MAX_TRANSCRIPTION_DURATION_SECONDS,
+    )
 
-    y_array = np.asarray(y, dtype=np.float32)
     if y_array.size == 0 or float(np.max(np.abs(y_array))) < MIN_SIGNAL_PEAK:
         return []
-    validate_decoded_audio(y_array, sr)
 
     fmin = float(librosa.note_to_hz("C1"))
     fmax = float(librosa.note_to_hz("C5"))
@@ -169,7 +160,7 @@ def _contiguous_regions(mask: NDArray[np.bool_]) -> list[tuple[int, int]]:
 
 
 def _merge_adjacent_equal_pitches(events: list[NoteEvent]) -> list[NoteEvent]:
-    """Merge short pitch-equivalent fragments split by frame-level voicing gaps."""
+    """Merge note fragments when pYIN briefly drops voicing."""
     merged: list[NoteEvent] = []
     for event in events:
         if not merged:
