@@ -37,6 +37,36 @@ describe("analysis bridge", () => {
     });
   });
 
+  it("preserves allowlisted string rejections from the production Tauri boundary", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi
+      .fn()
+      .mockRejectedValue("Could not prepare the selected audio for playback.");
+
+    const selection = await selectLocalAudioSource();
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Could not prepare the selected audio for playback."
+      }
+    });
+  });
+
+  it("does not expose unallowlisted native string rejections", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockRejectedValue("/Users/test/private/song.wav failed");
+
+    const selection = await selectLocalAudioSource();
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
+      }
+    });
+  });
+
   it("imports a standard YouTube URL through the browser fallback when Tauri is absent", async () => {
     const selection = await importYoutubeUrl("https://www.youtube.com/watch?v=4ozX4yFUC34");
 
