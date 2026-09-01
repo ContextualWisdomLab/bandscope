@@ -4,6 +4,8 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
 import { fillGrooveCopy, firstGrooveChange, isGrooveChangeTarget } from "./firstGrooveChange";
+import { fillDurationCopy, firstDurationChange, isDurationChangeTarget } from "./firstDurationChange";
+import { confidenceWordKey, fillConfidenceCopy, firstConfidenceChange, isConfidenceChangeTarget } from "./firstConfidenceChange";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +23,8 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const grooveChange = useMemo(() => firstGrooveChange(song), [song]);
+  const durationChange = useMemo(() => firstDurationChange(song), [song]);
+  const confidenceChange = useMemo(() => firstConfidenceChange(song), [song]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -106,7 +110,13 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
       >
-        {song.sections.map((section) => (
+        {song.sections.map((section) => {
+          const hasGrooveAction = Boolean(grooveChange && isGrooveChangeTarget(grooveChange, section.id));
+          const hasDurationAction = Boolean(durationChange && isDurationChangeTarget(durationChange, section.id));
+          const hasConfidenceAction = Boolean(confidenceChange && isConfidenceChangeTarget(confidenceChange, section.id));
+          const hasNextAction = hasGrooveAction || hasDurationAction || hasConfidenceAction;
+
+          return (
           <Card
             key={section.id}
             className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
@@ -122,13 +132,36 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
-              {grooveChange && isGrooveChangeTarget(grooveChange, section.id) ? (
-                <p className="mt-2 text-xs font-medium text-teal-200" data-testid={`groove-next-action-${section.id}`}>
-                  {fillGrooveCopy(
-                    t(grooveChange.kind === "change" ? "sectionGrooveNextActionChange" : "sectionGrooveNextActionHold"),
-                    { sectionLabel: section.label }
-                  )}
-                </p>
+              {hasNextAction ? (
+                <div className="mt-2 space-y-1 border-t border-white/10 pt-2" aria-label={t("workspaceFirstChangesTitle")}>
+                  {grooveChange && hasGrooveAction ? (
+                    <p className="text-xs font-medium text-teal-200" data-testid={`groove-next-action-${section.id}`}>
+                      {fillGrooveCopy(
+                        t(grooveChange.kind === "change" ? "sectionGrooveNextActionChange" : "sectionGrooveNextActionHold"),
+                        { sectionLabel: section.label }
+                      )}
+                    </p>
+                  ) : null}
+                  {durationChange && hasDurationAction ? (
+                    <p className="text-xs font-medium text-sky-200" data-testid={`duration-next-action-${section.id}`}>
+                      {fillDurationCopy(
+                        t(durationChange.kind === "change" ? "sectionDurationNextActionChange" : "sectionDurationNextActionHold"),
+                        { sectionLabel: section.label }
+                      )}
+                    </p>
+                  ) : null}
+                  {confidenceChange && hasConfidenceAction ? (
+                    <p className="text-xs font-medium text-amber-200" data-testid={`confidence-next-action-${section.id}`}>
+                      {fillConfidenceCopy(
+                        t(confidenceChange.kind === "change" ? "sectionConfidenceNextActionChange" : "sectionConfidenceNextActionHold"),
+                        {
+                          sectionLabel: section.label,
+                          level: t(confidenceWordKey(confidenceChange.toLevel))
+                        }
+                      )}
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </CardHeader>
 
@@ -238,7 +271,8 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 })}
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
