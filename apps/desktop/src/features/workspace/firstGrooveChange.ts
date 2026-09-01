@@ -29,8 +29,9 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
  * Walks labeled sections in form order and returns the first consecutive pair
  * whose trimmed groove text differs. When every named section holds the same
  * feel, the result is a same-feel hold so the room does not reset the groove.
- * Stable section ids, rather than display labels, own roadmap targeting. Any
- * duplicate section id is ambiguous runtime evidence and fails closed.
+ * Stable section ids, rather than display labels, own roadmap targeting. All
+ * meaningful section ids are validated for uniqueness before groove evidence
+ * is derived so an ineligible or later duplicate cannot create ambiguous cards.
  */
 export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null {
   const runtimeSong: unknown = song;
@@ -38,9 +39,22 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
     return null;
   }
 
-  const namedGrooves: NamedGroove[] = [];
   const seenSectionIds = new Set<string>();
+  for (const sectionValue of runtimeSong.sections) {
+    if (!isRuntimeObject(sectionValue)) {
+      continue;
+    }
+    const sectionId = meaningfulRangeText(sectionValue.id);
+    if (!sectionId) {
+      continue;
+    }
+    if (seenSectionIds.has(sectionId)) {
+      return null;
+    }
+    seenSectionIds.add(sectionId);
+  }
 
+  const namedGrooves: NamedGroove[] = [];
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue)) {
       continue;
@@ -51,10 +65,6 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
     if (!sectionId || !sectionLabel || !groove) {
       continue;
     }
-    if (seenSectionIds.has(sectionId)) {
-      return null;
-    }
-    seenSectionIds.add(sectionId);
     namedGrooves.push({ sectionId, sectionLabel, groove });
   }
 
