@@ -15,6 +15,7 @@
 ### Fixed
 
 - Run the pinned Trivy filesystem/SARIF scan on pull-request heads targeting `develop` or `main`, so GitHub code scanning can compare the PR configuration instead of reporting the protected-branch Trivy configuration as missing.
+- Hardened the Trivy policy regression so ordinary `pull_request` coverage for `develop` and `main` is structurally required and `pull_request_target` is rejected, while CodeQL and OSSF Scorecard remain push-only repository-local signals.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
@@ -59,10 +60,9 @@
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
 - Issue #40: Enforced 100% Python docstring and test coverage
 - Issue #32: Implemented local analysis orchestration and secure IPC boundaries
-- Issue #33: Implemented secure local audio intake and project bootstrap
 - Issue #35: Engineered section, form, and cue anchor extraction pipeline
-- Issue #34: Implemented role extraction targets and part graph
-- Issue #31: Added role-specific harmony, range, overlap, and confidence metrics
+- Issue #34: Added role extraction targets and part graph
+- Issue #31: Implemented role-specific harmony, range, overlap, and confidence metrics
 - Issue #28: Delivered practical rehearsal workspace UI
 - Issue #27: Supported manual overrides, provenance tracking, and local project persistence
 - Issue #36: Implemented rehearsal priority calculation and cue-sheet (CSV) / chart (JSON) exports
