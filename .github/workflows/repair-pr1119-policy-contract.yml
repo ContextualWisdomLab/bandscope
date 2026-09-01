@@ -31,14 +31,15 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Revalidate exact live PR head
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Revalidate exact writer branch head
         run: |
           set -euo pipefail
+          expected_ref="refs/heads/fix/trivy-pr-code-scanning"
+          test "$GITHUB_REF" = "$expected_ref"
           start_head=$(git rev-parse HEAD)
-          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1119 --jq .head.sha)
-          test "$start_head" = "$live_head"
+          test "$start_head" = "$GITHUB_SHA"
+          remote_head=$(git ls-remote --exit-code origin "$expected_ref" | awk '{print $1}')
+          test "$remote_head" = "$start_head"
           echo "START_HEAD=$start_head" >> "$GITHUB_ENV"
       - name: Repair stale policy and verify
         run: |
@@ -52,7 +53,7 @@ jobs:
           start_marker = "def test_central_governance_workflows_are_push_only_where_local_signals_remain() -> None:\n"
           end_marker = "\ndef test_opencode_review_declares_top_level_token_permissions() -> None:\n"
           if start_marker not in text or end_marker not in text:
-              raise SystemExit("expected stale policy function boundary not found on exact PR head")
+              raise SystemExit("expected stale policy function boundary not found on exact writer head")
           start = text.index(start_marker)
           end = text.index(end_marker, start)
           stale = text[start:end]
@@ -70,12 +71,11 @@ jobs:
             scripts/checks/test_verify_trivy_pr_scan.py
           git diff --check
       - name: Commit repair and retire one-shot lane
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1119 --jq .head.sha)
-          test "$live_head" = "$START_HEAD"
+          expected_ref="refs/heads/fix/trivy-pr-code-scanning"
+          remote_head=$(git ls-remote --exit-code origin "$expected_ref" | awk '{print $1}')
+          test "$remote_head" = "$START_HEAD"
           rm -f .github/workflows/repair-pr1119-policy-contract.yml
           rm -f .github/repair-pr1119-policy-contract.trigger
           git config user.name "github-actions[bot]"
