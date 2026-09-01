@@ -1,5 +1,6 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
+import { parseRehearsalSongWithTimingEvidence } from "../../lib/rehearsalTimingEvidence";
 import {
   fillDurationCopy,
   firstDurationChange,
@@ -103,6 +104,49 @@ describe("firstDurationChange", () => {
       toSectionId: "bridge-section",
       toSectionLabel: "bridge",
       toDuration: "32"
+    });
+  });
+
+  it("fails closed instead of bridging across a named section with missing timing evidence", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", timeRange: { start: 0, end: 16 } },
+      {
+        ...verse,
+        id: "chorus-gap",
+        label: "chorus",
+        timeRange: null
+      } as unknown as typeof verse,
+      { ...verse, id: "bridge-a", label: "bridge", timeRange: { start: 16, end: 48 } }
+    ];
+
+    expect(firstDurationChange(song)).toBeNull();
+  });
+
+  it("does not present legacy migration placeholders as measured section lengths", () => {
+    const legacySong = structuredClone(createDemoRehearsalSong()) as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacySong.sections[0]!.timeRange;
+
+    const parsedLegacySong = parseRehearsalSongWithTimingEvidence(legacySong);
+    expect(parsedLegacySong.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    expect(firstDurationChange(parsedLegacySong)).toBeNull();
+  });
+
+  it("keeps an explicit measured one-second section eligible for count-in guidance", () => {
+    const measuredSong = structuredClone(createDemoRehearsalSong());
+    measuredSong.sections[0]!.timeRange = { start: 0, end: 1 };
+
+    expect(firstDurationChange(parseRehearsalSongWithTimingEvidence(measuredSong))).toEqual({
+      kind: "same",
+      fromSectionId: "verse-1",
+      fromSectionLabel: "verse",
+      fromDuration: "1",
+      toSectionId: "verse-1",
+      toSectionLabel: "verse",
+      toDuration: "1"
     });
   });
 
