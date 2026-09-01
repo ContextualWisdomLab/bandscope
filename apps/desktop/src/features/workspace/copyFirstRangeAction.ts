@@ -7,6 +7,7 @@
  * dumping implementation detail or local environment data.
  */
 
+/** Result of one bounded first-range clipboard request. */
 export type FirstRangeCopyResult = "copied" | "unavailable";
 
 /** Narrow clipboard port so tests can inject success and failure without DOM authority. */
@@ -27,6 +28,7 @@ function clipboardApiWriter(): ClipboardTextWriter | null {
   }
 
   return {
+    /** Write the exact validated buyer-visible sentence through the browser clipboard port. */
     writeText: async (text: string): Promise<boolean> => {
       await clipboard.writeText(text);
       return true;
@@ -41,6 +43,7 @@ function execCommandWriter(): ClipboardTextWriter | null {
   }
 
   return {
+    /** Write the exact validated sentence through the bounded legacy DOM copy fallback. */
     writeText: async (text: string): Promise<boolean> => {
       const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       const textarea = document.createElement("textarea");
