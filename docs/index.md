@@ -6,9 +6,9 @@ BandScope is a local-first desktop rehearsal assistant that turns a song into a 
 
 ## Start here
 
-- [Repository README](../README.md) — setup, workspace layout, verification, and public repository baseline.
+- [Repository README](https://github.com/ContextualWisdomLab/bandscope/blob/develop/README.md) — setup, workspace layout, verification, and public repository baseline.
 - [Brand story](brand-story.md) — product promise, audience, positioning, and voice.
-- [Architecture](../ARCHITECTURE.md) — product boundaries, runtime structure, and integration decisions.
+- [Architecture](https://github.com/ContextualWisdomLab/bandscope/blob/develop/ARCHITECTURE.md) — product boundaries, runtime structure, and integration decisions.
 - [Application security](security/app-security.md) — desktop trust boundaries and safe-failure expectations.
 - [Dependency policy](security/dependency-policy.md) — dependency review, lockfile, audit, and supply-chain rules.
 - [Cross-platform build policy](security/cross-platform-build-policy.md) — Windows and macOS release-build expectations.
@@ -16,8 +16,8 @@ BandScope is a local-first desktop rehearsal assistant that turns a song into a 
 - [SBOM policy](security/sbom-policy.md) — component inventory and retained software-bill-of-materials evidence.
 - [Repository governance](repository/governance.md) — contribution and review governance.
 - [Gitflow](repository/gitflow.md) — branch and integration workflow.
-- [Contributing](../CONTRIBUTING.md) — contributor entry point.
-- [Security reporting](../SECURITY.md) — vulnerability reporting guidance.
+- [Contributing](https://github.com/ContextualWisdomLab/bandscope/blob/develop/CONTRIBUTING.md) — contributor entry point.
+- [Security reporting](https://github.com/ContextualWisdomLab/bandscope/blob/develop/SECURITY.md) — vulnerability reporting guidance.
 
 ## Product and architecture
 
