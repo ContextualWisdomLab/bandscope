@@ -5,185 +5,224 @@ from pathlib import Path
 TRIVY_WORKFLOW = Path(".github/workflows/trivy.yml")
 
 
-def _indented_block(lines: list[str], header: str, indent: int) -> list[str]:
+def _indented_block(
+    workflow_lines: list[str], mapping_header: str, mapping_indent: int
+) -> list[str]:
     """Return the YAML-like block nested under an exact-indentation mapping key."""
-    prefix = " " * indent
-    target = f"{prefix}{header}:"
-    for index, line in enumerate(lines):
-        if line != target:
+    indent_prefix = " " * mapping_indent
+    mapping_target = f"{indent_prefix}{mapping_header}:"
+    for line_index, workflow_line in enumerate(workflow_lines):
+        if workflow_line != mapping_target:
             continue
-        block: list[str] = []
-        for candidate in lines[index + 1 :]:
-            stripped = candidate.strip()
-            if not stripped or stripped.startswith("#"):
-                block.append(candidate)
+        nested_block: list[str] = []
+        for candidate_line in workflow_lines[line_index + 1 :]:
+            candidate_text = candidate_line.strip()
+            if not candidate_text or candidate_text.startswith("#"):
+                nested_block.append(candidate_line)
                 continue
-            candidate_indent = len(candidate) - len(candidate.lstrip(" "))
-            if candidate_indent <= indent:
+            candidate_indent = len(candidate_line) - len(candidate_line.lstrip(" "))
+            if candidate_indent <= mapping_indent:
                 break
-            block.append(candidate)
-        return block
+            nested_block.append(candidate_line)
+        return nested_block
     return []
 
 
-def _has_mapping_key(lines: list[str], header: str, indent: int) -> bool:
-    """Return whether ``header`` is a mapping key at exactly ``indent``.
+def _has_mapping_key(
+    workflow_lines: list[str], mapping_header: str, mapping_indent: int
+) -> bool:
+    """Return whether ``mapping_header`` is a key at exactly ``mapping_indent``.
 
     The value may be empty, scalar, or followed by an inline YAML comment.  In
     particular, privileged event keys such as ``pull_request_target: # note``
     must never evade the security contract merely because a comment follows the
     colon.
     """
-    prefix = f"{' ' * indent}{header}:"
-    return any(line.startswith(prefix) for line in lines)
+    mapping_prefix = f"{' ' * mapping_indent}{mapping_header}:"
+    return any(workflow_line.startswith(mapping_prefix) for workflow_line in workflow_lines)
 
 
-def _list_values(lines: list[str], header: str, indent: int) -> set[str]:
+def _list_values(
+    workflow_lines: list[str], mapping_header: str, mapping_indent: int
+) -> set[str]:
     """Return literal scalar list items nested under the requested mapping key."""
-    block = _indented_block(lines, header, indent)
-    item_prefix = " " * (indent + 2) + "- "
+    nested_block = _indented_block(workflow_lines, mapping_header, mapping_indent)
+    item_prefix = " " * (mapping_indent + 2) + "- "
     return {
-        line[len(item_prefix) :].strip()
-        for line in block
-        if line.startswith(item_prefix) and line[len(item_prefix) :].strip()
+        workflow_line[len(item_prefix) :].strip()
+        for workflow_line in nested_block
+        if workflow_line.startswith(item_prefix)
+        and workflow_line[len(item_prefix) :].strip()
     }
 
 
-def _list_item_blocks(lines: list[str], header: str, indent: int) -> list[list[str]]:
+def _list_item_blocks(
+    workflow_lines: list[str], mapping_header: str, mapping_indent: int
+) -> list[list[str]]:
     """Split one YAML-like sequence block into its top-level item blocks."""
-    block = _indented_block(lines, header, indent)
-    item_prefix = " " * (indent + 2) + "- "
-    items: list[list[str]] = []
-    current: list[str] = []
-    for line in block:
-        if line.startswith(item_prefix):
-            if current:
-                items.append(current)
-            current = [line]
-        elif current:
-            current.append(line)
-    if current:
-        items.append(current)
-    return items
+    nested_block = _indented_block(workflow_lines, mapping_header, mapping_indent)
+    item_prefix = " " * (mapping_indent + 2) + "- "
+    item_blocks: list[list[str]] = []
+    current_item_block: list[str] = []
+    for workflow_line in nested_block:
+        if workflow_line.startswith(item_prefix):
+            if current_item_block:
+                item_blocks.append(current_item_block)
+            current_item_block = [workflow_line]
+        elif current_item_block:
+            current_item_block.append(workflow_line)
+    if current_item_block:
+        item_blocks.append(current_item_block)
+    return item_blocks
 
 
-def _step_action(step: list[str]) -> str | None:
+def _step_action(workflow_step: list[str]) -> str | None:
     """Return the action reference from a workflow step, if the step uses one."""
-    for line in step:
-        stripped = line.strip()
-        if stripped.startswith("- uses:"):
-            return stripped.removeprefix("- uses:").strip()
-        if stripped.startswith("uses:"):
-            return stripped.removeprefix("uses:").strip()
+    for workflow_line in workflow_step:
+        line_text = workflow_line.strip()
+        if line_text.startswith("- uses:"):
+            return line_text.removeprefix("- uses:").strip()
+        if line_text.startswith("uses:"):
+            return line_text.removeprefix("uses:").strip()
     return None
 
 
-def _yaml_scalar(value: str) -> str | None:
+def _yaml_scalar(scalar_text: str) -> str | None:
     """Normalize the simple YAML scalars used by workflow ``with`` mappings.
 
     A ``#`` starts an inline YAML comment only when it is outside quotes and is
     separated from the scalar by whitespace. Hash characters inside quoted
     values, or inside an unquoted value such as ``result#1.sarif``, are data.
     """
-    quote: str | None = None
-    escaped = False
-    comment_at: int | None = None
+    quote_delimiter: str | None = None
+    escape_pending = False
+    comment_index: int | None = None
 
-    for index, character in enumerate(value):
-        if quote == '"':
-            if escaped:
-                escaped = False
+    for character_index, text_character in enumerate(scalar_text):
+        if quote_delimiter == '"':
+            if escape_pending:
+                escape_pending = False
                 continue
-            if character == "\\":
-                escaped = True
+            if text_character == "\\":
+                escape_pending = True
                 continue
-            if character == '"':
-                quote = None
+            if text_character == '"':
+                quote_delimiter = None
             continue
-        if quote == "'":
-            if character == "'":
-                quote = None
+        if quote_delimiter == "'":
+            if text_character == "'":
+                quote_delimiter = None
             continue
-        if character in {"'", '"'}:
-            quote = character
+        if text_character in {"'", '"'}:
+            quote_delimiter = text_character
             continue
-        if character == "#" and (index == 0 or value[index - 1].isspace()):
-            comment_at = index
+        if text_character == "#" and (
+            character_index == 0 or scalar_text[character_index - 1].isspace()
+        ):
+            comment_index = character_index
             break
 
-    scalar = value[:comment_at].strip() if comment_at is not None else value.strip()
-    if not scalar:
+    normalized_scalar = (
+        scalar_text[:comment_index].strip()
+        if comment_index is not None
+        else scalar_text.strip()
+    )
+    if not normalized_scalar:
         return None
-    if len(scalar) >= 2 and scalar[0] == scalar[-1] and scalar[0] in {"'", '"'}:
-        return scalar[1:-1]
-    return scalar
+    if (
+        len(normalized_scalar) >= 2
+        and normalized_scalar[0] == normalized_scalar[-1]
+        and normalized_scalar[0] in {"'", '"'}
+    ):
+        return normalized_scalar[1:-1]
+    return normalized_scalar
 
 
-def _mapping_value(lines: list[str], header: str, key: str) -> str | None:
+def _mapping_value(
+    workflow_lines: list[str], mapping_header: str, mapping_key: str
+) -> str | None:
     """Return a scalar from a nested mapping without borrowing sibling evidence."""
-    target = f"{header}:"
-    for index, line in enumerate(lines):
-        if line.strip() != target:
+    mapping_target = f"{mapping_header}:"
+    for line_index, workflow_line in enumerate(workflow_lines):
+        if workflow_line.strip() != mapping_target:
             continue
-        header_indent = len(line) - len(line.lstrip(" "))
-        for candidate in lines[index + 1 :]:
-            stripped = candidate.strip()
-            if not stripped or stripped.startswith("#"):
+        header_indent = len(workflow_line) - len(workflow_line.lstrip(" "))
+        for candidate_line in workflow_lines[line_index + 1 :]:
+            candidate_text = candidate_line.strip()
+            if not candidate_text or candidate_text.startswith("#"):
                 continue
-            candidate_indent = len(candidate) - len(candidate.lstrip(" "))
+            candidate_indent = len(candidate_line) - len(candidate_line.lstrip(" "))
             if candidate_indent <= header_indent:
                 break
-            key_prefix = f"{key}:"
-            if stripped.startswith(key_prefix):
-                return _yaml_scalar(stripped[len(key_prefix) :].strip())
+            mapping_key_prefix = f"{mapping_key}:"
+            if candidate_text.startswith(mapping_key_prefix):
+                return _yaml_scalar(
+                    candidate_text[len(mapping_key_prefix) :].strip()
+                )
         return None
     return None
 
 
 def main() -> int:
     """Require the Trivy workflow to cover PRs targeting protected branches."""
-    lines = TRIVY_WORKFLOW.read_text(encoding="utf-8").splitlines()
-    pull_request_block = _indented_block(lines, "pull_request", 2)
-    pr_targets = _list_values(pull_request_block, "branches", 4)
-    jobs_block = _indented_block(lines, "jobs", 0)
+    workflow_lines = TRIVY_WORKFLOW.read_text(encoding="utf-8").splitlines()
+    pull_request_block = _indented_block(workflow_lines, "pull_request", 2)
+    pull_request_targets = _list_values(pull_request_block, "branches", 4)
+    jobs_block = _indented_block(workflow_lines, "jobs", 0)
     trivy_job = _indented_block(jobs_block, "trivy-fs-scan", 2)
-    steps = _list_item_blocks(trivy_job, "steps", 4)
+    workflow_steps = _list_item_blocks(trivy_job, "steps", 4)
 
-    trivy_outputs = {
-        output
-        for step in steps
-        if (_step_action(step) or "").startswith("aquasecurity/trivy-action@")
-        and _mapping_value(step, "with", "format") == "sarif"
-        if (output := _mapping_value(step, "with", "output"))
+    trivy_output_paths = {
+        output_path
+        for workflow_step in workflow_steps
+        if (_step_action(workflow_step) or "").startswith(
+            "aquasecurity/trivy-action@"
+        )
+        and _mapping_value(workflow_step, "with", "format") == "sarif"
+        if (output_path := _mapping_value(workflow_step, "with", "output"))
     }
-    uploaded_sarif = {
-        sarif_file
-        for step in steps
-        if (_step_action(step) or "").startswith("github/codeql-action/upload-sarif@")
-        if (sarif_file := _mapping_value(step, "with", "sarif_file"))
+    uploaded_sarif_paths = {
+        sarif_file_path
+        for workflow_step in workflow_steps
+        if (_step_action(workflow_step) or "").startswith(
+            "github/codeql-action/upload-sarif@"
+        )
+        if (
+            sarif_file_path := _mapping_value(
+                workflow_step, "with", "sarif_file"
+            )
+        )
     }
 
-    missing: list[str] = []
-    if not _has_mapping_key(lines, "pull_request", 2):
-        missing.append("pull_request event")
-    if _has_mapping_key(lines, "pull_request_target", 2):
-        missing.append("forbidden pull_request_target event")
-    for branch in ("develop", "main"):
-        if branch not in pr_targets:
-            missing.append(f"pull_request branch {branch!r}")
+    missing_contract_items: list[str] = []
+    if not _has_mapping_key(workflow_lines, "pull_request", 2):
+        missing_contract_items.append("pull_request event")
+    if _has_mapping_key(workflow_lines, "pull_request_target", 2):
+        missing_contract_items.append("forbidden pull_request_target event")
+    for protected_branch in ("develop", "main"):
+        if protected_branch not in pull_request_targets:
+            missing_contract_items.append(
+                f"pull_request branch {protected_branch!r}"
+            )
     if not trivy_job:
-        missing.append("jobs.trivy-fs-scan")
-    if not trivy_outputs:
-        missing.append("Trivy SARIF-producing action step with an output file")
-    if not uploaded_sarif:
-        missing.append("CodeQL SARIF upload step with sarif_file")
-    if trivy_outputs and uploaded_sarif and trivy_outputs.isdisjoint(uploaded_sarif):
-        missing.append("matching Trivy output and CodeQL sarif_file")
+        missing_contract_items.append("jobs.trivy-fs-scan")
+    if not trivy_output_paths:
+        missing_contract_items.append(
+            "Trivy SARIF-producing action step with an output file"
+        )
+    if not uploaded_sarif_paths:
+        missing_contract_items.append("CodeQL SARIF upload step with sarif_file")
+    if (
+        trivy_output_paths
+        and uploaded_sarif_paths
+        and trivy_output_paths.isdisjoint(uploaded_sarif_paths)
+    ):
+        missing_contract_items.append("matching Trivy output and CodeQL sarif_file")
 
-    if missing:
+    if missing_contract_items:
         print("Trivy PR code-scanning contract is incomplete:")
-        for item in missing:
-            print(f"- missing {item}")
+        for missing_contract_item in missing_contract_items:
+            print(f"- missing {missing_contract_item}")
         return 1
     print("Trivy PR code-scanning contract passed")
     return 0
