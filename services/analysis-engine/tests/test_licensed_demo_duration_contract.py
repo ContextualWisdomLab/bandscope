@@ -20,13 +20,13 @@ def _read_demo_audio(audio_path: Path = DEMO_AUDIO_PATH) -> tuple[np.ndarray, in
     """Decode one mono PCM demo fixture through the stdlib WAV reader."""
     with wave.open(str(audio_path), "rb") as wav_file:
         sample_rate = wav_file.getframerate()
-        frame_count = wav_file.getnframes()
+        declared_frame_count = wav_file.getnframes()
         assert wav_file.getnchannels() == 1
         assert wav_file.getsampwidth() == 2
-        audio_samples = np.frombuffer(wav_file.readframes(frame_count), dtype="<i2").astype(
-            np.float32
-        ) / 32768.0
-    return audio_samples, sample_rate, frame_count / sample_rate
+        decoded_frame_bytes = wav_file.readframes(declared_frame_count)
+        audio_samples = np.frombuffer(decoded_frame_bytes, dtype="<i2").astype(np.float32) / 32768.0
+    decoded_frame_count = int(audio_samples.size)
+    return audio_samples, sample_rate, decoded_frame_count / sample_rate
 
 
 def test_demo_duration_uses_decoded_frame_count(tmp_path: Path) -> None:
