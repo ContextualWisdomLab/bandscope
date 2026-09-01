@@ -2,7 +2,17 @@
 
 ## Purpose
 
-This note records why `docs/product-technical-gap-baseline.md` was replaced on PR #1116 instead of layering another stale queue snapshot over it.
+This note records why `docs/product-technical-gap-baseline.md` was replaced on PR #1116 instead of layering another stale queue snapshot over it, and preserves later live-state corrections without rewriting historical observations as if they were current.
+
+## Current live-state correction — 2026-09-02
+
+Protected source remains `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at this capture. The complete accessible-repository sweep queried all **74** currently listed `ContextualWisdomLab` repositories individually. That sequential sweep summed to **2,786 open pull requests**; a final fresh organization-wide search immediately afterward reported **2,787**, proving that one additional PR arrived while the census was in progress. This one-PR delta is expected queue churn rather than an incomplete repository set. A final fresh repository search still reports **187 open pull requests** in `ContextualWisdomLab/bandscope`. Fresh high-backlog checks remain materially below BandScope: `ContextualWisdomLab/OriginWeave` 141, `ContextualWisdomLab/newsdom-api` 139, `ContextualWisdomLab/naruon` 134, `ContextualWisdomLab/pg-erd-cloud` 132, and `ContextualWisdomLab/TEPP` 132. These are volatile operational observations; they do not transfer check/review evidence or justify unsafe closure.
+
+The previously recorded statement that PR #1119 was closed is also stale. `ContextualWisdomLab/bandscope#1119` is open again on canonical branch `fix/trivy-pr-code-scanning`, currently owning the repository-local Trivy pull-request-head configuration contract. Its exact head at this correction is `8f9c0762c8d336c08028298c276fe0fad745090f`, with fresh repository workflows queued. Downstream PRs with neutral/missing Trivy configuration evidence must therefore continue to treat #1119 as a live causal-owner lane until normal protected integration or a newer verified owner supersedes it.
+
+The central Actions queue-saturation cause has also moved: `ContextualWisdomLab/.github#1645` is merged into protected `main@7d707b8abbb8a3fed95d0efe4121ed9b4f76bb2a`. That control-plane repair coalesces redundant queued current-head workflow runs while preserving exact PR/head/base/workflow identity checks. BandScope heads pushed after that integration should receive fresh evidence normally; unchanged queued heads must not be spam-rerun merely because they are waiting.
+
+The canonical baseline source remains the durable PRD/TRD/DDD contract; volatile queue numbers are evidence, not product truth. When this branch advances, predecessor checks and approvals are invalidated and must be regenerated on the new exact head.
 
 ## Repository evidence
 
@@ -52,4 +62,4 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 
 PR #1116 is the canonical current baseline owner. PR #1025 is an older competing owner of the same path; its unique requirements (PRD/TRD/UML, Rust migration, real-audio accuracy, security, accessibility, release evidence, and reproducible verification) were deliberately carried into the #1116 replacement. Once this current head is present, #1025 can be closed as superseded without deleting its discussion history.
 
-Future hourly loops should refresh live counts/evidence only when they materially change prioritization. They must not rewrite immutable product and architecture sections merely to chase a volatile PR number.
+Future loops should refresh live counts/evidence only when they materially change prioritization. They must not rewrite immutable product and architecture sections merely to chase a volatile PR number.
