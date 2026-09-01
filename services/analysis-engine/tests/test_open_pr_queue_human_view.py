@@ -108,23 +108,40 @@ def test_render_queue_markdown_rejects_invalid_manifest_before_rendering() -> No
         renderer.render_queue_markdown(manifest)
 
 
-def test_write_human_view_atomic_rejects_symlink_authority(
-    tmp_path: Path,
-) -> None:
+def test_write_human_view_atomic_rejects_symlink_authority(tmp_path: Path) -> None:
     """Generated documentation must not follow a repository-path symlink."""
     renderer = _load_renderer()
     target = tmp_path / "open-pr-queue.md"
     outside = tmp_path / "outside.md"
     outside.write_text("sentinel", encoding="utf-8")
-    try:
-        target.symlink_to(outside)
-    except OSError:
-        pytest.skip("symlink creation is unavailable on this platform")
+    target.symlink_to(outside)
 
     with pytest.raises(renderer.RenderError, match="symbolic link"):
-        renderer.write_human_view_atomic("replacement\n", target)
+        renderer.write_human_view_atomic(
+            "replacement\n", target, publication_root=tmp_path
+        )
 
     assert outside.read_text(encoding="utf-8") == "sentinel"
+
+
+def test_write_human_view_atomic_rejects_symlinked_parent(tmp_path: Path) -> None:
+    """A repository symlink cannot redirect the generated view outside the worktree."""
+    renderer = _load_renderer()
+    repository_root = tmp_path / "repo"
+    docs_root = repository_root / "docs"
+    docs_root.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    publication_parent = docs_root / "product-readiness"
+    publication_parent.symlink_to(outside, target_is_directory=True)
+    target = publication_parent / "open-pr-queue.md"
+
+    with pytest.raises(renderer.RenderError, match="parent.*symbolic link"):
+        renderer.write_human_view_atomic(
+            "replacement\n", target, publication_root=repository_root
+        )
+
+    assert not (outside / "open-pr-queue.md").exists()
 
 
 def test_write_human_view_atomic_rejects_preexisting_temporary_path(tmp_path: Path) -> None:
@@ -135,7 +152,9 @@ def test_write_human_view_atomic_rejects_preexisting_temporary_path(tmp_path: Pa
     temporary.write_text("occupied", encoding="utf-8")
 
     with pytest.raises(renderer.RenderError, match="temporary human-view path"):
-        renderer.write_human_view_atomic("replacement\n", target)
+        renderer.write_human_view_atomic(
+            "replacement\n", target, publication_root=tmp_path
+        )
 
     assert not target.exists()
     assert temporary.read_text(encoding="utf-8") == "occupied"
