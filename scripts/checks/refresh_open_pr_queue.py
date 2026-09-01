@@ -135,6 +135,8 @@ def _live_pr_entry(
         initial_train = UNTRIAGED_TRAIN
         initial_disposition = "triage_required"
         predecessor_prs: list[Any] = []
+        overlap_prs: list[Any] = []
+        successor_pr: int | None = None
     else:
         initial_train = _require_text(prior.get("initial_train"), "existing.initial_train")
         initial_disposition = _require_text(
@@ -143,6 +145,8 @@ def _live_pr_entry(
         predecessor_prs = list(
             _require_list(prior.get("predecessor_prs", []), "existing.predecessor_prs")
         )
+        overlap_prs = list(_require_list(prior.get("overlap_prs", []), "existing.overlap_prs"))
+        successor_pr = prior.get("successor_pr")
 
     return {
         "number": number,
@@ -153,6 +157,8 @@ def _live_pr_entry(
         "head_sha": head_sha,
         "head_sha_status": "exact_current_head",
         "predecessor_prs": predecessor_prs,
+        "overlap_prs": overlap_prs,
+        "successor_pr": successor_pr,
     }
 
 
