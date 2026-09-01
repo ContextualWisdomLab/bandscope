@@ -187,6 +187,7 @@ export function RehearsalPlayer({
     progress: number;
   } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const playbackIntentRef = useRef<"active" | "inactive">("inactive");
   const audioSourceUrl = useMemo(
     () => resolveAudioSourceUrl(audioSourcePath),
     [audioSourcePath],
@@ -201,6 +202,7 @@ export function RehearsalPlayer({
   const [playbackError, setPlaybackError] = useState(false);
 
   const handlePlaybackError = useCallback(() => {
+    playbackIntentRef.current = "inactive";
     setPlaybackError(true);
     setTransport((current) => {
       if (current.phase === "idle" || current.phase === "armed") {
@@ -209,6 +211,21 @@ export function RehearsalPlayer({
       return reduceRehearsalTransport(current, { type: "stop" });
     });
   }, []);
+
+  const handlePlayRejection = useCallback(
+    (error: unknown) => {
+      const expectedInterruption =
+        playbackIntentRef.current === "inactive" &&
+        typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        error.name === "AbortError";
+      if (!expectedInterruption) {
+        handlePlaybackError();
+      }
+    },
+    [handlePlaybackError],
+  );
 
   const startAudio = useCallback(
     (loop: RehearsalLoopWindow, resume: boolean) => {
@@ -225,15 +242,16 @@ export function RehearsalPlayer({
         } else {
           audio.volume = 1;
         }
+        playbackIntentRef.current = "active";
         const playPromise = audio.play();
         if (playPromise) {
-          void playPromise.catch(handlePlaybackError);
+          void playPromise.catch(handlePlayRejection);
         }
       } catch {
         handlePlaybackError();
       }
     },
-    [audioSourceUrl, handlePlaybackError],
+    [audioSourceUrl, handlePlaybackError, handlePlayRejection],
   );
 
   useEffect(() => {
@@ -241,6 +259,7 @@ export function RehearsalPlayer({
     if (!audio) {
       return undefined;
     }
+    playbackIntentRef.current = "inactive";
     if (!audio.paused) {
       audio.pause();
     }
@@ -253,6 +272,7 @@ export function RehearsalPlayer({
     }
     setPlaybackError(hasNativeAudioConversionError);
     return () => {
+      playbackIntentRef.current = "inactive";
       if (!audio.paused) {
         audio.pause();
       }
@@ -327,6 +347,7 @@ export function RehearsalPlayer({
     if (hasPlayableAudio) {
       return;
     }
+    playbackIntentRef.current = "inactive";
     setTransport((current) => {
       if (current.phase === "idle" || current.phase === "armed") {
         return current;
@@ -402,9 +423,10 @@ export function RehearsalPlayer({
           restartAudioOnLoopRef.current = false;
         }
         audio.volume = 1;
+        playbackIntentRef.current = "active";
         const playPromise = audio.play();
         if (playPromise) {
-          void playPromise.catch(handlePlaybackError);
+          void playPromise.catch(handlePlayRejection);
         }
       } catch {
         handlePlaybackError();
@@ -414,13 +436,20 @@ export function RehearsalPlayer({
       transport.phase === "paused" ||
       transport.phase === "idle"
     ) {
+      playbackIntentRef.current = "inactive";
       if (!audio.paused) {
         audio.pause();
       }
       audio.volume = 1;
     }
     return undefined;
-  }, [audioSourceUrl, handlePlaybackError, transport.phase, transport.loop]);
+  }, [
+    audioSourceUrl,
+    handlePlaybackError,
+    handlePlayRejection,
+    transport.phase,
+    transport.loop,
+  ]);
 
   useEffect(() => {
     if (!audioSourceUrl || transport.phase !== "looping" || !transport.loop) {
@@ -444,9 +473,10 @@ export function RehearsalPlayer({
     const restartLoop = () => {
       try {
         audio.currentTime = loop.startSeconds;
+        playbackIntentRef.current = "active";
         const playPromise = audio.play();
         if (playPromise) {
-          void playPromise.catch(handlePlaybackError);
+          void playPromise.catch(handlePlayRejection);
         }
       } catch {
         handlePlaybackError();
@@ -493,21 +523,22 @@ export function RehearsalPlayer({
         }),
       );
     };
-    /** Stop the transport when the media element can no longer play. */
+    /** Stop the transport when the media element reports a real playback error. */
     const failPlayback = () => handlePlaybackError();
     audio.addEventListener("timeupdate", syncPlayhead);
     audio.addEventListener("error", failPlayback);
-    audio.addEventListener("ended", failPlayback);
+    audio.addEventListener("ended", restartLoop);
     scheduleLoopBoundary();
     return () => {
       clearBoundaryTimer();
       audio.removeEventListener("timeupdate", syncPlayhead);
       audio.removeEventListener("error", failPlayback);
-      audio.removeEventListener("ended", failPlayback);
+      audio.removeEventListener("ended", restartLoop);
     };
   }, [
     audioSourceUrl,
     handlePlaybackError,
+    handlePlayRejection,
     transport.phase,
     transport.loop,
     transport.playbackRate,
@@ -660,10 +691,20 @@ export function RehearsalPlayer({
       reduceRehearsalTransport(current, { type: "start" }),
     );
   }, [canStart, startAudio, transport]);
+  const pauseTransport = useCallback(() => {
+    if (!canPause) {
+      return;
+    }
+    playbackIntentRef.current = "inactive";
+    setTransport((current) =>
+      reduceRehearsalTransport(current, { type: "pause" }),
+    );
+  }, [canPause]);
   const stopTransport = useCallback(() => {
     if (!canStop) {
       return;
     }
+    playbackIntentRef.current = "inactive";
     setTransport((current) =>
       reduceRehearsalTransport(current, { type: "stop" }),
     );
@@ -700,9 +741,7 @@ export function RehearsalPlayer({
       ) {
         event.preventDefault();
         if (canPause) {
-          setTransport((current) =>
-            reduceRehearsalTransport(current, { type: "pause" }),
-          );
+          pauseTransport();
         } else {
           startOrResume();
         }
@@ -720,7 +759,7 @@ export function RehearsalPlayer({
     };
     window.addEventListener("keydown", handleTransportShortcut);
     return () => window.removeEventListener("keydown", handleTransportShortcut);
-  }, [canPause, canStart, canStop, startOrResume, stopTransport]);
+  }, [canPause, canStart, canStop, pauseTransport, startOrResume, stopTransport]);
 
   return (
     <section
@@ -952,11 +991,7 @@ export function RehearsalPlayer({
           disabled={!canPause}
           aria-disabled={!canPause}
           className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={() =>
-            setTransport((current) =>
-              reduceRehearsalTransport(current, { type: "pause" }),
-            )
-          }
+          onClick={pauseTransport}
         >
           {t("workspaceLoopPause")}
         </Button>
