@@ -40,8 +40,8 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
-const licensedDemoProjectIds = new Set<string>();
-const licensedDemoJobIds = new Set<string>();
+const LICENSED_DEMO_PROJECT_STORAGE_KEY = "bandscope.licensedDemoProjectId";
+const LICENSED_DEMO_JOB_STORAGE_KEY = "bandscope.licensedDemoJobId";
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
@@ -50,9 +50,33 @@ export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
   | { ok: false; error: AnalysisJobError };
 
-/** Preserve the trusted demo title at the desktop IPC boundary. */
+/** Read a bounded renderer-session marker without making analysis depend on storage availability. */
+function readSessionMarker(storageKey: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.sessionStorage.getItem(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist one renderer-session marker without failing the native analysis path. */
+function writeSessionMarker(storageKey: string, storageValue: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(storageKey, storageValue);
+  } catch {
+    // Storage is a display-title continuity hint only; native analysis still proceeds.
+  }
+}
+
+/** Preserve the trusted demo title across a WebView module reload. */
 function withLicensedDemoTitle(status: AnalysisJobStatus): AnalysisJobStatus {
-  if (!licensedDemoJobIds.has(status.jobId) || !status.result) {
+  if (readSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY) !== status.jobId || !status.result) {
     return status;
   }
   return {
@@ -230,7 +254,7 @@ export async function selectDemoAudioSource(): Promise<LocalAudioSelectionResult
   try {
     const response = await invokeAnalysis("select_demo_audio_source");
     const bootstrap = parseProjectBootstrapSummary(response);
-    licensedDemoProjectIds.add(bootstrap.projectId);
+    writeSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY, bootstrap.projectId);
     return {
       ok: true,
       bootstrap
@@ -268,7 +292,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   const isLicensedDemoProject =
     parsedRequest.sourceKind === "local_audio" &&
     Boolean(parsedRequest.projectId) &&
-    licensedDemoProjectIds.has(parsedRequest.projectId!);
+    readSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY) === parsedRequest.projectId;
   const analysisRequest: AnalysisJobRequest = isLicensedDemoProject
     ? { ...parsedRequest, sourceLabel: DEMO_SONG_TITLE }
     : parsedRequest;
@@ -278,7 +302,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   try {
     const status = parseAnalysisJobStatus(response);
     if (isLicensedDemoProject) {
-      licensedDemoJobIds.add(status.jobId);
+      writeSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY, status.jobId);
     }
     return withLicensedDemoTitle(status);
   } catch {
