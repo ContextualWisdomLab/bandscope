@@ -12,10 +12,16 @@ _TRIVY_WORKFLOW_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "trivy.yml"
 _EXPECTED_PULL_REQUEST_BRANCHES = frozenset({"develop", "main"})
 
 
-def _workflow_trigger_mapping(workflow_text: str) -> dict[str, object]:
-    """Return the structurally parsed GitHub Actions trigger mapping."""
+def _workflow_document(workflow_text: str) -> dict[str, object]:
+    """Return the structurally parsed GitHub Actions workflow document."""
     workflow_document = yaml.safe_load(workflow_text)
     assert isinstance(workflow_document, dict), "workflow document must be a mapping"
+    return workflow_document
+
+
+def _workflow_trigger_mapping(workflow_text: str) -> dict[str, object]:
+    """Return the structurally parsed GitHub Actions trigger mapping."""
+    workflow_document = _workflow_document(workflow_text)
 
     workflow_triggers = workflow_document.get("on")
     if workflow_triggers is None:
@@ -45,9 +51,30 @@ def _assert_trivy_pull_request_policy(workflow_text: str) -> None:
     )
 
 
+def _assert_trivy_concurrency_policy(workflow_text: str) -> None:
+    """Require PR-stable cancellation so predecessor scans cannot saturate runners."""
+    workflow_document = _workflow_document(workflow_text)
+    concurrency = workflow_document.get("concurrency")
+    assert isinstance(concurrency, dict), "Trivy must declare workflow-level concurrency"
+    group = concurrency.get("group")
+    assert isinstance(group, str), "Trivy concurrency.group must be a string"
+    assert "github.repository" in group, "Trivy concurrency must be repository-scoped"
+    assert "github.event.pull_request.number" in group, (
+        "Trivy PR concurrency must be stable across head-SHA changes"
+    )
+    assert "github.sha" not in group and "head.sha" not in group, (
+        "Trivy concurrency must not preserve stale runs by keying on the head SHA"
+    )
+    assert concurrency.get("cancel-in-progress") is True, (
+        "Trivy must cancel superseded predecessor scans"
+    )
+
+
 def test_repository_trivy_workflow_uses_safe_pull_request_triggers() -> None:
     """Ensure the checked-in Trivy workflow satisfies the structural trigger contract."""
-    _assert_trivy_pull_request_policy(_TRIVY_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    workflow_text = _TRIVY_WORKFLOW_PATH.read_text(encoding="utf-8")
+    _assert_trivy_pull_request_policy(workflow_text)
+    _assert_trivy_concurrency_policy(workflow_text)
 
 
 @pytest.mark.parametrize(
@@ -99,3 +126,28 @@ def test_trivy_workflow_rejects_unsafe_pull_request_trigger_fixtures(
         # Keep the fixture name visible in pytest failure context without changing policy behavior.
         patch_context.setenv("BANDSCOPE_TRIVY_POLICY_FIXTURE", fixture_name)
         _assert_trivy_pull_request_policy(workflow_fixture)
+
+
+@pytest.mark.parametrize(
+    "workflow_fixture",
+    [
+        """
+name: trivy
+concurrency:
+  group: trivy-${{ github.repository }}-${{ github.sha }}
+  cancel-in-progress: true
+""".strip(),
+        """
+name: trivy
+concurrency:
+  group: trivy-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+""".strip(),
+    ],
+)
+def test_trivy_workflow_rejects_stale_run_concurrency_fixtures(
+    workflow_fixture: str,
+) -> None:
+    """Reject SHA-keyed or non-cancelling concurrency that preserves obsolete runs."""
+    with pytest.raises(AssertionError):
+        _assert_trivy_concurrency_policy(workflow_fixture)
