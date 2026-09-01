@@ -6,6 +6,8 @@ import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { fillGrooveCopy, firstGrooveChange } from "./firstGrooveChange";
+import { fillDurationCopy, firstDurationChange } from "./firstDurationChange";
+import { confidenceWordKey, fillConfidenceCopy, firstConfidenceChange } from "./firstConfidenceChange";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -178,6 +180,34 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           groove: firstGroove.toGroove
         })
     : t("workspaceFirstGrooveMissing");
+  const firstDuration = useMemo(() => firstDurationChange(song), [song]);
+  const firstDurationCopy = firstDuration
+    ? firstDuration.kind === "change"
+      ? fillDurationCopy(t("workspaceFirstDurationChange"), {
+          fromSection: firstDuration.fromSectionLabel,
+          fromDuration: firstDuration.fromDuration,
+          toSection: firstDuration.toSectionLabel,
+          toDuration: firstDuration.toDuration
+        })
+      : fillDurationCopy(t("workspaceFirstDurationHold"), {
+          sectionLabel: firstDuration.toSectionLabel,
+          duration: firstDuration.toDuration
+        })
+    : t("workspaceFirstDurationMissing");
+  const firstConfidence = useMemo(() => firstConfidenceChange(song), [song]);
+  const firstConfidenceCopy = firstConfidence
+    ? firstConfidence.kind === "change"
+      ? fillConfidenceCopy(t("workspaceFirstConfidenceChange"), {
+          fromSection: firstConfidence.fromSectionLabel,
+          fromLevel: t(confidenceWordKey(firstConfidence.fromLevel)),
+          toSection: firstConfidence.toSectionLabel,
+          toLevel: t(confidenceWordKey(firstConfidence.toLevel))
+        })
+      : fillConfidenceCopy(t("workspaceFirstConfidenceHold"), {
+          sectionLabel: firstConfidence.toSectionLabel,
+          level: t(confidenceWordKey(firstConfidence.toLevel))
+        })
+    : t("workspaceFirstConfidenceMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -326,12 +356,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           </section>
 
           <section
-            className="rounded-2xl border border-teal-300/20 bg-teal-300/[0.07] p-4"
-            data-testid="first-groove-change"
-            aria-label={t("workspaceFirstGrooveTitle")}
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+            aria-label={t("workspaceFirstChangesTitle")}
           >
-            <p className="text-xs font-black uppercase tracking-[0.24em] text-teal-200">{t("workspaceFirstGrooveTitle")}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-100">{firstGrooveCopy}</p>
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-200">{t("workspaceFirstChangesTitle")}</p>
+            <div className="mt-3 divide-y divide-white/10">
+              <div className="py-3 first:pt-0" data-testid="first-groove-change" role="group" aria-label={t("workspaceFirstGrooveTitle")}>
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.18em] text-teal-200">{t("workspaceFirstGrooveTitle")}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-100">{firstGrooveCopy}</p>
+              </div>
+              <div className="py-3" data-testid="first-duration-change" role="group" aria-label={t("workspaceFirstDurationTitle")}>
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.18em] text-sky-200">{t("workspaceFirstDurationTitle")}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-100">{firstDurationCopy}</p>
+              </div>
+              <div className="py-3 last:pb-0" data-testid="first-confidence-change" role="group" aria-label={t("workspaceFirstConfidenceTitle")}>
+                <p className="text-[0.7rem] font-black uppercase tracking-[0.18em] text-amber-200">{t("workspaceFirstConfidenceTitle")}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-100">{firstConfidenceCopy}</p>
+              </div>
+            </div>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
