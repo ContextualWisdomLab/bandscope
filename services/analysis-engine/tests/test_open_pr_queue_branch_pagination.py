@@ -69,3 +69,50 @@ def test_branch_index_follows_matching_refs_pagination(
         "/repos/ContextualWisdomLab/bandscope/git/matching-refs/heads/?per_page=100&page=1",
         "/repos/ContextualWisdomLab/bandscope/git/matching-refs/heads/?per_page=100&page=2",
     ]
+
+
+def test_branch_ref_collector_fails_closed_when_bound_would_truncate() -> None:
+    """An announced page beyond the bound cannot yield a partial branch authority set."""
+    refresher = _load_refresher()
+
+    with pytest.raises(refresher.RefreshError, match="branch-ref pagination bound"):
+        refresher.collect_paginated_branch_refs(
+            lambda page, size: ([_branch_ref(f"branch-{page}", f"{page:x}".rjust(40, "0"))], True),
+            page_size=1,
+            max_pages=2,
+        )
+
+
+@pytest.mark.parametrize(
+    ("page_result", "expected"),
+    [
+        (("not-a-list", False), "must contain objects"),
+        (([object()], False), "must contain objects"),
+        (([_branch_ref("develop", "d" * 40)], "yes"), "next-page marker"),
+        (([], True), "empty but announces another page"),
+    ],
+)
+def test_branch_ref_collector_rejects_malformed_pagination(
+    page_result: tuple[object, object], expected: str
+) -> None:
+    """Malformed page payloads and pagination metadata fail before publication."""
+    refresher = _load_refresher()
+
+    with pytest.raises(refresher.RefreshError, match=expected):
+        refresher.collect_paginated_branch_refs(lambda page, size: page_result)
+
+
+def test_branch_ref_page_rejects_non_record_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The network adapter rejects a JSON array containing non-record ref entries."""
+    refresher = _load_refresher()
+
+    monkeypatch.setattr(
+        refresher,
+        "_request_github_json",
+        lambda target, token: (["not-a-ref-record"], ""),
+    )
+
+    with pytest.raises(refresher.RefreshError, match="must contain objects"):
+        refresher.fetch_live_branch_ref_page(1, 100, None)
