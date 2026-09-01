@@ -10,6 +10,8 @@ Protected source at capture: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`.
 
 Observed live queue at 2026-09-01 10:31 KST: 190 open pull requests in `ContextualWisdomLab/bandscope`. The older branch text said 185, and its verification block still printed 130; that evidence could not reproduce the document claim.
 
+A fresh organization-wide recount at 2026-09-01 13:29 KST enumerated 72 repositories accessible through the connected `ContextualWisdomLab` account and 2,697 open pull requests across the organization. The prior 71-repository/2,686-PR snapshot became stale because `ContextualWisdomLab/litellm-patched-proxy` and `ContextualWisdomLab/pingora-gateway` are now visible in the accessible repository set. Individual count checks still put `ContextualWisdomLab/bandscope` first at 188 open PRs, ahead of `ContextualWisdomLab/newsdom-api` 144, `ContextualWisdomLab/TEPP` 141, `ContextualWisdomLab/OriginWeave` 140, and `ContextualWisdomLab/naruon` 128. The selection therefore remains justified by both backlog and BandScope's end-user rehearsal-product responsibility.
+
 Review findings on PR #1116 were validated as real:
 
 1. the open-PR evidence was stale;
