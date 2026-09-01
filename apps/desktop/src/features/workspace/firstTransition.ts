@@ -79,6 +79,20 @@ function isDenseRuntimeArray(value: unknown): value is unknown[] {
   return true;
 }
 
+/** Bound buyer-visible cue text by Unicode code points without splitting a surrogate pair. */
+function truncateCodePoints(value: string, maximum: number): string {
+  let codePoints = 0;
+  let endIndex = 0;
+  for (const character of value) {
+    if (codePoints >= maximum) {
+      break;
+    }
+    endIndex += character.length;
+    codePoints += 1;
+  }
+  return endIndex === value.length ? value : value.slice(0, endIndex);
+}
+
 /** Return true when the role has safe owned identity/copy and ranked rehearsal priority. */
 function hasRankedPriority(role: RehearsalRole): boolean {
   return (
@@ -118,7 +132,7 @@ function boundedTimeRange(section: RehearsalSection): BoundedTimeRange | null {
   return { start, end };
 }
 
-/** Return the owned transition cue text, or null when lyric/count/empty/overlong values cannot be trusted. */
+/** Return the owned transition cue text, bounded for display, or null for untrusted/empty values. */
 function ownedTransitionCue(role: RehearsalRole): string | null {
   if (!hasOwnData(role, "cue")) {
     return null;
@@ -134,10 +148,10 @@ function ownedTransitionCue(role: RehearsalRole): string | null {
     return null;
   }
   const value = cue.value.trim();
-  if (value.length === 0 || [...value].length > MAX_TRANSITION_CUE_CODE_POINTS) {
+  if (value.length === 0) {
     return null;
   }
-  return value;
+  return truncateCodePoints(value, MAX_TRANSITION_CUE_CODE_POINTS);
 }
 
 /** Return safe identities that appear more than once in one section-local collection. */
