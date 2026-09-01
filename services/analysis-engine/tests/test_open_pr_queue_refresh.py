@@ -52,6 +52,28 @@ def _seed() -> dict[str, object]:
     }
 
 
+def _seed_with_predecessor() -> dict[str, object]:
+    """Return reviewed routing with one explicit dependency edge."""
+    seed = _seed()
+    pull_requests = seed["pull_requests"]
+    assert isinstance(pull_requests, list)
+    pull_requests[0]["predecessor_prs"] = [700]
+    pull_requests.append(
+        {
+            "number": 700,
+            "title": "toolchain root",
+            "url": "https://github.com/ContextualWisdomLab/bandscope/pull/700",
+            "initial_train": "T0",
+            "initial_disposition": "triage_required",
+            "head_sha": "7" * 40,
+            "head_sha_status": "exact_current_head",
+            "predecessor_prs": [],
+        }
+    )
+    seed["open_pr_count"] = 2
+    return seed
+
+
 def _live_pr(
     number: int,
     head_sha: str,
@@ -131,6 +153,31 @@ def test_refresh_manifest_updates_exact_heads_and_adds_untriaged_live_prs() -> N
     assert refreshed["pull_requests"][1]["initial_train"] == "T8"
     assert refreshed["pull_requests"][1]["initial_disposition"] == "triage_required"
     assert refreshed["trains"]["T8"]["issue"] == 966
+
+
+def test_refresh_preserves_reviewed_predecessors_and_defaults_new_prs_to_root() -> None:
+    """Live identity refresh must not erase reviewed dependency routing."""
+    refresher = _load_refresher()
+    live = {
+        "incomplete_results": False,
+        "pull_requests": [
+            _live_pr(700, "7" * 40),
+            _live_pr(783, "b" * 40),
+            _live_pr(1002, "c" * 40),
+        ],
+    }
+
+    refreshed = refresher.build_refreshed_manifest(
+        _seed_with_predecessor(),
+        live,
+        base_sha="d" * 40,
+        snapshot_date="2026-09-01",
+    )
+
+    by_number = {item["number"]: item for item in refreshed["pull_requests"]}
+    assert by_number[783]["predecessor_prs"] == [700]
+    assert by_number[700]["predecessor_prs"] == []
+    assert by_number[1002]["predecessor_prs"] == []
 
 
 @pytest.mark.parametrize(
