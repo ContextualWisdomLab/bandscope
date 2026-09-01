@@ -80,3 +80,27 @@ def test_release_identity_guard_rejects_wrong_tag(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="release tag does not match VERSION"):
         guard.verify_release_identity(tmp_path, release_tag="v1.2.2")
+
+
+def test_release_identity_guard_rejects_multiline_version_authority(tmp_path: Path) -> None:
+    """Reject an ambiguous VERSION file even if projections repeat the same text."""
+    guard = _load_guard()
+    _write_release_metadata(tmp_path, "1.2.3")
+    ambiguous = "1.2.3\n2.0.0"
+    (tmp_path / "VERSION").write_text(f"{ambiguous}\n", encoding="utf-8")
+    (tmp_path / "package.json").write_text(
+        json.dumps({"name": "bandscope", "version": ambiguous}), encoding="utf-8"
+    )
+    (tmp_path / "apps" / "desktop" / "src-tauri" / "tauri.conf.json").write_text(
+        json.dumps(
+            {
+                "productName": "BandScope",
+                "version": ambiguous,
+                "identifier": "com.bandscope.desktop",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="VERSION must contain exactly one non-empty version line"):
+        guard.verify_release_identity(tmp_path)
