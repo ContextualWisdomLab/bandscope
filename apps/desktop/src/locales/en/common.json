@@ -153,6 +153,15 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstConfidenceTitle": "Tonight's first confidence change",
+  "workspaceFirstConfidenceChange": "Confidence changes at {toSection}: {toLevel}, after {fromSection}'s {fromLevel}. Confirm the {toSection} by ear before you count in.",
+  "workspaceFirstConfidenceHold": "Tonight's confidence stays {level} through the form. Confirm the {sectionLabel} by ear before you count in.",
+  "workspaceFirstConfidenceMissing": "Tonight's first confidence change still needs an ear check. Confirm how sure the first two sections are before you count in.",
+  "sectionConfidenceNextActionChange": "Confirm this section by ear before {sectionLabel}.",
+  "sectionConfidenceNextActionHold": "Give this {level} read an ear check before {sectionLabel}.",
+  "confidenceWordLow": "low",
+  "confidenceWordMedium": "medium",
+  "confidenceWordHigh": "high",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

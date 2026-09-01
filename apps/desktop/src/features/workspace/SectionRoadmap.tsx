@@ -3,6 +3,7 @@ import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
+import { confidenceWordKey, fillConfidenceCopy, firstConfidenceChange, isConfidenceChangeTarget } from "./firstConfidenceChange";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +20,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const confidenceChange = useMemo(() => firstConfidenceChange(song), [song]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -120,6 +122,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
+              {confidenceChange && isConfidenceChangeTarget(confidenceChange, section.id) ? (
+                <p className="mt-2 text-xs font-medium text-amber-200" data-testid={`confidence-next-action-${section.id}`}>
+                  {fillConfidenceCopy(
+                    t(confidenceChange.kind === "change" ? "sectionConfidenceNextActionChange" : "sectionConfidenceNextActionHold"),
+                    { sectionLabel: section.label, level: t(confidenceWordKey(confidenceChange.toLevel)) }
+                  )}
+                </p>
+              ) : null}
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">

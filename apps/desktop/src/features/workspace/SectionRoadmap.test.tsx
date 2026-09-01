@@ -34,6 +34,47 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByText("음역").length).toBeGreaterThan(0);
     expect(screen.getByText("C#2 — E3")).toBeTruthy();
     expect(screen.getAllByText("verse 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
+    expect(screen.getByText("verse 들어가기 전에 이 중간 읽기를 귀로 확인해 보세요.")).toBeTruthy();
+  });
+
+  it("names the next ear check on the section where confidence changes", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      verse,
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        confidence: { ...verse.confidence, level: "low" },
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.queryByTestId("confidence-next-action-verse-1")).toBeNull();
+    expect(screen.getByTestId("confidence-next-action-chorus-1")).toHaveTextContent(
+      "Confirm this section by ear before chorus."
+    );
+  });
+
+  it("marks only the destination card when consecutive sections share a label", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", confidence: { ...verse.confidence, level: "medium" } },
+      { ...verse, id: "verse-b", label: "verse", confidence: { ...verse.confidence, level: "low" } }
+    ];
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.queryByTestId("confidence-next-action-verse-a")).toBeNull();
+    expect(screen.getByTestId("confidence-next-action-verse-b")).toHaveTextContent(
+      "Confirm this section by ear before verse."
+    );
   });
 
   it("omits the range row when both notes are unnamed", () => {

@@ -153,6 +153,15 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstConfidenceTitle": "오늘 먼저 바뀌는 확신",
+  "workspaceFirstConfidenceChange": "{fromSection}의 {fromLevel} 다음, {toSection}에서 {toLevel}으로 바뀝니다. {toSection} 들어가기 전에 귀로 한 번 더 확인해 보세요.",
+  "workspaceFirstConfidenceHold": "오늘 확신은 {level}으로 끝까지 갑니다. {sectionLabel} 들어가기 전에 귀로 한 번 더 확인해 보세요.",
+  "workspaceFirstConfidenceMissing": "오늘 먼저 바뀌는 확신은 아직 귀로 확인이 필요합니다. 처음 두 구간이 얼마나 확실한지 확인한 뒤 카운트하세요.",
+  "sectionConfidenceNextActionChange": "{sectionLabel} 들어가기 전에 이 구간을 귀로 확인해 보세요.",
+  "sectionConfidenceNextActionHold": "{sectionLabel} 들어가기 전에 이 {level} 읽기를 귀로 확인해 보세요.",
+  "confidenceWordLow": "낮음",
+  "confidenceWordMedium": "중간",
+  "confidenceWordHigh": "높음",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
