@@ -33,8 +33,10 @@ describe("firstGrooveChange", () => {
   it("holds the demo song's one named feel so the room does not reset the groove", () => {
     expect(firstGrooveChange(createDemoRehearsalSong())).toEqual({
       kind: "same",
+      fromSectionId: "verse-1",
       fromSectionLabel: "verse",
       fromGroove: "Straight eighths with a late snare feel",
+      toSectionId: "verse-1",
       toSectionLabel: "verse",
       toGroove: "Straight eighths with a late snare feel"
     });
@@ -49,8 +51,10 @@ describe("firstGrooveChange", () => {
 
     expect(firstGrooveChange(song)).toEqual({
       kind: "change",
+      fromSectionId: "pre-chorus-section",
       fromSectionLabel: "pre-chorus",
       fromGroove: "Straight eighths with a late snare feel",
+      toSectionId: "chorus-section",
       toSectionLabel: "chorus",
       toGroove: "Half-time snare with open hats"
     });
@@ -64,8 +68,10 @@ describe("firstGrooveChange", () => {
 
     expect(firstGrooveChange(withBridge)).toEqual({
       kind: "change",
+      fromSectionId: "chorus-section",
       fromSectionLabel: "chorus",
       fromGroove: "Half-time snare with open hats",
+      toSectionId: "bridge-section",
       toSectionLabel: "bridge",
       toGroove: "Double-time ride"
     });
@@ -87,20 +93,33 @@ describe("firstGrooveChange", () => {
       } as unknown as RehearsalSong)
     ).toBeNull();
   });
+
+  it("fails closed when repeated section ids cannot identify one destination card", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "duplicate", groove: "Straight eighths" },
+      { ...verse, id: "duplicate", groove: "Half-time" }
+    ];
+
+    expect(firstGrooveChange(song)).toBeNull();
+  });
 });
 
 describe("isGrooveChangeTarget", () => {
-  it("marks only the arrival section as the next-action card", () => {
+  it("marks only the arrival section identity as the next-action card", () => {
     const change: ReturnType<typeof firstGrooveChange> = {
       kind: "change",
+      fromSectionId: "verse-1",
       fromSectionLabel: "verse",
       fromGroove: "Straight eighths with a late snare feel",
+      toSectionId: "chorus-1",
       toSectionLabel: "chorus",
       toGroove: "Half-time snare with open hats"
     };
 
-    expect(isGrooveChangeTarget(change, "chorus")).toBe(true);
-    expect(isGrooveChangeTarget(change, " verse ")).toBe(false);
+    expect(isGrooveChangeTarget(change, "chorus-1")).toBe(true);
+    expect(isGrooveChangeTarget(change, " verse-1 ")).toBe(false);
     expect(isGrooveChangeTarget(change, " ")).toBe(false);
   });
 

@@ -4,13 +4,16 @@ import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
 /** Tonight's first named feel change, or a same-feel hold through the form. */
 export type FirstGrooveChange = {
   kind: "change" | "same";
+  fromSectionId: string;
   fromSectionLabel: string;
   fromGroove: string;
+  toSectionId: string;
   toSectionLabel: string;
   toGroove: string;
 };
 
 type NamedGroove = {
+  sectionId: string;
   sectionLabel: string;
   groove: string;
 };
@@ -26,8 +29,8 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
  * Walks labeled sections in form order and returns the first consecutive pair
  * whose trimmed groove text differs. When every named section holds the same
  * feel, the result is a same-feel hold so the room does not reset the groove.
- * Runtime roots and collection members are treated as untrusted; malformed
- * evidence is isolated instead of becoming feel-change authority.
+ * Stable section ids, rather than display labels, own roadmap targeting. Any
+ * duplicate section id is ambiguous runtime evidence and fails closed.
  */
 export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null {
   const runtimeSong: unknown = song;
@@ -36,17 +39,23 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
   }
 
   const namedGrooves: NamedGroove[] = [];
+  const seenSectionIds = new Set<string>();
 
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
+    const sectionId = meaningfulRangeText(sectionValue.id);
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     const groove = meaningfulRangeText(sectionValue.groove);
-    if (!sectionLabel || !groove) {
+    if (!sectionId || !sectionLabel || !groove) {
       continue;
     }
-    namedGrooves.push({ sectionLabel, groove });
+    if (seenSectionIds.has(sectionId)) {
+      return null;
+    }
+    seenSectionIds.add(sectionId);
+    namedGrooves.push({ sectionId, sectionLabel, groove });
   }
 
   if (namedGrooves.length === 0) {
@@ -60,8 +69,10 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
     if (previous.groove !== current.groove) {
       return {
         kind: "change",
+        fromSectionId: previous.sectionId,
         fromSectionLabel: previous.sectionLabel,
         fromGroove: previous.groove,
+        toSectionId: current.sectionId,
         toSectionLabel: current.sectionLabel,
         toGroove: current.groove
       };
@@ -70,8 +81,10 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
 
   return {
     kind: "same",
+    fromSectionId: first.sectionId,
     fromSectionLabel: first.sectionLabel,
     fromGroove: first.groove,
+    toSectionId: first.sectionId,
     toSectionLabel: first.sectionLabel,
     toGroove: first.groove
   };
@@ -82,8 +95,8 @@ export function fillGrooveCopy(template: string, values: Record<string, string>)
   return fillRangeCopy(template, values);
 }
 
-/** True when this labeled section is the map card that should name the next groove action. */
-export function isGrooveChangeTarget(change: FirstGrooveChange, sectionLabel: string): boolean {
-  const label = meaningfulRangeText(sectionLabel);
-  return Boolean(label) && label === change.toSectionLabel;
+/** True when this stable section identity is the map card owning the next groove action. */
+export function isGrooveChangeTarget(change: FirstGrooveChange, sectionId: string): boolean {
+  const identity = meaningfulRangeText(sectionId);
+  return Boolean(identity) && identity === change.toSectionId;
 }
