@@ -68,11 +68,12 @@ describe("export sanitization", () => {
       expect(escapeCsvField("\n-100")).toBe("\"'\n-100\"");
       expect(escapeCsvField("\r@cmd")).toBe("\"'\r@cmd\"");
 
-      // Prevent bypasses using NUL bytes
+      // Prevent bypasses using NUL bytes, including a NUL-only cell.
       expect(escapeCsvField("\x00=1+2")).toBe("'\x00=1+2");
       expect(escapeCsvField("  \x00@cmd")).toBe("'  \x00@cmd");
       expect(escapeCsvField("\x00\x00=1+2")).toBe("'\x00\x00=1+2");
       expect(escapeCsvField("  \x00\x00@cmd")).toBe("'  \x00\x00@cmd");
+      expect(escapeCsvField("\x00")).toBe("'\x00");
     });
 
     it("handles combined scenarios: formula injection with structural characters", () => {
