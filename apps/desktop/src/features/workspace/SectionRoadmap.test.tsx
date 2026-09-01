@@ -106,4 +106,29 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("keeps focus target ids renderer-owned for arbitrary analysis section ids", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0].id = " verse 1 ";
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    const card = document.getElementById("workspace-section-card-0");
+    expect(card).toBeTruthy();
+    expect(card?.getAttribute("tabindex")).toBe("-1");
+    expect(card?.id).not.toContain(song.sections[0].id);
+  });
+
+  it("keeps duplicate analysis section ids as distinct renderer focus targets", () => {
+    const song = createDemoRehearsalSong();
+    const duplicate = { ...song.sections[0], roles: [...song.sections[0].roles] };
+    song.sections = [song.sections[0], duplicate];
+
+    render(<SectionRoadmap song={song} activeRole={null} loopedSectionIndex={1} />);
+
+    expect(document.getElementById("workspace-section-card-0")).toBeTruthy();
+    const second = document.getElementById("workspace-section-card-1");
+    expect(second).toBeTruthy();
+    expect(second?.className).toContain("ring-cyan-300/70");
+  });
 });
