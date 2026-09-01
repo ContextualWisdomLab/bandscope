@@ -11,6 +11,7 @@ import { formatPartHandoffTime, resolveFirstPartHandoff } from "./firstPartHando
 /** Props for the first part-handoff rehearsal callout. */
 export interface FirstPartHandoffCalloutProps {
   song: RehearsalSong;
+  activeRole?: string | null;
 }
 
 type PartHandoffCopyValues = Readonly<Record<"from" | "to" | "section" | "at", string>>;
@@ -76,13 +77,16 @@ function resolvePartHandoffRenderer(origin: HTMLElement): HTMLElement | null {
 }
 
 /** Name tonight's first part handoff and open the matching rendered map section. */
-export function FirstPartHandoffCallout({ song }: FirstPartHandoffCalloutProps) {
+export function FirstPartHandoffCallout({
+  song,
+  activeRole = null
+}: FirstPartHandoffCalloutProps) {
   const calloutId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const songIdentity = stablePartHandoffSongIdentity(song);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
-  const named = useMemo(() => resolveFirstPartHandoff(song), [song]);
+  const named = useMemo(() => resolveFirstPartHandoff(song, activeRole), [activeRole, song]);
   const namedSectionIndex =
     named && Array.isArray(runtimeSong?.sections)
       ? runtimeSong.sections.indexOf(named.section)
