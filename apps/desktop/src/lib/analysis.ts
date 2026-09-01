@@ -15,6 +15,7 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
+import { parseRehearsalSongWithTimingEvidence } from "./rehearsalTimingEvidence";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -351,5 +352,5 @@ export async function saveProject(song: RehearsalSong): Promise<void> {
 /** Documented. */
 export async function loadProject(): Promise<RehearsalSong> {
   const response = await invokeAnalysis("load_project");
-  return parseRehearsalSong(response);
+  return parseRehearsalSongWithTimingEvidence(response);
 }
