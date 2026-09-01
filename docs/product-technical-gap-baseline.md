@@ -310,8 +310,8 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 # protected source identity
 git rev-parse develop
 
-# organization-wide open PR count
-gh api search/issues -f q='org:ContextualWisdomLab is:pr is:open' --jq '.total_count'
+# organization-wide open PR count; -f remains a GET query because the method is explicit
+gh api --method GET search/issues -f q='org:ContextualWisdomLab is:pr is:open' --jq '.total_count'
 
 # BandScope current queue
 gh pr list --state open --limit 500 --json number --jq 'length'
