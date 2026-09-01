@@ -5,7 +5,7 @@ Last updated: 2026-08-24
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
-- The mounted workspace copy for tonight's first corroborated part-to-part handoff must name the giving part, receiving part, labeled section, and time so the next action is obvious. Open moves to the matching rendered map section. Do not invent that pass from groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, confirmed overrides, harmonic explanations, confidence notes, transposition plans, or a labeled `handoff` form without owned bidirectional `partGraph` edges. Distinct from labeled-form handoff (#937) and Part Handoff Map visualization (#850).
+- The mounted workspace copy for tonight's first corroborated part-to-part handoff must treat `partGraph.handoff_to` as a transition from the current source section into the immediately following destination section: name the active giving role from the source, corroborate the receiver with source `handoff_from`, require the giver to deactivate and receiver to activate in the destination, and show the destination label/start time. Open moves to that rendered destination section. Do not invent a pass from a one-section same-state graph, groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, confirmed overrides, harmonic explanations, confidence notes, transposition plans, or a labeled `handoff` form. Distinct from labeled-form handoff (#937) and Part Handoff Map visualization (#850).
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source
