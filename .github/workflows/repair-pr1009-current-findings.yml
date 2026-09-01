@@ -1,0 +1,278 @@
+name: Repair PR1009 current findings
+
+on:
+  push:
+    branches:
+      - feat/licensed-demo-first-run
+    paths:
+      - .github/repair-pr1009-current-findings.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-pr1009-current-findings
+  cancel-in-progress: true
+
+jobs:
+  repair_current_findings:
+    if: ${{ github.repository == 'ContextualWisdomLab/bandscope' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/licensed-demo-first-run
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.0.0
+        with:
+          node-version: '22.22.3'
+          package-manager-cache: false
+      - name: Revalidate exact live PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          start_head=$(git rev-parse HEAD)
+          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1009 --jq .head.sha)
+          test "$start_head" = "$live_head"
+          echo "START_HEAD=$start_head" >> "$GITHUB_ENV"
+      - name: Install focused test dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          rustup toolchain install stable --profile minimal
+      - name: Add regression-first tests and prove RED
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app_test_path = Path("apps/desktop/src/App.localSelectionConcurrency.test.tsx")
+          app_test_text = app_test_path.read_text(encoding="utf-8")
+          app_insert = r'''
+
+  it("blocks project loading while source selection owns workspace intake", async () => {
+    let resolveSelection: ((value: SuccessfulLocalAudioSelection) => void) | undefined;
+    analysisMocks.selectLocalAudioSource.mockImplementation(
+      () =>
+        new Promise<SuccessfulLocalAudioSelection>((resolve) => {
+          resolveSelection = resolve;
+        }),
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use my own song" }));
+    const openProject = screen.getByRole("button", { name: "Open Project" });
+    await waitFor(() => expect(openProject).toBeDisabled());
+
+    openProject.removeAttribute("disabled");
+    fireEvent.click(openProject);
+    expect(analysisMocks.loadProject).not.toHaveBeenCalled();
+
+    resolveSelection?.({ ok: true, bootstrap: selectedBootstrap });
+    await waitFor(() => expect(screen.getByText("selected-song.wav")).toBeTruthy());
+  });
+
+  it("blocks source selection while project loading owns workspace intake", async () => {
+    let resolveProject: ((value: null) => void) | undefined;
+    analysisMocks.loadProject.mockImplementation(
+      () =>
+        new Promise<null>((resolve) => {
+          resolveProject = resolve;
+        }),
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Project" }));
+    const useOwnSong = screen.getByRole("button", { name: "Use my own song" });
+    const chooseLocalAudio = screen.getByRole("button", { name: "Choose local audio" });
+    await waitFor(() => {
+      expect(useOwnSong).toBeDisabled();
+      expect(chooseLocalAudio).toBeDisabled();
+    });
+
+    useOwnSong.removeAttribute("disabled");
+    fireEvent.click(useOwnSong);
+    expect(analysisMocks.selectLocalAudioSource).not.toHaveBeenCalled();
+
+    resolveProject?.(null);
+    await waitFor(() => expect(chooseLocalAudio).not.toBeDisabled());
+  });
+'''
+          closing = "\n});\n"
+          if not app_test_text.endswith(closing):
+              raise SystemExit("App concurrency test closing marker changed")
+          app_test_path.write_text(app_test_text[: -len(closing)] + app_insert + closing, encoding="utf-8")
+
+          core_path = Path("apps/desktop/core/src/lib.rs")
+          core_text = core_path.read_text(encoding="utf-8")
+          core_insert = r'''
+
+    #[test]
+    fn demo_audio_post_read_contract_rejects_size_drift() {
+        let root = unique_test_dir("demo-post-read-size");
+        std::fs::create_dir_all(&root).expect("demo root should be created");
+        let path = root.join(DEMO_AUDIO_FILE_NAME);
+        write_sized_demo_wav(&path, DEMO_AUDIO_BYTES, true, true);
+        let mut audio_bytes = std::fs::read(&path).expect("demo fixture should be readable");
+        audio_bytes.pop();
+
+        assert!(!is_valid_demo_audio_bytes(&audio_bytes));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn demo_wav_validation_rejects_wrong_pcm_and_duplicate_required_chunks() {
+        let root = unique_test_dir("demo-fixed-pcm");
+        std::fs::create_dir_all(&root).expect("demo root should be created");
+        let path = root.join(DEMO_AUDIO_FILE_NAME);
+        write_sized_demo_wav(&path, DEMO_AUDIO_BYTES, true, true);
+        let valid_audio_bytes = std::fs::read(&path).expect("demo fixture should be readable");
+
+        let mut wrong_pcm_bytes = valid_audio_bytes.clone();
+        wrong_pcm_bytes[24..28].copy_from_slice(&44_100u32.to_le_bytes());
+        wrong_pcm_bytes[28..32].copy_from_slice(&88_200u32.to_le_bytes());
+        assert!(!is_valid_demo_wav(&wrong_pcm_bytes));
+
+        let mut duplicate_format_bytes = valid_audio_bytes.clone();
+        duplicate_format_bytes[36..40].copy_from_slice(b"fmt ");
+        duplicate_format_bytes[40..44].copy_from_slice(&16u32.to_le_bytes());
+        let original_format = duplicate_format_bytes[20..36].to_vec();
+        duplicate_format_bytes[44..60].copy_from_slice(&original_format);
+        duplicate_format_bytes[60..64].copy_from_slice(b"data");
+        let remaining_data_bytes = (duplicate_format_bytes.len() - 68) as u32;
+        duplicate_format_bytes[64..68].copy_from_slice(&remaining_data_bytes.to_le_bytes());
+        assert!(!is_valid_demo_wav(&duplicate_format_bytes));
+
+        let mut duplicate_data_bytes = valid_audio_bytes.clone();
+        let first_data_bytes = 44_100u32;
+        duplicate_data_bytes[40..44].copy_from_slice(&first_data_bytes.to_le_bytes());
+        let second_data_offset = 44 + first_data_bytes as usize;
+        duplicate_data_bytes[second_data_offset..second_data_offset + 4].copy_from_slice(b"data");
+        let second_data_bytes = (duplicate_data_bytes.len() - second_data_offset - 8) as u32;
+        duplicate_data_bytes[second_data_offset + 4..second_data_offset + 8]
+            .copy_from_slice(&second_data_bytes.to_le_bytes());
+        assert!(!is_valid_demo_wav(&duplicate_data_bytes));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+'''
+          core_closing = "\n}\n"
+          if not core_text.endswith(core_closing):
+              raise SystemExit("core test module closing marker changed")
+          core_path.write_text(core_text[: -len(core_closing)] + core_insert + core_closing, encoding="utf-8")
+          PY
+
+          set +e
+          npm --workspace @bandscope/desktop exec vitest run src/App.localSelectionConcurrency.test.tsx
+          app_red_status=$?
+          cargo test --manifest-path apps/desktop/core/Cargo.toml demo_audio_ -- --nocapture
+          core_red_status=$?
+          set -e
+          test "$app_red_status" -ne 0
+          test "$core_red_status" -ne 0
+      - name: Implement minimal root-cause repair
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          app_path = Path("apps/desktop/src/App.tsx")
+          app_text = app_path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  '  const [isSelectingLocal, setIsSelectingLocal] = useState(false);\n',
+                  '  const [isSelectingLocal, setIsSelectingLocal] = useState(false);\n  const [isLoadingProject, setIsLoadingProject] = useState(false);\n',
+              ),
+              ('  const sourceSelectionInFlightRef = useRef(false);\n', '  const workspaceIntakeInFlightRef = useRef(false);\n'),
+              ('sourceSelectionInFlightRef.current', 'workspaceIntakeInFlightRef.current'),
+              (
+                  '''  const handleLoadProject = async () => {\n    try {\n      const song = await loadProject();\n''',
+                  '''  const handleLoadProject = async () => {\n    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {\n      return;\n    }\n\n    workspaceIntakeInFlightRef.current = true;\n    setIsLoadingProject(true);\n    try {\n      const song = await loadProject();\n''',
+              ),
+              (
+                  '''    } catch (e) {\n      if (!isUserCancellation(e)) {\n        setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);\n      }\n    }\n  };\n\n  /** Documented. */\n  const handleSaveProject''',
+                  '''    } catch (e) {\n      if (!isUserCancellation(e)) {\n        setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);\n      }\n    } finally {\n      workspaceIntakeInFlightRef.current = false;\n      setIsLoadingProject(false);\n    }\n  };\n\n  /** Documented. */\n  const handleSaveProject''',
+              ),
+              ('        disabled={isImporting || isSelectingDemo || isSelectingLocal}\n', '        disabled={isImporting || isSelectingDemo || isSelectingLocal || isLoadingProject}\n'),
+              ('disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal}', 'disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isLoadingProject}'),
+              ('!isSelectingLocal ? (', '!isSelectingLocal &&\n                      !isLoadingProject ? ('),
+              (
+                  '''                      isImporting ||\n                      isSelectingDemo ||\n                      isSelectingLocal\n''',
+                  '''                      isImporting ||\n                      isSelectingDemo ||\n                      isSelectingLocal ||\n                      isLoadingProject\n''',
+              ),
+              (
+                  '''                  onClick={handleLoadProject}\n                  disabled={analysisInFlight || isStarting}\n''',
+                  '''                  onClick={handleLoadProject}\n                  disabled={\n                    analysisInFlight ||\n                    isStarting ||\n                    isImporting ||\n                    isSelectingDemo ||\n                    isSelectingLocal ||\n                    isLoadingProject\n                  }\n                  aria-busy={isLoadingProject || undefined}\n''',
+              ),
+              (
+                  '''                    isImporting ||\n                    isSelectingDemo ||\n                    isSelectingLocal\n''',
+                  '''                    isImporting ||\n                    isSelectingDemo ||\n                    isSelectingLocal ||\n                    isLoadingProject\n''',
+              ),
+          ]
+          for old_text, new_text in replacements:
+              if old_text not in app_text:
+                  raise SystemExit(f"expected App source fragment missing: {old_text[:80]!r}")
+              app_text = app_text.replace(old_text, new_text, 1)
+          app_path.write_text(app_text, encoding="utf-8")
+
+          core_path = Path("apps/desktop/core/src/lib.rs")
+          core_text = core_path.read_text(encoding="utf-8")
+          marker = 'const WAV_WAVE_MAGIC: &[u8] = b"WAVE";\n'
+          constants = '''const WAV_WAVE_MAGIC: &[u8] = b"WAVE";\n\nconst DEMO_PCM_CHANNEL_COUNT: u16 = 1;\nconst DEMO_PCM_SAMPLE_RATE_HZ: u32 = 22_050;\nconst DEMO_PCM_BITS_PER_SAMPLE: u16 = 16;\nconst DEMO_PCM_BLOCK_ALIGN_BYTES: u16 = 2;\nconst DEMO_PCM_BYTE_RATE_BYTES_PER_SECOND: u32 = 44_100;\nconst DEMO_PCM_DATA_BYTES: usize = DEMO_AUDIO_BYTES as usize - 44;\n'''
+          if marker not in core_text:
+              raise SystemExit("WAV constant marker changed")
+          core_text = core_text.replace(marker, constants, 1)
+          old_validation = '''    let data = std::fs::read(&canonical).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;\n    if !is_valid_demo_wav(&data) {\n        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());\n    }\n\n    Ok(LocalAudioSourcePayload {\n        source_path: canonical.to_string_lossy().into_owned(),\n        file_name: file_name.to_string(),\n        extension,\n        file_size_bytes: link_metadata.len(),\n    })\n}\n\nfn is_valid_demo_wav(data: &[u8]) -> bool {\n    if data.len() < 44\n        || &data[0..4] != WAV_RIFF_MAGIC\n        || &data[8..12] != WAV_WAVE_MAGIC\n        || u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize != data.len() - 8\n'''
+          new_validation = '''    let audio_bytes =\n        std::fs::read(&canonical).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;\n    if !is_valid_demo_audio_bytes(&audio_bytes) {\n        return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());\n    }\n\n    Ok(LocalAudioSourcePayload {\n        source_path: canonical.to_string_lossy().into_owned(),\n        file_name: file_name.to_string(),\n        extension,\n        file_size_bytes: audio_bytes.len() as u64,\n    })\n}\n\nfn is_valid_demo_audio_bytes(audio_bytes: &[u8]) -> bool {\n    audio_bytes.len() as u64 == DEMO_AUDIO_BYTES && is_valid_demo_wav(audio_bytes)\n}\n\nfn is_valid_demo_wav(audio_bytes: &[u8]) -> bool {\n    if audio_bytes.len() < 44\n        || &audio_bytes[0..4] != WAV_RIFF_MAGIC\n        || &audio_bytes[8..12] != WAV_WAVE_MAGIC\n        || u32::from_le_bytes([\n            audio_bytes[4],\n            audio_bytes[5],\n            audio_bytes[6],\n            audio_bytes[7],\n        ]) as usize\n            != audio_bytes.len() - 8\n'''
+          if old_validation not in core_text:
+              raise SystemExit("demo validation source fragment changed")
+          core_text = core_text.replace(old_validation, new_validation, 1)
+          core_text = core_text.replace('while offset < data.len() {', 'while offset < audio_bytes.len() {', 1)
+          core_text = core_text.replace('Some(value) if value <= data.len()', 'Some(value) if value <= audio_bytes.len()', 3)
+          core_text = core_text.replace('data[offset + 4]', 'audio_bytes[offset + 4]')
+          core_text = core_text.replace('data[offset + 5]', 'audio_bytes[offset + 5]')
+          core_text = core_text.replace('data[offset + 6]', 'audio_bytes[offset + 6]')
+          core_text = core_text.replace('data[offset + 7]', 'audio_bytes[offset + 7]')
+          core_text = core_text.replace('match &data[offset..offset + 4] {', 'match &audio_bytes[offset..offset + 4] {', 1)
+          for index in range(16):
+              core_text = core_text.replace(f'data[header_end + {index}]', f'audio_bytes[header_end + {index}]')
+          old_match = '''            b"fmt " if chunk_size >= 16 => {\n                let format = u16::from_le_bytes([audio_bytes[header_end], audio_bytes[header_end + 1]]);\n                let channels = u16::from_le_bytes([audio_bytes[header_end + 2], audio_bytes[header_end + 3]]);\n                let sample_rate = u32::from_le_bytes([\n                    audio_bytes[header_end + 4],\n                    audio_bytes[header_end + 5],\n                    audio_bytes[header_end + 6],\n                    audio_bytes[header_end + 7],\n                ]);\n                let byte_rate = u32::from_le_bytes([\n                    audio_bytes[header_end + 8],\n                    audio_bytes[header_end + 9],\n                    audio_bytes[header_end + 10],\n                    audio_bytes[header_end + 11],\n                ]);\n                let block_align =\n                    u16::from_le_bytes([audio_bytes[header_end + 12], audio_bytes[header_end + 13]]);\n                let bits_per_sample =\n                    u16::from_le_bytes([audio_bytes[header_end + 14], audio_bytes[header_end + 15]]);\n                has_format = format == 1\n                    && channels > 0\n                    && sample_rate > 0\n                    && byte_rate > 0\n                    && block_align > 0\n                    && bits_per_sample > 0;\n            }\n            b"data" if chunk_size > 0 => has_data = true,\n            _ => {}\n'''
+          new_match = '''            b"fmt " if !has_format && chunk_size == 16 => {\n                let audio_format =\n                    u16::from_le_bytes([audio_bytes[header_end], audio_bytes[header_end + 1]]);\n                let channel_count = u16::from_le_bytes([\n                    audio_bytes[header_end + 2],\n                    audio_bytes[header_end + 3],\n                ]);\n                let sample_rate_hz = u32::from_le_bytes([\n                    audio_bytes[header_end + 4],\n                    audio_bytes[header_end + 5],\n                    audio_bytes[header_end + 6],\n                    audio_bytes[header_end + 7],\n                ]);\n                let byte_rate_bytes_per_second = u32::from_le_bytes([\n                    audio_bytes[header_end + 8],\n                    audio_bytes[header_end + 9],\n                    audio_bytes[header_end + 10],\n                    audio_bytes[header_end + 11],\n                ]);\n                let block_align_bytes = u16::from_le_bytes([\n                    audio_bytes[header_end + 12],\n                    audio_bytes[header_end + 13],\n                ]);\n                let bits_per_sample = u16::from_le_bytes([\n                    audio_bytes[header_end + 14],\n                    audio_bytes[header_end + 15],\n                ]);\n                let derived_block_align_bytes =\n                    DEMO_PCM_CHANNEL_COUNT * (DEMO_PCM_BITS_PER_SAMPLE / 8);\n                let derived_byte_rate_bytes_per_second =\n                    DEMO_PCM_SAMPLE_RATE_HZ * u32::from(derived_block_align_bytes);\n                has_format = audio_format == 1\n                    && channel_count == DEMO_PCM_CHANNEL_COUNT\n                    && sample_rate_hz == DEMO_PCM_SAMPLE_RATE_HZ\n                    && bits_per_sample == DEMO_PCM_BITS_PER_SAMPLE\n                    && block_align_bytes == DEMO_PCM_BLOCK_ALIGN_BYTES\n                    && block_align_bytes == derived_block_align_bytes\n                    && byte_rate_bytes_per_second == DEMO_PCM_BYTE_RATE_BYTES_PER_SECOND\n                    && byte_rate_bytes_per_second == derived_byte_rate_bytes_per_second;\n            }\n            b"fmt " => return false,\n            b"data" if !has_data && chunk_size == DEMO_PCM_DATA_BYTES => has_data = true,\n            b"data" => return false,\n            _ => {}\n'''
+          if old_match not in core_text:
+              raise SystemExit("demo WAV chunk matcher changed")
+          core_text = core_text.replace(old_match, new_match, 1)
+          core_text = core_text.replace('offset == data.len() && has_format && has_data', 'offset == audio_bytes.len() && has_format && has_data', 1)
+          core_text = core_text.replace('data[24..28].copy_from_slice(&44_100u32.to_le_bytes());', 'data[24..28].copy_from_slice(&22_050u32.to_le_bytes());', 1)
+          core_text = core_text.replace('data[28..32].copy_from_slice(&88_200u32.to_le_bytes());', 'data[28..32].copy_from_slice(&44_100u32.to_le_bytes());', 1)
+          core_path.write_text(core_text, encoding="utf-8")
+          PY
+      - name: Verify focused GREEN and formatting
+        run: |
+          set -euo pipefail
+          npm --workspace @bandscope/desktop exec vitest run src/App.localSelectionConcurrency.test.tsx
+          npm --workspace @bandscope/desktop exec tsc --noEmit
+          cargo fmt --manifest-path apps/desktop/core/Cargo.toml -- --check
+          cargo test --manifest-path apps/desktop/core/Cargo.toml demo_audio_ -- --nocapture
+      - name: Commit repaired source and retire one-shot lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1009 --jq .head.sha)
+          test "$live_head" = "$START_HEAD"
+          rm -f .github/workflows/repair-pr1009-current-findings.yml
+          rm -f .github/repair-pr1009-current-findings.trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/src/App.tsx \
+            apps/desktop/src/App.localSelectionConcurrency.test.tsx \
+            apps/desktop/core/src/lib.rs \
+            .github/workflows/repair-pr1009-current-findings.yml \
+            .github/repair-pr1009-current-findings.trigger
+          git commit -m "fix(activation): serialize intake and harden demo WAV"
+          git push origin HEAD:feat/licensed-demo-first-run
