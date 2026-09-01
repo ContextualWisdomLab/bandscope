@@ -2,7 +2,15 @@
 
 ## Purpose
 
-This note records why `docs/product-technical-gap-baseline.md` was replaced on PR #1116 instead of layering another stale queue snapshot over it.
+This note records why `docs/product-technical-gap-baseline.md` was replaced on PR #1116 instead of layering another stale queue snapshot over it, and preserves later live-state corrections without rewriting historical observations as if they were current.
+
+## Current live-state correction — 2026-09-02
+
+Protected source remains `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at this capture. A fresh GitHub organization search reports **2,782 open pull requests** across `ContextualWisdomLab`, and a fresh repository search reports **187 open pull requests** in `ContextualWisdomLab/bandscope`. The accessible repository listing contains 74 repositories. Fresh spot checks of the previously closest backlogs remain materially below BandScope: `ContextualWisdomLab/OriginWeave` 141, `ContextualWisdomLab/naruon` 134, and `ContextualWisdomLab/TEPP` 132. These are volatile operational observations; they do not transfer check/review evidence or justify unsafe closure.
+
+The previously recorded statement that PR #1119 was closed is also stale. `ContextualWisdomLab/bandscope#1119` is open again on canonical branch `fix/trivy-pr-code-scanning`, currently owning the repository-local Trivy pull-request-head configuration contract. Its exact head at this correction is `8f9c0762c8d336c08028298c276fe0fad745090f`, with fresh repository workflows queued. Downstream PRs with neutral/missing Trivy configuration evidence must therefore continue to treat #1119 as a live causal-owner lane until normal protected integration or a newer verified owner supersedes it.
+
+The canonical baseline source remains the durable PRD/TRD/DDD contract; volatile queue numbers are evidence, not product truth. When this branch advances, predecessor checks and approvals are invalidated and must be regenerated on the new exact head.
 
 ## Repository evidence
 
@@ -52,4 +60,4 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 
 PR #1116 is the canonical current baseline owner. PR #1025 is an older competing owner of the same path; its unique requirements (PRD/TRD/UML, Rust migration, real-audio accuracy, security, accessibility, release evidence, and reproducible verification) were deliberately carried into the #1116 replacement. Once this current head is present, #1025 can be closed as superseded without deleting its discussion history.
 
-Future hourly loops should refresh live counts/evidence only when they materially change prioritization. They must not rewrite immutable product and architecture sections merely to chase a volatile PR number.
+Future loops should refresh live counts/evidence only when they materially change prioritization. They must not rewrite immutable product and architecture sections merely to chase a volatile PR number.
