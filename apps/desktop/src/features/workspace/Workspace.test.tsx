@@ -16,6 +16,26 @@ function setNavigatorLanguage(language: string) {
   });
 }
 
+function withHandoffDestination(song: RehearsalSong): RehearsalSong {
+  const source = song.sections[0];
+  return {
+    ...song,
+    sections: [
+      source,
+      {
+        ...source,
+        id: "chorus-1",
+        label: "chorus",
+        partGraph: source.partGraph.map((node) => ({
+          ...node,
+          handoff_to: [],
+          handoff_from: []
+        }))
+      }
+    ]
+  };
+}
+
 describe("Workspace", () => {
   afterEach(() => {
     setNavigatorLanguage(originalLanguage);
@@ -198,32 +218,32 @@ describe("Workspace", () => {
 
   it("names tonight's first part handoff and the next lock-in", () => {
     setNavigatorLanguage("en-US");
-    const song = createDemoRehearsalSong();
+    const song = withHandoffDestination(createDemoRehearsalSong());
 
     render(<Workspace song={song} />);
 
     const callout = screen.getByTestId("first-part-handoff");
     expect(callout).toHaveTextContent("Tonight's first handoff");
     expect(callout).toHaveTextContent(
-      "Bass Guitar hands off to Lead Vocal in verse. Lock that pass before the verse."
+      "Bass Guitar hands off to Lead Vocal in chorus. Lock that pass before the chorus."
     );
   });
 
   it("keeps the selected receiver in tonight's first handoff", () => {
     setNavigatorLanguage("en-US");
-    const song = createDemoRehearsalSong();
+    const song = withHandoffDestination(createDemoRehearsalSong());
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
 
     expect(screen.getByTestId("first-part-handoff")).toHaveTextContent(
-      "Bass Guitar hands off to Lead Vocal in verse. Lock that pass before the verse."
+      "Bass Guitar hands off to Lead Vocal in chorus. Lock that pass before the chorus."
     );
   });
 
   it("asks the player to pick a pass when the selected part is not on one", () => {
     setNavigatorLanguage("en-US");
-    const song = createDemoRehearsalSong();
+    const song = withHandoffDestination(createDemoRehearsalSong());
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
