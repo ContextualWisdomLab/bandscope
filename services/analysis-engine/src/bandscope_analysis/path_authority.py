@@ -9,8 +9,11 @@ contract field but never echo the untrusted path value.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Final
+
+logger = logging.getLogger(__name__)
 
 _WINDOWS_RESERVED_CHARACTERS: Final[frozenset[str]] = frozenset('<>:"|?*')
 _WINDOWS_RESERVED_DEVICE_NAMES: Final[frozenset[str]] = frozenset(
@@ -137,6 +140,7 @@ def validate_local_path_shape(
 
     normalized_parts = value.replace("\\", "/").split("/")
     if any(part in {".", ".."} for part in normalized_parts):
+        logger.warning("Security: path traversal detected in %s", field_name)
         raise ValueError(f"Invalid analysis job request: path traversal detected in '{field_name}'")
 
     posix_path = PurePosixPath(value)
