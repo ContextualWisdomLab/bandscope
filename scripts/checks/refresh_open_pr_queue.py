@@ -80,6 +80,16 @@ def _require_positive_int(value: object, field: str) -> int:
     return value
 
 
+def _require_github_timestamp(value: object, field: str) -> str:
+    """Return a strict UTC GitHub timestamp for queue-freshness evidence."""
+    text = _require_text(value, field)
+    try:
+        datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise RefreshError(f"{field} must use YYYY-MM-DDTHH:MM:SSZ") from exc
+    return text
+
+
 def _normalize_base_tips(base_tips: object | None, protected_base_sha: str) -> dict[str, str]:
     """Normalize independently resolved target-branch tips used by live PR records."""
     if base_tips is None:
@@ -158,6 +168,12 @@ def _live_pr_entry(
     expected_url = f"https://github.com/{REPOSITORY}/pull/{number}"
     if pr.get("html_url") != expected_url:
         _fail(f"pull_requests[{index}].html_url must be {expected_url}")
+    draft = pr.get("draft")
+    if not isinstance(draft, bool):
+        _fail(f"pull_requests[{index}].draft must be boolean")
+    updated_at = _require_github_timestamp(
+        pr.get("updated_at"), f"pull_requests[{index}].updated_at"
+    )
 
     base = _require_record(pr.get("base"), f"pull_requests[{index}].base")
     base_ref = _require_text(base.get("ref"), f"pull_requests[{index}].base.ref")
@@ -199,6 +215,8 @@ def _live_pr_entry(
         "base_sha": resolved_base_sha,
         "head_sha": head_sha,
         "head_sha_status": "exact_current_head",
+        "draft": draft,
+        "updated_at": updated_at,
         "predecessor_prs": predecessor_prs,
         "overlap_prs": overlap_prs,
         "successor_pr": successor_pr,
