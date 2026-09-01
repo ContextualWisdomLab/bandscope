@@ -147,7 +147,8 @@ def test_refresh_manifest_updates_exact_heads_and_adds_untriaged_live_prs() -> N
     assert refreshed["pull_requests"][0]["head_sha"] == "b" * 40
     assert refreshed["pull_requests"][0]["head_sha_status"] == "exact_current_head"
     assert (
-        refreshed["pull_requests"][0]["initial_disposition"] == "canonical_dependency_security_base"
+        refreshed["pull_requests"][0]["initial_disposition"]
+        == "canonical_dependency_security_base"
     )
     assert refreshed["pull_requests"][1]["number"] == 1002
     assert refreshed["pull_requests"][1]["initial_train"] == "T8"
@@ -212,7 +213,7 @@ def test_refresh_preserves_reviewed_predecessors_and_defaults_new_prs_to_root() 
         (
             {
                 "incomplete_results": False,
-                "pull_requests": [_live_pr(783, "b" * 40, base_sha="e" * 40)],
+                "pull_requests": [_live_pr(783, "b" * 40, base_sha="not-a-sha")],
             },
             "base.sha",
         ),
@@ -221,7 +222,7 @@ def test_refresh_preserves_reviewed_predecessors_and_defaults_new_prs_to_root() 
 def test_refresh_manifest_rejects_untrustworthy_live_inventory(
     live: dict[str, object], expected: str
 ) -> None:
-    """Incomplete, duplicate, malformed, or wrong-base live evidence fails closed."""
+    """Incomplete, duplicate, malformed, or unresolved-base live evidence fails closed."""
     refresher = _load_refresher()
 
     with pytest.raises(refresher.RefreshError, match=expected):
