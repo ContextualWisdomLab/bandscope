@@ -42,7 +42,7 @@ pub const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 
 pub const DEMO_AUDIO_FILE_NAME: &str = "late-night-set.wav";
 
-pub const DEMO_AUDIO_BYTES: u64 = 88244;
+pub const DEMO_AUDIO_BYTES: u64 = 441044;
 const DEMO_AUDIO_FORMAT_CODE: u16 = 1;
 const DEMO_AUDIO_CHANNEL_COUNT: u16 = 1;
 const DEMO_AUDIO_SAMPLE_RATE_HZ: u32 = 22_050;
