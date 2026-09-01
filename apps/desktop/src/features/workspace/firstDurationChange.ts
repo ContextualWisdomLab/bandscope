@@ -56,7 +56,9 @@ export function sectionDurationSeconds(timeRangeValue: unknown): number | null {
  * Pick the first named section-length change a player should count in before the next section.
  *
  * Walks labeled sections in form order and returns the first consecutive pair
- * whose integer duration differs. When every named section holds the same
+ * whose integer duration differs. Unlabeled compatibility noise is ignored,
+ * while a named section without valid timing fails closed so unknown timing can
+ * never bridge two measured sections. When every named section holds the same
  * length, the result is a same-length hold so the room does not reset the
  * count. Stable section ids, rather than display labels, own roadmap targeting.
  * All meaningful section ids are validated for uniqueness before duration
@@ -91,9 +93,12 @@ export function firstDurationChange(song: RehearsalSong): FirstDurationChange | 
     }
     const sectionId = meaningfulRangeText(sectionValue.id);
     const sectionLabel = meaningfulRangeText(sectionValue.label);
-    const durationSeconds = sectionDurationSeconds(sectionValue.timeRange);
-    if (!sectionId || !sectionLabel || durationSeconds === null) {
+    if (!sectionId || !sectionLabel) {
       continue;
+    }
+    const durationSeconds = sectionDurationSeconds(sectionValue.timeRange);
+    if (durationSeconds === null) {
+      return null;
     }
     namedDurations.push({
       sectionId,
