@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          import base64
           from pathlib import Path
 
           path = Path("services/analysis-engine/tests/test_supply_chain_policy.py")
@@ -55,56 +56,12 @@ jobs:
           start = text.index(start_marker)
           end = text.index(end_marker, start)
           stale = text[start:end]
-          required_stale_fragments = (
-              'for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):',
-              'assert "pull_request:" not in workflow.read_text(encoding="utf-8")',
-          )
-          if not all(fragment in stale for fragment in required_stale_fragments):
-              raise SystemExit("policy function no longer matches the proven stale Trivy contract")
-          replacement = '''def test_central_governance_workflows_preserve_local_security_signal_boundaries() -> None:
-    """Ensure local signals keep their intended push and PR trigger boundaries."""
-    repo_root = Path(__file__).resolve().parents[3]
-    workflows_dir = repo_root / ".github" / "workflows"
-
-    assert not (workflows_dir / "dependency-review.yml").exists()
-
-    for local_signal in ("codeql.yml", "ossf-scorecard.yml"):
-        workflow = workflows_dir / local_signal
-        assert workflow.exists(), (
-            f"{local_signal} keeps repository-local security-tab/SAST signal "
-            "while central required workflows handle PR enforcement"
-        )
-        content = workflow.read_text(encoding="utf-8")
-        assert "push:" in content, f"{local_signal} must retain push-based reporting"
-        assert "pull_request:" not in content, (
-            f"{local_signal} must not become a duplicate PR gate"
-        )
-
-    trivy_workflow = workflows_dir / "trivy.yml"
-    assert trivy_workflow.exists(), (
-        "trivy.yml keeps repository-local SARIF reporting while providing "
-        "the repository's per-PR vulnerability scan"
-    )
-    trivy_content = trivy_workflow.read_text(encoding="utf-8")
-    assert "push:" in trivy_content, "trivy.yml must retain push-based SARIF reporting"
-    assert "pull_request:" in trivy_content, (
-        "trivy.yml must scan pull-request heads for current-head SARIF evidence"
-    )
-    pull_request_section = trivy_content.split("pull_request:", 1)[1].split(
-        "permissions:", 1
-    )[0]
-    assert "- develop" in pull_request_section
-    assert "- main" in pull_request_section
-
-    supply_chain = load_module(
-        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
-    )
-    required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
-    assert ".github/workflows/dependency-review.yml" not in required
-    assert ".github/workflows/codeql.yml" in required
-    assert ".github/workflows/ossf-scorecard.yml" in required
-
-'''
+          if 'for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):' not in stale:
+              raise SystemExit("stale local-signal grouping is no longer present")
+          if 'assert "pull_request:" not in workflow.read_text(encoding="utf-8")' not in stale:
+              raise SystemExit("stale push-only assertion is no longer present")
+          encoded = "ZGVmIHRlc3RfY2VudHJhbF9nb3Zlcm5hbmNlX3dvcmtmbG93c19wcmVzZXJ2ZV9sb2NhbF9zZWN1cml0eV9zaWduYWxfYm91bmRhcmllcygpIC0+IE5vbmU6CiAgICAiIiJFbnN1cmUgbG9jYWwgc2lnbmFscyBrZWVwIHRoZWlyIGludGVuZGVkIHB1c2ggYW5kIFBSIHRyaWdnZXIgYm91bmRhcmllcy4iIiIKICAgIHJlcG9fcm9vdCA9IFBhdGgoX19maWxlX18pLnJlc29sdmUoKS5wYXJlbnRzWzNdCiAgICB3b3JrZmxvd3NfZGlyID0gcmVwb19yb290IC8gIi5naXRodWIiIC8gIndvcmtmbG93cyIKCiAgICBhc3NlcnQgbm90ICh3b3JrZmxvd3NfZGlyIC8gImRlcGVuZGVuY3ktcmV2aWV3LnltbCIpLmV4aXN0cygpCgogICAgZm9yIGxvY2FsX3NpZ25hbCBpbiAoImNvZGVxbC55bWwiLCAib3NzZi1zY29yZWNhcmQueW1sIik6CiAgICAgICAgd29ya2Zsb3cgPSB3b3JrZmxvd3NfZGlyIC8gbG9jYWxfc2lnbmFsCiAgICAgICAgYXNzZXJ0IHdvcmtmbG93LmV4aXN0cygpLCAoCiAgICAgICAgICAgIGYie2xvY2FsX3NpZ25hbH0ga2VlcHMgcmVwb3NpdG9yeS1sb2NhbCBzZWN1cml0eS10YWIvU0FTVCBzaWduYWwgIgogICAgICAgICAgICAid2hpbGUgY2VudHJhbCByZXF1aXJlZCB3b3JrZmxvd3MgaGFuZGxlIFBSIGVuZm9yY2VtZW50IgogICAgICAgICkKICAgICAgICBjb250ZW50ID0gd29ya2Zsb3cucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpCiAgICAgICAgYXNzZXJ0ICJwdXNoOiIgaW4gY29udGVudCwgZiJ7bG9jYWxfc2lnbmFsfSBtdXN0IHJldGFpbiBwdXNoLWJhc2VkIHJlcG9ydGluZyIKICAgICAgICBhc3NlcnQgInB1bGxfcmVxdWVzdDoiIG5vdCBpbiBjb250ZW50LCAoCiAgICAgICAgICAgIGYie2xvY2FsX3NpZ25hbH0gbXVzdCBub3QgYmVjb21lIGEgZHVwbGljYXRlIFBSIGdhdGUiCiAgICAgICAgKQoKICAgIHRyaXZ5X3dvcmtmbG93ID0gd29ya2Zsb3dzX2RpciAvICJ0cml2eS55bWwiCiAgICBhc3NlcnQgdHJpdnlfd29ya2Zsb3cuZXhpc3RzKCksICgKICAgICAgICAidHJpdnkueW1sIGtlZXBzIHJlcG9zaXRvcnktbG9jYWwgU0FSSUYgcmVwb3J0aW5nIHdoaWxlIHByb3ZpZGluZyAiCiAgICAgICAgInRoZSByZXBvc2l0b3J5J3MgcGVyLVBSIHZ1bG5lcmFiaWxpdHkgc2NhbiIKICAgICkKICAgIHRyaXZ5X2NvbnRlbnQgPSB0cml2eV93b3JrZmxvdy5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04IikKICAgIGFzc2VydCAicHVzaDoiIGluIHRyaXZ5X2NvbnRlbnQsICJ0cml2eS55bWwgbXVzdCByZXRhaW4gcHVzaC1iYXNlZCBTQVJJRiByZXBvcnRpbmciCiAgICBhc3NlcnQgInB1bGxfcmVxdWVzdDoiIGluIHRyaXZ5X2NvbnRlbnQsICgKICAgICAgICAidHJpdnkueW1sIG11c3Qgc2NhbiBwdWxsLXJlcXVlc3QgaGVhZHMgZm9yIGN1cnJlbnQtaGVhZCBTQVJJRiBldmlkZW5jZSIKICAgICkKICAgIHB1bGxfcmVxdWVzdF9zZWN0aW9uID0gdHJpdnlfY29udGVudC5zcGxpdCgicHVsbF9yZXF1ZXN0OiIsIDEpWzFdLnNwbGl0KAogICAgICAgICJwZXJtaXNzaW9uczoiLCAxCiAgICApWzBdCiAgICBhc3NlcnQgIi0gZGV2ZWxvcCIgaW4gcHVsbF9yZXF1ZXN0X3NlY3Rpb24KICAgIGFzc2VydCAiLSBtYWluIiBpbiBwdWxsX3JlcXVlc3Rfc2VjdGlvbgoKICAgIHN1cHBseV9jaGFpbiA9IGxvYWRfbW9kdWxlKAogICAgICAgICJzY3JpcHRzL2NoZWNrcy92ZXJpZnlfc3VwcGx5X2NoYWluLnB5IiwgInZlcmlmeV9zdXBwbHlfY2hhaW5fY2VudHJhbCIKICAgICkKICAgIHJlcXVpcmVkID0ge3BhdGguYXNfcG9zaXgoKSBmb3IgcGF0aCBpbiBzdXBwbHlfY2hhaW4uUkVRVUlSRURfRklMRVN9CiAgICBhc3NlcnQgIi5naXRodWIvd29ya2Zsb3dzL2RlcGVuZGVuY3ktcmV2aWV3LnltbCIgbm90IGluIHJlcXVpcmVkCiAgICBhc3NlcnQgIi5naXRodWIvd29ya2Zsb3dzL2NvZGVxbC55bWwiIGluIHJlcXVpcmVkCiAgICBhc3NlcnQgIi5naXRodWIvd29ya2Zsb3dzL29zc2Ytc2NvcmVjYXJkLnltbCIgaW4gcmVxdWlyZWQKCg=="
+          replacement = base64.b64decode(encoded).decode("utf-8")
           path.write_text(text[:start] + replacement + text[end + 1 :], encoding="utf-8")
           PY
           uv sync --project services/analysis-engine --group dev --locked
