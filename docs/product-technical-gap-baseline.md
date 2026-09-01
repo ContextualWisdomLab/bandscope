@@ -1,7 +1,7 @@
 # BandScope Product-Technical Gap Baseline
 
 Last updated: 2026-09-01
-Evidence capture: 2026-09-01 14:37 KST unless a row says otherwise
+Evidence capture: 2026-09-01 20:04 KST unless a row says otherwise
 Protected base: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`
 
 ## 1. Purpose and buyer outcome
@@ -157,39 +157,27 @@ Acceptance criteria are preregistered before tuning. Candidate-vs-baseline infer
 | WCAG/Figma/Storybook parity | incomplete | #965 |
 | Sustainable merge train | incomplete | #966 |
 
-## 5. Organization-wide live backlog evidence
+## 5. Live backlog and delivery evidence
 
-A fresh organization-wide GitHub search at this capture includes **all 72 repositories currently accessible through the connected ContextualWisdomLab GitHub account** and reports **2,690 open pull requests** in total. Repository enumeration includes `ContextualWisdomLab/litellm-patched-proxy` and `ContextualWisdomLab/pingora-gateway`; the prior 71-repository and 2,697-PR snapshots are stale. Counts are volatile evidence, not product constants.
+Fresh repository searches in this delivery cycle report **185 open BandScope pull requests** and **18 open BandScope issues**, both with `incomplete_results=false`, above protected `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. These counts are volatile operational evidence, not product constants.
 
-The highest-backlog candidates were re-fetched individually after the organization-wide recount:
-
-| Rank | Repository | Open PRs |
-|---:|---|---:|
-| 1 | `ContextualWisdomLab/bandscope` | **188** |
-| 2 | `ContextualWisdomLab/TEPP` | 142 |
-| 3 | `ContextualWisdomLab/OriginWeave` | 140 |
-| 4 | `ContextualWisdomLab/newsdom-api` | 130 |
-| 5 | `ContextualWisdomLab/naruon` | 127 |
-| 6 | `ContextualWisdomLab/html4tree` | 117 |
-| 7 | `ContextualWisdomLab/pg-erd-cloud` | 114 |
-| 8 | `ContextualWisdomLab/Orgmetra` | 113 |
-| 9 | `ContextualWisdomLab/.github` | 110 |
-
-BandScope remains the selected delivery lane because it has the largest live backlog **and** the repository owns the end-user rehearsal product whose duplicated workspace slices are contributing directly to buyer-delivery fragmentation. Selection is therefore based on both count and product responsibility, not repository name.
+The most recent full organization recount recorded by canonical PR #1116 saw **73 accessible ContextualWisdomLab repositories** and an end-of-recount organization-wide search of **2,681 open pull requests**. That organization-wide recount was sequential and is retained only as capture-time prioritization evidence; this file does not represent it as an exact current total without another complete recount. Its last high-backlog capture was BandScope 185, TEPP 144, OriginWeave 140, newsdom-api 130, and naruon 125. BandScope remains the selected delivery lane because it combines the largest captured backlog with direct ownership of the end-user rehearsal product.
 
 ### 5.1 Current merge-loop evidence
 
-Protected `develop` currently requires these status contexts, among others: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, Windows/macOS build gates, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, and CodeQL JavaScript/TypeScript + Python analysis. Required contexts are read from live branch protection before merge; this list is evidence from this capture, not permission to infer future policy.
+Protected `develop` currently requires these status contexts: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, Windows/macOS build gates, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, and CodeQL JavaScript/TypeScript + Python analysis. Required contexts are read from live branch protection before merge; this list is evidence from this capture, not permission to infer future policy.
 
-Current examples:
+Current canonical ownership and succession evidence:
 
-- **#1103 CSV NUL hardening is the canonical desktop export owner.** New duplicate #1121 touched the same three files and added one useful NUL-only assertion. That unique edge was transferred into #1103 in normal non-force history before #1121 was closed unmerged as superseded. No check/review evidence transfers between the PRs; #1103 needs fresh exact-head evidence after the consolidation commit.
-- **#1119 Trivy PR-head evidence** correctly identifies a stale local policy-test conflict: CodeQL/Scorecard remain push-only local signals, while Trivy needs ordinary `pull_request` SARIF coverage. A failed temporary source-fix workflow was removed; the permanent policy-test repair belongs in normal source history, not in a dormant self-modifying workflow.
-- **#1007/#1094 first-part-handoff** are not yet safe to collapse blindly. #1007 has absorbed the selected-role semantics at resolver/callout level, but mounted `Workspace` must pass its selected `activeRole` through and pin that integration before #1094 can be closed without losing unique production behavior.
-- **#1116 is the canonical baseline owner.** Older #1025 was closed only after its unique PRD/TRD/UML/Rust/accuracy/security/accessibility/release requirements were preserved here.
-- **Central required-workflow coverage is repaired at the owner, not in BandScope.** Current `ContextualWisdomLab/.github/main` inherited a 99% `scripts/ci` coverage regression from merged #1541. Competing #1547 was closed unmerged after exact patch comparison established #1551 as the more complete canonical owner. #1548 was then stacked on #1551 and merged normally into that branch as `c858ee4065dbda73b38150c95b635c0db7266a39`, preserving its unique CHANGELOG/G-13 traceability plus direct-RCA regression. The #1551 exact head changed as a result, so predecessor checks do not transfer; current security/review workflows are being regenerated before that central repair can land.
+- **#783 is protected dependency-security truth.** It merged normally on 2026-08-25 as `7ad56cf0065d068ec6463d92726de4855a6e201d`; protected `develop@749511c3...` descends from it. Open feature branches must not keep treating the old inherited npm HIGH set as an unmerged external owner or suppress it locally.
+- **#1103 remains the canonical desktop CSV NUL-hardening owner.** #1121 was closed only after its unique NUL-only regression transferred into #1103 in normal non-force history. No predecessor checks or reviews transferred.
+- **#1007/#1094 first-part-handoff succession is not yet closable.** #1007 exact head `5261b1cbb15fd6587425c954c3480991394afc74` now contains mounted Workspace selected-role wiring, stale-role fail-open behavior, and the #1094 scientific requirement that heuristic fallback cannot manufacture handoffs. Exact-head Windows and macOS build gates remain queued, so #1094 stays open until the unchanged canonical head is revalidated and unique-requirement parity is reconfirmed.
+- **#1116 is the canonical `docs/product-technical-gap-baseline.md` owner.** This source update replaces its stale 188-PR/72-repository and pre-transfer paragraphs with the live BandScope counts and current ownership evidence. The resulting commit creates a new exact head, so all predecessor check/review evidence is invalidated.
+- **#968 is the canonical executable #966 queue-contract lane, stacked on #1116.** Its exact head at this capture is `ec825fa3226075a2cdf5281e487ccb2992cb11be`. Live GitHub evidence proved that `git/matching-refs/heads/` spans multiple pages in this repository; the prior single-response implementation could falsely declare a stacked base absent. #968 now has regression-first bounded branch-ref pagination, pagination-bound failure, malformed-page rejection, exact current PR heads, independent base-tip resolution, deterministic sorting, and symlink-safe atomic publication. It remains Draft with zero exact-head check runs, which is non-passing rather than green.
+- **#1119 owns Trivy PR-head SARIF coverage.** Its PR body is stale relative to the actual branch head: the live head is `162247e2827434fa531c2d12204023c113d63b9c`, a one-file trigger commit for an existing bounded policy-repair writer. The stale `test_supply_chain_policy.py` assertion still needs the actual source repair and marker cleanup. This lane already has an active writer; do not create a duplicate policy-test writer or treat the trigger as product-fix evidence.
+- **Central review-control repair #1546 is protected truth** in `ContextualWisdomLab/.github/main@5686de41660d51a7a7f22b8840dfa6ccfe5ff3f1`. The post-#1546 `scripts/ci` coverage regression remains outside BandScope source ownership. Canonical central owner #1567 is still open at exact head `400f2b5a63a5cdaf95a42ee4d49a4e492132738b`; it carries the 100% coverage restoration plus stacked Noema cleanup and needs its own fresh exact-head checks/review before protected-main integration.
 
-Operational invariant: queued/pending/neutral/skipped/cancelled/failed, predecessor-head, protected-base, self/author, status-only, and model-only evidence is non-passing. Central-gate defects are repaired in the owning central repository; member branches do not weaken gates or use administrative bypass.
+Operational invariant: queued/pending/neutral/skipped/cancelled/failed, absent, predecessor-head, protected-base, self/author, status-only, and model-only evidence is non-passing. Central-gate defects are repaired in the owning central repository; member branches do not weaken gates or use administrative bypass.
 
 ## 6. Prioritized product-technical backlog
 
@@ -327,6 +315,9 @@ gh api search/issues -f q='org:ContextualWisdomLab is:pr is:open' --jq '.total_c
 
 # BandScope current queue
 gh pr list --state open --limit 500 --json number --jq 'length'
+
+# BandScope current issue count
+gh issue list --state open --limit 500 --json number --jq 'length'
 
 # exact-head merge evidence for a candidate
 gh pr view <PR> --json number,state,isDraft,headRefOid,baseRefOid,reviews,statusCheckRollup
