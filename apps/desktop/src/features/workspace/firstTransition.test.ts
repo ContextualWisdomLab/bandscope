@@ -170,6 +170,26 @@ describe("resolveFirstTransition", () => {
     expect(transition?.cue.endsWith("😀")).toBe(true);
   });
 
+  it("skips non-object roles while keeping a later owned transition", () => {
+    const song = withTransitionRole();
+    const validRole = song.sections[1]!.roles[0]!;
+    song.sections[1]!.roles = [42 as never, validRole];
+
+    const transition = resolveFirstTransition(song);
+    expect(transition?.holdingRole?.id).toBe("lead-vocal");
+    expect(transition?.cue).toBe("Hold the last chord into the downbeat.");
+  });
+
+  it("keeps a deterministic winner when two named transitions share time and id", () => {
+    const song = withTransitionRole({ id: "shared-id", start: 46, end: 62 });
+    const twin = structuredClone(song.sections[1]!);
+    song.sections = [song.sections[0]!, song.sections[1]!, twin];
+
+    const transition = resolveFirstTransition(song);
+    expect(transition?.section.id).toBe("shared-id");
+    expect(transition?.atSeconds).toBe(46);
+  });
+
   it("skips a section whose rehearsal window is unbounded", () => {
     expect(resolveFirstTransition(withTransitionRole({ start: Number.NaN, end: 62 }))).toBeNull();
   });
