@@ -203,7 +203,7 @@ def test_fetch_live_branch_sha_encodes_branch_name_without_changing_authority(
 def test_resolve_live_base_tips_uses_one_matching_refs_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """All required target tips come from one bounded branch-ref snapshot."""
+    """All required target tips come from one bounded branch-ref inventory."""
     refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_branch_snapshot")
     observed: list[str] = []
     live = {
@@ -232,7 +232,7 @@ def test_resolve_live_base_tips_uses_one_matching_refs_snapshot(
     tips = refresher.resolve_live_base_tips(live, None)
 
     assert observed == [
-        "/repos/ContextualWisdomLab/bandscope/git/matching-refs/heads/"
+        "/repos/ContextualWisdomLab/bandscope/git/matching-refs/heads/?per_page=100&page=1"
     ]
     assert tips == {
         "develop": "d" * 40,
@@ -243,7 +243,7 @@ def test_resolve_live_base_tips_uses_one_matching_refs_snapshot(
 def test_resolve_live_base_tips_rejects_target_missing_from_branch_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A live PR target absent from the independent branch snapshot fails closed."""
+    """A live PR target absent from the independent branch inventory fails closed."""
     refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_missing_snapshot_ref")
     live = {
         "incomplete_results": False,
