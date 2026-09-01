@@ -16,9 +16,9 @@ DEMO_AUDIO_PATH = DEMO_RESOURCE_ROOT / "late-night-set.wav"
 DEMO_ANNOTATION_PATH = DEMO_RESOURCE_ROOT / "annotations.json"
 
 
-def _read_demo_audio() -> tuple[np.ndarray, int, float]:
-    """Decode the mono PCM demo through the stdlib WAV reader."""
-    with wave.open(str(DEMO_AUDIO_PATH), "rb") as wav_file:
+def _read_demo_audio(audio_path: Path = DEMO_AUDIO_PATH) -> tuple[np.ndarray, int, float]:
+    """Decode one mono PCM demo fixture through the stdlib WAV reader."""
+    with wave.open(str(audio_path), "rb") as wav_file:
         sample_rate = wav_file.getframerate()
         frame_count = wav_file.getnframes()
         assert wav_file.getnchannels() == 1
@@ -27,6 +27,23 @@ def _read_demo_audio() -> tuple[np.ndarray, int, float]:
             np.float32
         ) / 32768.0
     return audio_samples, sample_rate, frame_count / sample_rate
+
+
+def test_demo_duration_uses_decoded_frame_count(tmp_path: Path) -> None:
+    """Reject duration authority from a WAV header when the payload is truncated."""
+    truncated_audio_path = tmp_path / "truncated-demo.wav"
+    with wave.open(str(truncated_audio_path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(10)
+        wav_file.writeframes(b"\x00\x00" * 100)
+
+    complete_audio_bytes = truncated_audio_path.read_bytes()
+    truncated_audio_path.write_bytes(complete_audio_bytes[:-20])
+
+    audio_samples, sample_rate, duration_seconds = _read_demo_audio(truncated_audio_path)
+    assert audio_samples.size == 90
+    assert duration_seconds == audio_samples.size / sample_rate
 
 
 def test_licensed_demo_spans_two_structural_windows() -> None:
