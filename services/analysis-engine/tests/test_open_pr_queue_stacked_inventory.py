@@ -198,3 +198,69 @@ def test_fetch_live_branch_sha_encodes_branch_name_without_changing_authority(
     expected_prefix = "/repos/ContextualWisdomLab/bandscope/branches/"
     assert observed["target"].startswith(expected_prefix)
     assert observed["target"].endswith("docs%2Fgap-baseline-2026-08-31")
+
+
+def test_resolve_live_base_tips_uses_one_matching_refs_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """All required target tips come from one bounded branch-ref snapshot."""
+    refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_branch_snapshot")
+    observed: list[str] = []
+    live = {
+        "incomplete_results": False,
+        "pull_requests": [
+            _live_pr(1116, "2" * 40, "develop", "9" * 40),
+            _live_pr(968, "3" * 40, "docs/gap-baseline-2026-08-31", "8" * 40),
+        ],
+    }
+
+    def fake_request(target: str, token: str | None) -> tuple[object, str]:
+        observed.append(target)
+        return (
+            [
+                {"ref": "refs/heads/develop", "object": {"type": "commit", "sha": "d" * 40}},
+                {
+                    "ref": "refs/heads/docs/gap-baseline-2026-08-31",
+                    "object": {"type": "commit", "sha": "e" * 40},
+                },
+                {"ref": "refs/heads/unrelated", "object": {"type": "commit", "sha": "f" * 40}},
+            ],
+            "",
+        )
+
+    monkeypatch.setattr(refresher, "_request_github_json", fake_request)
+    tips = refresher.resolve_live_base_tips(live, None)
+
+    assert observed == [
+        "/repos/ContextualWisdomLab/bandscope/git/matching-refs/heads/"
+    ]
+    assert tips == {
+        "develop": "d" * 40,
+        "docs/gap-baseline-2026-08-31": "e" * 40,
+    }
+
+
+def test_resolve_live_base_tips_rejects_target_missing_from_branch_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A live PR target absent from the independent branch snapshot fails closed."""
+    refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_missing_snapshot_ref")
+    live = {
+        "incomplete_results": False,
+        "pull_requests": [
+            _live_pr(968, "3" * 40, "docs/gap-baseline-2026-08-31", "8" * 40),
+        ],
+    }
+
+    def fake_request(target: str, token: str | None) -> tuple[object, str]:
+        return (
+            [
+                {"ref": "refs/heads/develop", "object": {"type": "commit", "sha": "d" * 40}},
+            ],
+            "",
+        )
+
+    monkeypatch.setattr(refresher, "_request_github_json", fake_request)
+
+    with pytest.raises(refresher.RefreshError, match="absent from the live branch snapshot"):
+        refresher.resolve_live_base_tips(live, None)
