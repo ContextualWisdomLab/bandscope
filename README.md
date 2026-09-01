@@ -24,7 +24,7 @@ The product source of truth for audience, tone, and prioritization is [`docs/bra
 
 ### Prerequisites
 
-- Node/npm for the desktop workspace
+- Node `>=22.13 <23` and npm `10.9.9` for the desktop workspace
 - Python 3.12+ and `uv` for the analysis engine
 - Rust stable plus the platform-native toolchain when validating the Tauri desktop package
 
@@ -101,6 +101,7 @@ Before changing product or implementation boundaries, start with:
 - [Cross-platform build policy](docs/security/cross-platform-build-policy.md)
 - [Code security](docs/security/code-security.md)
 - [SBOM policy](docs/security/sbom-policy.md)
+- [GitHub bootstrap execution policy](docs/workflow/github-bootstrap-execution-policy.md)
 - [Repository governance](docs/repository/governance.md)
 
 Changes involving files, URLs, subprocesses, IPC, WebView, models, updates, cache, logs, telemetry, exports, dependencies, Actions, bundled binaries, or model artifacts must preserve those controls and update the corresponding evidence rather than adding local exceptions.
@@ -113,6 +114,7 @@ Changes involving files, URLs, subprocesses, IPC, WebView, models, updates, cach
 - [Contributing](CONTRIBUTING.md)
 - [Security reporting](SECURITY.md)
 - [Gitflow](docs/repository/gitflow.md)
+- [GitHub bootstrap execution policy](docs/workflow/github-bootstrap-execution-policy.md)
 - [Repository governance](docs/repository/governance.md)
 - [Deployment/runbook](docs/operations/deploy-runbook.md)
 
