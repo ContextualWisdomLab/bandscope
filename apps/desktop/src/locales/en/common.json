@@ -156,7 +156,7 @@
   "workspaceFirstLeftoverLastDropoutRemainingLastReturnTuttiTitle": "Tonight's first leftover last-dropout remaining last-return tutti",
   "workspaceFirstLeftoverLastDropoutRemainingLastReturnTuttiNamed": "{remainingRoleName} comes back at {remainingLastReturnSectionLabel} after leftover last-dropout remaining at {remainingSectionLabel}, and the band is all in at {sectionLabel}. Count the leftover last-dropout remaining last-return tutti in from the top of {sectionLabel}.",
   "workspaceFirstLeftoverLastDropoutRemainingLastReturnTuttiComeIn": "{remainingRoleName} comes back at {remainingLastReturnSectionLabel} after leftover last-dropout remaining at {remainingSectionLabel}, and the band is all in at {sectionLabel}. Come in together from the top of {sectionLabel}.",
-  "workspaceFirstLeftoverLastDropoutRemainingLastReturnTuttiMissing": "Tonight's first leftover last-dropout remaining last-return tutti still needs leftover last-dropout remaining last-return that is not already all-in, then a later all-in. Confirm leftover last-dropout remaining last-return is all-in before the first section.",
+  "workspaceFirstLeftoverLastDropoutRemainingLastReturnTuttiMissing": "This cue needs a last-return section where someone is still out, followed by a later section where everyone is in. Before rehearsing, confirm that order in the map.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
