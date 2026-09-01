@@ -104,6 +104,29 @@ describe("firstGrooveChange", () => {
 
     expect(firstGrooveChange(song)).toBeNull();
   });
+
+  it("rejects a repeated section id even when one occurrence has no eligible groove evidence", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "duplicate", label: " ", groove: "none" },
+      { ...verse, id: "duplicate", label: "chorus", groove: "Half-time" }
+    ];
+
+    expect(firstGrooveChange(song)).toBeNull();
+  });
+
+  it("validates later section ids before returning an earlier groove transition", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", groove: "Straight eighths" },
+      { ...verse, id: "chorus-a", label: "chorus", groove: "Half-time" },
+      { ...verse, id: "verse-a", label: "outro", groove: "Straight eighths" }
+    ];
+
+    expect(firstGrooveChange(song)).toBeNull();
+  });
 });
 
 describe("isGrooveChangeTarget", () => {
