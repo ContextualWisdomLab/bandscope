@@ -188,6 +188,7 @@ export function RehearsalPlayer({
   } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const playbackIntentRef = useRef<"active" | "inactive">("inactive");
+  const playRequestSequenceRef = useRef(0);
   const audioSourceUrl = useMemo(
     () => resolveAudioSourceUrl(audioSourcePath),
     [audioSourcePath],
@@ -213,7 +214,10 @@ export function RehearsalPlayer({
   }, []);
 
   const handlePlayRejection = useCallback(
-    (error: unknown) => {
+    (error: unknown, requestSequence: number) => {
+      if (requestSequence !== playRequestSequenceRef.current) {
+        return;
+      }
       const expectedInterruption =
         playbackIntentRef.current === "inactive" &&
         typeof error === "object" &&
@@ -243,9 +247,12 @@ export function RehearsalPlayer({
           audio.volume = 1;
         }
         playbackIntentRef.current = "active";
+        const requestSequence = ++playRequestSequenceRef.current;
         const playPromise = audio.play();
         if (playPromise) {
-          void playPromise.catch(handlePlayRejection);
+          void playPromise.catch((error: unknown) =>
+            handlePlayRejection(error, requestSequence),
+          );
         }
       } catch {
         handlePlaybackError();
@@ -424,9 +431,12 @@ export function RehearsalPlayer({
         }
         audio.volume = 1;
         playbackIntentRef.current = "active";
+        const requestSequence = ++playRequestSequenceRef.current;
         const playPromise = audio.play();
         if (playPromise) {
-          void playPromise.catch(handlePlayRejection);
+          void playPromise.catch((error: unknown) =>
+            handlePlayRejection(error, requestSequence),
+          );
         }
       } catch {
         handlePlaybackError();
@@ -474,9 +484,12 @@ export function RehearsalPlayer({
       try {
         audio.currentTime = loop.startSeconds;
         playbackIntentRef.current = "active";
+        const requestSequence = ++playRequestSequenceRef.current;
         const playPromise = audio.play();
         if (playPromise) {
-          void playPromise.catch(handlePlayRejection);
+          void playPromise.catch((error: unknown) =>
+            handlePlayRejection(error, requestSequence),
+          );
         }
       } catch {
         handlePlaybackError();
