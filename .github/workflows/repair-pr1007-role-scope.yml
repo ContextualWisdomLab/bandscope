@@ -1,6 +1,11 @@
 name: Repair PR 1007 selected-role handoff scope
 
 on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
   push:
     branches:
       - feat/workspace-first-part-handoff
@@ -11,7 +16,9 @@ permissions:
 
 jobs:
   repair:
-    if: github.actor != 'github-actions[bot]'
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'feat/workspace-first-part-handoff')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
