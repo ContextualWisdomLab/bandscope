@@ -17,8 +17,8 @@
     {
       "path": "late-night-set.wav",
       "role": "audio",
-      "sha256": "cfe5716c4e7489db7f14104513ffc70af199137c2320bd66d7b6bec4f41dacc0",
-      "bytes": 88244,
+      "sha256": "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb",
+      "bytes": 441044,
       "mediaType": "audio/wav"
     },
     {
@@ -31,8 +31,8 @@
     {
       "path": "annotations.json",
       "role": "annotations",
-      "sha256": "28236d31e72c58bf11aad3945e3407d8e30e71b223326f9ffb82a83091d73044",
-      "bytes": 706,
+      "sha256": "6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7",
+      "bytes": 707,
       "mediaType": "application/json"
     }
   ]

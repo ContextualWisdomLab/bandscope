@@ -15,10 +15,10 @@ RUNTIME_DEMO_AUDIO_BYTES_PATTERN = re.compile(
     r"pub const DEMO_AUDIO_BYTES: u64 = (?P<demo_audio_bytes>\d+);"
 )
 EXPECTED_DEMO_ASSETS = {
-    "late-night-set.wav": "cfe5716c4e7489db7f14104513ffc70af199137c2320bd66d7b6bec4f41dacc0",
+    "late-night-set.wav": "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb",
     "LICENSE": "1657b89949ca8bfb2920e26dceb4c1012d6212b5d77eda7d7f3921da29adde5e",
-    "annotations.json": "28236d31e72c58bf11aad3945e3407d8e30e71b223326f9ffb82a83091d73044",
-    "provenance.json": "1c3ec8f3f7e4a579f45a36f58183ed480ed2757499628dfc5f3dc8deebbdfe38",
+    "annotations.json": "6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7",
+    "provenance.json": "4d980735aa37d3fb0d4fc5e2e1c4013181f51346d26d75b207e20f9154cdf338",
 }
 
 

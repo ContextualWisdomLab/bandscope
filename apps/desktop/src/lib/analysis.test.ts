@@ -141,7 +141,7 @@ describe("analysis bridge", () => {
             sourcePath: "/tmp/bandscope/resources/demo/late-night-set.wav",
             fileName: "late-night-set.wav",
             extension: "wav",
-            fileSizeBytes: 88244
+            fileSizeBytes: 441044
           }
         };
       }

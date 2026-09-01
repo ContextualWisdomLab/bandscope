@@ -29,7 +29,7 @@
       "assetVersion": "1.0.0",
       "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/late-night-set.wav",
       "licenseExpression": "CC0-1.0",
-      "assetChecksum": "sha256:cfe5716c4e7489db7f14104513ffc70af199137c2320bd66d7b6bec4f41dacc0",
+      "assetChecksum": "sha256:9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb",
       "storagePath": "apps/desktop/src-tauri/resources/demo/late-night-set.wav",
       "mediaType": "audio/wav",
       "releaseUsage": "Bundled original rehearsal demo audio for the first-run Try the demo flow."
@@ -49,7 +49,7 @@
       "assetVersion": "1.0.0",
       "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/annotations.json",
       "licenseExpression": "CC0-1.0",
-      "assetChecksum": "sha256:28236d31e72c58bf11aad3945e3407d8e30e71b223326f9ffb82a83091d73044",
+      "assetChecksum": "sha256:6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7",
       "storagePath": "apps/desktop/src-tauri/resources/demo/annotations.json",
       "mediaType": "application/json",
       "releaseUsage": "Bundled ground-truth section annotations for the original rehearsal demo package."
@@ -59,7 +59,7 @@
       "assetVersion": "1.0.0",
       "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/provenance.json",
       "licenseExpression": "CC0-1.0",
-      "assetChecksum": "sha256:1c3ec8f3f7e4a579f45a36f58183ed480ed2757499628dfc5f3dc8deebbdfe38",
+      "assetChecksum": "sha256:4d980735aa37d3fb0d4fc5e2e1c4013181f51346d26d75b207e20f9154cdf338",
       "storagePath": "apps/desktop/src-tauri/resources/demo/provenance.json",
       "mediaType": "application/json",
       "releaseUsage": "Bundled provenance manifest binding the rehearsal demo package to its hashes, sizes, performer, and permitted uses."
