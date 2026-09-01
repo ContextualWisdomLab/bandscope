@@ -30,6 +30,8 @@ Canonical files live in `apps/desktop/src-tauri/resources/demo/`:
 
 After changing the source audio, regenerate `late-night-set.wav` with `scripts/generate_licensed_demo_wav.py`. Then refresh `provenance.json` with the final WAV's byte size and SHA-256, and finally update the matching SHA-256 entries in `supply-chain/supplemental-component-inventory.json` for the changed packaged assets before packaging or committing them. The inventory and provenance values must describe the final bytes that will ship.
 
+The checked-in provenance JSON is a stable public wire contract and therefore keeps its established `song.id`, `song.title`, `song.performer`, `song.license`, and asset `path`, `role`, `sha256`, `bytes`, and `mediaType` keys. `parseDemoProvenanceManifest` is the anti-corruption boundary: after validating those wire keys, organization-owned code uses the semantic internal vocabulary `demoSong.songId`, `songTitle`, `performerName`, `licenseExpression`, and `demoAssets[].assetPath`, `assetRole`, `assetSha256`, `assetByteCount`, and `assetMediaType`. New internal consumers must not propagate the legacy generic wire names beyond that boundary.
+
 ## Production boundary
 
 `select_demo_audio_source` resolves the bundled WAV from the Tauri resource directory, rejects missing/symlink/non-WAV/wrong-size/non-RIFF files, then reuses the same project/cache/temp bootstrap as `select_local_audio_source`. Browser fallback fails closed and tells the musician to use their own song. No mocked analysis success is presented as a production pass.
