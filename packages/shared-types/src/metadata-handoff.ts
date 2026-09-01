@@ -48,14 +48,17 @@ const ACCIDENTAL_OFFSET: Record<string, number> = {
 
 const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
 
+/** Build the stable public validation error for one metadata-handoff field. */
 function invalidField(path: string): Error {
   return new Error(`Invalid rehearsal song contract: invalid field '${path}'`);
 }
 
+/** Return whether a runtime value is a non-array object record. */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Return whether a runtime value is an admitted section-form label. */
 function isSectionFormLabel(value: unknown): value is SectionFormLabel {
   return typeof value === "string" && (SECTION_FORM_LABELS as readonly string[]).includes(value);
 }
@@ -165,7 +168,8 @@ export function parseMetadataHandoffArtifact(value: unknown): MetadataHandoffArt
   }
 
   const firstAction = validateFirstAction(value.firstAction);
-  const { firstAction: _firstAction, ...legacyFields } = value;
+  const legacyFields: Record<string, unknown> = { ...value };
+  delete legacyFields.firstAction;
   const legacyArtifact = parseLegacyMetadataHandoffArtifact({
     ...legacyFields,
     artifactVersion: 1
