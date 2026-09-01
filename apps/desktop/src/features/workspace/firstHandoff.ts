@@ -30,6 +30,18 @@ function namedRole(value: unknown): { id: string; name: string } | null {
   return { id, name };
 }
 
+/** Build a named-role lookup from an untrusted section role collection. */
+function namedRolesById(values: unknown[]): Map<string, string> {
+  const rolesById = new Map<string, string>();
+  for (const roleValue of values) {
+    const role = namedRole(roleValue);
+    if (role && !rolesById.has(role.id)) {
+      rolesById.set(role.id, role.name);
+    }
+  }
+  return rolesById;
+}
+
 /** Admit an own-property boolean `is_active` flag. Inherited evidence is isolated. */
 function isOwnActive(value: Record<string, unknown>): boolean {
   return Object.prototype.hasOwnProperty.call(value, "is_active") && value.is_active === true;
@@ -40,10 +52,10 @@ function isOwnActive(value: Record<string, unknown>): boolean {
  *
  * Analysis stores a transition on the source section's `partGraph.handoff_to`,
  * while the rehearsal cue belongs to the immediately following section. The
- * source graph supplies role identities and the next section supplies the cue
- * label. Inactive, inherited, blank, self, or unknown receivers are skipped.
- * When a role is selected, only a pass that includes that role is named.
- * Runtime roots and collection members are treated as untrusted.
+ * source section names the active giver; the destination section names a role
+ * that becomes active there. Inactive, inherited, blank, self, or unknown
+ * receivers are skipped. When a role is selected, only a pass that includes
+ * that role is named. Runtime roots and collection members are untrusted.
  */
 export function firstHandoff(
   song: RehearsalSong | unknown,
@@ -60,7 +72,8 @@ export function firstHandoff(
       !isRuntimeObject(sectionValue) ||
       !Array.isArray(sectionValue.roles) ||
       !Array.isArray(sectionValue.partGraph) ||
-      !isRuntimeObject(destinationValue)
+      !isRuntimeObject(destinationValue) ||
+      !Array.isArray(destinationValue.roles)
     ) {
       continue;
     }
@@ -69,13 +82,8 @@ export function firstHandoff(
       continue;
     }
 
-    const rolesById = new Map<string, string>();
-    for (const roleValue of sectionValue.roles) {
-      const role = namedRole(roleValue);
-      if (role && !rolesById.has(role.id)) {
-        rolesById.set(role.id, role.name);
-      }
-    }
+    const sourceRolesById = namedRolesById(sectionValue.roles);
+    const destinationRolesById = namedRolesById(destinationValue.roles);
 
     for (const nodeValue of sectionValue.partGraph) {
       if (
@@ -87,7 +95,7 @@ export function firstHandoff(
         continue;
       }
       const fromId = meaningfulRangeText(nodeValue.role_id);
-      const fromRole = fromId ? rolesById.get(fromId) : undefined;
+      const fromRole = fromId ? sourceRolesById.get(fromId) : undefined;
       if (!fromId || !fromRole) {
         continue;
       }
@@ -97,7 +105,7 @@ export function firstHandoff(
         if (!toId || toId === fromId) {
           continue;
         }
-        const toRole = rolesById.get(toId);
+        const toRole = destinationRolesById.get(toId);
         if (!toRole) {
           continue;
         }
