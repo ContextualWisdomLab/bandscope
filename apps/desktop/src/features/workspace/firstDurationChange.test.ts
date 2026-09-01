@@ -106,6 +106,23 @@ describe("firstDurationChange", () => {
     });
   });
 
+  it("fails closed instead of bridging across a named section with missing timing evidence", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", timeRange: { start: 0, end: 16 } },
+      {
+        ...verse,
+        id: "chorus-gap",
+        label: "chorus",
+        timeRange: null
+      } as unknown as typeof verse,
+      { ...verse, id: "bridge-a", label: "bridge", timeRange: { start: 16, end: 48 } }
+    ];
+
+    expect(firstDurationChange(song)).toBeNull();
+  });
+
   it("fails closed on malformed runtime roots and members", () => {
     expect(firstDurationChange(null as unknown as RehearsalSong)).toBeNull();
     expect(firstDurationChange({ sections: "nope" } as unknown as RehearsalSong)).toBeNull();
