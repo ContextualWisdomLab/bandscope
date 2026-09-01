@@ -632,6 +632,11 @@ export function RehearsalPlayer({
         section.timeRange.start !== selectedLoop.startSeconds ||
         section.timeRange.end !== selectedLoop.endSeconds
       ) {
+        setBoundaryDraft({
+          end: String(selectedLoop.endSeconds),
+          start: String(selectedLoop.startSeconds),
+        });
+        setBoundaryError(true);
         return;
       }
       const nextSong = {
