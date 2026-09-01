@@ -4,13 +4,6 @@ on:
   push:
     branches:
       - docs/bandscope-product-readiness-baseline
-    paths:
-      - .github/workflows/open-pr-queue-live.yml
-      - scripts/checks/refresh_open_pr_queue.py
-      - scripts/checks/verify_open_pr_queue.py
-      - scripts/checks/render_open_pr_queue.py
-      - docs/product-readiness/open-pr-queue.json
-      - docs/product-readiness/open-pr-queue.md
   workflow_dispatch:
 
 permissions:
