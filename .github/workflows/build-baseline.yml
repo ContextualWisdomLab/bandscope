@@ -21,8 +21,21 @@ env:
   GIT_CONFIG_VALUE_0: develop
 
 jobs:
+  release-identity:
+    name: release-identity
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Verify release identity
+        run: python3 scripts/checks/verify_release_identity.py
+
   build-windows-native:
     name: build / windows / amd64
+    needs: release-identity
     runs-on: windows-2025
     strategy:
       fail-fast: false
@@ -122,6 +135,7 @@ jobs:
 
   build-windows-arm64:
     name: build / windows / arm64
+    needs: release-identity
     runs-on: windows-11-arm
     strategy:
       fail-fast: false
@@ -232,6 +246,7 @@ jobs:
 
   build-macos-native:
     name: build / macos / amd64
+    needs: release-identity
     runs-on: macos-15-intel
     strategy:
       fail-fast: false
@@ -294,6 +309,7 @@ jobs:
 
   build-macos-arm64:
     name: build / macos / arm64
+    needs: release-identity
     runs-on: macos-15
     strategy:
       fail-fast: false
@@ -369,6 +385,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     needs:
+      - release-identity
       - gate-windows
       - gate-macos
     permissions:
