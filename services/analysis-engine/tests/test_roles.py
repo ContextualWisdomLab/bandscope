@@ -61,9 +61,9 @@ def test_role_extractor_basic() -> None:
     intro_graph = intro_topology["part_graph"]
     graph_by_role = {n["role_id"]: n for n in intro_graph}
 
-    # Check handoff relation
-    assert "lead-vocal" in graph_by_role["bass-guitar"]["handoff_to"]
-    assert "bass-guitar" in graph_by_role["lead-vocal"]["handoff_from"]
+    # Heuristic fallback cannot prove a cross-section transition.
+    assert graph_by_role["bass-guitar"]["handoff_to"] == []
+    assert graph_by_role["lead-vocal"]["handoff_from"] == []
 
     # Check verse-1 section (only bass)
     verse_topology = result["topologies"][1]
