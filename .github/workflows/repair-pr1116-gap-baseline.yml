@@ -1,0 +1,70 @@
+name: Repair PR1116 product-gap baseline
+
+on:
+  push:
+    branches:
+      - docs/gap-baseline-2026-08-31
+
+permissions:
+  contents: write
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
+jobs:
+  repair_gap_baseline:
+    name: repair-gap-baseline
+    if: github.repository == 'ContextualWisdomLab/bandscope'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: docs/gap-baseline-2026-08-31
+      - name: Refresh volatile queue evidence and retire source-fix workflow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          baseline_path = Path("docs/product-technical-gap-baseline.md")
+          baseline_text = baseline_path.read_text(encoding="utf-8")
+          replacements = {
+              "Evidence capture: 2026-09-01 14:37 KST unless a row says otherwise":
+                  "Evidence capture: 2026-09-01 18:41 KST unless a row says otherwise",
+              "A fresh organization-wide GitHub search at this capture includes **all 72 repositories currently accessible through the connected ContextualWisdomLab GitHub account** and reports **2,690 open pull requests** in total. Repository enumeration includes `ContextualWisdomLab/litellm-patched-proxy` and `ContextualWisdomLab/pingora-gateway`; the prior 71-repository and 2,697-PR snapshots are stale. Counts are volatile evidence, not product constants.":
+                  "A fresh organization-wide GitHub search at this capture includes **all 73 repositories currently accessible through the connected ContextualWisdomLab GitHub account** and reports **2,685 open pull requests** in total. The accessible set now includes `ContextualWisdomLab/ConceptWeave`; earlier 72-repository queue snapshots are stale. Counts are volatile evidence, not product constants.",
+              "| 1 | `ContextualWisdomLab/bandscope` | **188** |\n| 2 | `ContextualWisdomLab/TEPP` | 142 |\n| 3 | `ContextualWisdomLab/OriginWeave` | 140 |\n| 4 | `ContextualWisdomLab/newsdom-api` | 130 |\n| 5 | `ContextualWisdomLab/naruon` | 127 |\n| 6 | `ContextualWisdomLab/html4tree` | 117 |\n| 7 | `ContextualWisdomLab/pg-erd-cloud` | 114 |\n| 8 | `ContextualWisdomLab/Orgmetra` | 113 |\n| 9 | `ContextualWisdomLab/.github` | 110 |":
+                  "| 1 | `ContextualWisdomLab/bandscope` | **186** |\n| 2 | `ContextualWisdomLab/TEPP` | 150 |\n| 3 | `ContextualWisdomLab/OriginWeave` | 140 |\n| 4 | `ContextualWisdomLab/newsdom-api` | 130 |\n| 5 | `ContextualWisdomLab/naruon` | 125 |",
+              "- **#1119 Trivy PR-head evidence** correctly identifies a stale local policy-test conflict: CodeQL/Scorecard remain push-only local signals, while Trivy needs ordinary `pull_request` SARIF coverage. A failed temporary source-fix workflow was removed; the permanent policy-test repair belongs in normal source history, not in a dormant self-modifying workflow.":
+                  "- **#1119 Trivy PR-head evidence** has an exact-head hosted failure isolated to the stale generic push-only policy test after 678 passing tests and 100% Python coverage. A bounded direct source repair is now materialized on the canonical branch to split CodeQL/Scorecard push-only assertions from Trivy ordinary-`pull_request` SARIF evidence; the temporary repair workflow deletes itself in the repair commit, and only the resulting exact head may provide completion evidence.",
+              "- **#1007/#1094 first-part-handoff** are not yet safe to collapse blindly. #1007 has absorbed the selected-role semantics at resolver/callout level, but mounted `Workspace` must pass its selected `activeRole` through and pin that integration before #1094 can be closed without losing unique production behavior.":
+                  "- **#1007/#1094 first-part-handoff** advanced by concurrent normal history. Canonical #1007 now wires the mounted Workspace selected `activeRole` through the handoff callout, rejects stale role identities after song replacement, and removes the heuristic handoff fallback in favor of real stem activity. Its exact head `5261b1cbb15fd6587425c954c3480991394afc74` has freshly queued repository checks, so #1094 remains open until that unchanged canonical head is revalidated and its unique semantics are confirmed preserved."
+          }
+          for old_text, new_text in replacements.items():
+              if baseline_text.count(old_text) != 1:
+                  raise SystemExit(f"baseline replacement cardinality mismatch: {old_text[:80]!r}")
+              baseline_text = baseline_text.replace(old_text, new_text, 1)
+          baseline_path.write_text(baseline_text, encoding="utf-8")
+
+          doctoring_path = Path("docs/doctoring/product-gap-baseline-2026-09-01.md")
+          doctoring_text = doctoring_path.read_text(encoding="utf-8")
+          anchor = "The replacement baseline therefore separates protected-source facts from timestamped GitHub observations and uses exact current-head examples instead of asserting one blocker for the entire queue.\n"
+          current_refresh = (
+              "\n### Current volatile-evidence refresh — 2026-09-01 18:41 KST\n\n"
+              "The connected GitHub account now exposes 73 ContextualWisdomLab repositories and the organization-wide atomic search reports 2,685 open pull requests. Fresh individual high-backlog reads report `ContextualWisdomLab/bandscope` 186, `ContextualWisdomLab/TEPP` 150, `ContextualWisdomLab/OriginWeave` 140, `ContextualWisdomLab/newsdom-api` 130, and `ContextualWisdomLab/naruon` 125. `ContextualWisdomLab/ConceptWeave` is present in the accessible repository set. This refresh supersedes the earlier queue snapshot for prioritization only; the earlier observations above remain historical doctoring evidence. BandScope remains first by live backlog and continues to own the end-user rehearsal product boundary.\n"
+          )
+          if doctoring_text.count(anchor) != 1:
+              raise SystemExit("doctoring insertion anchor mismatch")
+          if "### Current volatile-evidence refresh — 2026-09-01 18:41 KST" not in doctoring_text:
+              doctoring_text = doctoring_text.replace(anchor, anchor + current_refresh, 1)
+          doctoring_path.write_text(doctoring_text, encoding="utf-8")
+          PY
+          git diff --check
+          git config user.name "cwl-source-repair[bot]"
+          git config user.email "cwl-source-repair[bot]@users.noreply.github.com"
+          git add docs/product-technical-gap-baseline.md docs/doctoring/product-gap-baseline-2026-09-01.md
+          git rm .github/workflows/repair-pr1116-gap-baseline.yml
+          git commit -m "docs(gap): refresh exact backlog and causal evidence"
+          git push origin HEAD:docs/gap-baseline-2026-08-31
