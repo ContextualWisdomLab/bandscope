@@ -11,7 +11,13 @@ interface EmptyStateProps {
   onUseOwnSong?: () => void;
 }
 
-/** First-run empty workspace: try the licensed demo or use a local song. */
+/**
+ * Render the first-run empty workspace and its current source-selection guidance.
+ *
+ * `selectedKind` identifies the selected source: `demo` uses demo-specific next
+ * steps, `local` and `youtube` use the general selected-song guidance, and
+ * `null` or an omitted value means no source kind has been established.
+ */
 export function EmptyState({
   selectedLabel = null,
   selectedKind = null,
