@@ -63,18 +63,25 @@ def test_transcribe_bass_stem_rejects_oversized_input(monkeypatch) -> None:
 
 
 def test_transcribe_bass_stem_uses_canonical_duration_limit(monkeypatch) -> None:
-    """Bass transcription must keep the canonical limit at the decoder boundary."""
+    """Bass transcription must pass the canonical limit to the owned decode port."""
     captured_kwargs: dict[str, object] = {}
 
-    def fake_load(*_args: object, **kwargs: object) -> tuple[np.ndarray, int]:
-        captured_kwargs.update(kwargs)
+    def fake_decode(
+        source: object, *, target_sample_rate_hz: int, max_duration_seconds: float
+    ) -> tuple[np.ndarray, int]:
+        assert isinstance(source, io.BytesIO)
+        captured_kwargs["target_sample_rate_hz"] = target_sample_rate_hz
+        captured_kwargs["max_duration_seconds"] = max_duration_seconds
         return np.zeros(int(SAMPLE_RATE * 0.5), dtype=np.float32), SAMPLE_RATE
 
-    monkeypatch.setattr(transcription_api, "preflight_audio_metadata", lambda _fileobj: None)
-    monkeypatch.setattr(transcription_api.librosa, "load", fake_load)
+    monkeypatch.setattr(transcription_api, "decode_mono_audio", fake_decode)
     transcribe_bass_stem(b"wav-bytes")
-    assert captured_kwargs["duration"] == transcription_api.MAX_TRANSCRIPTION_DURATION_SECONDS
-    assert captured_kwargs["duration"] == 15 * 60
+    assert captured_kwargs["target_sample_rate_hz"] == SAMPLE_RATE
+    assert (
+        captured_kwargs["max_duration_seconds"]
+        == transcription_api.MAX_TRANSCRIPTION_DURATION_SECONDS
+    )
+    assert captured_kwargs["max_duration_seconds"] == 15 * 60
 
 
 def test_transcribe_bass_stem_wraps_pitch_tracking_parameter_errors(monkeypatch) -> None:
