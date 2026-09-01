@@ -153,6 +153,12 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstGrooveTitle": "오늘 먼저 바뀌는 그루브",
+  "workspaceFirstGrooveChange": "{fromSection}의 {fromGroove} 다음, {toSection}에서 {toGroove}로 바뀝니다. {toSection} 들어가기 전에 새 그루브를 세어 보세요.",
+  "workspaceFirstGrooveHold": "오늘 그루브는 {groove}로 끝까지 갑니다. {sectionLabel} 들어가기 전에 그 그루브를 세어 보세요.",
+  "workspaceFirstGrooveMissing": "오늘 먼저 바뀌는 그루브는 아직 귀로 확인이 필요합니다. 처음 두 구간의 그루브를 확인한 뒤 카운트하세요.",
+  "sectionGrooveNextActionChange": "{sectionLabel} 들어가기 전에 이 새 그루브를 세어 보세요.",
+  "sectionGrooveNextActionHold": "{sectionLabel} 들어가기 전에 이 그루브를 세어 보세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }

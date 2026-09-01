@@ -3,6 +3,7 @@ import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
+import { fillGrooveCopy, firstGrooveChange, isGrooveChangeTarget } from "./firstGrooveChange";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +20,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const grooveChange = useMemo(() => firstGrooveChange(song), [song]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -120,6 +122,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
+              {grooveChange && isGrooveChangeTarget(grooveChange, section.label) ? (
+                <p className="mt-2 text-xs font-medium text-teal-200" data-testid={`groove-next-action-${section.id}`}>
+                  {fillGrooveCopy(
+                    t(grooveChange.kind === "change" ? "sectionGrooveNextActionChange" : "sectionGrooveNextActionHold"),
+                    { sectionLabel: section.label }
+                  )}
+                </p>
+              ) : null}
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">

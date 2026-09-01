@@ -153,6 +153,41 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's held feel and the next count-in when the form does not change groove", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-groove-change");
+    expect(callout).toHaveTextContent("Tonight's first feel change");
+    expect(callout).toHaveTextContent(
+      "Tonight's feel stays Straight eighths with a late snare feel through the form. Count that groove in before the verse."
+    );
+  });
+
+  it("names tonight's first feel change and the next count-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      verse,
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        groove: "Half-time snare with open hats",
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
+      "The feel changes at chorus: Half-time snare with open hats, after verse's Straight eighths with a late snare feel. Count the new groove in before the chorus."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +360,18 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 바뀌는 그루브")).toBeTruthy();
+  });
+
+  it("asks for an ear check when no named groove exists", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = { ...song.sections[0]!, label: " ", groove: "none" };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
+      "Tonight's first feel change still needs an ear check. Confirm the groove of the first two sections before you count in."
+    );
   });
 });
