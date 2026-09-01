@@ -1,7 +1,7 @@
 # BandScope Product-Technical Gap Baseline
 
 Last updated: 2026-09-01
-Evidence capture: 2026-09-01 13:29 KST unless a row says otherwise
+Evidence capture: 2026-09-01 14:37 KST unless a row says otherwise
 Protected base: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`
 
 ## 1. Purpose and buyer outcome
@@ -159,21 +159,21 @@ Acceptance criteria are preregistered before tuning. Candidate-vs-baseline infer
 
 ## 5. Organization-wide live backlog evidence
 
-A fresh organization-wide GitHub search at this capture includes **all 72 repositories currently accessible through the connected ContextualWisdomLab GitHub account** and reports **2,697 open pull requests** in total. Repository enumeration now includes the newly visible `ContextualWisdomLab/litellm-patched-proxy` and `ContextualWisdomLab/pingora-gateway`; the prior 71-repository snapshot is therefore stale. Counts are volatile evidence, not product constants.
+A fresh organization-wide GitHub search at this capture includes **all 72 repositories currently accessible through the connected ContextualWisdomLab GitHub account** and reports **2,690 open pull requests** in total. Repository enumeration includes `ContextualWisdomLab/litellm-patched-proxy` and `ContextualWisdomLab/pingora-gateway`; the prior 71-repository and 2,697-PR snapshots are stale. Counts are volatile evidence, not product constants.
 
 The highest-backlog candidates were re-fetched individually after the organization-wide recount:
 
 | Rank | Repository | Open PRs |
 |---:|---|---:|
 | 1 | `ContextualWisdomLab/bandscope` | **188** |
-| 2 | `ContextualWisdomLab/newsdom-api` | 144 |
-| 3 | `ContextualWisdomLab/TEPP` | 141 |
-| 4 | `ContextualWisdomLab/OriginWeave` | 140 |
-| 5 | `ContextualWisdomLab/naruon` | 128 |
+| 2 | `ContextualWisdomLab/TEPP` | 142 |
+| 3 | `ContextualWisdomLab/OriginWeave` | 140 |
+| 4 | `ContextualWisdomLab/newsdom-api` | 130 |
+| 5 | `ContextualWisdomLab/naruon` | 127 |
 | 6 | `ContextualWisdomLab/html4tree` | 117 |
-| 7 | `ContextualWisdomLab/Orgmetra` | 113 |
-| 8 | `ContextualWisdomLab/pg-erd-cloud` | 113 |
-| 9 | `ContextualWisdomLab/.github` | 111 |
+| 7 | `ContextualWisdomLab/pg-erd-cloud` | 114 |
+| 8 | `ContextualWisdomLab/Orgmetra` | 113 |
+| 9 | `ContextualWisdomLab/.github` | 110 |
 
 BandScope remains the selected delivery lane because it has the largest live backlog **and** the repository owns the end-user rehearsal product whose duplicated workspace slices are contributing directly to buyer-delivery fragmentation. Selection is therefore based on both count and product responsibility, not repository name.
 
@@ -187,6 +187,7 @@ Current examples:
 - **#1119 Trivy PR-head evidence** correctly identifies a stale local policy-test conflict: CodeQL/Scorecard remain push-only local signals, while Trivy needs ordinary `pull_request` SARIF coverage. A failed temporary source-fix workflow was removed; the permanent policy-test repair belongs in normal source history, not in a dormant self-modifying workflow.
 - **#1007/#1094 first-part-handoff** are not yet safe to collapse blindly. #1007 has absorbed the selected-role semantics at resolver/callout level, but mounted `Workspace` must pass its selected `activeRole` through and pin that integration before #1094 can be closed without losing unique production behavior.
 - **#1116 is the canonical baseline owner.** Older #1025 was closed only after its unique PRD/TRD/UML/Rust/accuracy/security/accessibility/release requirements were preserved here.
+- **Central required-workflow coverage is repaired at the owner, not in BandScope.** Current `ContextualWisdomLab/.github/main` inherited a 99% `scripts/ci` coverage regression from merged #1541. Competing #1547 was closed unmerged after exact patch comparison established #1551 as the more complete canonical owner. #1548 was then stacked on #1551 and merged normally into that branch as `c858ee4065dbda73b38150c95b635c0db7266a39`, preserving its unique CHANGELOG/G-13 traceability plus direct-RCA regression. The #1551 exact head changed as a result, so predecessor checks do not transfer; current security/review workflows are being regenerated before that central repair can land.
 
 Operational invariant: queued/pending/neutral/skipped/cancelled/failed, predecessor-head, protected-base, self/author, status-only, and model-only evidence is non-passing. Central-gate defects are repaired in the owning central repository; member branches do not weaken gates or use administrative bypass.
 
