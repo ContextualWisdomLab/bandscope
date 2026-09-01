@@ -4,8 +4,10 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   getAnalysisJobStatus,
   importYoutubeUrl,
+  loadProject,
   startAnalysisJob
 } from "./analysis";
+import { hasSyntheticSectionTimeRange } from "./rehearsalTimingEvidence";
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -115,6 +117,20 @@ describe("analysis bridge", () => {
     const status = await getAnalysisJobStatus("job-legacy");
 
     expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+  });
+
+  it("preserves synthetic timing provenance when a legacy project crosses the native load boundary", async () => {
+    const legacyProject = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyProject.sections[0]!.timeRange;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue(legacyProject);
+
+    const loaded = await loadProject();
+
+    expect(tauriWindow.__TAURI_INVOKE__).toHaveBeenCalledWith("load_project", undefined);
+    expect(loaded.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    expect(hasSyntheticSectionTimeRange(loaded.sections[0])).toBe(true);
   });
 
   it("reports staged browser fallback progress before returning the demo result", async () => {
