@@ -158,9 +158,16 @@ describe("resolveFirstTransition", () => {
     expect(transition?.cue).toBe("Hold the last chord into the downbeat.");
   });
 
-  it("skips whitespace-only and overlong transition values", () => {
+  it("skips whitespace-only transition values", () => {
     expect(resolveFirstTransition(withTransitionRole({ cueValue: "   " }))).toBeNull();
-    expect(resolveFirstTransition(withTransitionRole({ cueValue: "x".repeat(181) }))).toBeNull();
+  });
+
+  it("bounds an overlong transition cue to 180 Unicode code points without splitting a surrogate pair", () => {
+    const transition = resolveFirstTransition(
+      withTransitionRole({ cueValue: `${"a".repeat(179)}😀tail` })
+    );
+    expect(Array.from(transition?.cue ?? "")).toHaveLength(180);
+    expect(transition?.cue.endsWith("😀")).toBe(true);
   });
 
   it("skips a section whose rehearsal window is unbounded", () => {
