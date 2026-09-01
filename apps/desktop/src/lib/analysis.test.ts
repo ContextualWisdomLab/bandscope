@@ -4,6 +4,7 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   getAnalysisJobStatus,
   importYoutubeUrl,
+  selectLocalAudioSource,
   startAnalysisJob
 } from "./analysis";
 
@@ -18,6 +19,22 @@ describe("analysis bridge", () => {
   beforeEach(() => {
     delete tauriWindow.__TAURI_INTERNALS__;
     delete tauriWindow.__TAURI_INVOKE__;
+  });
+
+  it("preserves safe playback preparation errors from native local audio selection", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi
+      .fn()
+      .mockRejectedValue(new Error("Could not prepare the selected audio for playback."));
+
+    const selection = await selectLocalAudioSource();
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Could not prepare the selected audio for playback."
+      }
+    });
   });
 
   it("imports a standard YouTube URL through the browser fallback when Tauri is absent", async () => {
