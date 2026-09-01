@@ -1,0 +1,81 @@
+name: Direct PR1009 source repair
+
+on:
+  push:
+    branches:
+      - feat/licensed-demo-first-run
+    paths:
+      - .github/direct-pr1009-source-repair.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: direct-pr1009-source-repair
+  cancel-in-progress: false
+
+jobs:
+  repair_exact_head:
+    if: ${{ github.repository == 'ContextualWisdomLab/bandscope' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/licensed-demo-first-run
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.0.0
+        with:
+          node-version: '22.22.3'
+          package-manager-cache: false
+      - name: Revalidate exact live PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1009 --jq .head.sha)
+          test "$(git rev-parse HEAD)" = "$live_head"
+          expected_parent=$(awk -F': ' '/^expected_parent_head:/ {print $2}' .github/direct-pr1009-source-repair.trigger)
+          test "$(git rev-parse HEAD^)" = "$expected_parent"
+          git show 929d04d312cdcf3c82d01a641672da2011acab46:.github/repair/pr1009_current_findings.py > /tmp/pr1009_current_findings.py
+      - name: Install focused dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          rustup toolchain install stable --profile minimal
+      - name: Add regression tests and prove RED
+        run: |
+          set -euo pipefail
+          python3 /tmp/pr1009_current_findings.py tests
+          set +e
+          npm --workspace @bandscope/desktop exec vitest run src/App.localSelectionConcurrency.test.tsx
+          app_red_status=$?
+          cargo test --manifest-path apps/desktop/core/Cargo.toml demo_audio_ -- --nocapture
+          core_red_status=$?
+          set -e
+          test "$app_red_status" -ne 0
+          test "$core_red_status" -ne 0
+      - name: Apply root-cause repair
+        run: |
+          set -euo pipefail
+          python3 /tmp/pr1009_current_findings.py production
+      - name: Verify focused GREEN
+        run: |
+          set -euo pipefail
+          npm --workspace @bandscope/desktop exec vitest run src/App.localSelectionConcurrency.test.tsx
+          cargo test --manifest-path apps/desktop/core/Cargo.toml demo_audio_ -- --nocapture
+      - name: Remove temporary repair machinery and push ordinary history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1009 --jq .head.sha)
+          test "$(git rev-parse HEAD)" = "$live_head"
+          rm -f .github/direct-pr1009-source-repair.trigger .github/workflows/direct-pr1009-source-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/desktop/src/App.tsx apps/desktop/src/App.localSelectionConcurrency.test.tsx apps/desktop/core/src/lib.rs .github/direct-pr1009-source-repair.trigger .github/workflows/direct-pr1009-source-repair.yml
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(workspace): serialize intake and validate demo WAV contract"
+          git push origin HEAD:feat/licensed-demo-first-run
