@@ -8,9 +8,11 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_identity.py"
+_BUILD_BASELINE_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
 
 
 def _load_guard() -> ModuleType:
@@ -42,6 +44,16 @@ def _write_release_metadata(root: Path, version: str) -> None:
     )
 
 
+def _workflow_needs(job: dict[str, object]) -> set[str]:
+    """Normalize a workflow job's ``needs`` dependency to a set of job IDs."""
+    needs = job.get("needs", [])
+    if isinstance(needs, str):
+        return {needs}
+    assert isinstance(needs, list)
+    assert all(isinstance(item, str) for item in needs)
+    return set(needs)
+
+
 def test_release_preflight_executes_version_identity_guard() -> None:
     """Keep release preflight fail-closed when version projections drift."""
     quickcheck = (_REPOSITORY_ROOT / "scripts" / "harness" / "quickcheck.sh").read_text(
@@ -55,10 +67,48 @@ def test_release_preflight_executes_version_identity_guard() -> None:
     assert "./scripts/harness/quickcheck.sh" in release_workflow
 
 
+def test_tag_build_and_publication_depend_on_release_identity_gate() -> None:
+    """Block package construction and publication when release identity is invalid."""
+    document = yaml.safe_load(_BUILD_BASELINE_PATH.read_text(encoding="utf-8"))
+    assert isinstance(document, dict)
+    jobs = document.get("jobs")
+    assert isinstance(jobs, dict)
+
+    identity_job = jobs.get("release-identity")
+    assert isinstance(identity_job, dict)
+    steps = identity_job.get("steps")
+    assert isinstance(steps, list)
+    assert any(
+        isinstance(step, dict)
+        and step.get("run") == "python3 scripts/checks/verify_release_identity.py"
+        for step in steps
+    )
+
+    for build_job_name in (
+        "build-windows-native",
+        "build-windows-arm64",
+        "build-macos-native",
+        "build-macos-arm64",
+    ):
+        build_job = jobs.get(build_job_name)
+        assert isinstance(build_job, dict)
+        assert "release-identity" in _workflow_needs(build_job)
+
+    publisher = jobs.get("publish-immutable-release")
+    assert isinstance(publisher, dict)
+    assert {"release-identity", "gate-windows", "gate-macos"} <= _workflow_needs(
+        publisher
+    )
+
+
 def test_repository_release_version_matches_authoritative_version_file() -> None:
-    """Verify the checked-in package and Tauri release versions against VERSION."""
+    """Verify checked-in projections without creating another version authority."""
     guard = _load_guard()
-    assert guard.verify_release_identity(_REPOSITORY_ROOT) == "0.1.3"
+    version_text = (_REPOSITORY_ROOT / "VERSION").read_text(encoding="utf-8")
+    assert version_text.endswith("\n")
+    expected = version_text.removesuffix("\n")
+    assert "\n" not in expected
+    assert guard.verify_release_identity(_REPOSITORY_ROOT) == expected
 
 
 def test_release_identity_guard_rejects_metadata_drift(tmp_path: Path) -> None:
