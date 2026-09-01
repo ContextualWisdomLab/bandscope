@@ -12,73 +12,102 @@ import {
 
 const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../");
 
-function bundledManifest(): DemoProvenanceManifest {
-  const raw = readFileSync(
+/** Legacy public wire shape retained only at the provenance anti-corruption boundary. */
+type DemoProvenanceWireFixture = {
+  manifestVersion: number;
+  artifactKind: string;
+  song: {
+    id: string;
+    title: string;
+    performer: string;
+    license: string;
+    licenseUrl: string;
+    permittedUses: string[];
+  };
+  assets: Array<{
+    path: string;
+    role: string;
+    sha256: string;
+    bytes: number;
+    mediaType: string;
+  }>;
+};
+
+function bundledWireManifest(): DemoProvenanceWireFixture {
+  const rawManifest = readFileSync(
     path.join(workspaceRoot, DEMO_RESOURCE_DIRECTORY, "provenance.json"),
     "utf8"
   );
-  return parseDemoProvenanceManifest(JSON.parse(raw));
+  return JSON.parse(rawManifest) as DemoProvenanceWireFixture;
+}
+
+function bundledManifest(): DemoProvenanceManifest {
+  return parseDemoProvenanceManifest(bundledWireManifest());
 }
 
 describe("licensed demo provenance", () => {
   it("accepts the bundled CC0 package and verifies every recorded hash", () => {
     const manifest = bundledManifest();
     expect(manifest.artifactKind).toBe(DEMO_PROVENANCE_KIND);
-    expect(manifest.song.license).toBe("CC0-1.0");
-    expect(manifest.song.title).toBe("Late Night Set");
-    expect(manifest.song.permittedUses).toEqual([
+    expect(manifest.demoSong.licenseExpression).toBe("CC0-1.0");
+    expect(manifest.demoSong.songTitle).toBe("Late Night Set");
+    expect(manifest.demoSong.permittedUses).toEqual([
       "evaluation",
       "redistribution",
       "rehearsal-demo"
     ]);
-    for (const asset of manifest.assets) {
-      const bytes = readFileSync(path.join(workspaceRoot, DEMO_RESOURCE_DIRECTORY, asset.path));
-      expect(bytes.byteLength).toBe(asset.bytes);
-      expect(createHash("sha256").update(bytes).digest("hex")).toBe(asset.sha256);
+    for (const demoAsset of manifest.demoAssets) {
+      const assetBytes = readFileSync(
+        path.join(workspaceRoot, DEMO_RESOURCE_DIRECTORY, demoAsset.assetPath)
+      );
+      expect(assetBytes.byteLength).toBe(demoAsset.assetByteCount);
+      expect(createHash("sha256").update(assetBytes).digest("hex")).toBe(demoAsset.assetSha256);
     }
-    const audio = manifest.assets.find((asset) => asset.role === "audio");
-    expect(audio?.path).toBe("late-night-set.wav");
-    const wav = readFileSync(path.join(workspaceRoot, DEMO_RESOURCE_DIRECTORY, "late-night-set.wav"));
-    expect(wav.subarray(0, 4).toString("ascii")).toBe("RIFF");
-    expect(wav.subarray(8, 12).toString("ascii")).toBe("WAVE");
+    const audioAsset = manifest.demoAssets.find((demoAsset) => demoAsset.assetRole === "audio");
+    expect(audioAsset?.assetPath).toBe("late-night-set.wav");
+    const demoWav = readFileSync(
+      path.join(workspaceRoot, DEMO_RESOURCE_DIRECTORY, "late-night-set.wav")
+    );
+    expect(demoWav.subarray(0, 4).toString("ascii")).toBe("RIFF");
+    expect(demoWav.subarray(8, 12).toString("ascii")).toBe("WAVE");
   });
 
   it("rejects unknown fields, the wrong kind, and a missing asset role", () => {
-    const manifest = bundledManifest();
+    const wireManifest = bundledWireManifest();
     expect(() => parseDemoProvenanceManifest(null)).toThrow(/root/);
     expect(() => parseDemoProvenanceManifest([])).toThrow(/root/);
-    expect(() => parseDemoProvenanceManifest({ ...manifest, extra: true })).toThrow(
+    expect(() => parseDemoProvenanceManifest({ ...wireManifest, extra: true })).toThrow(
       /Invalid demo provenance field 'extra'/
     );
-    expect(() => parseDemoProvenanceManifest({ ...manifest, artifactKind: "other" })).toThrow(
-      /artifactKind/
-    );
-    expect(() => parseDemoProvenanceManifest({ ...manifest, manifestVersion: 2 })).toThrow(
+    expect(() =>
+      parseDemoProvenanceManifest({ ...wireManifest, artifactKind: "other" })
+    ).toThrow(/artifactKind/);
+    expect(() => parseDemoProvenanceManifest({ ...wireManifest, manifestVersion: 2 })).toThrow(
       /manifestVersion/
     );
-    expect(() => parseDemoProvenanceManifest({ ...manifest, song: null })).toThrow(/song/);
+    expect(() => parseDemoProvenanceManifest({ ...wireManifest, song: null })).toThrow(/song/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        song: { ...manifest.song, extra: "nope" }
+        ...wireManifest,
+        song: { ...wireManifest.song, extra: "nope" }
       })
     ).toThrow(/song\.extra/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        song: { ...manifest.song, license: "MIT" }
+        ...wireManifest,
+        song: { ...wireManifest.song, license: "MIT" }
       })
     ).toThrow(/license/);
     const withoutAudio = {
-      ...manifest,
-      assets: manifest.assets.filter((asset) => asset.role !== "audio")
+      ...wireManifest,
+      assets: wireManifest.assets.filter((demoAsset) => demoAsset.role !== "audio")
     };
     expect(() => parseDemoProvenanceManifest(withoutAudio)).toThrow(/assets/);
   });
 
   it("rejects manifests whose UTF-8 serialization exceeds the byte ceiling", () => {
-    const manifest = bundledManifest();
-    const oversizedUtf8Manifest = { ...manifest };
+    const wireManifest = bundledWireManifest();
+    const oversizedUtf8Manifest = { ...wireManifest };
     Object.defineProperty(oversizedUtf8Manifest, "toJSON", {
       enumerable: false,
       value: () => "가".repeat(6000)
@@ -88,56 +117,56 @@ describe("licensed demo provenance", () => {
   });
 
   it("rejects traversal paths, dot segments, non-hex hashes, and malformed assets", () => {
-    const manifest = bundledManifest();
-    const [audio, license, annotations] = manifest.assets;
+    const wireManifest = bundledWireManifest();
+    const [audioAsset, licenseAsset, annotationAsset] = wireManifest.assets;
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        assets: [{ ...audio, path: "../secret.wav" }, license, annotations]
+        ...wireManifest,
+        assets: [{ ...audioAsset, path: "../secret.wav" }, licenseAsset, annotationAsset]
       })
     ).toThrow(/assets\[0\]\.path/);
     for (const dotSegment of [".", ".."]) {
       expect(() =>
         parseDemoProvenanceManifest({
-          ...manifest,
-          assets: [{ ...audio, path: dotSegment }, license, annotations]
+          ...wireManifest,
+          assets: [{ ...audioAsset, path: dotSegment }, licenseAsset, annotationAsset]
         })
       ).toThrow(/assets\[0\]\.path/);
     }
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        assets: [{ ...audio, sha256: "not-a-hash" }, license, annotations]
+        ...wireManifest,
+        assets: [{ ...audioAsset, sha256: "not-a-hash" }, licenseAsset, annotationAsset]
       })
     ).toThrow(/sha256/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        assets: [{ ...audio, bytes: 1.5 }, license, annotations]
+        ...wireManifest,
+        assets: [{ ...audioAsset, bytes: 1.5 }, licenseAsset, annotationAsset]
       })
     ).toThrow(/bytes/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        assets: [{ ...audio, extra: true }, license, annotations]
+        ...wireManifest,
+        assets: [{ ...audioAsset, extra: true }, licenseAsset, annotationAsset]
       })
     ).toThrow(/assets\[0\]\.extra/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        assets: [null, license, annotations]
+        ...wireManifest,
+        assets: [null, licenseAsset, annotationAsset]
       })
     ).toThrow(/assets\[0\]/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        assets: [{ ...audio, role: "stems" }, license, annotations]
+        ...wireManifest,
+        assets: [{ ...audioAsset, role: "stems" }, licenseAsset, annotationAsset]
       })
     ).toThrow(/assets\.role/);
     expect(() =>
       parseDemoProvenanceManifest({
-        ...manifest,
-        song: { ...manifest.song, permittedUses: [] }
+        ...wireManifest,
+        song: { ...wireManifest.song, permittedUses: [] }
       })
     ).toThrow(/permittedUses/);
   });
