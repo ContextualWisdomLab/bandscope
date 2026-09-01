@@ -1,5 +1,6 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
+import { parseRehearsalSongWithTimingEvidence } from "../../lib/rehearsalTimingEvidence";
 import {
   fillDurationCopy,
   firstDurationChange,
@@ -121,6 +122,32 @@ describe("firstDurationChange", () => {
     ];
 
     expect(firstDurationChange(song)).toBeNull();
+  });
+
+  it("does not present legacy migration placeholders as measured section lengths", () => {
+    const legacySong = structuredClone(createDemoRehearsalSong()) as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacySong.sections[0]!.timeRange;
+
+    const parsedLegacySong = parseRehearsalSongWithTimingEvidence(legacySong);
+    expect(parsedLegacySong.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    expect(firstDurationChange(parsedLegacySong)).toBeNull();
+  });
+
+  it("keeps an explicit measured one-second section eligible for count-in guidance", () => {
+    const measuredSong = structuredClone(createDemoRehearsalSong());
+    measuredSong.sections[0]!.timeRange = { start: 0, end: 1 };
+
+    expect(firstDurationChange(parseRehearsalSongWithTimingEvidence(measuredSong))).toEqual({
+      kind: "same",
+      fromSectionId: "verse-1",
+      fromSectionLabel: "verse",
+      fromDuration: "1",
+      toSectionId: "verse-1",
+      toSectionLabel: "verse",
+      toDuration: "1"
+    });
   });
 
   it("fails closed on malformed runtime roots and members", () => {
