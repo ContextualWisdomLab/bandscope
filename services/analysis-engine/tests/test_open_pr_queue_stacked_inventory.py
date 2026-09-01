@@ -39,7 +39,12 @@ def _seed() -> dict[str, Any]:
         "base_sha": "d" * 40,
         "open_pr_count": 1,
         "authority_note": "Refresh exact live evidence before action.",
-        "trains": {"T8": {"description": "Live additions awaiting explicit merge-train triage", "issue": 966}},
+        "trains": {
+            "T8": {
+                "description": "Live additions awaiting explicit merge-train triage",
+                "issue": 966,
+            }
+        },
         "pull_requests": [
             {
                 "number": 1116,
@@ -57,8 +62,13 @@ def _seed() -> dict[str, Any]:
     }
 
 
-def _live_pr(number: int, head_sha: str, base_ref: str, base_sha: str) -> dict[str, object]:
-    """Return one same-repository open PR targeting the supplied live base branch."""
+def _live_pr(
+    number: int,
+    head_sha: str,
+    base_ref: str,
+    base_sha: str,
+) -> dict[str, object]:
+    """Return one same-repository open PR targeting the supplied branch."""
     return {
         "number": number,
         "title": f"PR {number}",
@@ -85,7 +95,10 @@ def test_refresh_includes_direct_and_stacked_open_prs_with_exact_base_tips() -> 
         live,
         base_sha="d" * 40,
         snapshot_date="2026-09-01",
-        base_tips={"develop": "d" * 40, "docs/gap-baseline-2026-08-31": "e" * 40},
+        base_tips={
+            "develop": "d" * 40,
+            "docs/gap-baseline-2026-08-31": "e" * 40,
+        },
     )
 
     by_number = {item["number"]: item for item in refreshed["pull_requests"]}
@@ -99,14 +112,41 @@ def test_refresh_includes_direct_and_stacked_open_prs_with_exact_base_tips() -> 
     verifier.validate_manifest(refreshed)
 
 
-def test_refresh_rejects_pr_base_sha_that_is_not_the_independently_resolved_tip() -> None:
-    """A PR object's stale base SHA cannot substitute for an independently resolved branch tip."""
-    refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_stale_stacked_base")
+def test_refresh_uses_independently_resolved_tip_when_pr_base_snapshot_is_stale() -> None:
+    """The live branch lookup, not the PR object's base SHA, owns current base identity."""
+    refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_stale_base_snapshot")
+    live = {
+        "incomplete_results": False,
+        "pull_requests": [
+            _live_pr(1116, "2" * 40, "develop", "9" * 40),
+            _live_pr(968, "3" * 40, "docs/gap-baseline-2026-08-31", "8" * 40),
+        ],
+    }
+
+    refreshed = refresher.build_refreshed_manifest(
+        _seed(),
+        live,
+        base_sha="d" * 40,
+        snapshot_date="2026-09-01",
+        base_tips={
+            "develop": "d" * 40,
+            "docs/gap-baseline-2026-08-31": "e" * 40,
+        },
+    )
+
+    by_number = {item["number"]: item for item in refreshed["pull_requests"]}
+    assert by_number[1116]["base_sha"] == "d" * 40
+    assert by_number[968]["base_sha"] == "e" * 40
+
+
+def test_refresh_rejects_base_without_independently_resolved_tip() -> None:
+    """Every current PR target branch still needs a separately resolved live tip."""
+    refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_missing_base_tip")
     live = {
         "incomplete_results": False,
         "pull_requests": [
             _live_pr(1116, "2" * 40, "develop", "d" * 40),
-            _live_pr(968, "3" * 40, "docs/gap-baseline-2026-08-31", "f" * 40),
+            _live_pr(968, "3" * 40, "docs/gap-baseline-2026-08-31", "8" * 40),
         ],
     }
 
@@ -116,12 +156,14 @@ def test_refresh_rejects_pr_base_sha_that_is_not_the_independently_resolved_tip(
             live,
             base_sha="d" * 40,
             snapshot_date="2026-09-01",
-            base_tips={"develop": "d" * 40, "docs/gap-baseline-2026-08-31": "e" * 40},
+            base_tips={"develop": "d" * 40},
         )
 
 
-def test_fetch_live_pull_page_does_not_filter_out_stacked_bases(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The GitHub pulls request enumerates all open PRs rather than only develop-targeted PRs."""
+def test_fetch_live_pull_page_does_not_filter_out_stacked_bases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The GitHub pulls request enumerates all open PRs, including stacked bases."""
     refresher = _load_module(REFRESHER_PATH, "refresh_open_pr_queue_all_bases")
     observed: dict[str, str] = {}
 
@@ -153,5 +195,6 @@ def test_fetch_live_branch_sha_encodes_branch_name_without_changing_authority(
     sha = refresher.fetch_live_branch_sha("docs/gap-baseline-2026-08-31", None)
 
     assert sha == "e" * 40
-    assert observed["target"].startswith("/repos/ContextualWisdomLab/bandscope/branches/")
+    expected_prefix = "/repos/ContextualWisdomLab/bandscope/branches/"
+    assert observed["target"].startswith(expected_prefix)
     assert observed["target"].endswith("docs%2Fgap-baseline-2026-08-31")
