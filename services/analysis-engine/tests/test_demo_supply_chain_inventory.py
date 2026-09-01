@@ -19,6 +19,13 @@ EXPECTED_DEMO_ASSETS = {
 
 def test_demo_package_is_listed_in_supplemental_inventory() -> None:
     """Require every packaged demo asset to be inventory-traceable by checksum."""
+    actual_demo_assets = {
+        asset_path.name
+        for asset_path in DEMO_RESOURCE_ROOT.iterdir()
+        if asset_path.is_file()
+    }
+    assert actual_demo_assets == set(EXPECTED_DEMO_ASSETS)
+
     inventory_document = json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
     bundled_assets = inventory_document.get("bundledAssets")
 
