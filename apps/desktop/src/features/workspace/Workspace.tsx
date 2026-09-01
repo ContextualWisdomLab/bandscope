@@ -359,7 +359,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <FirstPartHandoffCallout song={song} activeRole={activeRole} />
+          <FirstPartHandoffCallout song={song} activeRole={activeRoleDetails ? activeRole : null} />
 
           <SongStructure sections={song.sections} t={t} />
 
