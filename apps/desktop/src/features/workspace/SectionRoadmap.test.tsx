@@ -60,6 +60,23 @@ describe("SectionRoadmap", () => {
     );
   });
 
+  it("marks only the destination card when consecutive sections share a label", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", groove: "Straight eighths" },
+      { ...verse, id: "verse-b", label: "verse", groove: "Half-time" }
+    ];
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.queryByTestId("groove-next-action-verse-a")).toBeNull();
+    expect(screen.getByTestId("groove-next-action-verse-b")).toHaveTextContent(
+      "Count this new groove in before verse."
+    );
+  });
+
   it("omits the range row when both notes are unnamed", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
