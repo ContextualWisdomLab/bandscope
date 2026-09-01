@@ -1,0 +1,47 @@
+name: open-pr-queue-live
+
+on:
+  push:
+    branches:
+      - docs/bandscope-product-readiness-baseline
+    paths:
+      - .github/workflows/open-pr-queue-live.yml
+      - scripts/checks/refresh_open_pr_queue.py
+      - scripts/checks/verify_open_pr_queue.py
+      - scripts/checks/render_open_pr_queue.py
+      - docs/product-readiness/open-pr-queue.json
+      - docs/product-readiness/open-pr-queue.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  refresh-live-queue:
+    name: queue / live-refresh-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Refresh from bounded live GitHub authority
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/checks/refresh_open_pr_queue.py
+      - name: Validate machine queue without network authority
+        run: python3 scripts/checks/verify_open_pr_queue.py
+      - name: Render deterministic human queue
+        run: python3 scripts/checks/render_open_pr_queue.py
+      - name: Verify machine/human projection parity
+        run: python3 scripts/checks/render_open_pr_queue.py --check
+      - name: Preserve exact-head live queue evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: open-pr-queue-${{ github.sha }}
+          path: |
+            docs/product-readiness/open-pr-queue.json
+            docs/product-readiness/open-pr-queue.md
+          if-no-files-found: error
+          retention-days: 7
