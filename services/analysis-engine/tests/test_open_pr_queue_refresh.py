@@ -81,6 +81,8 @@ def _live_pr(
     base_ref: str = "develop",
     base_sha: str | None = "d" * 40,
     title: str | None = None,
+    draft: bool = False,
+    updated_at: str = "2026-09-01T12:34:56Z",
 ) -> dict[str, object]:
     """Return a minimal GitHub pulls-API record for one open PR."""
     base: dict[str, object] = {"ref": base_ref}
@@ -91,6 +93,8 @@ def _live_pr(
         "title": title or f"PR {number}",
         "html_url": f"https://github.com/ContextualWisdomLab/bandscope/pull/{number}",
         "state": "open",
+        "draft": draft,
+        "updated_at": updated_at,
         "base": base,
         "head": {"sha": head_sha},
     }
@@ -130,7 +134,13 @@ def test_refresh_manifest_updates_exact_heads_and_adds_untriaged_live_prs() -> N
     live = {
         "incomplete_results": False,
         "pull_requests": [
-            _live_pr(783, "b" * 40, title="current dependency title"),
+            _live_pr(
+                783,
+                "b" * 40,
+                title="current dependency title",
+                draft=True,
+                updated_at="2026-09-01T23:45:01Z",
+            ),
             _live_pr(1002, "c" * 40),
         ],
     }
@@ -146,11 +156,15 @@ def test_refresh_manifest_updates_exact_heads_and_adds_untriaged_live_prs() -> N
     assert refreshed["pull_requests"][0]["title"] == "current dependency title"
     assert refreshed["pull_requests"][0]["head_sha"] == "b" * 40
     assert refreshed["pull_requests"][0]["head_sha_status"] == "exact_current_head"
+    assert refreshed["pull_requests"][0]["draft"] is True
+    assert refreshed["pull_requests"][0]["updated_at"] == "2026-09-01T23:45:01Z"
     assert (
         refreshed["pull_requests"][0]["initial_disposition"]
         == "canonical_dependency_security_base"
     )
     assert refreshed["pull_requests"][1]["number"] == 1002
+    assert refreshed["pull_requests"][1]["draft"] is False
+    assert refreshed["pull_requests"][1]["updated_at"] == "2026-09-01T12:34:56Z"
     assert refreshed["pull_requests"][1]["initial_train"] == "T8"
     assert refreshed["pull_requests"][1]["initial_disposition"] == "triage_required"
     assert refreshed["trains"]["T8"]["issue"] == 966
