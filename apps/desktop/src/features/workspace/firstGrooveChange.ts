@@ -24,14 +24,14 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Pick the first named groove change a player should count in before the next section.
+ * Pick the first proven groove change a player should count in before the next section.
  *
- * Walks labeled sections in form order and returns the first consecutive pair
- * whose trimmed groove text differs. When every named section holds the same
- * feel, the result is a same-feel hold so the room does not reset the groove.
- * Stable section ids, rather than display labels, own roadmap targeting. All
- * meaningful section ids are validated for uniqueness before groove evidence
- * is derived so an ineligible or later duplicate cannot create ambiguous cards.
+ * Every section in form order must carry a stable identity, label, and named groove.
+ * Missing evidence fails closed rather than bridging nonadjacent sections or claiming
+ * that a single known feel holds through unknown form. Stable section ids own roadmap
+ * targeting, and all meaningful ids are validated for uniqueness before groove
+ * evidence is derived so a later duplicate cannot bypass validation through an early
+ * transition return.
  */
 export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null {
   const runtimeSong: unknown = song;
@@ -42,11 +42,11 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
   const seenSectionIds = new Set<string>();
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue)) {
-      continue;
+      return null;
     }
     const sectionId = meaningfulRangeText(sectionValue.id);
     if (!sectionId) {
-      continue;
+      return null;
     }
     if (seenSectionIds.has(sectionId)) {
       return null;
@@ -57,13 +57,13 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
   const namedGrooves: NamedGroove[] = [];
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue)) {
-      continue;
+      return null;
     }
     const sectionId = meaningfulRangeText(sectionValue.id);
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     const groove = meaningfulRangeText(sectionValue.groove);
     if (!sectionId || !sectionLabel || !groove) {
-      continue;
+      return null;
     }
     namedGrooves.push({ sectionId, sectionLabel, groove });
   }
@@ -73,6 +73,9 @@ export function firstGrooveChange(song: RehearsalSong): FirstGrooveChange | null
   }
 
   const first = namedGrooves[0];
+  if (!first) {
+    return null;
+  }
   for (let index = 1; index < namedGrooves.length; index += 1) {
     const previous = namedGrooves[index - 1];
     const current = namedGrooves[index];
