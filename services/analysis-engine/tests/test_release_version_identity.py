@@ -8,7 +8,6 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
-import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_identity.py"
@@ -44,14 +43,22 @@ def _write_release_metadata(root: Path, version: str) -> None:
     )
 
 
-def _workflow_needs(job: dict[str, object]) -> set[str]:
-    """Normalize a workflow job's ``needs`` dependency to a set of job IDs."""
-    needs = job.get("needs", [])
-    if isinstance(needs, str):
-        return {needs}
-    assert isinstance(needs, list)
-    assert all(isinstance(item, str) for item in needs)
-    return set(needs)
+def _workflow_job_block(workflow: str, job_name: str) -> str:
+    """Return one top-level GitHub Actions job without requiring a YAML runtime dependency."""
+    marker = f"  {job_name}:"
+    lines = workflow.splitlines()
+    try:
+        start = lines.index(marker)
+    except ValueError as error:
+        raise AssertionError(f"workflow job is missing: {job_name}") from error
+
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
+            end = index
+            break
+    return "\n".join(lines[start:end])
 
 
 def test_release_preflight_executes_version_identity_guard() -> None:
@@ -69,20 +76,10 @@ def test_release_preflight_executes_version_identity_guard() -> None:
 
 def test_tag_build_and_publication_depend_on_release_identity_gate() -> None:
     """Block package construction and publication when release identity is invalid."""
-    document = yaml.safe_load(_BUILD_BASELINE_PATH.read_text(encoding="utf-8"))
-    assert isinstance(document, dict)
-    jobs = document.get("jobs")
-    assert isinstance(jobs, dict)
+    workflow = _BUILD_BASELINE_PATH.read_text(encoding="utf-8")
 
-    identity_job = jobs.get("release-identity")
-    assert isinstance(identity_job, dict)
-    steps = identity_job.get("steps")
-    assert isinstance(steps, list)
-    assert any(
-        isinstance(step, dict)
-        and step.get("run") == "python3 scripts/checks/verify_release_identity.py"
-        for step in steps
-    )
+    identity_job = _workflow_job_block(workflow, "release-identity")
+    assert "run: python3 scripts/checks/verify_release_identity.py" in identity_job
 
     for build_job_name in (
         "build-windows-native",
@@ -90,15 +87,12 @@ def test_tag_build_and_publication_depend_on_release_identity_gate() -> None:
         "build-macos-native",
         "build-macos-arm64",
     ):
-        build_job = jobs.get(build_job_name)
-        assert isinstance(build_job, dict)
-        assert "release-identity" in _workflow_needs(build_job)
+        build_job = _workflow_job_block(workflow, build_job_name)
+        assert "needs: release-identity" in build_job
 
-    publisher = jobs.get("publish-immutable-release")
-    assert isinstance(publisher, dict)
-    assert {"release-identity", "gate-windows", "gate-macos"} <= _workflow_needs(
-        publisher
-    )
+    publisher = _workflow_job_block(workflow, "publish-immutable-release")
+    for required_job in ("release-identity", "gate-windows", "gate-macos"):
+        assert f"      - {required_job}" in publisher
 
 
 def test_repository_release_version_matches_authoritative_version_file() -> None:
