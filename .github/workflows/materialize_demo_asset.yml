@@ -15,12 +15,12 @@ env:
 
 concurrency:
   group: licensed-demo-asset-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   materialize_demo_asset:
     if: ${{ github.actor != 'github-actions[bot]' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     permissions:
       contents: write
     steps:
