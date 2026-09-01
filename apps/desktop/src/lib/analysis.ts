@@ -14,6 +14,7 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
+import { DEMO_SONG_TITLE } from "./demo";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -39,6 +40,7 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
+const licensedDemoProjectIds = new Set<string>();
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
@@ -212,9 +214,11 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
 export async function selectDemoAudioSource(): Promise<LocalAudioSelectionResult> {
   try {
     const response = await invokeAnalysis("select_demo_audio_source");
+    const bootstrap = parseProjectBootstrapSummary(response);
+    licensedDemoProjectIds.add(bootstrap.projectId);
     return {
       ok: true,
-      bootstrap: parseProjectBootstrapSummary(response)
+      bootstrap
     };
   } catch (error) {
     return {
@@ -246,8 +250,14 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
     });
   }
 
+  const analysisRequest: AnalysisJobRequest =
+    parsedRequest.sourceKind === "local_audio" &&
+    parsedRequest.projectId &&
+    licensedDemoProjectIds.has(parsedRequest.projectId)
+      ? { ...parsedRequest, sourceLabel: DEMO_SONG_TITLE }
+      : parsedRequest;
   const response = await invokeAnalysis("start_analysis_job", {
-    request: parsedRequest
+    request: analysisRequest
   });
   try {
     return parseAnalysisJobStatus(response);
