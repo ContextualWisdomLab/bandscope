@@ -37,9 +37,16 @@ def verify_release_identity(root: Path, release_tag: str | None = None) -> str:
         version_text = (root / "VERSION").read_text(encoding="utf-8")
     except (OSError, UnicodeError) as error:
         raise ValueError("could not read authoritative VERSION") from error
-    expected = version_text.strip()
-    if not expected or version_text != f"{expected}\n":
+
+    lines = version_text.splitlines()
+    if (
+        len(lines) != 1
+        or not lines[0]
+        or lines[0] != lines[0].strip()
+        or version_text != f"{lines[0]}\n"
+    ):
         raise ValueError("VERSION must contain exactly one non-empty version line")
+    expected = lines[0]
 
     package = _read_json_object(root / "package.json")
     tauri = _read_json_object(root / "apps" / "desktop" / "src-tauri" / "tauri.conf.json")
@@ -59,7 +66,11 @@ def verify_release_identity(root: Path, release_tag: str | None = None) -> str:
 
 def main() -> int:
     """Run the release identity gate for repository and tag-triggered workflows."""
-    release_tag = os.environ.get("GITHUB_REF_NAME") if os.environ.get("GITHUB_REF_TYPE") == "tag" else None
+    release_tag = (
+        os.environ.get("GITHUB_REF_NAME")
+        if os.environ.get("GITHUB_REF_TYPE") == "tag"
+        else None
+    )
     try:
         version = verify_release_identity(_REPOSITORY_ROOT, release_tag=release_tag)
     except ValueError as error:
