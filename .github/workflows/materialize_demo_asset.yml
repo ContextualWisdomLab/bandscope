@@ -1,0 +1,144 @@
+name: Materialize licensed demo asset
+
+on:
+  push:
+    branches:
+      - feat/licensed-demo-first-run
+
+permissions:
+  contents: write
+
+concurrency:
+  group: licensed-demo-asset-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  materialize_demo_asset:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact PR branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/licensed-demo-first-run
+          fetch-depth: 0
+
+      - name: Generate and verify licensed demo package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/generate_licensed_demo_wav.py
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import re
+          import wave
+          from pathlib import Path
+
+          def sha256_file(asset_path: Path) -> str:
+              return hashlib.sha256(asset_path.read_bytes()).hexdigest()
+
+          demo_resource_root = Path("apps/desktop/src-tauri/resources/demo")
+          demo_audio_path = demo_resource_root / "late-night-set.wav"
+          demo_annotation_path = demo_resource_root / "annotations.json"
+          demo_license_path = demo_resource_root / "LICENSE"
+          demo_provenance_path = demo_resource_root / "provenance.json"
+
+          with wave.open(str(demo_audio_path), "rb") as demo_wave_file:
+              assert demo_wave_file.getnchannels() == 1
+              assert demo_wave_file.getsampwidth() == 2
+              assert demo_wave_file.getframerate() == 22_050
+              assert demo_wave_file.getnframes() / demo_wave_file.getframerate() == 10
+          assert demo_audio_path.stat().st_size == 441_044
+          assert sha256_file(demo_audio_path) == "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb"
+
+          annotation_document = json.loads(demo_annotation_path.read_text(encoding="utf-8"))
+          assert [section_record["timeRange"] for section_record in annotation_document["sections"]] == [
+              {"start": 0, "end": 5},
+              {"start": 5, "end": 10},
+          ]
+
+          provenance_document = json.loads(demo_provenance_path.read_text(encoding="utf-8"))
+          provenance_assets = {
+              asset_record["path"]: asset_record for asset_record in provenance_document["assets"]
+          }
+          for asset_name, asset_path in {
+              "late-night-set.wav": demo_audio_path,
+              "LICENSE": demo_license_path,
+              "annotations.json": demo_annotation_path,
+          }.items():
+              provenance_assets[asset_name]["sha256"] = sha256_file(asset_path)
+              provenance_assets[asset_name]["bytes"] = asset_path.stat().st_size
+          demo_provenance_path.write_text(
+              json.dumps(provenance_document, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+
+          packaged_assets = {
+              "late-night-set.wav": demo_audio_path,
+              "LICENSE": demo_license_path,
+              "annotations.json": demo_annotation_path,
+              "provenance.json": demo_provenance_path,
+          }
+          packaged_hashes = {
+              asset_name: sha256_file(asset_path)
+              for asset_name, asset_path in packaged_assets.items()
+          }
+
+          inventory_path = Path("supply-chain/supplemental-component-inventory.json")
+          inventory_document = json.loads(inventory_path.read_text(encoding="utf-8"))
+          for asset_record in inventory_document["bundledAssets"]:
+              asset_name = asset_record.get("assetName")
+              if asset_name in packaged_hashes:
+                  asset_record["assetChecksum"] = f"sha256:{packaged_hashes[asset_name]}"
+          inventory_path.write_text(
+              json.dumps(inventory_document, indent=2, ensure_ascii=False) + "\n",
+              encoding="utf-8",
+          )
+
+          inventory_test_path = Path(
+              "services/analysis-engine/tests/test_demo_supply_chain_inventory.py"
+          )
+          inventory_test_source = inventory_test_path.read_text(encoding="utf-8")
+          for asset_name, asset_hash in packaged_hashes.items():
+              asset_pattern = re.compile(
+                  rf'("{re.escape(asset_name)}": ")[0-9a-f]{{64}}(")'
+              )
+              inventory_test_source, replacement_count = asset_pattern.subn(
+                  rf"\g<1>{asset_hash}\g<2>",
+                  inventory_test_source,
+                  count=1,
+              )
+              assert replacement_count == 1, asset_name
+          inventory_test_path.write_text(inventory_test_source, encoding="utf-8")
+
+          analysis_test_path = Path("apps/desktop/src/lib/analysis.test.ts")
+          analysis_test_source = analysis_test_path.read_text(encoding="utf-8")
+          assert analysis_test_source.count("fileSizeBytes: 88244") == 1
+          analysis_test_path.write_text(
+              analysis_test_source.replace("fileSizeBytes: 88244", "fileSizeBytes: 441044", 1),
+              encoding="utf-8",
+          )
+
+          assert packaged_hashes["late-night-set.wav"] == "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb"
+          assert packaged_hashes["annotations.json"] == "6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7"
+          assert packaged_hashes["provenance.json"] == "4d980735aa37d3fb0d4fc5e2e1c4013181f51346d26d75b207e20f9154cdf338"
+          PY
+
+      - name: Commit generated asset and retire materializer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/materialize_demo_asset.yml
+          git add \
+            apps/desktop/src-tauri/resources/demo/late-night-set.wav \
+            apps/desktop/src-tauri/resources/demo/provenance.json \
+            supply-chain/supplemental-component-inventory.json \
+            services/analysis-engine/tests/test_demo_supply_chain_inventory.py \
+            apps/desktop/src/lib/analysis.test.ts
+          git commit -m "fix(demo): materialize structurally analyzable licensed asset"
+          git push origin HEAD:feat/licensed-demo-first-run
