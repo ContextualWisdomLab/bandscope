@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,8 @@ PULL_REQUEST_FIELDS = frozenset(
         "base_sha",
         "head_sha",
         "head_sha_status",
+        "draft",
+        "updated_at",
         "predecessor_prs",
         "overlap_prs",
         "successor_pr",
@@ -118,6 +121,16 @@ def _require_sha(value: object, field: str) -> str:
     if SHA_PATTERN.fullmatch(text) is None:
         _fail(f"{field} must be 40 hexadecimal characters")
     return text.lower()
+
+
+def _require_github_timestamp(value: object, field: str) -> str:
+    """Return a strict UTC GitHub timestamp so freshness evidence is unambiguous."""
+    text = _require_non_empty_string(value, field)
+    try:
+        datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise ManifestError(f"{field} must use YYYY-MM-DDTHH:MM:SSZ") from exc
+    return text
 
 
 def _require_pr_numbers(value: object, field: str) -> list[int]:
@@ -312,6 +325,11 @@ def validate_manifest(manifest: object) -> None:
             _require_sha(head_sha, f"{prefix}.head_sha")
             if head_status != "exact_current_head":
                 _fail(f"{prefix}.head_sha_status must be exact_current_head when head_sha is present")
+
+        if "draft" in pr and not isinstance(pr["draft"], bool):
+            _fail(f"{prefix}.draft must be boolean")
+        if "updated_at" in pr:
+            _require_github_timestamp(pr["updated_at"], f"{prefix}.updated_at")
 
     _validate_predecessor_graph(predecessors_by_pr, seen_numbers)
     _validate_overlap_and_successor_graph(overlaps_by_pr, successor_by_pr, seen_numbers)
