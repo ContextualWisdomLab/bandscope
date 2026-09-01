@@ -44,5 +44,5 @@ def test_demo_package_is_listed_in_supplemental_inventory() -> None:
 
         assert asset_record["assetName"] == asset_name
         assert asset_record["licenseExpression"] == "CC0-1.0"
-        assert asset_record["checksum"] == f"sha256:{expected_sha256}"
+        assert asset_record["assetChecksum"] == f"sha256:{expected_sha256}"
         assert hashlib.sha256(asset_bytes).hexdigest() == expected_sha256
