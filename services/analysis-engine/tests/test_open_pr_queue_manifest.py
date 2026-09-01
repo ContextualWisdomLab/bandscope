@@ -46,6 +46,7 @@ def _valid_manifest() -> dict[str, object]:
                 "initial_disposition": "canonical_dependency_security_base",
                 "head_sha": None,
                 "head_sha_status": "refresh_required_before_action",
+                "predecessor_prs": [],
             },
             {
                 "number": 967,
@@ -55,6 +56,7 @@ def _valid_manifest() -> dict[str, object]:
                 "initial_disposition": "triage_required",
                 "head_sha": "b" * 40,
                 "head_sha_status": "exact_current_head",
+                "predecessor_prs": [783],
             },
         ],
     }
@@ -123,6 +125,37 @@ def test_open_pr_queue_manifest_fails_closed_on_corrupt_evidence(mutate, expecte
 )
 def test_open_pr_queue_manifest_rejects_unsupported_evidence_fields(mutate, expected: str) -> None:
     """Reject fields that could smuggle unsupported success or ownership evidence."""
+    verifier = _load_verifier()
+    manifest = _valid_manifest()
+    mutate(manifest)
+
+    with pytest.raises(verifier.ManifestError, match=expected):
+        verifier.validate_manifest(manifest)
+
+
+def _set_unknown_predecessor(manifest: dict[str, object]) -> None:
+    """Point one PR at an identity that is absent from the complete queue."""
+    pull_requests = manifest["pull_requests"]
+    assert isinstance(pull_requests, list)
+    pull_requests[1]["predecessor_prs"] = [999]
+
+
+def _set_dependency_cycle(manifest: dict[str, object]) -> None:
+    """Create a two-node predecessor cycle that has no dependency root."""
+    pull_requests = manifest["pull_requests"]
+    assert isinstance(pull_requests, list)
+    pull_requests[0]["predecessor_prs"] = [967]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        (_set_unknown_predecessor, "unknown predecessor"),
+        (_set_dependency_cycle, "predecessor cycle"),
+    ],
+)
+def test_open_pr_queue_manifest_rejects_invalid_predecessor_graph(mutate, expected: str) -> None:
+    """Unknown dependency identities and cycles must fail before queue actions."""
     verifier = _load_verifier()
     manifest = _valid_manifest()
     mutate(manifest)
