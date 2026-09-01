@@ -1,12 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it, vi } from "vitest";
 import { FirstPartHandoffCallout } from "./FirstPartHandoffCallout";
+import { createPartHandoffTransitionSong } from "./firstPartHandoff.test-fixture";
 
 describe("FirstPartHandoffCallout workspace scope", () => {
-  it("opens the song-structure renderer owned by the current workspace", () => {
-    const firstSong = createDemoRehearsalSong();
-    const secondSong = createDemoRehearsalSong();
+  it("opens the destination renderer owned by the current workspace", () => {
+    const firstSong = createPartHandoffTransitionSong();
+    const secondSong = createPartHandoffTransitionSong();
     secondSong.id = "second-workspace-song";
 
     const { container } = render(
@@ -15,18 +15,20 @@ describe("FirstPartHandoffCallout workspace scope", () => {
           <FirstPartHandoffCallout song={firstSong} />
           <div id="workspace-song-structure-grid">
             <div data-section-index="0" />
+            <div data-section-index="1" />
           </div>
         </div>
         <div data-testid="workspace-two">
           <FirstPartHandoffCallout song={secondSong} />
           <div id="workspace-song-structure-grid">
             <div data-section-index="0" />
+            <div data-section-index="1" />
           </div>
         </div>
       </>
     );
 
-    const targets = container.querySelectorAll<HTMLElement>('[data-section-index="0"]');
+    const targets = container.querySelectorAll<HTMLElement>('[data-section-index="1"]');
     expect(targets).toHaveLength(2);
     const firstScrollIntoView = vi.fn();
     const secondScrollIntoView = vi.fn();
