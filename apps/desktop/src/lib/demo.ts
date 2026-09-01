@@ -1,10 +1,13 @@
 /** Kind discriminator for the public licensed-demo provenance manifest. */
 const DEMO_PROVENANCE_KIND = "bandscope.licensed-demo" as const;
 
+/** Canonical buyer-facing title for the bundled licensed demo. */
+const DEMO_SONG_TITLE = "Late Night Set" as const;
+
 /** Relative directory that Tauri bundles as the licensed demo package. */
 const DEMO_RESOURCE_DIRECTORY = "apps/desktop/src-tauri/resources/demo";
 
-export { DEMO_PROVENANCE_KIND, DEMO_RESOURCE_DIRECTORY };
+export { DEMO_PROVENANCE_KIND, DEMO_RESOURCE_DIRECTORY, DEMO_SONG_TITLE };
 
 /** Permitted asset roles inside one licensed demo package. */
 export type DemoAssetRole = "audio" | "license" | "annotations";
