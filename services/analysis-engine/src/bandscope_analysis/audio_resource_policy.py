@@ -16,8 +16,8 @@ Security Notes:
   rejected instead of being silently truncated to the accepted duration.
 - Policy arithmetic rejects unrepresentable limits before float/sample-count
   conversion so malformed configuration cannot escape the stable failure mode.
-- Validation errors are payload-free and never include source paths or audio
-  content.
+- Resource rejections expose only a stable reason and policy version; messages
+  remain payload-free and never include source paths or audio content.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -42,6 +42,21 @@ DEFAULT_MAX_DECODED_AUDIO_BYTES = (
     DEFAULT_TARGET_SAMPLE_RATE * DEFAULT_MAX_DURATION_SECONDS * np.dtype(np.float64).itemsize
 )
 _POLICY_ERROR = "Audio input violates the audio resource policy."
+
+
+class AudioResourcePolicyError(ValueError):
+    """Payload-free resource rejection with stable machine-readable provenance."""
+
+    def __init__(self, reason: str) -> None:
+        """Record a stable rejection reason and the policy version that produced it."""
+        super().__init__(_POLICY_ERROR)
+        self.reason = reason
+        self.policy_version = AUDIO_RESOURCE_POLICY_VERSION
+
+
+def _reject(reason: str) -> NoReturn:
+    """Fail closed without echoing untrusted resource metadata."""
+    raise AudioResourcePolicyError(reason)
 
 
 @dataclass(frozen=True)
@@ -154,15 +169,13 @@ class AudioResourcePolicy:
             The validated integer byte count.
 
         Raises:
-            ValueError: If the value is not a positive integer within policy.
+            AudioResourcePolicyError: If the value is not a positive integer
+                within policy.
         """
-        if (
-            isinstance(file_size, bool)
-            or not isinstance(file_size, int)
-            or file_size <= 0
-            or file_size > self.max_encoded_file_bytes
-        ):
-            raise ValueError(_POLICY_ERROR)
+        if isinstance(file_size, bool) or not isinstance(file_size, int) or file_size <= 0:
+            _reject("malformed_header")
+        if file_size > self.max_encoded_file_bytes:
+            _reject("encoded_file_too_large")
         return file_size
 
     def validate_source_metadata(
@@ -179,28 +192,31 @@ class AudioResourcePolicy:
             channels: Source channel count before downmixing.
 
         Raises:
-            ValueError: If metadata is malformed or outside the source bounds.
+            AudioResourcePolicyError: If metadata is malformed or outside the
+                source bounds.
         """
+        if isinstance(frames, bool) or not isinstance(frames, int) or frames <= 0:
+            _reject("malformed_header")
         if (
-            isinstance(frames, bool)
-            or not isinstance(frames, int)
-            or frames <= 0
-            or isinstance(sample_rate, bool)
+            isinstance(sample_rate, bool)
             or not isinstance(sample_rate, int)
             or sample_rate < self.min_source_sample_rate
             or sample_rate > self.max_source_sample_rate
-            or isinstance(channels, bool)
+        ):
+            _reject("sampling_rate_unsupported")
+        if (
+            isinstance(channels, bool)
             or not isinstance(channels, int)
             or channels < self.min_source_channels
             or channels > self.max_source_channels
         ):
-            raise ValueError(_POLICY_ERROR)
+            _reject("channel_count_unsupported")
         try:
             source_duration_seconds = float(frames) / float(sample_rate)
         except (OverflowError, ValueError):
-            raise ValueError(_POLICY_ERROR) from None
+            _reject("malformed_header")
         if source_duration_seconds > float(self.max_duration_seconds):
-            raise ValueError(_POLICY_ERROR)
+            _reject("duration_exceeded")
 
     def validate_decoded_audio(
         self,
@@ -217,8 +233,8 @@ class AudioResourcePolicy:
             The original validated NumPy floating-point array without copying it.
 
         Raises:
-            ValueError: If dtype, shape, sample rate, sample count, memory use,
-                or finiteness does not satisfy this policy.
+            AudioResourcePolicyError: If dtype, shape, sample rate, sample
+                count, memory use, or finiteness does not satisfy this policy.
         """
         if (
             not isinstance(audio, np.ndarray)
@@ -226,19 +242,19 @@ class AudioResourcePolicy:
             or audio.size == 0
             or not np.issubdtype(audio.dtype, np.floating)
         ):
-            raise ValueError(_POLICY_ERROR)
+            _reject("malformed_header")
         if (
             isinstance(sample_rate, bool)
             or not isinstance(sample_rate, int)
             or sample_rate != self.target_sample_rate
         ):
-            raise ValueError(_POLICY_ERROR)
-        if (
-            audio.size > self.max_decoded_samples
-            or audio.nbytes > self.max_decoded_audio_bytes
-            or not np.isfinite(audio).all()
-        ):
-            raise ValueError(_POLICY_ERROR)
+            _reject("sampling_rate_unsupported")
+        if audio.size > self.max_decoded_samples:
+            _reject("decoded_sample_count_exceeded")
+        if audio.nbytes > self.max_decoded_audio_bytes:
+            _reject("memory_budget_exceeded")
+        if not np.isfinite(audio).all():
+            _reject("malformed_header")
         return cast(NDArray[np.floating[Any]], audio)
 
 
@@ -247,6 +263,7 @@ DEFAULT_AUDIO_RESOURCE_POLICY = AudioResourcePolicy()
 __all__ = [
     "AUDIO_RESOURCE_POLICY_VERSION",
     "AudioResourcePolicy",
+    "AudioResourcePolicyError",
     "DEFAULT_AUDIO_RESOURCE_POLICY",
     "DEFAULT_MAX_DECODED_AUDIO_BYTES",
     "DEFAULT_MAX_DURATION_SECONDS",
