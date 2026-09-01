@@ -258,6 +258,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomOut")}
+              title={t("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
               <ZoomOut aria-hidden="true" />
@@ -267,6 +268,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomIn")}
+              title={t("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
               <ZoomIn aria-hidden="true" />
@@ -292,8 +294,15 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
+            title={t("scoreViewerPrevPage")}
+            aria-disabled={pageNumber <= 1 ? "true" : undefined}
+            onClick={(e) => {
+              if (pageNumber <= 1) {
+                e.preventDefault();
+                return;
+              }
+              goToPreviousPage();
+            }}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
           </Button>
@@ -305,8 +314,15 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
+            title={t("scoreViewerNextPage")}
+            aria-disabled={pageNumber >= pageCount ? "true" : undefined}
+            onClick={(e) => {
+              if (pageNumber >= pageCount) {
+                e.preventDefault();
+                return;
+              }
+              goToNextPage();
+            }}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>
