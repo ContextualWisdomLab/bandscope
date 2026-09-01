@@ -1,0 +1,132 @@
+name: Repair PR1119 policy contract
+
+on:
+  push:
+    branches:
+      - fix/trivy-pr-code-scanning
+    paths:
+      - .github/repair-pr1119-policy-contract.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-pr1119-policy-contract
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: ${{ github.repository == 'ContextualWisdomLab/bandscope' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/trivy-pr-code-scanning
+          fetch-depth: 0
+      - name: Revalidate exact live PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          start_head=$(git rev-parse HEAD)
+          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1119 --jq .head.sha)
+          test "$start_head" = "$live_head"
+          echo "START_HEAD=$start_head" >> "$GITHUB_ENV"
+      - name: Repair stale policy and verify
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("services/analysis-engine/tests/test_supply_chain_policy.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''def test_central_governance_workflows_are_push_only_where_local_signals_remain() -> None:
+              """Ensure central PR governance keeps only repo-local push security signals."""
+              repo_root = Path(__file__).resolve().parents[3]
+              workflows_dir = repo_root / ".github" / "workflows"
+
+              assert not (workflows_dir / "dependency-review.yml").exists()
+
+              for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):
+                  workflow = workflows_dir / local_signal
+                  assert workflow.exists(), (
+                      f"{local_signal} keeps repository-local security-tab/SAST signal "
+                      "while central required workflows handle PR enforcement"
+                  )
+                  assert "pull_request:" not in workflow.read_text(encoding="utf-8")
+
+              supply_chain = load_module(
+                  "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
+              )
+              required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
+              assert ".github/workflows/dependency-review.yml" not in required
+              assert ".github/workflows/codeql.yml" in required
+              assert ".github/workflows/ossf-scorecard.yml" in required
+          '''.replace("          ", "")
+          new = '''def test_central_governance_workflows_preserve_local_security_signal_boundaries() -> None:
+              """Ensure local signals keep their intended push and PR trigger boundaries."""
+              repo_root = Path(__file__).resolve().parents[3]
+              workflows_dir = repo_root / ".github" / "workflows"
+
+              assert not (workflows_dir / "dependency-review.yml").exists()
+
+              for local_signal in ("codeql.yml", "ossf-scorecard.yml"):
+                  workflow = workflows_dir / local_signal
+                  assert workflow.exists(), (
+                      f"{local_signal} keeps repository-local security-tab/SAST signal "
+                      "while central required workflows handle PR enforcement"
+                  )
+                  content = workflow.read_text(encoding="utf-8")
+                  assert "push:" in content, f"{local_signal} must retain push-based reporting"
+                  assert "pull_request:" not in content, (
+                      f"{local_signal} must not become a duplicate PR gate"
+                  )
+
+              trivy_workflow = workflows_dir / "trivy.yml"
+              assert trivy_workflow.exists(), (
+                  "trivy.yml keeps repository-local SARIF reporting while providing "
+                  "the repository's per-PR vulnerability scan"
+              )
+              trivy_content = trivy_workflow.read_text(encoding="utf-8")
+              assert "push:" in trivy_content, "trivy.yml must retain push-based SARIF reporting"
+              assert "pull_request:" in trivy_content, (
+                  "trivy.yml must scan pull-request heads for current-head SARIF evidence"
+              )
+              pull_request_section = trivy_content.split("pull_request:", 1)[1].split(
+                  "permissions:", 1
+              )[0]
+              assert "- develop" in pull_request_section
+              assert "- main" in pull_request_section
+
+              supply_chain = load_module(
+                  "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
+              )
+              required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
+              assert ".github/workflows/dependency-review.yml" not in required
+              assert ".github/workflows/codeql.yml" in required
+              assert ".github/workflows/ossf-scorecard.yml" in required
+          '''.replace("          ", "")
+          if old not in text:
+              raise SystemExit("expected stale policy block not found on exact PR head")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          PYTHONPATH=. pytest -q \
+            services/analysis-engine/tests/test_supply_chain_policy.py::test_central_governance_workflows_preserve_local_security_signal_boundaries \
+            scripts/checks/test_verify_trivy_pr_scan.py
+      - name: Commit repair and retire one-shot lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          live_head=$(gh api repos/${GITHUB_REPOSITORY}/pulls/1119 --jq .head.sha)
+          test "$live_head" = "$START_HEAD"
+          rm -f .github/workflows/repair-pr1119-policy-contract.yml
+          rm -f .github/repair-pr1119-policy-contract.trigger
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/analysis-engine/tests/test_supply_chain_policy.py \
+            .github/workflows/repair-pr1119-policy-contract.yml \
+            .github/repair-pr1119-policy-contract.trigger
+          git commit -m "test: align Trivy PR policy contract"
+          git push origin HEAD:fix/trivy-pr-code-scanning
