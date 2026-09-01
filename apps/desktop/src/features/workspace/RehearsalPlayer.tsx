@@ -184,6 +184,7 @@ export function RehearsalPlayer({
     durationMs: number;
     startedAt: number;
     remainingBeats: number;
+    progress: number;
   } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioSourceUrl = useMemo(
@@ -257,7 +258,6 @@ export function RehearsalPlayer({
       }
     };
   }, [audioSourceUrl, hasNativeAudioConversionError]);
-
   useEffect(() => {
     setTransport((current) => {
       if (
@@ -345,16 +345,17 @@ export function RehearsalPlayer({
     const previous = countInBeatRef.current;
     const sameBeat =
       previous?.remainingBeats === transport.countInRemainingBeats;
-    const elapsedMs = sameBeat
-      ? Math.max(0, now - previous.startedAt)
+    const elapsedProgress = sameBeat
+      ? Math.max(0, now - previous.startedAt) / previous.durationMs
       : 0;
     const progress = sameBeat
-      ? Math.min(1, elapsedMs / previous.durationMs)
+      ? Math.min(1, previous.progress + elapsedProgress)
       : 0;
     countInBeatRef.current = {
       durationMs,
       startedAt: now,
       remainingBeats: transport.countInRemainingBeats,
+      progress,
     };
     let timer: number | undefined;
     /** Schedule the next count-in beat without coupling it to React commits. */
@@ -365,6 +366,7 @@ export function RehearsalPlayer({
           return;
         }
         current.remainingBeats -= 1;
+        current.progress = 0;
         setTransport((state) => reduceRehearsalTransport(state, { type: "beat" }));
         if (current.remainingBeats > 0) {
           current.startedAt = performance.now();
