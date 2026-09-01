@@ -38,10 +38,12 @@ function isOwnActive(value: Record<string, unknown>): boolean {
 /**
  * Pick the first named part-to-part pass a player should lock before the next section.
  *
- * Uses existing `partGraph.handoff_to` authority already produced by analysis.
- * Inactive, inherited, blank, self, or unknown receivers are skipped. When a
- * role is selected, only a pass that includes that role is named. Runtime
- * roots and collection members are treated as untrusted.
+ * Analysis stores a transition on the source section's `partGraph.handoff_to`,
+ * while the rehearsal cue belongs to the immediately following section. The
+ * source graph supplies role identities and the next section supplies the cue
+ * label. Inactive, inherited, blank, self, or unknown receivers are skipped.
+ * When a role is selected, only a pass that includes that role is named.
+ * Runtime roots and collection members are treated as untrusted.
  */
 export function firstHandoff(
   song: RehearsalSong | unknown,
@@ -51,15 +53,18 @@ export function firstHandoff(
     return null;
   }
 
-  for (const sectionValue of song.sections) {
+  for (let sectionIndex = 0; sectionIndex < song.sections.length - 1; sectionIndex += 1) {
+    const sectionValue = song.sections[sectionIndex];
+    const destinationValue = song.sections[sectionIndex + 1];
     if (
       !isRuntimeObject(sectionValue) ||
       !Array.isArray(sectionValue.roles) ||
-      !Array.isArray(sectionValue.partGraph)
+      !Array.isArray(sectionValue.partGraph) ||
+      !isRuntimeObject(destinationValue)
     ) {
       continue;
     }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    const sectionLabel = meaningfulRangeText(destinationValue.label);
     if (!sectionLabel) {
       continue;
     }
