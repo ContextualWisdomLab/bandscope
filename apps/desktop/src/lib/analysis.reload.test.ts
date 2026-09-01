@@ -22,30 +22,36 @@ const licensedDemoBootstrap = {
   }
 };
 
+function createLicensedDemoInvoke() {
+  const engineResult = { ...createDemoRehearsalSong(), title: "Analyzed Track" };
+  return vi.fn(async (command: string) => {
+    if (command === "select_demo_audio_source") {
+      return licensedDemoBootstrap;
+    }
+    if (command === "start_analysis_job" || command === "get_analysis_job_status") {
+      return {
+        jobId: "job-licensed-demo",
+        state: "succeeded",
+        requestedAt: "2026-09-02T00:00:00.000Z",
+        updatedAt: "2026-09-02T00:00:01.000Z",
+        result: engineResult
+      };
+    }
+    throw new Error(`Unexpected command: ${command}`);
+  });
+}
+
 describe("licensed demo renderer reload", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.resetModules();
+    window.sessionStorage.clear();
     delete tauriWindow.__TAURI_INTERNALS__;
     delete tauriWindow.__TAURI_INVOKE__;
   });
 
   it("keeps the canonical demo title when a running job is polled after module reload", async () => {
-    const engineResult = { ...createDemoRehearsalSong(), title: "Analyzed Track" };
-    const nativeInvoke = vi.fn(async (command: string) => {
-      if (command === "select_demo_audio_source") {
-        return licensedDemoBootstrap;
-      }
-      if (command === "start_analysis_job" || command === "get_analysis_job_status") {
-        return {
-          jobId: "job-licensed-demo",
-          state: "succeeded",
-          requestedAt: "2026-09-02T00:00:00.000Z",
-          updatedAt: "2026-09-02T00:00:01.000Z",
-          result: engineResult
-        };
-      }
-      throw new Error(`Unexpected command: ${command}`);
-    });
+    const nativeInvoke = createLicensedDemoInvoke();
     tauriWindow.__TAURI_INVOKE__ = nativeInvoke;
 
     const analysisBeforeReload = await import("./analysis");
@@ -68,5 +74,35 @@ describe("licensed demo renderer reload", () => {
     const polledStatus = await analysisAfterReload.getAnalysisJobStatus("job-licensed-demo");
 
     expect(polledStatus.result?.title).toBe("Late Night Set");
+  });
+
+  it("keeps the canonical demo title when session storage is unavailable", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("session storage unavailable");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("session storage unavailable");
+    });
+    const nativeInvoke = createLicensedDemoInvoke();
+    tauriWindow.__TAURI_INVOKE__ = nativeInvoke;
+
+    const analysis = await import("./analysis");
+    const selection = await analysis.selectDemoAudioSource();
+    expect(selection.ok).toBe(true);
+    if (!selection.ok) {
+      throw new Error("licensed demo selection must succeed through the native bridge");
+    }
+
+    const startedStatus = await analysis.startAnalysisJob({
+      sourceKind: "local_audio",
+      projectId: selection.bootstrap.projectId,
+      sourceLabel: selection.bootstrap.source.fileName,
+      roleFocus: ["bass-guitar"]
+    });
+
+    expect(nativeInvoke).toHaveBeenCalledWith("start_analysis_job", {
+      request: expect.objectContaining({ sourceLabel: "Late Night Set" })
+    });
+    expect(startedStatus.result?.title).toBe("Late Night Set");
   });
 });
