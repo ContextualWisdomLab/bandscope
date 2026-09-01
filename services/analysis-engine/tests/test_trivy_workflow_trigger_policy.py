@@ -54,18 +54,24 @@ def _assert_trivy_pull_request_policy(workflow_text: str) -> None:
 def _assert_trivy_concurrency_policy(workflow_text: str) -> None:
     """Require PR-stable cancellation so predecessor scans cannot saturate runners."""
     workflow_document = _workflow_document(workflow_text)
-    concurrency = workflow_document.get("concurrency")
-    assert isinstance(concurrency, dict), "Trivy must declare workflow-level concurrency"
-    group = concurrency.get("group")
-    assert isinstance(group, str), "Trivy concurrency.group must be a string"
-    assert "github.repository" in group, "Trivy concurrency must be repository-scoped"
-    assert "github.event.pull_request.number" in group, (
+    concurrency_settings = workflow_document.get("concurrency")
+    assert isinstance(
+        concurrency_settings, dict
+    ), "Trivy must declare workflow-level concurrency"
+    concurrency_group = concurrency_settings.get("group")
+    assert isinstance(
+        concurrency_group, str
+    ), "Trivy concurrency.group must be a string"
+    assert "github.repository" in concurrency_group, (
+        "Trivy concurrency must be repository-scoped"
+    )
+    assert "github.event.pull_request.number" in concurrency_group, (
         "Trivy PR concurrency must be stable across head-SHA changes"
     )
-    assert "github.sha" not in group and "head.sha" not in group, (
+    assert "github.sha" not in concurrency_group and "head.sha" not in concurrency_group, (
         "Trivy concurrency must not preserve stale runs by keying on the head SHA"
     )
-    assert concurrency.get("cancel-in-progress") is True, (
+    assert concurrency_settings.get("cancel-in-progress") is True, (
         "Trivy must cancel superseded predecessor scans"
     )
 
