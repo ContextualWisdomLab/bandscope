@@ -23,7 +23,11 @@ export function rehearsalPlaybackRates(): readonly RehearsalPlaybackRate[] {
 
 /** Documented rehearsal transport phases for the first section loop. */
 export type RehearsalTransportPhase =
-  "idle" | "armed" | "counting-in" | "looping" | "paused";
+  | "idle"
+  | "armed"
+  | "counting-in"
+  | "looping"
+  | "paused";
 
 /** Bounded loop window derived from one valid analyzed section. */
 export interface RehearsalLoopWindow {
@@ -242,10 +246,7 @@ export function createLoopWindow(
   const { tempoBpm, tempoAssumed } = resolveRehearsalTempo(tempo);
   return {
     sourceIndex,
-    selectionKey: JSON.stringify([
-      snapshot.id,
-      0,
-    ]),
+    selectionKey: JSON.stringify([snapshot.id, 0]),
     sectionId: snapshot.id,
     sectionLabel: snapshot.label,
     startSeconds: snapshot.startSeconds,
@@ -527,6 +528,6 @@ export function nextActionValues(
     start: formatRehearsalClock(state.loop.startSeconds),
     end: formatRehearsalClock(state.loop.endSeconds),
     beats: String(state.countInRemainingBeats || state.loop.countInBeats),
-    tempo: String(state.loop.tempoBpm * state.playbackRate),
+    tempo: String(Math.round(state.loop.tempoBpm * state.playbackRate)),
   };
 }
