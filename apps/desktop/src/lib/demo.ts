@@ -41,6 +41,7 @@ const RELATIVE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
 const MAX_MANIFEST_BYTES = 16_384;
 const MAX_ASSET_BYTES = 2_000_000;
 const REQUIRED_ROLES: DemoAssetRole[] = ["audio", "license", "annotations"];
+const UTF8_TEXT_ENCODER = new TextEncoder();
 
 /** Read one bounded non-empty provenance string. */
 function asNonEmptyString(value: unknown, field: string): string {
@@ -142,9 +143,10 @@ export function parseDemoProvenanceManifest(payload: unknown): DemoProvenanceMan
       throw new Error("Invalid demo provenance field 'assets.role'");
     }
   }
-  const encoded = JSON.stringify(payload);
-  if (encoded.length > MAX_MANIFEST_BYTES) {
-    throw new Error("Invalid demo provenance field 'root'");
+  const serializedManifest = JSON.stringify(payload);
+  const serializedManifestBytes = UTF8_TEXT_ENCODER.encode(serializedManifest).byteLength;
+  if (serializedManifestBytes > MAX_MANIFEST_BYTES) {
+    throw new Error("Invalid demo provenance field 'root': manifest is too large");
   }
   return {
     manifestVersion: 1,
