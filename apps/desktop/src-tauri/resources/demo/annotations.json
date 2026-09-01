@@ -8,7 +8,7 @@
       "label": "verse",
       "timeRange": {
         "start": 0,
-        "end": 1
+        "end": 5
       },
       "notes": "Lower tone; treat as the first entrance."
     },
@@ -16,8 +16,8 @@
       "id": "chorus-1",
       "label": "chorus",
       "timeRange": {
-        "start": 1,
-        "end": 2
+        "start": 5,
+        "end": 10
       },
       "notes": "Higher tone; treat as the lift."
     }
