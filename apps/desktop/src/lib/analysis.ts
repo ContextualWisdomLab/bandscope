@@ -35,7 +35,7 @@ const BROWSER_PROGRESS_STEPS = [
   { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
-const LOCAL_AUDIO_TOO_LARGE_MESSAGE = "Selected audio file exceeds the 100 MiB analysis limit.";
+const LOCAL_AUDIO_TOO_LARGE_MESSAGE = "Choose a shorter or smaller song file to start analysis.";
 const LOCAL_AUDIO_POLICY_MESSAGE =
   "Selected audio file metadata violates the analysis resource policy.";
 const MAX_LOCAL_AUDIO_FILE_BYTES = 100 * 1024 * 1024;
