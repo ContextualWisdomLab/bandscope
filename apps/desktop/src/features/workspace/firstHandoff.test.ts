@@ -66,6 +66,61 @@ describe("firstHandoff", () => {
     });
   });
 
+  it("resolves an activity-derived entering receiver from the destination roles", () => {
+    const song = createDemoRehearsalSong();
+    const template = song.sections[0];
+    const bass = template.roles.find((role) => role.id === "bass-guitar");
+    const vocal = template.roles.find((role) => role.id === "lead-vocal");
+    if (!bass || !vocal) {
+      throw new Error("Demo fixture must contain bass and lead vocal roles");
+    }
+
+    const source = {
+      ...template,
+      roles: [bass],
+      partGraph: [
+        {
+          role_id: "bass-guitar",
+          is_active: true,
+          handoff_to: ["lead-vocal"],
+          handoff_from: []
+        },
+        {
+          role_id: "lead-vocal",
+          is_active: false,
+          handoff_to: [],
+          handoff_from: []
+        }
+      ]
+    };
+    const destination = {
+      ...template,
+      id: "chorus-1",
+      label: "chorus",
+      roles: [vocal],
+      partGraph: [
+        {
+          role_id: "bass-guitar",
+          is_active: false,
+          handoff_to: [],
+          handoff_from: []
+        },
+        {
+          role_id: "lead-vocal",
+          is_active: true,
+          handoff_to: [],
+          handoff_from: ["bass-guitar"]
+        }
+      ]
+    };
+
+    expect(firstHandoff({ ...song, sections: [source, destination] })).toEqual({
+      sectionLabel: "chorus",
+      fromRole: "Bass Guitar",
+      toRole: "Lead Vocal"
+    });
+  });
+
   it("fails closed when a transition handoff has no valid destination section", () => {
     const song = createDemoRehearsalSong();
     const malformed = {
