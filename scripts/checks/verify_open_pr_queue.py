@@ -38,6 +38,7 @@ PULL_REQUEST_FIELDS = frozenset(
         "initial_disposition",
         "head_sha",
         "head_sha_status",
+        "predecessor_prs",
     }
 )
 ALLOWED_INITIAL_DISPOSITIONS = frozenset(
@@ -115,6 +116,50 @@ def _require_sha(value: object, field: str) -> str:
     return text.lower()
 
 
+def _require_predecessors(value: object, field: str) -> list[int]:
+    """Return a duplicate-free list of positive predecessor PR identities."""
+    predecessors = _require_list(value, field)
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for index, predecessor in enumerate(predecessors):
+        if isinstance(predecessor, bool) or not isinstance(predecessor, int) or predecessor <= 0:
+            _fail(f"{field}[{index}] must be a positive integer")
+        if predecessor in seen:
+            _fail(f"{field} contains duplicate predecessor: {predecessor}")
+        seen.add(predecessor)
+        normalized.append(predecessor)
+    return normalized
+
+
+def _validate_predecessor_graph(
+    predecessors_by_pr: dict[int, list[int]], known_prs: set[int]
+) -> None:
+    """Reject unknown dependency identities and directed predecessor cycles."""
+    for number, predecessors in predecessors_by_pr.items():
+        for predecessor in predecessors:
+            if predecessor not in known_prs:
+                _fail(f"pull request {number} references unknown predecessor: {predecessor}")
+            if predecessor == number:
+                _fail(f"pull request {number} has a predecessor cycle")
+
+    visiting: set[int] = set()
+    visited: set[int] = set()
+
+    def visit(number: int) -> None:
+        if number in visited:
+            return
+        if number in visiting:
+            _fail(f"predecessor cycle detected at pull request {number}")
+        visiting.add(number)
+        for predecessor in predecessors_by_pr.get(number, []):
+            visit(predecessor)
+        visiting.remove(number)
+        visited.add(number)
+
+    for number in known_prs:
+        visit(number)
+
+
 def validate_manifest(manifest: object) -> None:
     """Validate intrinsic queue invariants without treating the seed as live GitHub evidence."""
     root = _require_record(manifest, "manifest")
@@ -152,6 +197,7 @@ def validate_manifest(manifest: object) -> None:
         )
 
     seen_numbers: set[int] = set()
+    predecessors_by_pr: dict[int, list[int]] = {}
     for index, raw_pr in enumerate(pull_requests):
         prefix = f"pull_requests[{index}]"
         pr = _require_record(raw_pr, prefix)
@@ -162,6 +208,9 @@ def validate_manifest(manifest: object) -> None:
         if number in seen_numbers:
             _fail(f"duplicate pull request number: {number}")
         seen_numbers.add(number)
+        predecessors_by_pr[number] = _require_predecessors(
+            pr.get("predecessor_prs", []), f"{prefix}.predecessor_prs"
+        )
 
         _require_non_empty_string(pr.get("title"), f"{prefix}.title")
         expected_url = f"https://github.com/{REPOSITORY}/pull/{number}"
@@ -190,6 +239,8 @@ def validate_manifest(manifest: object) -> None:
             _require_sha(head_sha, f"{prefix}.head_sha")
             if head_status != "exact_current_head":
                 _fail(f"{prefix}.head_sha_status must be exact_current_head when head_sha is present")
+
+    _validate_predecessor_graph(predecessors_by_pr, seen_numbers)
 
 
 def load_manifest(path: Path = DEFAULT_MANIFEST_PATH) -> object:
