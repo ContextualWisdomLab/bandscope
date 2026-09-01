@@ -23,6 +23,48 @@
       "verification": "SHA256 verified in bandscope_analysis.separation.audio_separator.AudioStemSeparator._load_model_profile"
     }
   ],
+  "bundledAssets": [
+    {
+      "assetName": "late-night-set.wav",
+      "assetVersion": "1.0.0",
+      "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/late-night-set.wav",
+      "licenseExpression": "CC0-1.0",
+      "assetChecksum": "sha256:cfe5716c4e7489db7f14104513ffc70af199137c2320bd66d7b6bec4f41dacc0",
+      "storagePath": "apps/desktop/src-tauri/resources/demo/late-night-set.wav",
+      "mediaType": "audio/wav",
+      "releaseUsage": "Bundled original rehearsal demo audio for the first-run Try the demo flow."
+    },
+    {
+      "assetName": "LICENSE",
+      "assetVersion": "1.0.0",
+      "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/LICENSE",
+      "licenseExpression": "CC0-1.0",
+      "assetChecksum": "sha256:1657b89949ca8bfb2920e26dceb4c1012d6212b5d77eda7d7f3921da29adde5e",
+      "storagePath": "apps/desktop/src-tauri/resources/demo/LICENSE",
+      "mediaType": "text/plain",
+      "releaseUsage": "Bundled CC0 1.0 license notice accompanying the rehearsal demo package."
+    },
+    {
+      "assetName": "annotations.json",
+      "assetVersion": "1.0.0",
+      "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/annotations.json",
+      "licenseExpression": "CC0-1.0",
+      "assetChecksum": "sha256:28236d31e72c58bf11aad3945e3407d8e30e71b223326f9ffb82a83091d73044",
+      "storagePath": "apps/desktop/src-tauri/resources/demo/annotations.json",
+      "mediaType": "application/json",
+      "releaseUsage": "Bundled ground-truth section annotations for the original rehearsal demo package."
+    },
+    {
+      "assetName": "provenance.json",
+      "assetVersion": "1.0.0",
+      "sourceUrl": "local-repo://apps/desktop/src-tauri/resources/demo/provenance.json",
+      "licenseExpression": "CC0-1.0",
+      "assetChecksum": "sha256:1c3ec8f3f7e4a579f45a36f58183ed480ed2757499628dfc5f3dc8deebbdfe38",
+      "storagePath": "apps/desktop/src-tauri/resources/demo/provenance.json",
+      "mediaType": "application/json",
+      "releaseUsage": "Bundled provenance manifest binding the rehearsal demo package to its hashes, sizes, performer, and permitted uses."
+    }
+  ],
   "notes": [
     "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
     "Track source URL, version, checksum, license, storage path, and release usage for every item."
