@@ -139,9 +139,9 @@ def _live_pr_entry(
     resolved_base_sha = base_tips.get(base_ref)
     if resolved_base_sha is None:
         _fail(f"pull_requests[{index}].base.ref has no independently resolved base tip")
-    pr_base_sha = _require_sha(base.get("sha"), f"pull_requests[{index}].base.sha")
-    if pr_base_sha != resolved_base_sha:
-        _fail(f"pull_requests[{index}].base.sha must match the independently resolved base tip")
+    # The pull object can retain an older target SHA when its target branch advances.
+    # Validate that snapshot as untrusted input, but do not let it override the branch lookup.
+    _require_sha(base.get("sha"), f"pull_requests[{index}].base.sha")
 
     head = _require_record(pr.get("head"), f"pull_requests[{index}].head")
     head_sha = _require_sha(head.get("sha"), f"pull_requests[{index}].head.sha")
