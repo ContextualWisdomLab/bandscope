@@ -6,10 +6,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ossf-scorecard.yml"
-PR_OR_DEFAULT_BRANCH = (
-    "github.event_name == 'pull_request' || github.ref == "
-    "format('refs/heads/{0}', github.event.repository.default_branch)"
-)
+DEFAULT_BRANCH_GUARD = "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+PR_OR_DEFAULT_BRANCH = f"github.event_name == 'pull_request' || {DEFAULT_BRANCH_GUARD}"
 PR_SAFE_TRUSTED_REF = (
     "ref: ${{ github.event_name == 'pull_request' && "
     "github.event.pull_request.base.sha || github.ref_name }}"
@@ -23,9 +21,10 @@ def test_scorecard_produces_pr_code_scanning_evidence_without_pr_publishing() ->
     assert "pull_request_target:" not in contents
     assert "  pull_request:\n    branches:\n      - develop\n      - main\n" in contents
     assert contents.count(f"if: {PR_OR_DEFAULT_BRANCH}") == 3
-    assert (
-        "publish_results: ${{ github.event_name != 'pull_request' && "
-        "github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}"
-        in contents
-    )
+    publish_lines = [
+        line.strip()
+        for line in contents.splitlines()
+        if line.strip().startswith("publish_results:")
+    ]
+    assert publish_lines == [f"publish_results: ${{{{ {DEFAULT_BRANCH_GUARD} }}}}"]
     assert PR_SAFE_TRUSTED_REF in contents
