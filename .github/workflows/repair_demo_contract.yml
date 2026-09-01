@@ -135,6 +135,7 @@ jobs:
 
           bridge_test_path = Path("apps/desktop/src/lib/analysis.test.ts")
           bridge_test_source = bridge_test_path.read_text(encoding="utf-8")
+          assert "fileSizeBytes: 88244" in bridge_test_source
           bridge_test_source = bridge_test_source.replace(
               "fileSizeBytes: 88244",
               f"fileSizeBytes: {audio_path.stat().st_size}",
@@ -144,77 +145,43 @@ jobs:
 
           engine_path = Path("services/analysis-engine/src/bandscope_analysis/api.py")
           engine_source = engine_path.read_text(encoding="utf-8")
-          previous_feature_builder = '''def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
-              """Build downstream audio features for a local-audio request."""
-              if request["sourceKind"] != "local_audio" or "localSource" not in request:
-                  return None
-
-              separation_result = _run_stem_separation_with_timeout(
-                  request["localSource"]["sourcePath"],
-                  arrays_path=_stem_work_arrays_path(request),
-              )
-              if "sample_rate" not in separation_result:
-                  if "stem_role_types" not in separation_result and isinstance(
-                      separation_result.get("stems"), dict
-                  ):
-                      stem_keys = list(separation_result["stems"])
-                      stem_role_types = _normalize_stem_role_types(None, stem_keys)
-                      if stem_role_types is not None:
-                          return {**separation_result, "stem_role_types": stem_role_types}
-                  return separation_result
-              return {
-                  "stems": separation_result["stems"],
-                  "sr": separation_result["sample_rate"],
-                  "stem_role_types": separation_result["stem_role_types"],
-                  "separation": {
-                      "duration_seconds": separation_result["duration_seconds"],
-                      "chunk_count": separation_result["chunk_count"],
-                      "notes": separation_result["separation_notes"],
-                  },
-              }
-          '''
-          corrected_feature_builder = '''def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
-              """Build downstream audio features for a local-audio request."""
-              if request["sourceKind"] != "local_audio" or "localSource" not in request:
-                  return None
-
-              source_title = request["sourceLabel"]
-              separation_result = _run_stem_separation_with_timeout(
-                  request["localSource"]["sourcePath"],
-                  arrays_path=_stem_work_arrays_path(request),
-              )
-              if "sample_rate" not in separation_result:
-                  if "stem_role_types" not in separation_result and isinstance(
-                      separation_result.get("stems"), dict
-                  ):
-                      stem_keys = list(separation_result["stems"])
-                      stem_role_types = _normalize_stem_role_types(None, stem_keys)
-                      if stem_role_types is not None:
-                          return {
-                              **separation_result,
-                              "stem_role_types": stem_role_types,
-                              "title": source_title,
-                          }
-                  return {**separation_result, "title": source_title}
-              return {
-                  "stems": separation_result["stems"],
-                  "sr": separation_result["sample_rate"],
-                  "title": source_title,
-                  "stem_role_types": separation_result["stem_role_types"],
-                  "separation": {
-                      "duration_seconds": separation_result["duration_seconds"],
-                      "chunk_count": separation_result["chunk_count"],
-                      "notes": separation_result["separation_notes"],
-                  },
-              }
-          '''
-          previous_feature_builder = previous_feature_builder.replace("          ", "")
-          corrected_feature_builder = corrected_feature_builder.replace("          ", "")
-          assert previous_feature_builder in engine_source
-          engine_source = engine_source.replace(
-              previous_feature_builder,
-              corrected_feature_builder,
+          function_start = engine_source.index("def _build_local_audio_features(")
+          function_end = engine_source.index("\n\ndef run_analysis_job_updates(", function_start)
+          feature_builder = engine_source[function_start:function_end]
+          assert '    separation_result = _run_stem_separation_with_timeout(' in feature_builder
+          feature_builder = feature_builder.replace(
+              '    separation_result = _run_stem_separation_with_timeout(',
+              '    source_title = request["sourceLabel"]\n'
+              '    separation_result = _run_stem_separation_with_timeout(',
               1,
+          )
+          assert '                return {**separation_result, "stem_role_types": stem_role_types}' in feature_builder
+          feature_builder = feature_builder.replace(
+              '                return {**separation_result, "stem_role_types": stem_role_types}',
+              '                return {\n'
+              '                    **separation_result,\n'
+              '                    "stem_role_types": stem_role_types,\n'
+              '                    "title": source_title,\n'
+              '                }',
+              1,
+          )
+          assert '        return separation_result' in feature_builder
+          feature_builder = feature_builder.replace(
+              '        return separation_result',
+              '        return {**separation_result, "title": source_title}',
+              1,
+          )
+          assert '        "sr": separation_result["sample_rate"],\n' in feature_builder
+          feature_builder = feature_builder.replace(
+              '        "sr": separation_result["sample_rate"],\n',
+              '        "sr": separation_result["sample_rate"],\n'
+              '        "title": source_title,\n',
+              1,
+          )
+          engine_source = (
+              engine_source[:function_start]
+              + feature_builder
+              + engine_source[function_end:]
           )
           engine_path.write_text(engine_source, encoding="utf-8")
 
@@ -276,7 +243,7 @@ jobs:
                   "Audio too short for structural analysis" not in section["confidence_notes"]
                   for section in detected_sections
               )
-          '''.replace("          ", ""),
+          '''.replace("          ", "", 1),
               encoding="utf-8",
           )
 
@@ -310,7 +277,22 @@ jobs:
             services/analysis-engine/tests/test_demo_supply_chain_inventory.py \
             services/analysis-engine/tests/test_licensed_demo_duration_contract.py \
             services/analysis-engine/src/bandscope_analysis/api.py
-          python services/analysis-engine/tests/test_demo_supply_chain_inventory.py
+          python - <<'PY'
+          import json
+          import wave
+          from pathlib import Path
+
+          demo_resource_root = Path("apps/desktop/src-tauri/resources/demo")
+          with wave.open(str(demo_resource_root / "late-night-set.wav"), "rb") as wav_file:
+              assert wav_file.getnframes() / wav_file.getframerate() == 10
+          annotation_document = json.loads(
+              (demo_resource_root / "annotations.json").read_text(encoding="utf-8")
+          )
+          assert [section["timeRange"] for section in annotation_document["sections"]] == [
+              {"start": 0, "end": 5},
+              {"start": 5, "end": 10},
+          ]
+          PY
 
       - name: Commit canonical repair and remove helper
         shell: bash
