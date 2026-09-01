@@ -60,21 +60,27 @@ describe("firstGrooveChange", () => {
     });
   });
 
-  it("skips unlabeled or none-groove sections until a named pair exists", () => {
-    const song = cloneSong(createDemoRehearsalSong());
-    song.sections[0] = { ...song.sections[0]!, label: " ", groove: "none" };
-    const withChorus = appendSection(song, "chorus", "Half-time snare with open hats");
-    const withBridge = appendSection(withChorus, "bridge", "Double-time ride");
+  it("fails closed instead of bridging across an unknown section groove", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", groove: "Straight eighths" },
+      { ...verse, id: "pre-a", label: "pre-chorus", groove: "none" },
+      { ...verse, id: "chorus-a", label: "chorus", groove: "Half-time" }
+    ];
 
-    expect(firstGrooveChange(withBridge)).toEqual({
-      kind: "change",
-      fromSectionId: "chorus-section",
-      fromSectionLabel: "chorus",
-      fromGroove: "Half-time snare with open hats",
-      toSectionId: "bridge-section",
-      toSectionLabel: "bridge",
-      toGroove: "Double-time ride"
-    });
+    expect(firstGrooveChange(song)).toBeNull();
+  });
+
+  it("fails closed instead of claiming a full-form hold after a trailing unknown groove", () => {
+    const song = cloneSong(createDemoRehearsalSong());
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", groove: "Straight eighths" },
+      { ...verse, id: "chorus-a", label: "chorus", groove: " " }
+    ];
+
+    expect(firstGrooveChange(song)).toBeNull();
   });
 
   it("trims groove text before deciding a change", () => {
