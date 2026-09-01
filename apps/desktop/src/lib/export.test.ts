@@ -76,6 +76,14 @@ describe("export sanitization", () => {
       expect(escapeCsvField("\x00")).toBe("'\x00");
     });
 
+    it("preserves the full-width operator regression contract from PR #941", () => {
+      expect(escapeCsvField("＝1+2")).toBe("'＝1+2");
+      expect(escapeCsvField("＋SUM(A1)")).toBe("'＋SUM(A1)");
+      expect(escapeCsvField("－100")).toBe("'－100");
+      expect(escapeCsvField("＠cmd")).toBe("'＠cmd");
+      expect(escapeCsvField(" \uFEFF＝SUM(A1)")).toBe("' \uFEFF＝SUM(A1)");
+    });
+
     it("handles combined scenarios: formula injection with structural characters", () => {
       expect(escapeCsvField("=\n=HYPERLINK(\"http://evil\")")).toBe('"\'=\n=HYPERLINK(""http://evil"")"');
       expect(escapeCsvField('=A1+", trailing"')).toBe('"\'=A1+"", trailing"""');
