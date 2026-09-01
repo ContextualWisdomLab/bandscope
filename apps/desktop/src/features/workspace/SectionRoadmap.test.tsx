@@ -34,6 +34,47 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByText("음역").length).toBeGreaterThan(0);
     expect(screen.getByText("C#2 — E3")).toBeTruthy();
     expect(screen.getAllByText("verse 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
+    expect(screen.getByText("verse 들어가기 전에 이 길이를 세어 보세요.")).toBeTruthy();
+  });
+
+  it("names the next count-in on the section where the length changes", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      verse,
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: 30, end: 62 },
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.queryByTestId("duration-next-action-verse-1")).toBeNull();
+    expect(screen.getByTestId("duration-next-action-chorus-1")).toHaveTextContent(
+      "Count this new length in before chorus."
+    );
+  });
+
+  it("marks only the destination card when consecutive sections share a label", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", timeRange: { start: 0, end: 16 } },
+      { ...verse, id: "verse-b", label: "verse", timeRange: { start: 16, end: 48 } }
+    ];
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.queryByTestId("duration-next-action-verse-a")).toBeNull();
+    expect(screen.getByTestId("duration-next-action-verse-b")).toHaveTextContent(
+      "Count this new length in before verse."
+    );
   });
 
   it("omits the range row when both notes are unnamed", () => {

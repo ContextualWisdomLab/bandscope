@@ -153,6 +153,41 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's held length and the next count-in when the form does not change duration", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-duration-change");
+    expect(callout).toHaveTextContent("Tonight's first length change");
+    expect(callout).toHaveTextContent(
+      "Tonight's section length stays 20 seconds through the form. Count that length in before the verse."
+    );
+  });
+
+  it("names tonight's first length change and the next count-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      verse,
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: 30, end: 62 },
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-duration-change")).toHaveTextContent(
+      "The section length changes at chorus: 32 seconds, after verse's 20 seconds. Count the new length in before the chorus."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +360,18 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 바뀌는 구간 길이")).toBeTruthy();
+  });
+
+  it("asks for an ear check when no named section length exists", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = { ...song.sections[0]!, label: " ", timeRange: { start: 10, end: 10 } };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-duration-change")).toHaveTextContent(
+      "Tonight's first length change still needs an ear check. Confirm how long the first two sections last before you count in."
+    );
   });
 });
