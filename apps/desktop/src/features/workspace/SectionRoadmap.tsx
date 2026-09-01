@@ -122,7 +122,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
-              {grooveChange && isGrooveChangeTarget(grooveChange, section.label) ? (
+              {grooveChange && isGrooveChangeTarget(grooveChange, section.id) ? (
                 <p className="mt-2 text-xs font-medium text-teal-200" data-testid={`groove-next-action-${section.id}`}>
                   {fillGrooveCopy(
                     t(grooveChange.kind === "change" ? "sectionGrooveNextActionChange" : "sectionGrooveNextActionHold"),
