@@ -103,6 +103,20 @@ describe("isGrooveChangeTarget", () => {
     expect(isGrooveChangeTarget(change, " verse ")).toBe(false);
     expect(isGrooveChangeTarget(change, " ")).toBe(false);
   });
+
+  it("uses stable section identity when repeated labels would otherwise mark multiple cards", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-a", label: "verse", groove: "Straight eighths" },
+      { ...verse, id: "verse-b", label: "verse", groove: "Half-time" }
+    ];
+
+    const change = firstGrooveChange(song);
+    expect(change?.kind).toBe("change");
+    expect(isGrooveChangeTarget(change!, "verse-a")).toBe(false);
+    expect(isGrooveChangeTarget(change!, "verse-b")).toBe(true);
+  });
 });
 
 describe("fillGrooveCopy", () => {
