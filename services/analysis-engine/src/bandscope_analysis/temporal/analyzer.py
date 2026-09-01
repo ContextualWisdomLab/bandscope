@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +11,13 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_decode import decode_mono_audio
 from bandscope_analysis.audio_resource_policy import (
     MAX_DURATION_SECONDS,
     MAX_ENCODED_FILE_BYTES,
     TARGET_SAMPLING_RATE_HZ,
     AudioResourcePolicyError,
     policy_rejection_message,
-    validate_decoded_audio,
 )
 
 from .model import TemporalFeatures
@@ -30,10 +28,6 @@ MAX_ANALYSIS_DURATION_SECONDS = MAX_DURATION_SECONDS
 MAX_AUDIO_FILE_BYTES = MAX_ENCODED_FILE_BYTES
 TARGET_SR = TARGET_SAMPLING_RATE_HZ
 
-KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
-    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
-    (FutureWarning, r".*Numba.*", r".*numba.*"),
-)
 # ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
 BEATS_PER_BAR = 4
 
@@ -95,37 +89,11 @@ class TemporalAnalyzer:
                         policy_rejection_message("encoded_file_too_large"),
                     )
 
-                preflight_audio_metadata(path)
-
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
-                    warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
-
-                    # Keep the loader's known third-party churn quiet without hiding
-                    # unrelated decoder warnings that tests and callers should see.
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    # Load audio, converting to mono and standardizing sample rate
-                    y, sr = librosa.load(
-                        path,
-                        sr=TARGET_SR,
-                        mono=True,
-                        duration=MAX_ANALYSIS_DURATION_SECONDS,
-                    )
-
-            # Ensure it's a 1D float array for librosa
-            if not isinstance(y, np.ndarray):
-                raise ValueError("Expected numpy array from librosa.load")
-
-            y_array: NDArray[np.floating[Any]] = y
-            validate_decoded_audio(y_array, sr)
+            y_array, sr = decode_mono_audio(
+                path,
+                target_sample_rate_hz=TARGET_SR,
+                max_duration_seconds=MAX_ANALYSIS_DURATION_SECONDS,
+            )
             duration = float(librosa.get_duration(y=y_array, sr=sr))
 
             logger.info("Extracting tempo and beat tracking...")
