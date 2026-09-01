@@ -41,6 +41,7 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 const licensedDemoProjectIds = new Set<string>();
+const licensedDemoJobIds = new Set<string>();
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
@@ -48,6 +49,20 @@ export { MAX_YOUTUBE_URL_LENGTH };
 export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
   | { ok: false; error: AnalysisJobError };
+
+/** Preserve the trusted demo title at the desktop IPC boundary. */
+function withLicensedDemoTitle(status: AnalysisJobStatus): AnalysisJobStatus {
+  if (!licensedDemoJobIds.has(status.jobId) || !status.result) {
+    return status;
+  }
+  return {
+    ...status,
+    result: {
+      ...status.result,
+      title: DEMO_SONG_TITLE
+    }
+  };
+}
 
 /** Documented. */
 function getInvoke(): TauriInvoke | null {
@@ -250,17 +265,22 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
     });
   }
 
-  const analysisRequest: AnalysisJobRequest =
+  const isLicensedDemoProject =
     parsedRequest.sourceKind === "local_audio" &&
-    parsedRequest.projectId &&
-    licensedDemoProjectIds.has(parsedRequest.projectId)
-      ? { ...parsedRequest, sourceLabel: DEMO_SONG_TITLE }
-      : parsedRequest;
+    Boolean(parsedRequest.projectId) &&
+    licensedDemoProjectIds.has(parsedRequest.projectId!);
+  const analysisRequest: AnalysisJobRequest = isLicensedDemoProject
+    ? { ...parsedRequest, sourceLabel: DEMO_SONG_TITLE }
+    : parsedRequest;
   const response = await invokeAnalysis("start_analysis_job", {
     request: analysisRequest
   });
   try {
-    return parseAnalysisJobStatus(response);
+    const status = parseAnalysisJobStatus(response);
+    if (isLicensedDemoProject) {
+      licensedDemoJobIds.add(status.jobId);
+    }
+    return withLicensedDemoTitle(status);
   } catch {
     throw new Error("Invalid analysis job status response");
   }
@@ -270,7 +290,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
   try {
-    return parseAnalysisJobStatus(response);
+    return withLicensedDemoTitle(parseAnalysisJobStatus(response));
   } catch {
     throw new Error("Invalid analysis job status response");
   }
@@ -292,7 +312,7 @@ export async function subscribeToAnalysisJobUpdates(
   try {
     const unlisten = await listen<unknown>("analysis-job-updated", (event) => {
       try {
-        const status = parseAnalysisJobStatus(event.payload);
+        const status = withLicensedDemoTitle(parseAnalysisJobStatus(event.payload));
         if (status.jobId === jobId) {
           onUpdate(status);
         }
