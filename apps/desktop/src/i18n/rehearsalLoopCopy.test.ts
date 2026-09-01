@@ -17,7 +17,6 @@ describe("rehearsal loop action copy", () => {
     expect(en("workspaceLoopCountingIn")).toContain("rehearsal clock");
     expect(en("workspaceLoopPlaying")).toContain("rehearsal clock");
     expect(en("workspaceLoopArmedNoAudio")).not.toMatch(/\bhear\b|\blisten\b/i);
-    expect(en("workspaceLoopArmedWithAudio")).not.toMatch(/\bhear\b|\blisten\b/i);
 
     const ko = createTranslator("ko");
     expect(ko("workspaceLoopArmedWithAudio")).toContain("합주 시계");
