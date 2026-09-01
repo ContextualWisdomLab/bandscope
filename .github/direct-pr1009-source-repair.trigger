@@ -1,4 +1,4 @@
 trigger_pr_number: 1009
-expected_parent_head: feb9bf76d4c738ac0e30de0df8dcf28ccbb0997b
+expected_parent_head: 2c5e20c35fc2aed64d128f758c049ae1cb92627f
 repair_scope: project_load_serialization_and_demo_wav_contract
-repair_attempt: 2
+repair_attempt: 3
