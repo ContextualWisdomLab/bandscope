@@ -76,6 +76,17 @@ describe("licensed demo provenance", () => {
     expect(() => parseDemoProvenanceManifest(withoutAudio)).toThrow(/assets/);
   });
 
+  it("rejects manifests whose UTF-8 serialization exceeds the byte ceiling", () => {
+    const manifest = bundledManifest();
+    const oversizedUtf8Manifest = { ...manifest };
+    Object.defineProperty(oversizedUtf8Manifest, "toJSON", {
+      enumerable: false,
+      value: () => "가".repeat(6000)
+    });
+
+    expect(() => parseDemoProvenanceManifest(oversizedUtf8Manifest)).toThrow(/too large/);
+  });
+
   it("rejects traversal paths, dot segments, non-hex hashes, and malformed assets", () => {
     const manifest = bundledManifest();
     const [audio, license, annotations] = manifest.assets;
