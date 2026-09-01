@@ -1,4 +1,5 @@
 import { MAX_SECTION_TIME_SECONDS, type RehearsalSong } from "@bandscope/shared-types";
+import { hasSyntheticSectionTimeRange } from "../../lib/rehearsalTimingEvidence";
 import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
 
 /** Tonight's first named section-length change, or a same-length hold through the form. */
@@ -58,12 +59,13 @@ export function sectionDurationSeconds(timeRangeValue: unknown): number | null {
  * Walks labeled sections in form order and returns the first consecutive pair
  * whose integer duration differs. Unlabeled compatibility noise is ignored,
  * while a named section without valid timing fails closed so unknown timing can
- * never bridge two measured sections. When every named section holds the same
- * length, the result is a same-length hold so the room does not reset the
- * count. Stable section ids, rather than display labels, own roadmap targeting.
- * All meaningful section ids are validated for uniqueness before duration
- * evidence is derived so an ineligible or later duplicate cannot create
- * ambiguous cards.
+ * never bridge two measured sections. Legacy compatibility placeholders are
+ * also rejected so migration data cannot become measured rehearsal guidance.
+ * When every named section holds the same length, the result is a same-length
+ * hold so the room does not reset the count. Stable section ids, rather than
+ * display labels, own roadmap targeting. All meaningful section ids are
+ * validated for uniqueness before duration evidence is derived so an
+ * ineligible or later duplicate cannot create ambiguous cards.
  */
 export function firstDurationChange(song: RehearsalSong): FirstDurationChange | null {
   const runtimeSong: unknown = song;
@@ -95,6 +97,9 @@ export function firstDurationChange(song: RehearsalSong): FirstDurationChange | 
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     if (!sectionId || !sectionLabel) {
       continue;
+    }
+    if (hasSyntheticSectionTimeRange(sectionValue)) {
+      return null;
     }
     const durationSeconds = sectionDurationSeconds(sectionValue.timeRange);
     if (durationSeconds === null) {
