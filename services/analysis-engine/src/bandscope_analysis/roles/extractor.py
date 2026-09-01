@@ -83,7 +83,7 @@ class RoleExtractor:
         extraction_method = (
             "Extracted roles from real stem activity detection."
             if activity_maps is not None
-            else "Extracted roles and computed handoffs."
+            else "Extracted roles using heuristic fallback; handoffs unavailable."
         )
 
         return {
@@ -380,7 +380,7 @@ class RoleExtractor:
         is_first: bool,
         roles: dict[str, RehearsalRole],
     ) -> SectionRoleTopology:
-        """Construct the topology including active roles and the part graph."""
+        """Construct heuristic topology without transition handoff authority."""
         active_roles = [roles["bass"], roles["acoustic_guitar"]]
 
         part_graph: list[PartGraphNode] = [
@@ -417,11 +417,6 @@ class RoleExtractor:
                     },
                 ]
             )
-            for node in part_graph:
-                if node["role_id"] == "bass-guitar":
-                    node["handoff_to"].append("lead-vocal")
-                elif node["role_id"] == "lead-vocal":
-                    node["handoff_from"].append("bass-guitar")
         else:
             part_graph.extend(
                 [
