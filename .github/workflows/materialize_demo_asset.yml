@@ -6,7 +6,12 @@ on:
       - feat/licensed-demo-first-run
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
 
 concurrency:
   group: licensed-demo-asset-${{ github.ref }}
@@ -16,6 +21,8 @@ jobs:
   materialize_demo_asset:
     if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Check out exact PR branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -37,6 +44,11 @@ jobs:
           import wave
           from pathlib import Path
 
+          APPROVED_DEMO_LICENSE_SHA256 = "1657b89949ca8bfb2920e26dceb4c1012d6212b5d77eda7d7f3921da29adde5e"
+          EXPECTED_DEMO_AUDIO_SHA256 = "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb"
+          EXPECTED_DEMO_ANNOTATION_SHA256 = "6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7"
+          EXPECTED_DEMO_PROVENANCE_SHA256 = "4d980735aa37d3fb0d4fc5e2e1c4013181f51346d26d75b207e20f9154cdf338"
+
           def sha256_file(asset_path: Path) -> str:
               return hashlib.sha256(asset_path.read_bytes()).hexdigest()
 
@@ -46,19 +58,23 @@ jobs:
           demo_license_path = demo_resource_root / "LICENSE"
           demo_provenance_path = demo_resource_root / "provenance.json"
 
+          if sha256_file(demo_license_path) != APPROVED_DEMO_LICENSE_SHA256:
+              raise SystemExit("licensed demo LICENSE does not match the approved CC0 notice")
+
           with wave.open(str(demo_audio_path), "rb") as demo_wave_file:
               assert demo_wave_file.getnchannels() == 1
               assert demo_wave_file.getsampwidth() == 2
               assert demo_wave_file.getframerate() == 22_050
               assert demo_wave_file.getnframes() / demo_wave_file.getframerate() == 10
           assert demo_audio_path.stat().st_size == 441_044
-          assert sha256_file(demo_audio_path) == "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb"
+          assert sha256_file(demo_audio_path) == EXPECTED_DEMO_AUDIO_SHA256
 
           annotation_document = json.loads(demo_annotation_path.read_text(encoding="utf-8"))
           assert [section_record["timeRange"] for section_record in annotation_document["sections"]] == [
               {"start": 0, "end": 5},
               {"start": 5, "end": 10},
           ]
+          assert sha256_file(demo_annotation_path) == EXPECTED_DEMO_ANNOTATION_SHA256
 
           provenance_document = json.loads(demo_provenance_path.read_text(encoding="utf-8"))
           provenance_assets = {
@@ -75,6 +91,7 @@ jobs:
               json.dumps(provenance_document, indent=2, ensure_ascii=False) + "\n",
               encoding="utf-8",
           )
+          assert sha256_file(demo_provenance_path) == EXPECTED_DEMO_PROVENANCE_SHA256
 
           packaged_assets = {
               "late-night-set.wav": demo_audio_path,
@@ -122,9 +139,9 @@ jobs:
               encoding="utf-8",
           )
 
-          assert packaged_hashes["late-night-set.wav"] == "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb"
-          assert packaged_hashes["annotations.json"] == "6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7"
-          assert packaged_hashes["provenance.json"] == "4d980735aa37d3fb0d4fc5e2e1c4013181f51346d26d75b207e20f9154cdf338"
+          assert packaged_hashes["late-night-set.wav"] == EXPECTED_DEMO_AUDIO_SHA256
+          assert packaged_hashes["annotations.json"] == EXPECTED_DEMO_ANNOTATION_SHA256
+          assert packaged_hashes["provenance.json"] == EXPECTED_DEMO_PROVENANCE_SHA256
           PY
 
       - name: Commit generated asset and retire materializer
