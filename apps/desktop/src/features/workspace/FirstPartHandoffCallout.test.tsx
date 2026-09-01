@@ -1,10 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
+import type { RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FirstPartHandoffCallout } from "./FirstPartHandoffCallout";
+import { createPartHandoffTransitionSong } from "./firstPartHandoff.test-fixture";
 
 function songWithPartHandoff() {
-  return createDemoRehearsalSong();
+  return createPartHandoffTransitionSong();
 }
 
 function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeline") {
@@ -13,14 +14,16 @@ function appendSongStructureTarget(ariaLabel = "Scrollable song structure timeli
   timeline.setAttribute("aria-label", ariaLabel);
   const grid = document.createElement("div");
   grid.id = "workspace-song-structure-grid";
+  const source = document.createElement("div");
+  source.dataset.sectionIndex = "0";
   const target = document.createElement("div");
-  target.dataset.sectionIndex = "0";
+  target.dataset.sectionIndex = "1";
   const scrollIntoView = vi.fn();
   Object.defineProperty(target, "scrollIntoView", {
     configurable: true,
     value: scrollIntoView
   });
-  grid.appendChild(target);
+  grid.append(source, target);
   timeline.appendChild(grid);
   document.body.appendChild(timeline);
   return { grid: timeline, scrollIntoView };
@@ -33,7 +36,6 @@ describe("FirstPartHandoffCallout", () => {
 
   it("contains a malformed runtime song root instead of crashing the callout", () => {
     render(<FirstPartHandoffCallout song={null as unknown as RehearsalSong} />);
-
     expect(
       screen.getByText(
         "Nothing still has a part handoff. Stay on tonight's map until a part owns a rehearsal-facing pass."
@@ -71,17 +73,11 @@ describe("FirstPartHandoffCallout", () => {
     const { rerender } = render(<FirstPartHandoffCallout song={firstSong} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
-    expect(
-      screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeTruthy();
+    expect(screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)).toBeTruthy();
 
     rerender(<FirstPartHandoffCallout song={nextSong} />);
-
-    expect(screen.getByText("Bass Guitar still hands off to Lead Vocal in the verse at 0:10.")).toBeTruthy();
-    expect(
-      screen.queryByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeNull();
-
+    expect(screen.getByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:10.")).toBeTruthy();
+    expect(screen.queryByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)).toBeNull();
     grid.remove();
   });
 
@@ -91,128 +87,95 @@ describe("FirstPartHandoffCallout", () => {
     const { rerender } = render(<FirstPartHandoffCallout song={song} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
-    expect(
-      screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeTruthy();
-
     rerender(<FirstPartHandoffCallout song={{ ...song }} />);
 
-    expect(
-      screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeTruthy();
-    expect(screen.queryByText("Bass Guitar still hands off to Lead Vocal in the verse at 0:10.")).toBeNull();
-
+    expect(screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)).toBeTruthy();
+    expect(screen.queryByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:10.")).toBeNull();
     grid.remove();
   });
 
-  it("does not show another part's receiving name under the named giving part", () => {
+  it("uses the destination role name rather than a stale source-role name", () => {
     const song = songWithPartHandoff();
-    song.sections[0]!.partGraph[0]!.handoff_to = ["keys-right"];
-    song.sections[0]!.partGraph[1]!.handoff_from = ["bass-guitar"];
-    song.sections[0]!.partGraph[2]!.handoff_from = [];
+    const source = song.sections[0]!;
+    const destination = song.sections[1]!;
+    source.partGraph[0]!.handoff_to = ["keys-right"];
+    source.partGraph[1]!.role_id = "keys-right";
+    source.partGraph[1]!.handoff_from = ["bass-guitar"];
+    destination.roles[0] = { ...destination.roles[0]!, id: "keys-right", name: "Keyboard 1 Right Hand" };
+    destination.partGraph[1]!.role_id = "keys-right";
 
     render(<FirstPartHandoffCallout song={song} />);
 
-    expect(
-      screen.getByText("Bass Guitar still hands off to Keyboard 1 Right Hand in the verse at 0:10.")
-    ).toBeTruthy();
+    expect(screen.getByText("Bass Guitar still hands off to Keyboard 1 Right Hand in the chorus at 0:10.")).toBeTruthy();
     expect(screen.queryByText(/Lead Vocal/)).toBeNull();
   });
 
-  it("names the first part handoff as map navigation, scrolls to its rendered section, and arms that action", () => {
+  it("opens the destination map section and arms that action", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget();
-
     render(<FirstPartHandoffCallout song={songWithPartHandoff()} />);
 
-    const action = screen.getByRole("button", {
-      name: "Open Bass Guitar handoff at 0:10"
-    });
-    expect(action).toBeTruthy();
-    fireEvent.click(action);
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-    expect(
-      screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeTruthy();
-
+    expect(screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)).toBeTruthy();
     grid.remove();
   });
 
   it("keeps map navigation stable when the renderer accessible name is localized", () => {
     const { grid, scrollIntoView } = appendSongStructureTarget("스크롤 가능한 곡 구조 타임라인");
-
     render(<FirstPartHandoffCallout song={songWithPartHandoff()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
-
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-    expect(
-      screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeTruthy();
-
     grid.remove();
   });
 
-  it("does not claim map navigation completed when the rendered section target is missing", () => {
+  it("does not claim map navigation completed when the destination target is missing", () => {
     render(<FirstPartHandoffCallout song={songWithPartHandoff()} />);
-
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
 
-    expect(screen.getByText("Bass Guitar still hands off to Lead Vocal in the verse at 0:10.")).toBeTruthy();
-    expect(
-      screen.queryByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeNull();
+    expect(screen.getByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:10.")).toBeTruthy();
+    expect(screen.queryByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)).toBeNull();
   });
 
-  it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
+  it("navigates by renderer-owned destination position instead of untrusted analysis ids", () => {
     const song = songWithPartHandoff();
-    song.sections[0]!.id = "analysis section / duplicate";
+    song.sections[1]!.id = "analysis section / duplicate";
     const { grid, scrollIntoView } = appendSongStructureTarget();
-
     render(<FirstPartHandoffCallout song={song} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-
     grid.remove();
   });
 
   it("scopes map navigation to the song-structure renderer when another surface reuses an index", () => {
     const decoy = document.createElement("div");
-    decoy.dataset.sectionIndex = "0";
+    decoy.dataset.sectionIndex = "1";
     const decoyScrollIntoView = vi.fn();
-    Object.defineProperty(decoy, "scrollIntoView", {
-      configurable: true,
-      value: decoyScrollIntoView
-    });
+    Object.defineProperty(decoy, "scrollIntoView", { configurable: true, value: decoyScrollIntoView });
     document.body.appendChild(decoy);
     const { grid, scrollIntoView } = appendSongStructureTarget();
 
     render(<FirstPartHandoffCallout song={songWithPartHandoff()} />);
-
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
 
     expect(decoyScrollIntoView).not.toHaveBeenCalled();
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-
     decoy.remove();
     grid.remove();
   });
 
-  it("shows fresh guidance when the first part handoff changes or returns later", () => {
+  it("shows fresh guidance when the destination timing changes", () => {
     const initialSong = songWithPartHandoff();
     const { grid } = appendSongStructureTarget();
     const { rerender } = render(<FirstPartHandoffCallout song={initialSong} />);
     fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" }));
-    expect(
-      screen.getByText(/Lock that pass from Bass Guitar to Lead Vocal at 0:10 before the room starts./)
-    ).toBeTruthy();
 
     const nextSong = songWithPartHandoff();
     nextSong.id = "next-song";
-    nextSong.sections[0]!.timeRange = { start: 20, end: 40 };
+    nextSong.sections[1]!.timeRange = { start: 20, end: 40 };
     rerender(<FirstPartHandoffCallout song={nextSong} />);
-    expect(screen.getByText("Bass Guitar still hands off to Lead Vocal in the verse at 0:20.")).toBeTruthy();
-
+    expect(screen.getByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:20.")).toBeTruthy();
     grid.remove();
   });
 
@@ -224,33 +187,25 @@ describe("FirstPartHandoffCallout", () => {
     }
     render(<FirstPartHandoffCallout song={song} />);
     expect(screen.queryByRole("button")).toBeNull();
-    expect(
-      screen.getByRole("complementary", { name: "Tonight's first part handoff" })
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Nothing still has a part handoff. Stay on tonight's map until a part owns a rehearsal-facing pass."
-      )
-    ).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Tonight's first part handoff" })).toBeTruthy();
   });
 
-  it("localizes the part-handoff form label instead of exposing its raw enum in Korean copy", () => {
+  it("localizes the destination form label in Korean copy", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = songWithPartHandoff();
     song.sections[0]!.roles[0]!.name = "베이스";
-    song.sections[0]!.roles[2]!.name = "보컬";
+    song.sections[1]!.roles[0]!.name = "보컬";
 
     render(<FirstPartHandoffCallout song={song} />);
-
-    expect(screen.getByText("0:10 벌스에서 베이스 파트가 보컬 파트로 넘깁니다.")).toBeTruthy();
-    expect(screen.queryByText(/verse에서/)).toBeNull();
+    expect(screen.getByText("0:10 코러스에서 베이스 파트가 보컬 파트로 넘깁니다.")).toBeTruthy();
+    expect(screen.queryByText(/chorus에서/)).toBeNull();
   });
 
   it("renders owned role names as text nodes instead of template syntax", () => {
     const song = songWithPartHandoff();
     song.sections[0]!.roles[0]!.name = "Check {from} at {at}";
     render(<FirstPartHandoffCallout song={song} />);
-    expect(screen.getByText("Check {from} at {at} still hands off to Lead Vocal in the verse at 0:10.")).toBeTruthy();
-    expect(screen.queryByText("Check Bass Guitar at 0:10 still hands off to Lead Vocal in the verse at 0:10.")).toBeNull();
+    expect(screen.getByText("Check {from} at {at} still hands off to Lead Vocal in the chorus at 0:10.")).toBeTruthy();
+    expect(screen.queryByText("Check Bass Guitar at 0:10 still hands off to Lead Vocal in the chorus at 0:10.")).toBeNull();
   });
 });
