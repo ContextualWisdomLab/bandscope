@@ -1,269 +1,281 @@
 # BandScope Product-Technical Gap Baseline
 
 Last updated: 2026-09-01
-Evidence capture: 2026-09-01 10:31 KST unless a row says otherwise
+Evidence capture: 2026-09-01 13:00 KST unless a row says otherwise
 Protected base: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`
 
-## 1. Purpose and product outcome
+## 1. Purpose and buyer outcome
 
-This is the engineering evidence baseline for BandScope. Customer-facing copy must continue to follow `docs/brand-story.md`: practical, rehearsal-first, non-authoritative, and explicit about uncertainty. This document is intentionally denser because its job is to connect product promises, implementation boundaries, tests, research, security controls, and the live PR queue without exposing those internals in the product UI.
+This document is the current engineering evidence baseline for BandScope. Customer-facing behavior follows `docs/brand-story.md`: practical, rehearsal-first, non-authoritative, and explicit about uncertainty. This file connects buyer promises to implementation boundaries, tests, research, security controls, and live GitHub evidence; those internals must not leak into product copy.
 
-BandScope is a local-first rehearsal companion for people who need to understand a song quickly and spend rehearsal time playing rather than decoding the arrangement. The buyer outcome is:
+BandScope is a local-first rehearsal companion for working musicians and band hobbyists who need to understand a song quickly and spend rehearsal time playing rather than decoding an arrangement.
 
 ```text
-install a trusted build
-→ import a real song
-→ get evidence-backed section/role analysis
-→ see uncertainty and correct it
-→ rehearse a passage with precise transport
-→ save/recover the project
+trusted install
+→ admit a real song safely
+→ derive evidence-backed section/role guidance
+→ expose uncertainty and allow correction
+→ rehearse a precise passage
+→ save/recover accepted work
 → share a bounded handoff
 → update or roll back safely
 ```
 
-The product is not a DAW, notation editor, mandatory cloud service, or authority that claims one analysis is unquestionably correct.
+BandScope is not a DAW, notation editor, mandatory cloud service, or an authority that claims one analysis is unquestionably correct.
 
-### Buyer-facing PRD
+### 1.1 Buyer-facing PRD
 
-Primary users are working musicians and band hobbyists preparing after work. The core jobs are:
+Core jobs:
 
-1. identify what each player or vocal role should prepare;
-2. understand form, entry/dropout, timing, harmony, range, overlap, and setup cues by section;
-3. repeat a difficult passage without rebuilding a loop in another tool;
-4. correct uncertain analysis and retain provenance of the correction;
+1. identify what each instrument/vocal role should prepare;
+2. understand form, entries/dropouts, timing, harmony, range, overlap, handoffs, and setup cues by section;
+3. rehearse the highest-value passage without rebuilding transport in another tool;
+4. correct uncertain analysis while retaining model/user provenance;
 5. return later without losing accepted work;
-6. install and update a build whose identity and provenance can be verified.
+6. install/update a build whose identity and provenance can be verified.
 
 Representative user stories:
 
 - As a player, I can open a local song and see the first useful rehearsal action without learning a DAW.
-- As a band member, I can distinguish section-level and role-level guidance instead of receiving one flat chord track.
-- As a user, I can see when BandScope is uncertain and correct the result without losing the original model provenance.
-- As a player, I can select a cue or section, count in, loop it, slow it down when supported, and keep role controls accessible from keyboard and assistive technology.
-- As a returning user, I can recover the last known-good project after a crash, interrupted write, schema migration, or failed update.
+- As a band member, I can see section×role guidance rather than a single flat song-wide chord track.
+- As a user, I can distinguish machine evidence from user-confirmed correction.
+- As a player, I can count in, loop, navigate cues, and use the same controls from keyboard and assistive technology.
+- As a returning user, I can recover the last known-good project after a crash, interrupted write, migration, or failed update.
 
 ## 2. Current architecture and responsibility boundaries
 
-`AGENTS.md`, `ARCHITECTURE.md`, and `docs/brand-story.md` define the shipped direction. The current repository is a local desktop system with these major layers:
+Protected `develop` remains a local desktop architecture:
 
-- `apps/desktop`: React/Vite UI in a Tauri shell;
-- `apps/desktop/src-tauri/src/main.rs`: typed native orchestration boundary;
-- `apps/desktop/core`: Rust input and authority validation helpers;
-- `packages/shared-types`: cross-layer contracts;
-- `services/analysis-engine`: current Python orchestration and music-analysis modules;
+- `apps/desktop`: React/Vite rehearsal workspace in a Tauri shell;
+- `apps/desktop/src-tauri`: native command/orchestration boundary;
+- `apps/desktop/core`: Rust authority/input validation helpers;
+- `packages/shared-types`: versioned cross-layer contracts;
+- `services/analysis-engine`: current Python orchestration plus still-mixed music-analysis code;
 - `services/analysis-engine/rust`: `bandscope_numeric` Rust/PyO3 numerical kernels.
 
-The protected snapshot already uses typed Tauri IPC and stdin/stdout JSON instead of an ordinary loopback web server for local analysis. The security posture treats files, URLs, project data, model artifacts, subprocesses, exports, and logs as trust boundaries.
+Typed Tauri IPC and bounded stdin/stdout JSON are the local orchestration path; ordinary local analysis does not require a loopback HTTP server or cloud service. Files, URLs, project data, model artifacts, PDFs, subprocess output, exports, and diagnostics are untrusted at their owning boundaries.
 
 ### 2.1 DDD context map
 
 ```mermaid
 flowchart LR
-    User[Musician / band member]
+    U[Musician / band member]
     UI[Rehearsal Workspace\nUI Context]
     RI[Rehearsal Intelligence\nCore Domain]
-    Intake[Local Intake & Project\nSupporting Context]
-    Player[Playback & Transport\nSupporting Context]
-    Release[Distribution & Recovery\nSupporting Context]
-    Shared[Shared Contract Kernel\nminimal schemas only]
-    Ext[External codecs/models/tools\nAnti-Corruption Layer]
+    IN[Local Intake & Project\nSupporting Context]
+    PT[Playback & Transport\nSupporting Context]
+    RH[Release & Recovery\nSupporting Context]
+    CO[Collaboration / Handoff\nSupporting Context]
+    SK[Minimal Shared Contract Kernel]
+    ACL[External codecs / models / tools\nAnti-Corruption Layer]
 
-    User --> UI
-    UI --> Shared
-    Shared --> RI
-    Shared --> Intake
-    Shared --> Player
-    Intake --> Ext
-    RI --> Ext
-    Release --> UI
+    U --> UI
+    UI --> SK
+    SK --> RI
+    SK --> IN
+    SK --> PT
+    SK --> CO
+    IN --> ACL
+    RI --> ACL
+    RH --> UI
 ```
 
-Core subdomain: **Rehearsal Intelligence**. Supporting subdomains: Local Intake & Project, Playback & Transport, Distribution & Recovery, and bounded Collaboration/Handoff. Generic concerns include logging, localization, accessibility primitives, and release metadata.
+Core subdomain: **Rehearsal Intelligence**. Supporting subdomains: Local Intake & Project, Playback & Transport, Release & Recovery, and bounded Collaboration/Handoff. Generic concerns: logging, localization, accessibility primitives, release metadata, and supply-chain evidence.
 
-Shared Kernel must remain small: stable identifiers, section/role/cue/confidence/provenance contracts, and versioned interchange types. External codecs, Demucs/librosa-era dependencies, PDF tooling, and future accelerators stay behind Anti-Corruption Layers rather than leaking their types into product contracts.
+Shared Kernel stays intentionally small: stable identifiers plus section/role/cue/confidence/provenance and versioned interchange contracts. Codec, Demucs/librosa-era, PDF, platform, and accelerator types remain behind Anti-Corruption Layers.
 
-### 2.2 Ubiquitous language and aggregates
+### 2.2 Ubiquitous language, aggregates, invariants, events
 
-| Term | Meaning | Transaction / invariant boundary |
+| Term | Meaning | Invariant / transaction boundary |
 |---|---|---|
-| RehearsalProject | Durable local work for one rehearsal source | one project version; no partial publication |
-| SongSection | Time-bounded structural region | valid ordered range inside admitted media duration |
-| RehearsalRole | Instrument, vocal function, or role subdivision | role guidance belongs to a section/project and retains provenance |
-| RehearsalCue | Actionable entry, stop, pickup, handoff, range, setup, or timing cue | time/section reference must remain resolvable |
-| AnalysisEvidence | Versioned machine-produced estimate plus confidence/provenance | no silent promotion from estimate to user-confirmed truth |
-| ManualOverride | User-confirmed correction | preserves original evidence and authoring provenance |
-| RehearsalTransport | Playback/count-in/loop state | one authoritative state machine; no competing writers |
+| `RehearsalProject` | durable work for one admitted rehearsal source | one published project version; no partial publication |
+| `SongSection` | time-bounded structural region | ordered, finite range inside admitted media duration |
+| `RehearsalRole` | instrument, vocal function, or useful subdivision | guidance belongs to a section/project and retains provenance |
+| `RehearsalCue` | actionable entry/stop/pickup/handoff/range/setup/timing instruction | referenced section/time/role remains resolvable |
+| `AnalysisEvidence` | versioned machine estimate with confidence/provenance | never silently promoted to user-confirmed truth |
+| `ManualOverride` | user-confirmed correction | preserves original evidence and authoring provenance |
+| `RehearsalTransport` | count-in/loop/playback/navigation state | one authoritative state machine; no competing writers |
 
 Candidate domain events: `AnalysisCompleted`, `CueConfirmed`, `SectionBoundaryCorrected`, `LoopActivated`, `ProjectSnapshotPublished`, `ProjectRecovered`, and `UpdateRollbackCompleted`.
 
 ## 3. Technical design contract (TRD)
 
-### 3.1 Rust ownership of computation
+### 3.1 Rust owns repository core computation
 
-Protected `develop` currently has a mixed implementation: `bandscope_numeric` owns checkerboard novelty and Viterbi decoding, while much of music DSP, feature extraction, prioritization, and analysis still executes in Python/NumPy. That is a product-technical gap under the current ecosystem directive.
+Protected `develop` is still mixed: Rust owns selected numerical kernels, while material DSP/feature/ranking work remains Python/NumPy. That is a product-technical gap, not a permanent target architecture.
 
 Target contract:
 
-- all repository-owned mathematical, vector, matrix, signal-processing, exploratory/data-science, ranking/weighting, and other core analysis computation is implemented in Rust;
-- Python may remain an orchestration/API compatibility layer only where removal is not yet practical;
-- CPU execution uses bounded multithreading without avoidable context switching;
-- acceleration capabilities are explicit: CPU baseline first, then validated CUDA/OpenCL/MLX adapters where supported rather than silent fallback claims;
-- Rust/Python parity tests are migration evidence, not permission to retain a permanent Python core;
+- repository-owned mathematical, DSP, vector, matrix, exploratory/data-science, ranking/weighting, token-size, and other core analysis computation is Rust;
+- Python may remain only as bounded orchestration/compatibility while migration is incomplete;
+- CPU execution uses bounded multithreading with avoidable context switching removed;
+- accelerator support is explicit and measured: CPU baseline, then validated CUDA/OpenCL/MLX adapters where meaningful;
+- Rust↔Python parity proves migration correctness but does not justify a hidden permanent Python numerical fallback;
 - no heuristic weight or rule-of-thumb threshold is accepted without a documented measurement model, calibration dataset, or research basis.
 
-The migration order is determined by product impact and dependency edges: temporal/beat and harmony kernels → range/pitch and role features → prioritization/weighting → source-separation integration boundaries → remaining vector/matrix utilities.
+Migration order follows buyer impact and dependency leverage: temporal/beat and harmony → range/pitch/role features → prioritization/weighting → source-separation integration → remaining vector/matrix utilities.
 
 ### 3.2 Real-audio measurement contract
 
-Synthetic fixtures remain useful for unit tests but do not prove the rehearsal product. GA accuracy evidence must use licensed or redistribution-safe real audio with human-verified ground truth.
+Synthetic fixtures are acceptable for unit tests but are not product-accuracy evidence. GA evidence requires licensed or redistribution-safe real audio and human-verified ground truth.
 
-Required metrics are task-appropriate rather than collapsed into one score:
+Task-specific metrics remain separate:
 
-- chord/harmony: Weighted Chord Symbol Recall or the benchmark metric defined by the chosen chord corpus;
-- beat/timing: listener-annotated beat-location metrics compatible with the MIREX task contract;
-- source separation: SI-SDR and task-appropriate perceptual/robustness evidence;
-- range/pitch/transcription: reference-note or frame/event metrics declared with the corpus;
-- section/cue boundaries: time-tolerant event metrics with the tolerance derived from annotation and rehearsal error cost, not an unexplained constant.
+- harmony/chords: benchmark-defined chord metric such as Weighted Chord Symbol Recall;
+- beat/timing: listener-annotated event metrics compatible with the chosen MIREX task contract;
+- source separation: SI-SDR plus task-appropriate robustness/perceptual evidence;
+- range/pitch/transcription: reference-note/frame/event metrics declared with the corpus;
+- section/cue boundaries: time-tolerant event metrics whose tolerance comes from annotation uncertainty and rehearsal error cost, not an unexplained constant.
 
-Acceptance is pre-registered per corpus before model tuning. A candidate must meet the declared non-inferiority/superiority criterion against the approved baseline with uncertainty reported (for example, bootstrap confidence intervals across tracks). A threshold must not be invented merely to make CI green.
+Acceptance criteria are preregistered before tuning. Candidate-vs-baseline inference reports uncertainty across tracks; CI thresholds are never invented merely to obtain green status.
 
-### 3.3 Persistence and concurrency contract
+### 3.3 Persistence, playback, release, privacy
 
-Issue #962 is the canonical owner for the versioned crash-safe project format, autosave, migration, backup, and recovery. Persistence must use one project authority, atomic publication, a known-good backup, bounded inputs, deterministic/idempotent migrations, and explicit locking or single-writer ownership. Any future relational store must use normalized schemas and durable keys; no database is introduced solely to satisfy an architectural fashion requirement.
+- **Project source of truth — Issue #962:** atomic publication, known-good backup, deterministic/idempotent migration, bounded inputs, explicit single-writer/locking ownership, tested crash recovery.
+- **Active rehearsal player — Issue #961:** precise loop/count-in/rate/cue/role interaction; timing-sensitive transport belongs in Rust; real-time callbacks do no unbounded allocation, blocking I/O, network access, or lock-heavy work.
+- **Trusted distribution — Issue #960:** signed/notarized artifacts, verifiable updater metadata, SPDX SBOM/provenance, staged rollout and rollback evidence.
+- **Private diagnostics — Issue #963:** ordinary logs/support bundles exclude raw private audio, secrets, full local paths, and dependency-controlled exception payloads.
 
-### 3.4 Playback contract
+## 4. Capability and gap matrix
 
-Issue #961 is the canonical owner for active rehearsal playback: precise loops, count-in, rate control, cue navigation, role controls, restoration, and accessible interaction. Timing-sensitive transport belongs in Rust. A real-time audio callback must not perform unbounded allocation, blocking I/O, network access, or lock-heavy work.
-
-### 3.5 Security and privacy contract
-
-- Keep ordinary analysis local and network-independent.
-- Treat selected files, metadata, URLs, project files, models, PDFs, subprocess output, and diagnostics as untrusted.
-- Prefer narrow allowlisted commands/capabilities; no generic exec/read/write surface.
-- Ordinary logs and support artifacts must not retain raw private audio, secrets, full local paths, or dependency-controlled exception payloads.
-- Dependency/SBOM/provenance gates remain fail-closed; root-cause repair is preferred over ignore/suppression.
-- Signing keys and release credentials never enter repository files or ordinary artifacts.
-
-## 4. Product capability baseline
-
-| Capability | Protected-snapshot status | Remaining buyer-visible gap |
+| Capability | Current direction | Remaining buyer-visible gap |
 |---|---|---|
-| Local file intake | implemented boundary | finish resource budgets and cross-platform fault evidence |
-| YouTube import | policy-constrained / partial | honest failure guidance; no DRM/login bypass |
-| Section/role hierarchy | represented | prove real-audio accuracy and editing round trip |
-| Harmony and chord guidance | implemented / mixed compute | calibrated evidence; Rust ownership; uncertainty quality |
-| Groove/beat/timing cues | implemented / mixed compute | real-audio benchmark; Rust ownership; temporal integration |
-| Range/overlap guidance | implemented | reference-audio validation and Rust migration |
-| Stems/source separation | partial | platform/accelerator coverage, model artifact provenance, real-audio SI-SDR evidence |
-| Confidence/provenance | represented | calibrate confidence and prove user correction round trip |
-| Rehearsal action map | many open slices | consolidate repeated micro-PRs into coherent section/role UX |
-| Active loop/player | incomplete | canonical Issue #961 |
-| Crash-safe project/autosave | incomplete | canonical Issue #962 |
-| Signed/notarized updater/rollback | partial | canonical Issue #960 |
-| Redacted diagnostics/support bundle | incomplete | canonical Issue #963 |
-| Licensed first-run demo | incomplete | canonical Issue #964 |
-| WCAG/Figma/Storybook parity | incomplete | canonical Issue #965 |
-| Merge-train/succession | incomplete | canonical Issue #966 |
+| Local file intake | implemented authority boundary | complete resource budgets and cross-platform fault evidence |
+| YouTube import | policy-constrained/partial | honest failure guidance; no DRM/login bypass |
+| Section×role hierarchy | represented | real-audio accuracy + correction round trip |
+| Harmony guidance | implemented/mixed compute | calibrated evidence, Rust ownership, uncertainty quality |
+| Groove/beat/timing | implemented/mixed compute | real-audio benchmark, Rust ownership, full production integration |
+| Range/overlap | implemented | reference-audio validation + Rust migration |
+| Stems/source separation | partial | platform/accelerator coverage, artifact provenance, real-audio SI-SDR |
+| Confidence/provenance | represented | calibration + user correction persistence |
+| Rehearsal action map | many open slices | consolidate micro-PRs into coherent section/role UX |
+| Active player | incomplete | #961 |
+| Crash-safe project/autosave | incomplete | #962 |
+| Signed/notarized update/rollback | partial | #960 |
+| Private support bundle | incomplete | #963 |
+| Licensed first-run demo | incomplete | #964 |
+| WCAG/Figma/Storybook parity | incomplete | #965 |
+| Sustainable merge train | incomplete | #966 |
 
-## 5. Live PR queue and merge-loop evidence
+## 5. Organization-wide live backlog evidence
 
-The live queue is volatile and therefore is not treated as a permanent product fact. At the 2026-09-01 10:31 KST capture, GitHub reported **190 open pull requests** for `ContextualWisdomLab/bandscope`. The previous 2026-08-31 snapshot in this branch reported 185. This file records the capture time and the verification command intentionally returns the *current* value on a later rerun.
+This capture recounts **every 71 repository currently accessible through the connected ContextualWisdomLab GitHub account**, not only previously known high-backlog repositories. The 71 repositories contain **2,686 open pull requests** in total at this capture. Counts are volatile evidence, not product constants.
 
-The queue is dominated by narrow `feat(workspace): name tonight's first … on the map` slices. Those changes can improve next-action copy, but backlog size itself is now a product-delivery risk: overlapping plan fields, copy keys, contracts, and workspace behavior should be consolidated into dependency-aware trains rather than allowed to grow as unbounded parallel micro-PRs.
+Highest backlogs:
 
-### 5.1 Current required-check evidence, not inherited evidence
+| Rank | Repository | Open PRs |
+|---:|---|---:|
+| 1 | `ContextualWisdomLab/bandscope` | **188** |
+| 2 | `ContextualWisdomLab/newsdom-api` | 144 |
+| 3 | `ContextualWisdomLab/TEPP` | 141 |
+| 4 | `ContextualWisdomLab/OriginWeave` | 138 |
+| 5 | `ContextualWisdomLab/naruon` | 128 |
+| 6 | `ContextualWisdomLab/html4tree` | 117 |
+| 7 | `ContextualWisdomLab/Orgmetra` | 113 |
+| 8 | `ContextualWisdomLab/pg-erd-cloud` | 112 |
+| 9 | `ContextualWisdomLab/.github` | 110 |
+| 10 | `ContextualWisdomLab/appguardrail` | 102 |
+| 11 | `ContextualWisdomLab/argos` | 100 |
+| 12 | `ContextualWisdomLab/LineageWeave` | 98 |
+| 13 | `ContextualWisdomLab/clearfolio` | 97 |
 
-Do not state that every open PR is blocked by the same cause. Required gates change over time and must be inspected on the exact current head.
+BandScope remains the selected delivery lane because it has the largest live backlog **and** the repository owns the end-user rehearsal product whose duplicated workspace slices are contributing directly to buyer-delivery fragmentation. Selection is therefore based on both count and product responsibility, not repository name.
 
-Two current examples show why:
+### 5.1 Current merge-loop evidence
 
-- **PR #956** (`fix(security): redact articulation failure logs`) had a predecessor Strix failure caused by central provider/API compatibility, not by its three-file privacy repair. The central fix `ContextualWisdomLab/.github#1350` (`f655a901…`, GPT-5.4 function-tool/reasoning contract) is an ancestor of current `.github/main@1186a9f4…` (245 commits ahead at capture). The PR was advanced normally, without force push, to tree-identical exact head `e46a7aa3121c902ebcf9ea9d256a199659a482df` solely to obtain fresh current-workflow evidence; repository workflows immediately re-queued. It still must not merge without terminal current-head required checks and qualifying independent approval.
-- **PR #1117** (`refactor(engine): promote temporal probe from cli hack to api integration`) was open at exact head `b98f266d2356d56be624fb617580b5252e85baaa`. At capture, all nine repository workflow runs returned success (CI, release, Security Scan, security-audit, Semgrep, Bandit, secret scan, build baseline, SBOM), while the central `opencode-review` check was still `in_progress`. Pending evidence is not success and does not transfer to a later head.
+Protected `develop` currently requires these status contexts, among others: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, Windows/macOS build gates, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, and CodeQL JavaScript/TypeScript + Python analysis. Required contexts are read from live branch protection before merge; this list is evidence from this capture, not permission to infer future policy.
 
-Operational invariant: central-gate faults are repaired in the owning central repository. Member repositories do not weaken required checks, self-approve, transfer predecessor evidence, or use administrative bypass to manufacture merge readiness.
+Current examples:
 
-### 5.2 Baseline PR ownership
+- **#1103 CSV NUL hardening is the canonical desktop export owner.** New duplicate #1121 touched the same three files and added one useful NUL-only assertion. That unique edge was transferred into #1103 in normal non-force history before #1121 was closed unmerged as superseded. No check/review evidence transfers between the PRs; #1103 needs fresh exact-head evidence after the consolidation commit.
+- **#1119 Trivy PR-head evidence** correctly identifies a stale local policy-test conflict: CodeQL/Scorecard remain push-only local signals, while Trivy needs ordinary `pull_request` SARIF coverage. A failed temporary source-fix workflow was removed; the permanent policy-test repair belongs in normal source history, not in a dormant self-modifying workflow.
+- **#1007/#1094 first-part-handoff** are not yet safe to collapse blindly. #1007 has absorbed the selected-role semantics at resolver/callout level, but mounted `Workspace` must pass its selected `activeRole` through and pin that integration before #1094 can be closed without losing unique production behavior.
+- **#1116 is the canonical baseline owner.** Older #1025 was closed only after its unique PRD/TRD/UML/Rust/accuracy/security/accessibility/release requirements were preserved here.
 
-Two open PRs attempted to own this same file: #1025 (older, larger initial baseline) and #1116 (newer refresh). This branch is the canonical current owner because this replacement incorporates the unique product/TRD/UML/Rust/accuracy/security/accessibility/release requirements from #1025 while correcting the stale live-state and review findings on #1116. #1025 can therefore be closed as superseded only after this head exists and its unique requirements are preserved here; closure is bookkeeping, not deletion of evidence.
+Operational invariant: queued/pending/neutral/skipped/cancelled/failed, predecessor-head, protected-base, self/author, status-only, and model-only evidence is non-passing. Central-gate defects are repaired in the owning central repository; member branches do not weaken gates or use administrative bypass.
 
-## 6. Prioritized gap backlog
+## 6. Prioritized product-technical backlog
 
 Priority is buyer impact × dependency leverage × risk, not PR age.
 
-### P0 — blocks trustworthy product completion
+### P0 — trustworthy product completion
 
-1. **Restore sustainable exact-head merge throughput (Issue #966).**
-   - Acceptance: current-head required checks are terminal-success, independent non-author approval is current, unresolved actionable threads are zero, and duplicate/superseded slices are reconciled before merge.
-   - No bypass, self-approval, stale check transfer, or force push.
-2. **Establish real-audio accuracy gates (Issue #770).**
-   - Acceptance: licensed real-audio corpora, human ground truth, task-specific metrics, preregistered statistical acceptance criteria, and reproducible exact-head artifacts.
-3. **Migrate repository-owned core computation to Rust.**
-   - Acceptance: inventory of every math/DSP/vector/matrix/data-science call path; Rust ownership for each core operation; CPU multithread baseline; explicit accelerator adapters; parity and real-audio regression tests; Python orchestration contains no hidden numerical fallback accepted as production truth.
-4. **Complete local resource admission and filesystem authority.**
-   - Acceptance: bounded file duration/size/allocation, cancellation, path containment, model/PDF bounds, and platform fault tests across the real production path.
+1. **Sustainable exact-head merge throughput — #966.** Consolidate duplicate/superseded writers, require current-head terminal gates, zero actionable threads, and current qualifying independent non-author approval.
+2. **Real-audio accuracy — #770.** Licensed corpora, human truth, task-specific metrics, preregistered statistical acceptance, reproducible artifacts.
+3. **Rust core-computation migration.** Inventory every DSP/math/vector/matrix/data-science call path and move production ownership to Rust with CPU multithread + explicit accelerator boundaries.
+4. **Resource/filesystem authority completion.** Bounded duration/size/allocation, cancellation, path containment, model/PDF bounds, and cross-platform production-path fault tests.
 
-### P1 — closes the rehearsal loop
+### P1 — close the rehearsal loop
 
-5. **Active rehearsal player (Issue #961).** Precise loop/count-in/role control with Rust transport and accessibility equivalence.
-6. **Crash-safe project source of truth (Issue #962).** Atomic save/autosave, migration, backup, recovery, locking, and versioned fixtures.
-7. **Trusted desktop distribution (Issue #960).** Windows signing, macOS signing/notarization, updater signatures, SBOM/provenance, staged rollout, and rollback evidence.
-8. **Private supportability (Issue #963).** Typed diagnostics and user-previewable offline support bundle without raw song/path leakage.
-9. **Licensed first-run rehearsal (Issue #964).** Demonstrate install → first useful rehearsal without developer setup.
-10. **WCAG 2.2 AA + Figma/Storybook/shipped parity (Issue #965).** Keyboard, focus, target-size, alternatives for visual timelines/charts, i18n semantic parity, design-token ownership, and representative edge-case stories.
+5. **Active rehearsal player — #961.**
+6. **Crash-safe project/autosave — #962.**
+7. **Trusted distribution/update/rollback — #960.**
+8. **Private diagnostics/supportability — #963.**
+9. **Licensed first-run rehearsal — #964.**
+10. **WCAG 2.2 AA + Figma/Storybook/shipped parity — #965.**
 
-### P2 — improves scale and analytical depth after the core loop is reliable
+### P2 — analytical depth after the core loop is reliable
 
-11. Consolidate plan-field micro-PRs into coherent engine-generated role guidance with conflict/priority rules and edit provenance.
-12. Replace hand-tuned/untraceable weights and priors with documented literature/calibration evidence and sensitivity tests.
-13. Expand section/role/temporal modeling where multilevel or time-dependent evidence materially improves rehearsal decisions; avoid atomistic aggregation that erases section/role structure.
-14. Harden model artifact provenance and accelerator reproducibility across CPU/CUDA/OpenCL/MLX-supported paths.
-15. Expand collaboration only behind a clear local-first buyer outcome and stable project/handoff contracts.
+11. Replace unbounded “first-X” plan-field micro-PR growth with coherent engine-generated role guidance, conflict rules, priority, and edit provenance.
+12. Replace untraceable weights/priors with documented literature/calibration evidence and sensitivity tests.
+13. Preserve the `song → section → role → time` hierarchy; use multilevel/time-dependent evidence where it materially improves rehearsal decisions instead of atomistic aggregation.
+14. Harden model artifact provenance and reproducibility across CPU/CUDA/OpenCL/MLX-supported paths.
+15. Expand collaboration only behind a stable local-first project/handoff contract and a clear buyer outcome.
 
-## 7. Quality, test, UX, and operability baseline
+## 7. Quality, UX, test, security, and operability baseline
 
-### Coverage and documentation
+### 7.1 Coverage and documentation
 
-- Python production coverage/docstring gates are already described as 100% in repository guidance.
-- Protected `develop` still configures JavaScript coverage thresholds at 90% in both `apps/desktop/vite.config.ts` and `packages/shared-types/vitest.config.ts`; this is a gap against the current 100% statement/branch/edge-case target.
-- The target is **100% test coverage, 100% branch/edge-case coverage, and 100% public/repository-owned API docstring/documentation coverage** for changed production surfaces. A passing threshold below that target is not equivalent evidence.
+- Python production coverage/docstring policy is 100% in repository guidance.
+- Protected JavaScript configs still contain 90% thresholds in parts of the repository; this is below the target contract.
+- Target: **100% statement coverage, 100% branch/edge-case coverage, and 100% public/repository-owned API documentation coverage** for owned production surfaces. A lower configured threshold is a gap, not equivalent evidence.
 
-### Realistic test cases
+### 7.2 Realistic validation
 
-At minimum, exercise 44.1/48/96 kHz where supported, mono/stereo, short and long recordings, pickup before bar one, odd meter, tempo change, silence near boundaries, unsupported codec, moved/replaced files, device changes, cancellation, disk full, corrupted project state, migration interruption, source-separation unavailable, and uncertainty correction round trips.
+Minimum scenario inventory includes supported 44.1/48/96 kHz audio, mono/stereo, short/long recordings, pickup before bar one, odd meter, tempo change, silence near boundaries, unsupported codecs, moved/replaced files, device changes, cancellation, disk full, corrupted project state, migration interruption, unavailable source separation, and uncertainty correction round trips.
 
-### Accessibility and UI validation
+### 7.3 UI/design acceptance
 
-`docs/doctoring/high-security-pdf-http-baseline.md` and `docs/doctoring/npm-lockfile-generator-provenance.md` already contain Mermaid diagrams, so a repository-wide “no diagrams exist” claim is false. What remains missing is a maintained product-level DDD/context map, core sequence/state views, Storybook inventory for rehearsal-domain components, and screenshot-backed accessibility/responsive audits of shipped UI.
+Storybook is the executable component/interaction inventory; Figma is reviewed design/handoff evidence, not a second runtime authority. UI changes require screenshot-backed validation of relevant states and edge cases, keyboard/focus behavior, touch target sizing, responsive layout, typography/color contrast, animation/reduced-motion, forms/feedback, navigation, and data visualization alternatives. Repeated visual objects belong behind shared tokens/components, not per-feature drift.
 
-For visual controls, exact-value and non-drag alternatives are required when a waveform, range, timeline, or chart is interactive. UI copy should tell the musician what to do next and must not expose internal module/repository boundaries.
+Customer copy names the next action and never exposes repository/module boundaries. English/Korean semantics stay aligned.
 
-### Release/operability
+### 7.4 Security and supply chain
 
-A development artifact is not GA evidence. GA requires protected-source identity, reproducible build evidence, checksums, SPDX SBOM/provenance, supported architecture matrix, signatures, macOS notarization, verified update manifest, offline startup, and tested repair/rollback.
+- ordinary analysis stays local and network-independent;
+- files/URLs/metadata/models/PDFs/project state/subprocess output are untrusted;
+- capabilities are narrow and allowlisted; no generic exec/read/write surface;
+- Dependency Review, OSV, Trivy, CodeQL, secret scanning, SBOM, release provenance, and cross-platform build controls remain fail-closed;
+- suppressions are not a substitute for root-cause remediation;
+- signing/release credentials never enter repository files or ordinary artifacts.
 
-## 8. UML / sequence supplements
+### 7.5 Release/operability
 
-### 8.1 Import → analyze → rehearsal view
+GA requires protected-source identity, reproducible build evidence, checksums, SPDX SBOM/provenance, supported architecture matrix, signatures, macOS notarization, verified update metadata, offline startup, and tested repair/rollback. A development artifact alone is not GA evidence.
+
+## 8. UML / state supplements
+
+### 8.1 Import → analyze → rehearse
 
 ```mermaid
 sequenceDiagram
     actor U as User
-    participant UI as React workspace
-    participant T as Tauri shell
-    participant V as Rust validation/authority
-    participant O as Analysis orchestration
-    participant R as Rust analysis core
+    participant UI as React Workspace
+    participant T as Tauri Shell
+    participant V as Rust Authority Boundary
+    participant O as Analysis Orchestration
+    participant R as Rust Analysis Core
 
     U->>UI: Choose local audio
     UI->>T: typed intake command
-    T->>V: validate path, project and resource authority
+    T->>V: validate path/project/resource authority
     V-->>T: admitted source reference
     T->>O: start bounded analysis job
     O->>R: compute section/role/temporal evidence
     R-->>O: versioned evidence + confidence
     O-->>T: progress / completed result
     T-->>UI: analysis-job-updated
-    UI-->>U: rehearsal actions + uncertainty + edit path
+    UI-->>U: rehearsal action + uncertainty + correction path
 ```
 
 ### 8.2 Project state machine
@@ -274,7 +286,7 @@ stateDiagram-v2
     Clean --> Dirty: accepted mutation
     Dirty --> Staging: autosave/manual save
     Staging --> Published: validate + atomic replace
-    Staging --> Dirty: failure, keep known-good
+    Staging --> Dirty: failure; retain known-good
     Published --> Dirty: next mutation
     Published --> RecoveryAvailable: unclean shutdown/newer recovery evidence
     RecoveryAvailable --> Published: restore validated snapshot
@@ -283,19 +295,19 @@ stateDiagram-v2
 
 ## 9. Research and standards traceability
 
-The baseline uses standards as evaluation structures, not as decoration:
+Standards are evaluation structures, not decoration:
 
-- ISO/IEC 25010:2023 supplies the current product-quality model for specifying and evaluating software quality characteristics.
-- NIST SP 800-218 SSDF v1.1 supplies outcome-oriented secure-development practices, including provenance and tracked security requirements/design decisions.
-- WCAG 2.2 is the current W3C Recommendation baseline used for the desktop webview UI accessibility contract.
-- MIREX task definitions provide domain-relevant evaluation precedent using real audio and human/listener annotation; the 2025 beat-tracking task explicitly evaluates predicted beat locations against listener-annotated recordings.
-- MIR literature remains task-specific: Foote for self-similarity novelty, Viterbi for decoding, Le Roux et al. for SI-SDR, and established chord corpora/metrics for harmony evaluation. These references do not justify unrelated hand-tuned transition priors or product weights.
+- ISO/IEC 25010:2023 supplies the product-quality model for specifying/evaluating software quality characteristics.
+- NIST SP 800-218 SSDF v1.1 supplies outcome-oriented secure-development practices and traceable security requirements/design decisions.
+- WCAG 2.2 is the current W3C Recommendation baseline for desktop-webview accessibility.
+- MIREX task definitions provide domain-relevant precedent using real audio and human/listener annotation.
+- MIR evidence remains task-specific: Foote for self-similarity/novelty, Viterbi for sequence decoding, Le Roux et al. for SI-SDR, and benchmark-specific corpora/metrics for harmony. These references do not justify unrelated hand-tuned product weights.
 
 ### References (APA 7th)
 
-International Organization for Standardization, & International Electrotechnical Commission. (2023). *ISO/IEC 25010:2023 Systems and software engineering—Systems and software Quality Requirements and Evaluation (SQuaRE)—Product quality model* (2nd ed.). ISO.
-
 Foote, J. (1999). Visualizing music and audio using self-similarity. In *Proceedings of the Seventh ACM International Conference on Multimedia* (pp. 77–80). Association for Computing Machinery.
+
+International Organization for Standardization, & International Electrotechnical Commission. (2023). *ISO/IEC 25010:2023 Systems and software engineering—Systems and software Quality Requirements and Evaluation (SQuaRE)—Product quality model* (2nd ed.). ISO.
 
 Le Roux, J., Wisdom, S., Erdogan, H., & Hershey, J. R. (2019). SDR—Half-baked or well done? In *2019 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)* (pp. 626–630). IEEE.
 
@@ -309,33 +321,29 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 
 ## 10. Re-runnable verification
 
-Run from repository root. These commands intentionally distinguish immutable protected-source evidence from volatile live GitHub state.
-
 ```bash
-# Protected source identity
-git rev-parse --show-toplevel
+# protected source identity
 git rev-parse develop
 
-# Current open-PR count; snapshot in this document was 190 at 2026-09-01 10:31 KST.
+# BandScope current queue
 gh pr list --state open --limit 500 --json number --jq 'length'
 
-# Current head and live gate state for a PR; never reuse a predecessor result.
-gh pr view 956 --json number,state,isDraft,headRefOid,baseRefOid,reviews,statusCheckRollup
-gh pr view 1117 --json number,state,isDraft,headRefOid,baseRefOid,reviews,statusCheckRollup
+# exact-head merge evidence for a candidate
+gh pr view <PR> --json number,state,isDraft,headRefOid,baseRefOid,reviews,statusCheckRollup
 
-# Confirm product-level and doctoring Mermaid inventory.
+# product/doctoring Mermaid inventory
 git grep -n '```mermaid' -- docs ARCHITECTURE.md
 
-# Verify current JS threshold policy gap.
-git grep -n 'lines: 90' -- apps/desktop/vite.config.ts packages/shared-types/vitest.config.ts
+# JS threshold gap
+git grep -n '90' -- apps/desktop/vite.config.ts packages/shared-types/vitest.config.ts
 
-# Verify the two current Rust numerical entry points and locate remaining Python core modules.
+# Rust numerical ownership and remaining Python production modules
 git grep -n 'checkerboard_novelty\|viterbi_decode' -- services/analysis-engine/rust services/analysis-engine/src
 find services/analysis-engine/src/bandscope_analysis -type f -name '*.py' -print
 
-# Real-audio fixture inventory; absence/presence is determined by file search, not Python-file grep.
+# real-audio test fixture inventory
 find . -type f \( -path '*/tests/*' -o -path '*/test/*' \) \
   \( -iname '*.wav' -o -iname '*.flac' -o -iname '*.mp3' \) -not -path './.git/*' -print
 ```
 
-GitHub live-state claims in this document are capture-time evidence. Any merge decision must re-fetch the exact current head, required checks, review decision, unresolved threads, ancestry/dependency order, and writer state immediately before action.
+Every GitHub state in this document is capture-time evidence. Immediately before a merge, re-fetch the unchanged exact head, current branch protection, all required checks, review decision, unresolved threads, dependency/ancestry order, and concurrent writer state.
