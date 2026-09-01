@@ -297,7 +297,10 @@ function isCorroboratedReceiver(
 }
 
 /** Resolve a corroborated source-to-destination pass after the runtime root passes structural checks. */
-function resolveSafeFirstPartHandoff(song: RehearsalSong): FirstPartHandoff | null {
+function resolveSafeFirstPartHandoff(
+  song: RehearsalSong,
+  activeRole: string | null
+): FirstPartHandoff | null {
   if (!isRuntimeObject(song) || !hasOwnData(song, "sections") || !isDenseRuntimeArray(song.sections)) {
     return null;
   }
@@ -333,6 +336,12 @@ function resolveSafeFirstPartHandoff(song: RehearsalSong): FirstPartHandoff | nu
         .filter((role): role is RehearsalRole => role !== undefined)
         .filter((receivingRole) =>
           isCorroboratedReceiver(source, destination, givingRole.id, receivingRole.id)
+        )
+        .filter(
+          (receivingRole) =>
+            activeRole === null ||
+            givingRole.id === activeRole ||
+            receivingRole.id === activeRole
         );
       const receivingRole = pickRankedRole(receivingRoles);
       return receivingRole ? [{ givingRole, receivingRole }] : [];
@@ -366,10 +375,13 @@ function resolveSafeFirstPartHandoff(song: RehearsalSong): FirstPartHandoff | nu
   return candidates[0] ?? null;
 }
 
-/** Return the first named part handoff, or null when untrusted runtime metadata cannot be read safely. */
-export function resolveFirstPartHandoff(song: RehearsalSong): FirstPartHandoff | null {
+/** Return the first named part handoff, optionally scoped to a selected giving or receiving role. */
+export function resolveFirstPartHandoff(
+  song: RehearsalSong,
+  activeRole: string | null = null
+): FirstPartHandoff | null {
   try {
-    return resolveSafeFirstPartHandoff(song);
+    return resolveSafeFirstPartHandoff(song, activeRole);
   } catch {
     return null;
   }
