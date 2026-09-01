@@ -118,6 +118,30 @@ def collect_paginated_pulls(
     _fail("live pull-request pagination bound would truncate the queue")
 
 
+def collect_paginated_branch_refs(
+    fetch_page: PageFetcher,
+    *,
+    page_size: int = PAGE_SIZE,
+    max_pages: int = MAX_PAGES,
+) -> list[dict[str, Any]]:
+    """Collect every announced branch-ref page or fail rather than truncate base authority."""
+    _require_positive_int(page_size, "page_size")
+    _require_positive_int(max_pages, "max_pages")
+    branch_refs: list[dict[str, Any]] = []
+    for page in range(1, max_pages + 1):
+        items, has_next = fetch_page(page, page_size)
+        if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+            _fail(f"branch-ref page {page} must contain objects")
+        if not isinstance(has_next, bool):
+            _fail(f"branch-ref page {page} next-page marker must be boolean")
+        if has_next and not items:
+            _fail(f"branch-ref page {page} is empty but announces another page")
+        branch_refs.extend(items)
+        if not has_next:
+            return branch_refs
+    _fail("live branch-ref pagination bound would truncate the inventory")
+
+
 def _live_pr_entry(
     raw_pr: object,
     *,
@@ -301,11 +325,28 @@ def fetch_live_branch_sha(branch_ref: str, token: str | None) -> str:
     return _require_sha(commit.get("sha"), "branch.commit.sha")
 
 
+def fetch_live_branch_ref_page(
+    page: int,
+    page_size: int,
+    token: str | None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Fetch one bounded page of repository branch refs for exact target-tip resolution."""
+    _require_positive_int(page, "page")
+    _require_positive_int(page_size, "page_size")
+    query = urllib.parse.urlencode({"per_page": page_size, "page": page})
+    target = f"{REPOSITORY_API_PREFIX}git/matching-refs/heads/?{query}"
+    payload, link = _request_github_json(target, token)
+    items = _require_list(payload, f"branch-ref page {page}")
+    if any(not isinstance(item, dict) for item in items):
+        _fail(f"branch-ref page {page} must contain objects")
+    return items, 'rel="next"' in link
+
+
 def fetch_live_branch_index(token: str | None) -> dict[str, str]:
-    """Resolve all branch tips from one bounded Git refs snapshot."""
-    target = f"{REPOSITORY_API_PREFIX}git/matching-refs/heads/"
-    payload, _ = _request_github_json(target, token)
-    refs = _require_list(payload, "branch snapshot")
+    """Resolve all branch tips from a complete bounded Git refs inventory."""
+    refs = collect_paginated_branch_refs(
+        lambda page, size: fetch_live_branch_ref_page(page, size, token)
+    )
     branch_index: dict[str, str] = {}
     for index, raw_ref in enumerate(refs):
         ref_record = _require_record(raw_ref, f"branch snapshot[{index}]")
@@ -360,7 +401,7 @@ def fetch_live_pull_page(
 
 
 def resolve_live_base_tips(live_result: object, token: str | None) -> dict[str, str]:
-    """Select every current PR target from one independently resolved branch snapshot."""
+    """Select every current PR target from one independently resolved branch inventory."""
     live = _require_record(live_result, "live result")
     if live.get("incomplete_results") is not False:
         _fail("live pull-request inventory is incomplete")
