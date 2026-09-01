@@ -1235,20 +1235,40 @@ def test_supply_chain_check_accepts_repo_ossf_publish_restrictions(
     assert not any("ossf scorecard" in violation for violation in violations)
 
 
-def test_central_governance_workflows_are_push_only_where_local_signals_remain() -> None:
-    """Ensure central PR governance keeps only repo-local push security signals."""
+def test_central_governance_workflows_preserve_local_security_signal_boundaries() -> None:
+    """Ensure local signals keep their intended push and PR trigger boundaries."""
     repo_root = Path(__file__).resolve().parents[3]
     workflows_dir = repo_root / ".github" / "workflows"
 
     assert not (workflows_dir / "dependency-review.yml").exists()
 
-    for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):
+    for local_signal in ("codeql.yml", "ossf-scorecard.yml"):
         workflow = workflows_dir / local_signal
         assert workflow.exists(), (
             f"{local_signal} keeps repository-local security-tab/SAST signal "
             "while central required workflows handle PR enforcement"
         )
-        assert "pull_request:" not in workflow.read_text(encoding="utf-8")
+        content = workflow.read_text(encoding="utf-8")
+        assert "push:" in content, f"{local_signal} must retain push-based reporting"
+        assert "pull_request:" not in content, (
+            f"{local_signal} must not become a duplicate PR gate"
+        )
+
+    trivy_workflow = workflows_dir / "trivy.yml"
+    assert trivy_workflow.exists(), (
+        "trivy.yml keeps repository-local SARIF reporting while providing "
+        "the repository's per-PR vulnerability scan"
+    )
+    trivy_content = trivy_workflow.read_text(encoding="utf-8")
+    assert "push:" in trivy_content, "trivy.yml must retain push-based SARIF reporting"
+    assert "pull_request:" in trivy_content, (
+        "trivy.yml must scan pull-request heads for current-head SARIF evidence"
+    )
+    pull_request_section = trivy_content.split("pull_request:", 1)[1].split(
+        "permissions:", 1
+    )[0]
+    assert "- develop" in pull_request_section
+    assert "- main" in pull_request_section
 
     supply_chain = load_module(
         "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
@@ -1257,7 +1277,6 @@ def test_central_governance_workflows_are_push_only_where_local_signals_remain()
     assert ".github/workflows/dependency-review.yml" not in required
     assert ".github/workflows/codeql.yml" in required
     assert ".github/workflows/ossf-scorecard.yml" in required
-
 
 def test_opencode_review_declares_top_level_token_permissions() -> None:
     """Ensure OpenCode token posture is delegated to the central required workflow."""
