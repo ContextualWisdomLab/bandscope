@@ -19,9 +19,8 @@ import soundfile  # type: ignore[import-untyped]  # soundfile has no py.typed ma
 from bandscope_analysis.audio_resource_policy import (
     DEFAULT_AUDIO_RESOURCE_POLICY,
     AudioResourcePolicy,
+    AudioResourcePolicyError,
 )
-
-_POLICY_ERROR = "Audio input violates the audio resource policy."
 
 
 def preflight_audio_metadata(
@@ -38,7 +37,7 @@ def preflight_audio_metadata(
             sample_rate=info.samplerate,
             channels=info.channels,
         )
-    except ValueError:
+    except AudioResourcePolicyError:
         raise
     except Exception as error:
-        raise ValueError(_POLICY_ERROR) from error
+        raise AudioResourcePolicyError("malformed_header") from error
