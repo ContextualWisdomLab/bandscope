@@ -1,7 +1,9 @@
 name: Materialize licensed demo asset
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feat/licensed-demo-first-run
 
 permissions:
   contents: read
