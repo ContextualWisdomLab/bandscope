@@ -134,10 +134,14 @@ def _live_pr_entry(
     if prior is None:
         initial_train = UNTRIAGED_TRAIN
         initial_disposition = "triage_required"
+        predecessor_prs: list[Any] = []
     else:
         initial_train = _require_text(prior.get("initial_train"), "existing.initial_train")
         initial_disposition = _require_text(
             prior.get("initial_disposition"), "existing.initial_disposition"
+        )
+        predecessor_prs = list(
+            _require_list(prior.get("predecessor_prs", []), "existing.predecessor_prs")
         )
 
     return {
@@ -148,6 +152,7 @@ def _live_pr_entry(
         "initial_disposition": initial_disposition,
         "head_sha": head_sha,
         "head_sha_status": "exact_current_head",
+        "predecessor_prs": predecessor_prs,
     }
 
 
