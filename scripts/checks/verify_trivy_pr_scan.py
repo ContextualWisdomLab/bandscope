@@ -26,6 +26,11 @@ def _indented_block(lines: list[str], header: str, indent: int) -> list[str]:
     return []
 
 
+def _has_mapping_key(lines: list[str], header: str, indent: int) -> bool:
+    """Return whether an exact YAML-like mapping key is present at ``indent``."""
+    return f"{' ' * indent}{header}:" in lines
+
+
 def _list_values(lines: list[str], header: str, indent: int) -> set[str]:
     """Return literal scalar list items nested under the requested mapping key."""
     block = _indented_block(lines, header, indent)
@@ -152,8 +157,10 @@ def main() -> int:
     }
 
     missing: list[str] = []
-    if not pull_request_block:
+    if not _has_mapping_key(lines, "pull_request", 2):
         missing.append("pull_request event")
+    if _has_mapping_key(lines, "pull_request_target", 2):
+        missing.append("forbidden pull_request_target event")
     for branch in ("develop", "main"):
         if branch not in pr_targets:
             missing.append(f"pull_request branch {branch!r}")
