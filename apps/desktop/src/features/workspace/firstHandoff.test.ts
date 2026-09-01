@@ -24,6 +24,37 @@ describe("firstHandoff", () => {
     });
   });
 
+  it("names an analysis-derived handoff at the destination section", () => {
+    const song = createDemoRehearsalSong();
+    const source = song.sections[0];
+    const destination = {
+      ...source,
+      id: "chorus-1",
+      label: "chorus" as const,
+      partGraph: source.partGraph.map((node) => ({
+        ...node,
+        handoff_to: [],
+        handoff_from: []
+      }))
+    };
+
+    expect(firstHandoff({ ...song, sections: [source, destination] })).toEqual({
+      sectionLabel: "chorus",
+      fromRole: "Bass Guitar",
+      toRole: "Lead Vocal"
+    });
+  });
+
+  it("fails closed when a transition handoff has no valid destination section", () => {
+    const song = createDemoRehearsalSong();
+    const malformed = {
+      ...song,
+      sections: [song.sections[0], null]
+    } as unknown as RehearsalSong;
+
+    expect(firstHandoff(malformed)).toBeNull();
+  });
+
   it("skips inactive nodes until an active named receiver exists", () => {
     const song = withPartGraph(createDemoRehearsalSong(), [
       {
