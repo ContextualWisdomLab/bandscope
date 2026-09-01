@@ -4,7 +4,7 @@
 
 ### Added
 
-- Tonight's rehearsal map now arms the first valid section map-clock loop, runs a tempo count-in, and names the next start, pause, stop, or choose-local-song action without claiming decoded audio playback; admitted section timing and picker copy use the same descriptor-snapshotted transport window.
+- Tonight's rehearsal player now arms the first valid section loop, runs a tempo count-in, and plays validated local audio through a scoped Tauri asset URL in the browser media element; the React layer does not decode audio bytes itself, and admitted section timing and picker copy use the same descriptor-snapshotted transport window.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - Move between playable section cues with Left and Right Arrow and keep the selected cue focused.
