@@ -33,6 +33,85 @@ jobs:
           sarif_file: trivy-results.sarif
 """
 
+TARGET_ONLY = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request_target:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+MIXED_PR_TARGET = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+  pull_request_target:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+WRONG_PR_TARGETS = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - release
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 DISCONNECTED_SARIF = """name: trivy
 
 on:
@@ -114,7 +193,7 @@ jobs:
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@0123456789abcdef
         with:
-          format: "sarif" # quoted scalar with a comment
+          format: "sarif" # GitHub code scanning format
           output: "trivy#results.sarif" # # inside quotes is data
       - uses: github/codeql-action/upload-sarif@fedcba9876543210
         with:
@@ -123,6 +202,9 @@ jobs:
 
 INVALID_CASES = {
     "missing protected PR targets": MISSING_PR_TARGETS,
+    "target-only privileged PR event": TARGET_ONLY,
+    "mixed pull_request and pull_request_target events": MIXED_PR_TARGET,
+    "wrong pull_request branch set": WRONG_PR_TARGETS,
     "SARIF format detached from the Trivy action": DISCONNECTED_SARIF,
     "Trivy output and upload paths disagree": MISMATCHED_SARIF,
 }
