@@ -4,11 +4,11 @@
 
 BandScope keeps selected score actions discoverable when they are unavailable by using `aria-disabled="true"` plus guarded click handlers instead of native `disabled`. The contract covers the Add score control when no active project exists, existing-score Open/Remove controls without an active project, and score-viewer Previous/Next page controls at pagination boundaries.
 
-For project-bound actions, the visible localized project requirement is associated programmatically through `aria-describedby`; Add/Open/Remove therefore expose the same recovery information to assistive technology while remaining keyboard-focusable. For pagination boundaries, the same localized explanation used for the pointer `title` is associated through `aria-describedby` with a renderer-owned `useId()` target, and that description reference disappears when the action becomes available.
+For project-bound actions, the visible localized project requirement is associated programmatically through `aria-describedby`; Add/Open/Remove therefore expose the same recovery information to assistive technology while remaining keyboard-focusable. For pagination boundaries, the localized unavailable reason is rendered as an in-document `role="tooltip"` associated through `aria-describedby` with a renderer-owned `useId()` target. The tooltip becomes visually available on pointer hover or keyboard focus and disappears with the description reference when that navigation action becomes available. Native `title` is not used as the unavailable-state explanation, avoiding a second competing description channel.
 
 The Add score control is also action-guarded while an attachment operation is already pending. It remains rendered and exposes `aria-disabled="true"`, while the click boundary rejects duplicate activation so one in-flight attach cannot start a second native picker/storage mutation.
 
-This document records the accessibility rationale for PR #731 only. It does not claim that a native `title` is an ARIA tooltip implementation or that keeping every disabled control focusable is universally preferable.
+This document records the accessibility rationale for PR #731 only. It does not claim that keeping every disabled control focusable is universally preferable.
 
 ## Contract
 
@@ -17,9 +17,9 @@ This document records the accessibility rationale for PR #731 only. It does not 
 - Project-bound unavailable actions use `aria-describedby` to point to the visible localized project requirement rather than duplicating hidden recovery copy.
 - The Add score action also blocks repeated activation while an attach is already pending; no second bridge request is issued from the guarded branch.
 - A boundary page-navigation button remains keyboard-focusable so its presence and unavailable state can be discovered.
-- Boundary `aria-describedby` points to localized in-document text explaining the unavailable state and is present only while that exact navigation action is unavailable.
-- Native `title` remains a pointer affordance, not the sole accessible explanation.
-- Enabled controls do not retain stale disabled-state descriptions.
+- Boundary `aria-describedby` points to a localized `role="tooltip"` explanation that is present only while that exact navigation action is unavailable.
+- The unavailable pagination explanation is visually revealed by the same control group on pointer hover and keyboard focus; it is not dependent on a native `title`.
+- Enabled pagination controls may keep their ordinary action title but do not retain stale disabled-state descriptions or tooltips.
 - Description IDs are renderer-owned and generated with React `useId()`; analysis or file metadata never becomes DOM-ID authority.
 
 ## Verification
@@ -28,7 +28,7 @@ This document records the accessibility rationale for PR #731 only. It does not 
 
 `apps/desktop/src/features/score/ScoreView.test.tsx` independently verifies the project-missing guarded branches and the in-flight Add score branch: a repeated click while the first attach promise is pending is prevented and does not issue a second attach request.
 
-`apps/desktop/src/features/score/ScoreViewer.disabled-navigation-accessibility.test.tsx` verifies both ends of a three-page document: the unavailable Previous action on page 1 and unavailable Next action on page 3 each resolve their `aria-describedby` reference to the localized explanation, while the currently available opposite action has no stale disabled description.
+`apps/desktop/src/features/score/ScoreViewer.disabled-navigation-accessibility.test.tsx` verifies both ends of a three-page document: the unavailable Previous action on page 1 and unavailable Next action on page 3 each resolve `aria-describedby` to a localized `role="tooltip"`, omit a competing unavailable-state native title, remain focusable, and expose focus/hover visibility classes while the currently available opposite action has no stale disabled description.
 
 ## Standards and guidance boundary
 
