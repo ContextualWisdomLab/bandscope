@@ -39,6 +39,8 @@ PULL_REQUEST_FIELDS = frozenset(
         "head_sha",
         "head_sha_status",
         "predecessor_prs",
+        "overlap_prs",
+        "successor_pr",
     }
 )
 ALLOWED_INITIAL_DISPOSITIONS = frozenset(
@@ -116,19 +118,28 @@ def _require_sha(value: object, field: str) -> str:
     return text.lower()
 
 
-def _require_predecessors(value: object, field: str) -> list[int]:
-    """Return a duplicate-free list of positive predecessor PR identities."""
-    predecessors = _require_list(value, field)
+def _require_pr_numbers(value: object, field: str) -> list[int]:
+    """Return a duplicate-free list of positive PR identities."""
+    pr_numbers = _require_list(value, field)
     normalized: list[int] = []
     seen: set[int] = set()
-    for index, predecessor in enumerate(predecessors):
-        if isinstance(predecessor, bool) or not isinstance(predecessor, int) or predecessor <= 0:
+    for index, pr_number in enumerate(pr_numbers):
+        if isinstance(pr_number, bool) or not isinstance(pr_number, int) or pr_number <= 0:
             _fail(f"{field}[{index}] must be a positive integer")
-        if predecessor in seen:
-            _fail(f"{field} contains duplicate predecessor: {predecessor}")
-        seen.add(predecessor)
-        normalized.append(predecessor)
+        if pr_number in seen:
+            _fail(f"{field} contains duplicate pull request: {pr_number}")
+        seen.add(pr_number)
+        normalized.append(pr_number)
     return normalized
+
+
+def _require_optional_pr_number(value: object, field: str) -> int | None:
+    """Return a nullable positive PR identity without accepting booleans."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        _fail(f"{field} must be null or a positive integer")
+    return value
 
 
 def _validate_predecessor_graph(
@@ -153,6 +164,50 @@ def _validate_predecessor_graph(
         visiting.add(number)
         for predecessor in predecessors_by_pr.get(number, []):
             visit(predecessor)
+        visiting.remove(number)
+        visited.add(number)
+
+    for number in known_prs:
+        visit(number)
+
+
+def _validate_overlap_and_successor_graph(
+    overlaps_by_pr: dict[int, list[int]],
+    successor_by_pr: dict[int, int | None],
+    known_prs: set[int],
+) -> None:
+    """Require symmetric overlap evidence and an acyclic explicit succession relation."""
+    for number, overlaps in overlaps_by_pr.items():
+        for overlap in overlaps:
+            if overlap not in known_prs:
+                _fail(f"pull request {number} references unknown overlap: {overlap}")
+            if overlap == number:
+                _fail(f"pull request {number} cannot overlap itself")
+            if number not in overlaps_by_pr.get(overlap, []):
+                _fail(f"pull request overlap must be symmetric: {number} <-> {overlap}")
+
+    for number, successor in successor_by_pr.items():
+        if successor is None:
+            continue
+        if successor not in known_prs:
+            _fail(f"pull request {number} references unknown successor: {successor}")
+        if successor == number:
+            _fail(f"pull request {number} cannot succeed itself")
+        if successor not in overlaps_by_pr.get(number, []):
+            _fail(f"pull request {number} successor_pr must also be declared in overlap_prs")
+
+    visiting: set[int] = set()
+    visited: set[int] = set()
+
+    def visit(number: int) -> None:
+        if number in visited:
+            return
+        if number in visiting:
+            _fail(f"successor cycle detected at pull request {number}")
+        visiting.add(number)
+        successor = successor_by_pr.get(number)
+        if successor is not None:
+            visit(successor)
         visiting.remove(number)
         visited.add(number)
 
@@ -198,6 +253,8 @@ def validate_manifest(manifest: object) -> None:
 
     seen_numbers: set[int] = set()
     predecessors_by_pr: dict[int, list[int]] = {}
+    overlaps_by_pr: dict[int, list[int]] = {}
+    successor_by_pr: dict[int, int | None] = {}
     for index, raw_pr in enumerate(pull_requests):
         prefix = f"pull_requests[{index}]"
         pr = _require_record(raw_pr, prefix)
@@ -208,8 +265,14 @@ def validate_manifest(manifest: object) -> None:
         if number in seen_numbers:
             _fail(f"duplicate pull request number: {number}")
         seen_numbers.add(number)
-        predecessors_by_pr[number] = _require_predecessors(
+        predecessors_by_pr[number] = _require_pr_numbers(
             pr.get("predecessor_prs", []), f"{prefix}.predecessor_prs"
+        )
+        overlaps_by_pr[number] = _require_pr_numbers(
+            pr.get("overlap_prs", []), f"{prefix}.overlap_prs"
+        )
+        successor_by_pr[number] = _require_optional_pr_number(
+            pr.get("successor_pr"), f"{prefix}.successor_pr"
         )
 
         _require_non_empty_string(pr.get("title"), f"{prefix}.title")
@@ -241,6 +304,7 @@ def validate_manifest(manifest: object) -> None:
                 _fail(f"{prefix}.head_sha_status must be exact_current_head when head_sha is present")
 
     _validate_predecessor_graph(predecessors_by_pr, seen_numbers)
+    _validate_overlap_and_successor_graph(overlaps_by_pr, successor_by_pr, seen_numbers)
 
 
 def load_manifest(path: Path = DEFAULT_MANIFEST_PATH) -> object:
