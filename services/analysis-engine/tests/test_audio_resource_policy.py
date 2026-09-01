@@ -13,6 +13,7 @@ from bandscope_analysis.audio_resource_policy import (
     DEFAULT_MIN_SOURCE_CHANNELS,
     DEFAULT_MIN_SOURCE_SAMPLE_RATE,
     AudioResourcePolicy,
+    AudioResourcePolicyError,
 )
 
 
@@ -24,6 +25,62 @@ def test_default_policy_has_stable_version_and_rehearsal_budget() -> None:
     assert DEFAULT_AUDIO_RESOURCE_POLICY.max_duration_seconds == 15 * 60
     assert DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_samples == 44_100 * 15 * 60
     assert DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes == 44_100 * 15 * 60 * 8
+
+
+def test_oversized_encoded_file_exposes_stable_policy_reason() -> None:
+    """Encoded-size rejection carries a stable reason and policy version for UI/provenance."""
+    policy = AudioResourcePolicy(max_encoded_file_bytes=100)
+
+    with pytest.raises(AudioResourcePolicyError) as captured:
+        policy.validate_encoded_file_bytes(101)
+
+    assert captured.value.reason == "encoded_file_too_large"
+    assert captured.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+    assert "audio resource policy" in str(captured.value).lower()
+
+
+def test_source_metadata_exposes_stable_policy_reasons() -> None:
+    """Container admission distinguishes duration, rate, and channel rejection reasons."""
+    policy = AudioResourcePolicy(max_duration_seconds=1.0)
+
+    with pytest.raises(AudioResourcePolicyError) as duration_rejection:
+        policy.validate_source_metadata(frames=44_101, sample_rate=44_100, channels=2)
+    assert duration_rejection.value.reason == "duration_exceeded"
+    assert duration_rejection.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+
+    with pytest.raises(AudioResourcePolicyError) as rate_rejection:
+        policy.validate_source_metadata(
+            frames=44_100,
+            sample_rate=DEFAULT_MAX_SOURCE_SAMPLE_RATE + 1,
+            channels=2,
+        )
+    assert rate_rejection.value.reason == "sampling_rate_unsupported"
+    assert rate_rejection.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+
+    with pytest.raises(AudioResourcePolicyError) as channel_rejection:
+        policy.validate_source_metadata(
+            frames=44_100,
+            sample_rate=44_100,
+            channels=DEFAULT_MAX_SOURCE_CHANNELS + 1,
+        )
+    assert channel_rejection.value.reason == "channel_count_unsupported"
+    assert channel_rejection.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+
+
+def test_decoded_memory_rejection_exposes_stable_policy_reason() -> None:
+    """Post-decode memory rejection remains machine-readable without exposing payload data."""
+    policy = AudioResourcePolicy(
+        target_sample_rate=8,
+        max_duration_seconds=1.0,
+        max_decoded_audio_bytes=16,
+    )
+    audio = np.zeros(4, dtype=np.float64)
+
+    with pytest.raises(AudioResourcePolicyError) as captured:
+        policy.validate_decoded_audio(audio, 8)
+
+    assert captured.value.reason == "memory_budget_exceeded"
+    assert captured.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
 
 
 @pytest.mark.parametrize("file_size", [True, -1, 0, 101])
