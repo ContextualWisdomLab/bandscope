@@ -79,6 +79,20 @@ def _require_positive_int(value: object, field: str) -> int:
     return value
 
 
+def _normalize_base_tips(base_tips: object | None, protected_base_sha: str) -> dict[str, str]:
+    """Normalize independently resolved target-branch tips used by live PR records."""
+    if base_tips is None:
+        return {BASE_BRANCH: protected_base_sha}
+    base_tip_record = _require_record(base_tips, "base_tips")
+    normalized: dict[str, str] = {}
+    for raw_ref, raw_sha in base_tip_record.items():
+        branch_ref = _require_text(raw_ref, "base_tips branch ref")
+        normalized[branch_ref] = _require_sha(raw_sha, f"base_tips.{branch_ref}")
+    if normalized.get(BASE_BRANCH) != protected_base_sha:
+        _fail(f"base_tips.{BASE_BRANCH} must match the protected base_sha")
+    return normalized
+
+
 def collect_paginated_pulls(
     fetch_page: PageFetcher,
     *,
@@ -107,7 +121,7 @@ def _live_pr_entry(
     raw_pr: object,
     *,
     index: int,
-    base_sha: str,
+    base_tips: dict[str, str],
     existing: dict[int, dict[str, Any]],
 ) -> dict[str, object]:
     """Convert one trusted pulls-API record into the reviewed manifest schema."""
@@ -121,11 +135,13 @@ def _live_pr_entry(
         _fail(f"pull_requests[{index}].html_url must be {expected_url}")
 
     base = _require_record(pr.get("base"), f"pull_requests[{index}].base")
-    if base.get("ref") != BASE_BRANCH:
-        _fail(f"pull_requests[{index}].base.ref must be {BASE_BRANCH}")
+    base_ref = _require_text(base.get("ref"), f"pull_requests[{index}].base.ref")
+    resolved_base_sha = base_tips.get(base_ref)
+    if resolved_base_sha is None:
+        _fail(f"pull_requests[{index}].base.ref has no independently resolved base tip")
     pr_base_sha = _require_sha(base.get("sha"), f"pull_requests[{index}].base.sha")
-    if pr_base_sha != base_sha:
-        _fail(f"pull_requests[{index}].base.sha must match the live {BASE_BRANCH} tip")
+    if pr_base_sha != resolved_base_sha:
+        _fail(f"pull_requests[{index}].base.sha must match the independently resolved base tip")
 
     head = _require_record(pr.get("head"), f"pull_requests[{index}].head")
     head_sha = _require_sha(head.get("sha"), f"pull_requests[{index}].head.sha")
@@ -154,6 +170,8 @@ def _live_pr_entry(
         "url": expected_url,
         "initial_train": initial_train,
         "initial_disposition": initial_disposition,
+        "base_ref": base_ref,
+        "base_sha": resolved_base_sha,
         "head_sha": head_sha,
         "head_sha_status": "exact_current_head",
         "predecessor_prs": predecessor_prs,
@@ -168,6 +186,7 @@ def build_refreshed_manifest(
     *,
     base_sha: str,
     snapshot_date: str,
+    base_tips: object | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic complete queue while preserving reviewed routing metadata."""
     try:
@@ -180,6 +199,7 @@ def build_refreshed_manifest(
         _fail("live pull-request inventory is incomplete")
     pulls = _require_list(live.get("pull_requests"), "live result.pull_requests")
     normalized_base_sha = _require_sha(base_sha, "base_sha")
+    normalized_base_tips = _normalize_base_tips(base_tips, normalized_base_sha)
     try:
         datetime.strptime(snapshot_date, "%Y-%m-%d")
     except (TypeError, ValueError) as exc:
@@ -198,7 +218,7 @@ def build_refreshed_manifest(
         entry = _live_pr_entry(
             raw_pr,
             index=index,
-            base_sha=normalized_base_sha,
+            base_tips=normalized_base_tips,
             existing=existing,
         )
         number = int(entry["number"])
@@ -269,13 +289,20 @@ def _request_github_json(target: str, token: str | None) -> tuple[object, str]:
     return payload, link
 
 
-def fetch_live_base_sha(token: str | None) -> str:
-    """Resolve the current develop branch tip from the canonical GitHub API."""
-    target = f"{REPOSITORY_API_PREFIX}branches/{BASE_BRANCH}"
+def fetch_live_branch_sha(branch_ref: str, token: str | None) -> str:
+    """Resolve one current same-repository base branch tip through a fixed API authority."""
+    normalized_ref = _require_text(branch_ref, "branch_ref")
+    encoded_ref = urllib.parse.quote(normalized_ref, safe="")
+    target = f"{REPOSITORY_API_PREFIX}branches/{encoded_ref}"
     payload, _ = _request_github_json(target, token)
     branch = _require_record(payload, "branch")
     commit = _require_record(branch.get("commit"), "branch.commit")
     return _require_sha(commit.get("sha"), "branch.commit.sha")
+
+
+def fetch_live_base_sha(token: str | None) -> str:
+    """Resolve the current protected develop tip for backward-compatible callers."""
+    return fetch_live_branch_sha(BASE_BRANCH, token)
 
 
 def fetch_live_pull_page(
@@ -283,13 +310,12 @@ def fetch_live_pull_page(
     page_size: int,
     token: str | None,
 ) -> tuple[list[dict[str, Any]], bool]:
-    """Fetch one bounded page of open develop-targeted PRs from GitHub."""
+    """Fetch one bounded page of all open PRs so stacked bases remain in the queue."""
     _require_positive_int(page, "page")
     _require_positive_int(page_size, "page_size")
     query = urllib.parse.urlencode(
         {
             "state": "open",
-            "base": BASE_BRANCH,
             "per_page": page_size,
             "page": page,
             "sort": "created",
@@ -302,6 +328,20 @@ def fetch_live_pull_page(
     if any(not isinstance(item, dict) for item in items):
         _fail(f"pull request page {page} must contain objects")
     return items, 'rel="next"' in link
+
+
+def resolve_live_base_tips(live_result: object, token: str | None) -> dict[str, str]:
+    """Resolve every distinct current PR base branch after the complete live inventory read."""
+    live = _require_record(live_result, "live result")
+    if live.get("incomplete_results") is not False:
+        _fail("live pull-request inventory is incomplete")
+    pulls = _require_list(live.get("pull_requests"), "live result.pull_requests")
+    base_refs: set[str] = {BASE_BRANCH}
+    for index, raw_pr in enumerate(pulls):
+        pr = _require_record(raw_pr, f"pull_requests[{index}]")
+        base = _require_record(pr.get("base"), f"pull_requests[{index}].base")
+        base_refs.add(_require_text(base.get("ref"), f"pull_requests[{index}].base.ref"))
+    return {branch_ref: fetch_live_branch_sha(branch_ref, token) for branch_ref in sorted(base_refs)}
 
 
 def _write_manifest_atomic(manifest: dict[str, Any]) -> None:
@@ -328,16 +368,18 @@ def main() -> int:
     try:
         seed = load_manifest(MANIFEST_PATH)
         token = os.environ.get("GITHUB_TOKEN")
-        base_sha = fetch_live_base_sha(token)
         live_result = collect_paginated_pulls(
             lambda page, size: fetch_live_pull_page(page, size, token)
         )
+        base_tips = resolve_live_base_tips(live_result, token)
+        base_sha = base_tips[BASE_BRANCH]
         snapshot_date = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
         refreshed = build_refreshed_manifest(
             seed,
             live_result,
             base_sha=base_sha,
             snapshot_date=snapshot_date,
+            base_tips=base_tips,
         )
         _write_manifest_atomic(refreshed)
     except (ManifestError, RefreshError) as exc:
