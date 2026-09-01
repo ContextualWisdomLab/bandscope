@@ -69,7 +69,8 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     expect(previousReason).toHaveTextContent("Previous page (Unavailable)");
     expect(previousReason).toHaveClass(
       "group-hover:opacity-100",
-      "group-focus-within:opacity-100"
+      "group-focus-within:opacity-100",
+      "motion-reduce:transition-none"
     );
     previousButton.focus();
     expect(previousButton).toHaveFocus();
@@ -89,7 +90,8 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     expect(nextReason).toHaveTextContent("Next page (Unavailable)");
     expect(nextReason).toHaveClass(
       "group-hover:opacity-100",
-      "group-focus-within:opacity-100"
+      "group-focus-within:opacity-100",
+      "motion-reduce:transition-none"
     );
     nextButton.focus();
     expect(nextButton).toHaveFocus();
