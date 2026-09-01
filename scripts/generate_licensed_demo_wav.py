@@ -12,7 +12,7 @@ import wave
 from pathlib import Path
 
 SAMPLE_RATE = 22050
-DURATION_SECONDS = 2
+DURATION_SECONDS = 10
 AMPLITUDE = 0.2
 
 
@@ -27,7 +27,7 @@ def write_demo_wav(path: Path) -> None:
         frames = bytearray()
         for index in range(n_frames):
             moment = index / SAMPLE_RATE
-            frequency = 220.0 if moment < 1.0 else 330.0
+            frequency = 220.0 if moment < DURATION_SECONDS / 2 else 330.0
             sample = int(AMPLITUDE * 32767.0 * math.sin(2.0 * math.pi * frequency * moment))
             frames.extend(struct.pack("<h", sample))
         wav_file.writeframes(bytes(frames))
