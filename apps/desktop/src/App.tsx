@@ -269,8 +269,7 @@ export function App() {
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
-  const demoSelectionInFlightRef = useRef(false);
-  const localSelectionInFlightRef = useRef(false);
+  const sourceSelectionInFlightRef = useRef(false);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -393,6 +392,10 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
+      return;
+    }
+
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
     setJobResult(null);
@@ -421,17 +424,11 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    if (
-      analysisInFlight ||
-      isStarting ||
-      isImporting ||
-      isSelectingDemo ||
-      localSelectionInFlightRef.current
-    ) {
+    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
       return;
     }
 
-    localSelectionInFlightRef.current = true;
+    sourceSelectionInFlightRef.current = true;
     setIsSelectingLocal(true);
     setSelectionError(null);
     setSelectionErrorSource(null);
@@ -443,24 +440,22 @@ export function App() {
         return;
       }
 
-      setSelectedBootstrap(null);
-      setSelectedSourceKind(null);
       setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
       setSelectionErrorSource("local");
       setJobStatus(null);
     } finally {
-      localSelectionInFlightRef.current = false;
+      sourceSelectionInFlightRef.current = false;
       setIsSelectingLocal(false);
     }
   };
 
   /** Validate the bundled licensed demo through the same local-audio bootstrap. */
   const handleTryDemo = async () => {
-    if (analysisInFlight || isStarting || isImporting || demoSelectionInFlightRef.current) {
+    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
       return;
     }
 
-    demoSelectionInFlightRef.current = true;
+    sourceSelectionInFlightRef.current = true;
     setIsSelectingDemo(true);
     setSelectionError(null);
     setSelectionErrorSource(null);
@@ -472,19 +467,21 @@ export function App() {
         return;
       }
 
-      setSelectedBootstrap(null);
-      setSelectedSourceKind(null);
       setSelectionError(safeErrorDetail(selection.error.message, t("demoUnavailable")));
       setSelectionErrorSource("local");
       setJobStatus(null);
     } finally {
-      demoSelectionInFlightRef.current = false;
+      sourceSelectionInFlightRef.current = false;
       setIsSelectingDemo(false);
     }
   };
 
   /** Documented. */
   const handleImportYoutube = async () => {
+    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -500,6 +497,7 @@ export function App() {
       return;
     }
 
+    sourceSelectionInFlightRef.current = true;
     setIsImporting(true);
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
@@ -515,6 +513,7 @@ export function App() {
       setSelectionError(t("youtubeImportFailed"));
       setSelectionErrorSource("youtube");
     } finally {
+      sourceSelectionInFlightRef.current = false;
       setIsImporting(false);
     }
   };
@@ -774,7 +773,12 @@ export function App() {
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
-                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                      {youtubeUrl &&
+                      !analysisInFlight &&
+                      !isStarting &&
+                      !isImporting &&
+                      !isSelectingDemo &&
+                      !isSelectingLocal ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
@@ -789,7 +793,14 @@ export function App() {
                   </div>
                   <Button
                     onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    disabled={
+                      !youtubeUrl ||
+                      analysisInFlight ||
+                      isStarting ||
+                      isImporting ||
+                      isSelectingDemo ||
+                      isSelectingLocal
+                    }
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label={t("importYoutube")}
@@ -836,7 +847,14 @@ export function App() {
                 )}
                 <Button
                   onClick={handleStartAnalysis}
-                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  disabled={
+                    analysisInFlight ||
+                    isStarting ||
+                    !selectedBootstrap ||
+                    isImporting ||
+                    isSelectingDemo ||
+                    isSelectingLocal
+                  }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
                   aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}
