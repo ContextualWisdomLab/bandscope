@@ -1,6 +1,6 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-09-01
+Last updated: 2026-09-02
 Evidence capture: fresh live GitHub state from the current delivery run
 Protected product truth: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`
 
@@ -12,13 +12,13 @@ BandScope is a local-first rehearsal decision product. The commercial loop is co
 
 ## 1. Live delivery authority
 
-Fresh repository enumeration in this run reports **184 open pull requests** and **18 open issues**, with GitHub search `incomplete_results=false`. These counts are operational capture data and will change under concurrent writers.
+A fresh complete accessible-repository census in this run found **74 accessible ContextualWisdomLab repositories** and **2,722 organization-wide open pull requests** with GitHub search `incomplete_results=false`. At selection time `ContextualWisdomLab/bandscope` had **184 open pull requests**, the highest verified repository backlog and the buyer-visible local-first rehearsal workspace/analysis/export boundary. After the exact-head security-authority consolidation described below closed redundant PR #1119 without merge, a fresh BandScope search reported **183 open pull requests** while the organization-wide total remained **2,722** because a concurrent writer opened work elsewhere. These are capture-time operational data, not immutable totals.
 
 Protected `develop` requires the following contexts before normal integration: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`.
 
 Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change invalidates predecessor review/check receipts. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
 
-No open BandScope PR returned a qualifying `review:approved` result in the fresh approval sweep in this run. Therefore no protected merge is claimed by this baseline.
+Merge readiness is re-evaluated per unchanged exact PR head; an organization-wide approval search is not a substitute for that per-head proof.
 
 ## 2. Shipped protected truth
 
@@ -60,6 +60,8 @@ During this run #968 was non-destructively restacked on the current #1116 baseli
 
 PR #1007 is the canonical first-part-handoff lane after the unique scientific fallback prohibition from #1094 was transferred; #1094 is now closed. The #1007 branch moved normally during this run, so its PR-body SHA is stale and its independently resolved live head must be used before any action. Normal concurrent branch movement is not a race condition by itself.
 
+PR #1119 is now closed unmerged after semantic consolidation. Its remaining local `pull_request` Trivy trigger duplicated the organization-required `Security Scan` control plane rather than owning a buyer/runtime capability. On #1119 exact head `58fa0a698f4a6238a14e38c0e4cf1f4d8944cc88`, required `Security Scan` run `33526173636` completed success and exact-head job `trivy-fs` (`99917475350`) completed success, including checkout identity verification, filesystem scan, SARIF requirement, finding gate, and upload. No #1119 checks, reviews, or model evidence transfer to another PR.
+
 Duplicate closure requires a technical succession receipt naming the unique behavior/tests preserved in the successor. Draft status is used only for a real unverified/blocking boundary; it is never toggled solely to retrigger CI.
 
 ## 5. Domain model and ownership
@@ -78,6 +80,8 @@ BandScope keeps these bounded contexts distinct:
 10. **UI/Interaction** — accessible, localized rendering of domain state; no duplicated transport/project stores.
 
 Generic `utils`, `helpers`, `common`, `services`, `shared`, `core`, or `models` dumping that erases these responsibilities is a defect. Cross-context persistence and duplicated local transport stores are also defects.
+
+Organization-owned identifiers must also preserve bounded-context meaning with at least two lexical words where a specific owner exists. Casing follows the implementation language: `section_id`, `sectionId`, and `SectionId` are all valid; meaningful multiword identifiers such as `firstGrooveChange` and `SectionRoadmap` are not renamed for casing alone. Bare owned names such as `id`, `name`, `status`, `data`, `value`, `type`, `key`, `result`, or `config` are repaired when they erase an otherwise-known semantic owner. Database-owned objects use the stricter two-or-more-word `snake_case` convention when the schema is under ContextualWisdomLab control. External protocol/vendor fields retain their mandated spelling at an anti-corruption boundary.
 
 `context-graph-contracts` remains the contract-only shared kernel for canonical refs, authority/truth status, bitemporal/provenance Context Assertions, CloudEvents, schemas and conformance. `enterprise-architecture-core` remains the EA Decision Plane. While their dedicated writer is active they are read-only dependencies here; BandScope projects deployable/runtime/version/risk facts through released contracts and does not copy rehearsal audio/analysis/user truth into EA authoritative storage.
 
@@ -103,7 +107,9 @@ Owning contexts must fail closed on path/symlink/reparse traversal, oversized/de
 
 Ordinary logs/support bundles must not contain raw audio/project payloads, credentials or absolute local paths. Authorization is purpose-bound and least-privilege with field minimization, retention and access/export audit where relevant.
 
-Central `.github` PR #1546 review-control repair is merged protected truth. A previously cited central coverage owner, `.github#1567`, is closed unmerged and must not be presented as a live dependency owner. A fresh central successor must be resolved before attributing that control-plane work.
+The current central security control-plane truth inspected in this run is `ContextualWisdomLab/.github@176ae54756657f4c18f43fd9ec4dae754f57fc48`. Its required `.github/workflows/security-scan.yml` explicitly owns pull-request security enforcement: it checks out the exact PR head, runs hard `trivy-fs`, `osv-scan`, and `dependency-review` gates, uploads SARIF, and fails independently of GitHub tool-specific code-scanning configuration bookkeeping. The workflow documentation intentionally keeps the code-scanning ruleset CodeQL-only because requiring multiple tool-specific configurations on incompatible PR refs is unsatisfiable; required workflow/job results are the protected enforcement boundary. This is why redundant local Trivy PR-trigger lane #1119 was consolidated closed rather than merged.
+
+Central `.github` PR #1546 review-control repair is merged historical truth. A previously cited central coverage owner, `.github#1567`, is closed unmerged and must not be presented as a live dependency owner. Any fresh central regression is attributed only after current exact-head ownership is re-established.
 
 ## 9. UI/UX evidence gate
 
