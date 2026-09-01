@@ -127,15 +127,38 @@ def render_queue_markdown(manifest: object) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_human_view_atomic(content: str, path: Path = HUMAN_VIEW_PATH) -> None:
+def _require_safe_publication_parent(path: Path, publication_root: Path) -> None:
+    """Reject generated output whose trusted parent chain contains a symlink."""
+    if publication_root.is_symlink() or not publication_root.is_dir():
+        raise RenderError("human-view publication root must be an existing non-symlink directory")
+    try:
+        relative = path.relative_to(publication_root)
+    except ValueError as exc:
+        raise RenderError("human-view path escaped its publication root") from exc
+
+    current = publication_root
+    for component in relative.parts[:-1]:
+        current = current / component
+        if current.is_symlink():
+            raise RenderError("human-view parent must not contain symbolic links")
+        if not current.is_dir():
+            raise RenderError("human-view parent must be an existing directory")
+
+
+def write_human_view_atomic(
+    content: str,
+    path: Path = HUMAN_VIEW_PATH,
+    *,
+    publication_root: Path = REPO_ROOT,
+) -> None:
     """Publish generated Markdown atomically without following symlink authority."""
+    _require_safe_publication_parent(path, publication_root)
     if path.is_symlink():
         raise RenderError("human-view path must not be a symbolic link")
     temporary = path.with_name(f".{path.name}.tmp")
     if temporary.exists() or temporary.is_symlink():
         raise RenderError("temporary human-view path already exists")
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with temporary.open("x", encoding="utf-8", newline="\n") as handle:
             handle.write(content)
