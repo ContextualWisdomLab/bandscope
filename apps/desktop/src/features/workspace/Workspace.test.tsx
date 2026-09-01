@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { EmptyState, LoadingState } from "./WorkspaceStates";
 import { generateMetadataHandoffJson } from "../../lib/export";
+import { createPartHandoffTransitionSong } from "./firstPartHandoff.test-fixture";
 
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
@@ -327,13 +328,13 @@ describe("Workspace", () => {
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
 
-  it("names tonight's first part handoff as workspace navigation", () => {
+  it("names tonight's first part handoff as destination workspace navigation", () => {
     setNavigatorLanguage("en-US");
-    const song = createDemoRehearsalSong();
+    const song = createPartHandoffTransitionSong();
 
     render(<Workspace song={song} />);
 
-    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    const target = screen.getByTestId("song-structure-grid").children.item(1);
     expect(target).toBeTruthy();
     const scrollIntoView = vi.fn();
     Object.defineProperty(target!, "scrollIntoView", {
@@ -342,7 +343,7 @@ describe("Workspace", () => {
     });
 
     expect(
-      screen.getByText("Bass Guitar still hands off to Lead Vocal in the verse at 0:10.")
+      screen.getByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:10.")
     ).toBeTruthy();
     const action = screen.getByRole("button", {
       name: "Open Bass Guitar handoff at 0:10"
