@@ -48,4 +48,19 @@ describe("Workspace first part handoff selected-role integration", () => {
       screen.getByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:10.")
     ).toBeTruthy();
   });
+
+  it("does not let a selected role from the previous song hide a new song handoff", () => {
+    const previousSong = createDemoRehearsalSong();
+    const { rerender } = render(<Workspace song={previousSong} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
+
+    const nextSong = createPartHandoffTransitionSong();
+    rerender(<Workspace song={nextSong} />);
+
+    expect(
+      screen.getByText("Bass Guitar still hands off to Lead Vocal in the chorus at 0:10.")
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Bass Guitar handoff at 0:10" })).toBeTruthy();
+  });
 });
