@@ -62,6 +62,33 @@ jobs:
         run: |
           set -euo pipefail
           python3 /tmp/pr1009_current_findings.py production
+          python3 - <<'PY'
+          from pathlib import Path
+
+          core_path = Path("apps/desktop/core/src/lib.rs")
+          source_text = core_path.read_text(encoding="utf-8")
+          demo_marker = "pub fn validate_demo_audio_source(demo_audio_path: &Path)"
+          validator_marker = "\nfn is_valid_demo_wav("
+          if source_text.count(demo_marker) != 1 or source_text.count(validator_marker) != 1:
+              raise SystemExit("demo validation repair boundary drifted")
+          prefix_text, demo_tail = source_text.split(demo_marker, 1)
+          demo_body, suffix_text = demo_tail.split(validator_marker, 1)
+
+          leaked_canonical_count = prefix_text.count("let canonical = demo_audio_path")
+          if leaked_canonical_count == 0:
+              raise SystemExit("expected historical repair leak was not present")
+          prefix_text = prefix_text.replace("let canonical = demo_audio_path", "let canonical = path")
+
+          demo_path_count = demo_body.count("let canonical = path")
+          if demo_path_count != 2:
+              raise SystemExit(f"expected two demo canonicalization sites, found {demo_path_count}")
+          demo_body = demo_body.replace("let canonical = path", "let canonical = demo_audio_path")
+
+          repaired_text = prefix_text + demo_marker + demo_body + validator_marker + suffix_text
+          if "let canonical = demo_audio_path" in prefix_text:
+              raise SystemExit("demo path authority leaked outside validator")
+          core_path.write_text(repaired_text, encoding="utf-8")
+          PY
       - name: Verify focused GREEN
         run: |
           set -euo pipefail
