@@ -419,8 +419,27 @@ def resolve_live_base_tips(live_result: object, token: str | None) -> dict[str, 
     return {branch_ref: branch_index[branch_ref] for branch_ref in sorted(base_refs)}
 
 
+def _require_safe_publication_parent(path: Path, repository_root: Path) -> None:
+    """Reject publication paths whose repository-owned parent chain contains symlinks."""
+    try:
+        relative = path.relative_to(repository_root)
+    except ValueError:
+        _fail("open PR queue manifest path escaped the repository root")
+    if len(relative.parts) < 2:
+        _fail("open PR queue manifest path must have a repository-owned parent")
+
+    current = repository_root
+    for component in relative.parts[:-1]:
+        current = current / component
+        if current.is_symlink():
+            _fail("open PR queue manifest parent must not contain symbolic links")
+        if not current.is_dir():
+            _fail("open PR queue manifest parent must be an existing directory")
+
+
 def _write_manifest_atomic(manifest: dict[str, Any]) -> None:
     """Atomically replace the canonical manifest without following a symlink target."""
+    _require_safe_publication_parent(MANIFEST_PATH, REPO_ROOT)
     if MANIFEST_PATH.is_symlink():
         _fail("open PR queue manifest path must not be a symbolic link")
     temporary = MANIFEST_PATH.with_name(f".{MANIFEST_PATH.name}.tmp")
