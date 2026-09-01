@@ -36,6 +36,8 @@ PULL_REQUEST_FIELDS = frozenset(
         "url",
         "initial_train",
         "initial_disposition",
+        "base_ref",
+        "base_sha",
         "head_sha",
         "head_sha_status",
         "predecessor_prs",
@@ -288,6 +290,14 @@ def validate_manifest(manifest: object) -> None:
         )
         if disposition not in ALLOWED_INITIAL_DISPOSITIONS:
             _fail(f"{prefix}.initial_disposition is unsupported: {disposition}")
+
+        base_ref = pr.get("base_ref")
+        pr_base_sha = pr.get("base_sha")
+        if (base_ref is None) != (pr_base_sha is None):
+            _fail(f"{prefix}.base_ref and {prefix}.base_sha must be present together")
+        if base_ref is not None:
+            _require_non_empty_string(base_ref, f"{prefix}.base_ref")
+            _require_sha(pr_base_sha, f"{prefix}.base_sha")
 
         if "head_sha" not in pr:
             _fail(f"{prefix}.head_sha is required")
