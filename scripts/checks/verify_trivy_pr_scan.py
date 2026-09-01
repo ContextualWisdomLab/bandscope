@@ -27,8 +27,15 @@ def _indented_block(lines: list[str], header: str, indent: int) -> list[str]:
 
 
 def _has_mapping_key(lines: list[str], header: str, indent: int) -> bool:
-    """Return whether an exact YAML-like mapping key is present at ``indent``."""
-    return f"{' ' * indent}{header}:" in lines
+    """Return whether ``header`` is a mapping key at exactly ``indent``.
+
+    The value may be empty, scalar, or followed by an inline YAML comment.  In
+    particular, privileged event keys such as ``pull_request_target: # note``
+    must never evade the security contract merely because a comment follows the
+    colon.
+    """
+    prefix = f"{' ' * indent}{header}:"
+    return any(line.startswith(prefix) for line in lines)
 
 
 def _list_values(lines: list[str], header: str, indent: int) -> set[str]:
