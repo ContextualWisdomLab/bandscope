@@ -42,6 +42,8 @@ const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 const LICENSED_DEMO_PROJECT_STORAGE_KEY = "bandscope.licensedDemoProjectId";
 const LICENSED_DEMO_JOB_STORAGE_KEY = "bandscope.licensedDemoJobId";
+let currentLicensedDemoProjectId: string | null = null;
+let currentLicensedDemoJobId: string | null = null;
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
@@ -70,13 +72,35 @@ function writeSessionMarker(storageKey: string, storageValue: string): void {
   try {
     window.sessionStorage.setItem(storageKey, storageValue);
   } catch {
-    // Storage is a display-title continuity hint only; native analysis still proceeds.
+    // Storage is a reload-continuity mirror only; the current renderer keeps identity in memory.
   }
 }
 
-/** Preserve the trusted demo title across a WebView module reload. */
+/** Remember the active licensed-demo project in memory and mirror it for renderer reload continuity. */
+function rememberLicensedDemoProjectId(projectId: string): void {
+  currentLicensedDemoProjectId = projectId;
+  writeSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY, projectId);
+}
+
+/** Resolve the active licensed-demo project, preferring current renderer authority over the reload mirror. */
+function readLicensedDemoProjectId(): string | null {
+  return currentLicensedDemoProjectId ?? readSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY);
+}
+
+/** Remember the active licensed-demo job in memory and mirror it for renderer reload continuity. */
+function rememberLicensedDemoJobId(jobId: string): void {
+  currentLicensedDemoJobId = jobId;
+  writeSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY, jobId);
+}
+
+/** Resolve the active licensed-demo job, preferring current renderer authority over the reload mirror. */
+function readLicensedDemoJobId(): string | null {
+  return currentLicensedDemoJobId ?? readSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY);
+}
+
+/** Preserve the trusted demo title across the current renderer and ordinary WebView module reloads. */
 function withLicensedDemoTitle(status: AnalysisJobStatus): AnalysisJobStatus {
-  if (readSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY) !== status.jobId || !status.result) {
+  if (readLicensedDemoJobId() !== status.jobId || !status.result) {
     return status;
   }
   return {
@@ -254,7 +278,7 @@ export async function selectDemoAudioSource(): Promise<LocalAudioSelectionResult
   try {
     const response = await invokeAnalysis("select_demo_audio_source");
     const bootstrap = parseProjectBootstrapSummary(response);
-    writeSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY, bootstrap.projectId);
+    rememberLicensedDemoProjectId(bootstrap.projectId);
     return {
       ok: true,
       bootstrap
@@ -292,7 +316,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   const isLicensedDemoProject =
     parsedRequest.sourceKind === "local_audio" &&
     Boolean(parsedRequest.projectId) &&
-    readSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY) === parsedRequest.projectId;
+    readLicensedDemoProjectId() === parsedRequest.projectId;
   const analysisRequest: AnalysisJobRequest = isLicensedDemoProject
     ? { ...parsedRequest, sourceLabel: DEMO_SONG_TITLE }
     : parsedRequest;
@@ -302,7 +326,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
   try {
     const status = parseAnalysisJobStatus(response);
     if (isLicensedDemoProject) {
-      writeSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY, status.jobId);
+      rememberLicensedDemoJobId(status.jobId);
     }
     return withLicensedDemoTitle(status);
   } catch {
