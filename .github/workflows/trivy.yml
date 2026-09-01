@@ -5,10 +5,6 @@ on:
     branches:
       - develop
       - main
-  pull_request:
-    branches:
-      - develop
-      - main
 
 permissions:
   contents: read
@@ -27,8 +23,6 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
       - name: Run Trivy filesystem scan summary
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0; SHA pinning retained as supply-chain attack mitigation, do not replace with tag.
         with:
