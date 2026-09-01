@@ -44,9 +44,9 @@ The near-term product order remains: merge-train convergence; trusted distributi
 
 ## 2. Live delivery authority
 
-A complete accessible-repository sweep in this run queried all **74** currently listed `ContextualWisdomLab` repositories individually. That sequential sweep summed to **2,786 open pull requests**; a final fresh organization-wide search immediately afterward reported **2,787**, proving one additional PR arrived while the census was in progress rather than indicating a missing repository. A final fresh search reports **187 open pull requests** and **18 open issues** for `ContextualWisdomLab/bandscope`, with `incomplete_results=false`, above protected `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Fresh high-backlog peers remain lower: `ContextualWisdomLab/OriginWeave` 141, `ContextualWisdomLab/newsdom-api` 139, `ContextualWisdomLab/naruon` 134, `ContextualWisdomLab/pg-erd-cloud` 132, and `ContextualWisdomLab/TEPP` 132. These counts are volatile operational evidence, not incentives to merge or close unsafely.
+A prior complete accessible-repository sweep queried all **74** repositories then visible under `ContextualWisdomLab` individually. That sequential sweep summed to **2,786 open pull requests**; a fresh organization-wide search immediately afterward reported **2,787**, a net +1 difference across two non-simultaneous measurements. The delta demonstrates queue churn during the census but does not prove that exactly one PR was created: concurrent creations and closures can produce the same net result. It therefore is not evidence of a missing repository either. The fresh BandScope search in this delivery run reports **187 open pull requests** and **19 open issues**, both with `incomplete_results=false`, above protected `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Previously captured high-backlog peers remained lower than BandScope; those peer counts are volatile operational evidence and are not reused as current merge authority.
 
-Because PR creation and closure can occur during a sequential organization census, the organization-wide search is the final aggregate capture while the per-repository sweep proves repository coverage and relative backlog ordering. A one-PR concurrent delta is recorded explicitly rather than normalized away or misrepresented as a complete simultaneous snapshot.
+Because PR creation and closure can occur during a sequential organization census, the organization-wide search is an aggregate capture while the per-repository sweep establishes which repositories were enumerated at that time. The net one-PR delta is recorded explicitly rather than normalized away or misrepresented as a complete simultaneous snapshot or a uniquely identified creation event.
 
 Protected `develop` currently requires these 16 contexts before normal integration: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`.
 
@@ -97,7 +97,6 @@ PR #1007 is the canonical first-part-handoff lane only to the extent that its li
 Draft status is used only for a real unverified or blocked boundary and is never toggled solely to manufacture CI.
 
 ## 6. Domain model and ownership
-
 BandScope keeps these bounded contexts distinct:
 
 1. **Audio Ingestion** — user-selected source authority and intake intent.
@@ -197,7 +196,6 @@ sequenceDiagram
     participant Insight as Rehearsal Insight
     participant Player as Active Player
     participant Project as Project Persistence
-
     User->>UI: choose authorized local audio
     UI->>Ingest: admit source intent
     Ingest->>Decode: validate path/MIME/codec/resource budget
