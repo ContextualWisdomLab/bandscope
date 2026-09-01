@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useEffect, type MouseEvent } from "react";
+import { useState, useMemo, memo, useLayoutEffect, useRef, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -165,14 +165,30 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const copyRequestRef = useRef({ sequence: 0, sentence: firstRangeCopy });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    copyRequestRef.current = {
+      sequence: copyRequestRef.current.sequence + 1,
+      sentence: firstRangeCopy
+    };
     setCopyStatus("idle");
   }, [firstRangeCopy]);
 
   /** Copy tonight's first instrument check for a band chat paste. */
   const handleCopyFirstRange = async () => {
-    setCopyStatus(await copyFirstRangeAction(firstRangeCopy));
+    const request = {
+      sequence: copyRequestRef.current.sequence + 1,
+      sentence: firstRangeCopy
+    };
+    copyRequestRef.current = request;
+    const result = await copyFirstRangeAction(request.sentence);
+    if (
+      copyRequestRef.current.sequence === request.sequence &&
+      copyRequestRef.current.sentence === request.sentence
+    ) {
+      setCopyStatus(result);
+    }
   };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
