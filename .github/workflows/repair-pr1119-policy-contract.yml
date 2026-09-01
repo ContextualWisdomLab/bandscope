@@ -18,12 +18,19 @@ jobs:
   repair:
     if: ${{ github.repository == 'ContextualWisdomLab/bandscope' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: fix/trivy-pr-code-scanning
           fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.8.6"
+          enable-cache: false
       - name: Revalidate exact live PR head
         env:
           GH_TOKEN: ${{ github.token }}
@@ -41,79 +48,70 @@ jobs:
 
           path = Path("services/analysis-engine/tests/test_supply_chain_policy.py")
           text = path.read_text(encoding="utf-8")
-          old = '''def test_central_governance_workflows_are_push_only_where_local_signals_remain() -> None:
-              """Ensure central PR governance keeps only repo-local push security signals."""
-              repo_root = Path(__file__).resolve().parents[3]
-              workflows_dir = repo_root / ".github" / "workflows"
+          start_marker = "def test_central_governance_workflows_are_push_only_where_local_signals_remain() -> None:\n"
+          end_marker = "\ndef test_opencode_review_declares_top_level_token_permissions() -> None:\n"
+          if start_marker not in text or end_marker not in text:
+              raise SystemExit("expected stale policy function boundary not found on exact PR head")
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          stale = text[start:end]
+          required_stale_fragments = (
+              'for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):',
+              'assert "pull_request:" not in workflow.read_text(encoding="utf-8")',
+          )
+          if not all(fragment in stale for fragment in required_stale_fragments):
+              raise SystemExit("policy function no longer matches the proven stale Trivy contract")
+          replacement = '''def test_central_governance_workflows_preserve_local_security_signal_boundaries() -> None:
+    """Ensure local signals keep their intended push and PR trigger boundaries."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflows_dir = repo_root / ".github" / "workflows"
 
-              assert not (workflows_dir / "dependency-review.yml").exists()
+    assert not (workflows_dir / "dependency-review.yml").exists()
 
-              for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):
-                  workflow = workflows_dir / local_signal
-                  assert workflow.exists(), (
-                      f"{local_signal} keeps repository-local security-tab/SAST signal "
-                      "while central required workflows handle PR enforcement"
-                  )
-                  assert "pull_request:" not in workflow.read_text(encoding="utf-8")
+    for local_signal in ("codeql.yml", "ossf-scorecard.yml"):
+        workflow = workflows_dir / local_signal
+        assert workflow.exists(), (
+            f"{local_signal} keeps repository-local security-tab/SAST signal "
+            "while central required workflows handle PR enforcement"
+        )
+        content = workflow.read_text(encoding="utf-8")
+        assert "push:" in content, f"{local_signal} must retain push-based reporting"
+        assert "pull_request:" not in content, (
+            f"{local_signal} must not become a duplicate PR gate"
+        )
 
-              supply_chain = load_module(
-                  "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
-              )
-              required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
-              assert ".github/workflows/dependency-review.yml" not in required
-              assert ".github/workflows/codeql.yml" in required
-              assert ".github/workflows/ossf-scorecard.yml" in required
-          '''.replace("          ", "")
-          new = '''def test_central_governance_workflows_preserve_local_security_signal_boundaries() -> None:
-              """Ensure local signals keep their intended push and PR trigger boundaries."""
-              repo_root = Path(__file__).resolve().parents[3]
-              workflows_dir = repo_root / ".github" / "workflows"
+    trivy_workflow = workflows_dir / "trivy.yml"
+    assert trivy_workflow.exists(), (
+        "trivy.yml keeps repository-local SARIF reporting while providing "
+        "the repository's per-PR vulnerability scan"
+    )
+    trivy_content = trivy_workflow.read_text(encoding="utf-8")
+    assert "push:" in trivy_content, "trivy.yml must retain push-based SARIF reporting"
+    assert "pull_request:" in trivy_content, (
+        "trivy.yml must scan pull-request heads for current-head SARIF evidence"
+    )
+    pull_request_section = trivy_content.split("pull_request:", 1)[1].split(
+        "permissions:", 1
+    )[0]
+    assert "- develop" in pull_request_section
+    assert "- main" in pull_request_section
 
-              assert not (workflows_dir / "dependency-review.yml").exists()
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
+    )
+    required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
+    assert ".github/workflows/dependency-review.yml" not in required
+    assert ".github/workflows/codeql.yml" in required
+    assert ".github/workflows/ossf-scorecard.yml" in required
 
-              for local_signal in ("codeql.yml", "ossf-scorecard.yml"):
-                  workflow = workflows_dir / local_signal
-                  assert workflow.exists(), (
-                      f"{local_signal} keeps repository-local security-tab/SAST signal "
-                      "while central required workflows handle PR enforcement"
-                  )
-                  content = workflow.read_text(encoding="utf-8")
-                  assert "push:" in content, f"{local_signal} must retain push-based reporting"
-                  assert "pull_request:" not in content, (
-                      f"{local_signal} must not become a duplicate PR gate"
-                  )
-
-              trivy_workflow = workflows_dir / "trivy.yml"
-              assert trivy_workflow.exists(), (
-                  "trivy.yml keeps repository-local SARIF reporting while providing "
-                  "the repository's per-PR vulnerability scan"
-              )
-              trivy_content = trivy_workflow.read_text(encoding="utf-8")
-              assert "push:" in trivy_content, "trivy.yml must retain push-based SARIF reporting"
-              assert "pull_request:" in trivy_content, (
-                  "trivy.yml must scan pull-request heads for current-head SARIF evidence"
-              )
-              pull_request_section = trivy_content.split("pull_request:", 1)[1].split(
-                  "permissions:", 1
-              )[0]
-              assert "- develop" in pull_request_section
-              assert "- main" in pull_request_section
-
-              supply_chain = load_module(
-                  "scripts/checks/verify_supply_chain.py", "verify_supply_chain_central"
-              )
-              required = {path.as_posix() for path in supply_chain.REQUIRED_FILES}
-              assert ".github/workflows/dependency-review.yml" not in required
-              assert ".github/workflows/codeql.yml" in required
-              assert ".github/workflows/ossf-scorecard.yml" in required
-          '''.replace("          ", "")
-          if old not in text:
-              raise SystemExit("expected stale policy block not found on exact PR head")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+'''
+          path.write_text(text[:start] + replacement + text[end + 1 :], encoding="utf-8")
           PY
-          PYTHONPATH=. pytest -q \
+          uv sync --project services/analysis-engine --group dev --locked
+          PYTHONPATH=. uv run --project services/analysis-engine pytest -q \
             services/analysis-engine/tests/test_supply_chain_policy.py::test_central_governance_workflows_preserve_local_security_signal_boundaries \
             scripts/checks/test_verify_trivy_pr_scan.py
+          git diff --check
       - name: Commit repair and retire one-shot lane
         env:
           GH_TOKEN: ${{ github.token }}
