@@ -78,6 +78,43 @@ describe("RehearsalPlayer media lifecycle", () => {
     expect(screen.queryByTestId("rehearsal-loop-audio-error")).toBeNull();
   });
 
+  it("ignores a stale play rejection after playback has resumed", async () => {
+    installAudioBoundary();
+    let rejectFirstPlay: ((reason?: unknown) => void) | undefined;
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectFirstPlay = reject;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    renderPlayableSong();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Start the count-in/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Pause/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Resume/i }));
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /Count in/i,
+    );
+
+    await act(async () => {
+      const staleInterruption = new Error("The earlier play request was interrupted");
+      staleInterruption.name = "AbortError";
+      rejectFirstPlay?.(staleInterruption);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
+      /Count in/i,
+    );
+    expect(screen.queryByTestId("rehearsal-loop-audio-error")).toBeNull();
+  });
+
   it("restarts a selected loop when the media ends at the section boundary", () => {
     vi.useFakeTimers();
     installAudioBoundary();
