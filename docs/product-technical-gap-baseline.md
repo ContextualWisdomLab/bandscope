@@ -1,7 +1,7 @@
 # BandScope Product-Technical Gap Baseline
 
 Last updated: 2026-09-01
-Evidence capture: 2026-09-01 13:00 KST unless a row says otherwise
+Evidence capture: 2026-09-01 13:29 KST unless a row says otherwise
 Protected base: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`
 
 ## 1. Purpose and buyer outcome
@@ -159,25 +159,21 @@ Acceptance criteria are preregistered before tuning. Candidate-vs-baseline infer
 
 ## 5. Organization-wide live backlog evidence
 
-This capture recounts **every 71 repository currently accessible through the connected ContextualWisdomLab GitHub account**, not only previously known high-backlog repositories. The 71 repositories contain **2,686 open pull requests** in total at this capture. Counts are volatile evidence, not product constants.
+A fresh organization-wide GitHub search at this capture includes **all 72 repositories currently accessible through the connected ContextualWisdomLab GitHub account** and reports **2,697 open pull requests** in total. Repository enumeration now includes the newly visible `ContextualWisdomLab/litellm-patched-proxy` and `ContextualWisdomLab/pingora-gateway`; the prior 71-repository snapshot is therefore stale. Counts are volatile evidence, not product constants.
 
-Highest backlogs:
+The highest-backlog candidates were re-fetched individually after the organization-wide recount:
 
 | Rank | Repository | Open PRs |
 |---:|---|---:|
 | 1 | `ContextualWisdomLab/bandscope` | **188** |
 | 2 | `ContextualWisdomLab/newsdom-api` | 144 |
 | 3 | `ContextualWisdomLab/TEPP` | 141 |
-| 4 | `ContextualWisdomLab/OriginWeave` | 138 |
+| 4 | `ContextualWisdomLab/OriginWeave` | 140 |
 | 5 | `ContextualWisdomLab/naruon` | 128 |
 | 6 | `ContextualWisdomLab/html4tree` | 117 |
 | 7 | `ContextualWisdomLab/Orgmetra` | 113 |
-| 8 | `ContextualWisdomLab/pg-erd-cloud` | 112 |
-| 9 | `ContextualWisdomLab/.github` | 110 |
-| 10 | `ContextualWisdomLab/appguardrail` | 102 |
-| 11 | `ContextualWisdomLab/argos` | 100 |
-| 12 | `ContextualWisdomLab/LineageWeave` | 98 |
-| 13 | `ContextualWisdomLab/clearfolio` | 97 |
+| 8 | `ContextualWisdomLab/pg-erd-cloud` | 113 |
+| 9 | `ContextualWisdomLab/.github` | 111 |
 
 BandScope remains the selected delivery lane because it has the largest live backlog **and** the repository owns the end-user rehearsal product whose duplicated workspace slices are contributing directly to buyer-delivery fragmentation. Selection is therefore based on both count and product responsibility, not repository name.
 
@@ -324,6 +320,9 @@ World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 
 ```bash
 # protected source identity
 git rev-parse develop
+
+# organization-wide open PR count
+gh api search/issues -f q='org:ContextualWisdomLab is:pr is:open' --jq '.total_count'
 
 # BandScope current queue
 gh pr list --state open --limit 500 --json number --jq 'length'
