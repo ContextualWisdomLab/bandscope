@@ -54,8 +54,26 @@ import {
   InPageNavList,
 } from "./in-page-nav"
 import { Toaster, toast } from "./sonner"
+import { Textarea } from "./textarea"
+import { Skeleton } from "./skeleton"
 
 describe("added ui primitives (runtime render)", () => {
+  it("Textarea renders a textarea element", () => {
+    const { container } = render(<Textarea placeholder="텍스트 입력..." />)
+    const textarea = container.querySelector('[data-slot="textarea"]')
+    expect(textarea).toBeTruthy()
+    expect(textarea?.tagName).toBe("TEXTAREA")
+    expect(screen.getByPlaceholderText("텍스트 입력...")).toBeTruthy()
+  })
+
+  it("Skeleton renders a div with pulse animation", () => {
+    const { container } = render(<Skeleton data-testid="skeleton-test" className="h-4 w-4" />)
+    const skeleton = container.querySelector('[data-slot="skeleton"]')
+    expect(skeleton).toBeTruthy()
+    expect(skeleton?.className).toContain("animate-pulse")
+    expect(skeleton?.className).toContain("h-4 w-4")
+  })
+
   it("Table renders header, row and cell", () => {
     const { container } = render(
       <Table>

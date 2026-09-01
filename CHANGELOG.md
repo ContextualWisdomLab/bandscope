@@ -4,6 +4,7 @@
 
 ### Added
 
+- 다중 행 텍스트 입력을 지원하는 `Textarea` 및 로딩 상태를 표시하는 `Skeleton` UI 컴포넌트를 디자인 시스템에 맞춰 새롭게 추가했습니다.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
