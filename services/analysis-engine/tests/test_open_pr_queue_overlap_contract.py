@@ -91,11 +91,11 @@ def test_manifest_accepts_symmetric_overlap_with_explicit_successor() -> None:
     ("mutate", "expected"),
     [
         (
-            lambda manifest: manifest["pull_requests"][1].update(overlap_prs=[9999]),
+            lambda manifest: manifest["pull_requests"][0].update(overlap_prs=[9999]),
             "unknown overlap",
         ),
         (
-            lambda manifest: manifest["pull_requests"][1].update(overlap_prs=[1094]),
+            lambda manifest: manifest["pull_requests"][0].update(overlap_prs=[1007]),
             "overlap itself",
         ),
         (
