@@ -267,9 +267,10 @@ export function App() {
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isOpeningProject, setIsOpeningProject] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
-  const sourceSelectionInFlightRef = useRef(false);
+  const workspaceIntakeInFlightRef = useRef(false);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -392,7 +393,7 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
-    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
       return;
     }
 
@@ -424,11 +425,11 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
       return;
     }
 
-    sourceSelectionInFlightRef.current = true;
+    workspaceIntakeInFlightRef.current = true;
     setIsSelectingLocal(true);
     setSelectionError(null);
     setSelectionErrorSource(null);
@@ -444,18 +445,18 @@ export function App() {
       setSelectionErrorSource("local");
       setJobStatus(null);
     } finally {
-      sourceSelectionInFlightRef.current = false;
+      workspaceIntakeInFlightRef.current = false;
       setIsSelectingLocal(false);
     }
   };
 
   /** Validate the bundled licensed demo through the same local-audio bootstrap. */
   const handleTryDemo = async () => {
-    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
       return;
     }
 
-    sourceSelectionInFlightRef.current = true;
+    workspaceIntakeInFlightRef.current = true;
     setIsSelectingDemo(true);
     setSelectionError(null);
     setSelectionErrorSource(null);
@@ -471,14 +472,14 @@ export function App() {
       setSelectionErrorSource("local");
       setJobStatus(null);
     } finally {
-      sourceSelectionInFlightRef.current = false;
+      workspaceIntakeInFlightRef.current = false;
       setIsSelectingDemo(false);
     }
   };
 
   /** Documented. */
   const handleImportYoutube = async () => {
-    if (analysisInFlight || isStarting || sourceSelectionInFlightRef.current) {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
       return;
     }
 
@@ -497,7 +498,7 @@ export function App() {
       return;
     }
 
-    sourceSelectionInFlightRef.current = true;
+    workspaceIntakeInFlightRef.current = true;
     setIsImporting(true);
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
@@ -513,7 +514,7 @@ export function App() {
       setSelectionError(t("youtubeImportFailed"));
       setSelectionErrorSource("youtube");
     } finally {
-      sourceSelectionInFlightRef.current = false;
+      workspaceIntakeInFlightRef.current = false;
       setIsImporting(false);
     }
   };
@@ -526,6 +527,12 @@ export function App() {
 
   /** Documented. */
   const handleLoadProject = async () => {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
+      return;
+    }
+
+    workspaceIntakeInFlightRef.current = true;
+    setIsOpeningProject(true);
     try {
       const song = await loadProject();
       setJobResult(song);
@@ -541,6 +548,9 @@ export function App() {
       if (!isUserCancellation(e)) {
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
+    } finally {
+      workspaceIntakeInFlightRef.current = false;
+      setIsOpeningProject(false);
     }
   };
 
@@ -575,7 +585,7 @@ export function App() {
       <EmptyState
         selectedLabel={selectedBootstrap?.source.fileName ?? null}
         selectedKind={selectedSourceKind}
-        disabled={isImporting || isSelectingDemo || isSelectingLocal}
+        disabled={isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
         onTryDemo={handleTryDemo}
         onUseOwnSong={handleChooseLocalAudio}
       />
@@ -747,7 +757,7 @@ export function App() {
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal}
+                  disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
                   variant="secondary"
                   className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label={t("chooseLocalAudio")}
@@ -767,7 +777,7 @@ export function App() {
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal}
+                        disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
@@ -778,7 +788,8 @@ export function App() {
                       !isStarting &&
                       !isImporting &&
                       !isSelectingDemo &&
-                      !isSelectingLocal ? (
+                      !isSelectingLocal &&
+                      !isOpeningProject ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
@@ -799,7 +810,8 @@ export function App() {
                       isStarting ||
                       isImporting ||
                       isSelectingDemo ||
-                      isSelectingLocal
+                      isSelectingLocal ||
+                      isOpeningProject
                     }
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
@@ -814,7 +826,7 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
+                  disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
@@ -853,7 +865,8 @@ export function App() {
                     !selectedBootstrap ||
                     isImporting ||
                     isSelectingDemo ||
-                    isSelectingLocal
+                    isSelectingLocal ||
+                    isOpeningProject
                   }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"

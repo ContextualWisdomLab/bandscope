@@ -1,4 +1,4 @@
-import type { ProjectBootstrapSummary } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type ProjectBootstrapSummary } from "@bandscope/shared-types";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -154,4 +154,55 @@ describe("App local song intake concurrency", () => {
     resolveSelection?.({ ok: true, bootstrap: selectedBootstrap });
     await waitFor(() => expect(startAnalysis).not.toBeDisabled());
   });
+
+  it("serializes project loading after source selection takes intake authority", async () => {
+    let resolveSelection: ((value: SuccessfulLocalAudioSelection) => void) | undefined;
+    analysisMocks.selectLocalAudioSource.mockImplementation(
+      () =>
+        new Promise<SuccessfulLocalAudioSelection>((resolve) => {
+          resolveSelection = resolve;
+        }),
+    );
+    analysisMocks.loadProject.mockResolvedValue(createDemoRehearsalSong());
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Use my own song" }));
+
+    const openProject = screen.getByRole("button", { name: "Open Project" });
+    await waitFor(() => expect(openProject).toBeDisabled());
+    openProject.removeAttribute("disabled");
+    fireEvent.click(openProject);
+    expect(analysisMocks.loadProject).not.toHaveBeenCalled();
+
+    resolveSelection?.({ ok: true, bootstrap: selectedBootstrap });
+    await waitFor(() => expect(screen.getByText("selected-song.wav")).toBeTruthy());
+  });
+
+  it("serializes source selection after project loading takes intake authority", async () => {
+    let resolveProject: ((value: ReturnType<typeof createDemoRehearsalSong>) => void) | undefined;
+    analysisMocks.loadProject.mockImplementation(
+      () =>
+        new Promise<ReturnType<typeof createDemoRehearsalSong>>((resolve) => {
+          resolveProject = resolve;
+        }),
+    );
+    analysisMocks.selectLocalAudioSource.mockResolvedValue({ ok: true, bootstrap: selectedBootstrap });
+
+    render(<App />);
+    const openProject = screen.getByRole("button", { name: "Open Project" });
+    const chooseLocalAudio = screen.getByRole("button", { name: "Choose local audio" });
+    fireEvent.click(openProject);
+
+    await waitFor(() => {
+      expect(openProject).toBeDisabled();
+      expect(chooseLocalAudio).toBeDisabled();
+    });
+    chooseLocalAudio.removeAttribute("disabled");
+    fireEvent.click(chooseLocalAudio);
+    expect(analysisMocks.selectLocalAudioSource).not.toHaveBeenCalled();
+
+    resolveProject?.(createDemoRehearsalSong());
+    await waitFor(() => expect(screen.getByText("Late Night Set")).toBeTruthy());
+  });
+
 });

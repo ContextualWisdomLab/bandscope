@@ -43,6 +43,14 @@ pub const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 pub const DEMO_AUDIO_FILE_NAME: &str = "late-night-set.wav";
 
 pub const DEMO_AUDIO_BYTES: u64 = 88244;
+const DEMO_AUDIO_FORMAT_CODE: u16 = 1;
+const DEMO_AUDIO_CHANNEL_COUNT: u16 = 1;
+const DEMO_AUDIO_SAMPLE_RATE_HZ: u32 = 22_050;
+const DEMO_AUDIO_BYTE_RATE: u32 = 44_100;
+const DEMO_AUDIO_BLOCK_ALIGN_BYTES: u16 = 2;
+const DEMO_AUDIO_BITS_PER_SAMPLE: u16 = 16;
+const DEMO_AUDIO_FORMAT_CHUNK_BYTES: u32 = 16;
+const DEMO_AUDIO_DATA_BYTES: u32 = DEMO_AUDIO_BYTES as u32 - 44;
 
 pub const DEMO_UNAVAILABLE_MESSAGE: &str =
     "The licensed demo song could not be loaded. Use your own song to start tonight.";
@@ -667,20 +675,20 @@ pub fn validate_score_pdf_source(path: &Path) -> Result<(PathBuf, String, u64), 
 }
 
 /// Validate the bundled licensed demo WAV before it reuses local-audio bootstrap.
-pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, String> {
+pub fn validate_demo_audio_source(demo_audio_path: &Path) -> Result<LocalAudioSourcePayload, String> {
     let link_metadata =
-        std::fs::symlink_metadata(path).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+        std::fs::symlink_metadata(demo_audio_path).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
     #[cfg(not(all(coverage, windows)))]
     if link_metadata.file_type().is_symlink() {
         return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
     }
 
     #[cfg(coverage)]
-    let canonical = path
+    let canonical = demo_audio_path
         .canonicalize()
         .expect("demo audio path should canonicalize after metadata lookup");
     #[cfg(not(coverage))]
-    let canonical = path
+    let canonical = demo_audio_path
         .canonicalize()
         .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
 
@@ -703,8 +711,9 @@ pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload
         return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
     }
 
-    let data = std::fs::read(&canonical).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
-    if !is_valid_demo_wav(&data) {
+    let wav_bytes =
+        std::fs::read(&canonical).map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    if wav_bytes.len() as u64 != DEMO_AUDIO_BYTES || !is_valid_demo_wav(&wav_bytes) {
         return Err(DEMO_UNAVAILABLE_MESSAGE.to_string());
     }
 
@@ -712,77 +721,37 @@ pub fn validate_demo_audio_source(path: &Path) -> Result<LocalAudioSourcePayload
         source_path: canonical.to_string_lossy().into_owned(),
         file_name: file_name.to_string(),
         extension,
-        file_size_bytes: link_metadata.len(),
+        file_size_bytes: wav_bytes.len() as u64,
     })
 }
 
-fn is_valid_demo_wav(data: &[u8]) -> bool {
-    if data.len() < 44
-        || &data[0..4] != WAV_RIFF_MAGIC
-        || &data[8..12] != WAV_WAVE_MAGIC
-        || u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize != data.len() - 8
+fn is_valid_demo_wav(wav_bytes: &[u8]) -> bool {
+    if wav_bytes.len() != DEMO_AUDIO_BYTES as usize
+        || &wav_bytes[0..4] != WAV_RIFF_MAGIC
+        || &wav_bytes[8..12] != WAV_WAVE_MAGIC
+        || u32::from_le_bytes([wav_bytes[4], wav_bytes[5], wav_bytes[6], wav_bytes[7]]) as usize
+            != wav_bytes.len() - 8
+        || &wav_bytes[12..16] != b"fmt "
+        || u32::from_le_bytes([wav_bytes[16], wav_bytes[17], wav_bytes[18], wav_bytes[19]])
+            != DEMO_AUDIO_FORMAT_CHUNK_BYTES
+        || u16::from_le_bytes([wav_bytes[20], wav_bytes[21]]) != DEMO_AUDIO_FORMAT_CODE
+        || u16::from_le_bytes([wav_bytes[22], wav_bytes[23]]) != DEMO_AUDIO_CHANNEL_COUNT
+        || u32::from_le_bytes([wav_bytes[24], wav_bytes[25], wav_bytes[26], wav_bytes[27]])
+            != DEMO_AUDIO_SAMPLE_RATE_HZ
+        || u32::from_le_bytes([wav_bytes[28], wav_bytes[29], wav_bytes[30], wav_bytes[31]])
+            != DEMO_AUDIO_BYTE_RATE
+        || u16::from_le_bytes([wav_bytes[32], wav_bytes[33]]) != DEMO_AUDIO_BLOCK_ALIGN_BYTES
+        || u16::from_le_bytes([wav_bytes[34], wav_bytes[35]]) != DEMO_AUDIO_BITS_PER_SAMPLE
+        || &wav_bytes[36..40] != b"data"
+        || u32::from_le_bytes([wav_bytes[40], wav_bytes[41], wav_bytes[42], wav_bytes[43]])
+            != DEMO_AUDIO_DATA_BYTES
     {
         return false;
     }
 
-    let mut offset = 12usize;
-    let mut has_format = false;
-    let mut has_data = false;
-    while offset < data.len() {
-        let header_end = match offset.checked_add(8) {
-            Some(value) if value <= data.len() => value,
-            _ => return false,
-        };
-        let chunk_size = u32::from_le_bytes([
-            data[offset + 4],
-            data[offset + 5],
-            data[offset + 6],
-            data[offset + 7],
-        ]) as usize;
-        let chunk_end = match header_end.checked_add(chunk_size) {
-            Some(value) if value <= data.len() => value,
-            _ => return false,
-        };
-        let next_offset = match chunk_end.checked_add(chunk_size % 2) {
-            Some(value) if value <= data.len() => value,
-            _ => return false,
-        };
-
-        match &data[offset..offset + 4] {
-            b"fmt " if chunk_size >= 16 => {
-                let format = u16::from_le_bytes([data[header_end], data[header_end + 1]]);
-                let channels = u16::from_le_bytes([data[header_end + 2], data[header_end + 3]]);
-                let sample_rate = u32::from_le_bytes([
-                    data[header_end + 4],
-                    data[header_end + 5],
-                    data[header_end + 6],
-                    data[header_end + 7],
-                ]);
-                let byte_rate = u32::from_le_bytes([
-                    data[header_end + 8],
-                    data[header_end + 9],
-                    data[header_end + 10],
-                    data[header_end + 11],
-                ]);
-                let block_align =
-                    u16::from_le_bytes([data[header_end + 12], data[header_end + 13]]);
-                let bits_per_sample =
-                    u16::from_le_bytes([data[header_end + 14], data[header_end + 15]]);
-                has_format = format == 1
-                    && channels > 0
-                    && sample_rate > 0
-                    && byte_rate > 0
-                    && block_align > 0
-                    && bits_per_sample > 0;
-            }
-            b"data" if chunk_size > 0 => has_data = true,
-            _ => {}
-        }
-
-        offset = next_offset;
-    }
-
-    offset == data.len() && has_format && has_data
+    let derived_block_align = DEMO_AUDIO_CHANNEL_COUNT * (DEMO_AUDIO_BITS_PER_SAMPLE / 8);
+    let derived_byte_rate = DEMO_AUDIO_SAMPLE_RATE_HZ * u32::from(derived_block_align);
+    DEMO_AUDIO_BLOCK_ALIGN_BYTES == derived_block_align && DEMO_AUDIO_BYTE_RATE == derived_byte_rate
 }
 
 /// Security Notes: reads and deletes never accept an arbitrary path from the
@@ -1411,25 +1380,30 @@ mod tests {
         let _ = std::fs::remove_dir_all(outside_root);
     }
 
-    fn write_sized_demo_wav(path: &Path, bytes: u64, riff: bool, wave: bool) {
-        let mut data = vec![0u8; bytes as usize];
-        if riff && wave && data.len() >= 44 {
-            let data_len = data.len() as u32;
-            data[0..4].copy_from_slice(b"RIFF");
-            data[4..8].copy_from_slice(&(data_len - 8).to_le_bytes());
-            data[8..12].copy_from_slice(b"WAVE");
-            data[12..16].copy_from_slice(b"fmt ");
-            data[16..20].copy_from_slice(&16u32.to_le_bytes());
-            data[20..22].copy_from_slice(&1u16.to_le_bytes());
-            data[22..24].copy_from_slice(&1u16.to_le_bytes());
-            data[24..28].copy_from_slice(&44_100u32.to_le_bytes());
-            data[28..32].copy_from_slice(&88_200u32.to_le_bytes());
-            data[32..34].copy_from_slice(&2u16.to_le_bytes());
-            data[34..36].copy_from_slice(&16u16.to_le_bytes());
-            data[36..40].copy_from_slice(b"data");
-            data[40..44].copy_from_slice(&(data_len - 44).to_le_bytes());
+    fn write_sized_demo_wav(
+        demo_audio_path: &Path,
+        wav_size_bytes: u64,
+        include_riff: bool,
+        include_wave: bool,
+    ) {
+        let mut wav_bytes = vec![0u8; wav_size_bytes as usize];
+        if include_riff && include_wave && wav_bytes.len() >= 44 {
+            let wav_length = wav_bytes.len() as u32;
+            wav_bytes[0..4].copy_from_slice(b"RIFF");
+            wav_bytes[4..8].copy_from_slice(&(wav_length - 8).to_le_bytes());
+            wav_bytes[8..12].copy_from_slice(b"WAVE");
+            wav_bytes[12..16].copy_from_slice(b"fmt ");
+            wav_bytes[16..20].copy_from_slice(&16u32.to_le_bytes());
+            wav_bytes[20..22].copy_from_slice(&1u16.to_le_bytes());
+            wav_bytes[22..24].copy_from_slice(&1u16.to_le_bytes());
+            wav_bytes[24..28].copy_from_slice(&22_050u32.to_le_bytes());
+            wav_bytes[28..32].copy_from_slice(&44_100u32.to_le_bytes());
+            wav_bytes[32..34].copy_from_slice(&2u16.to_le_bytes());
+            wav_bytes[34..36].copy_from_slice(&16u16.to_le_bytes());
+            wav_bytes[36..40].copy_from_slice(b"data");
+            wav_bytes[40..44].copy_from_slice(&(wav_length - 44).to_le_bytes());
         }
-        std::fs::write(path, data).expect("demo fixture should be written");
+        std::fs::write(demo_audio_path, wav_bytes).expect("demo fixture should be written");
     }
 
     #[test]
@@ -1442,6 +1416,56 @@ mod tests {
         assert_eq!(source.file_name, DEMO_AUDIO_FILE_NAME);
         assert_eq!(source.extension, "wav");
         assert_eq!(source.file_size_bytes, DEMO_AUDIO_BYTES);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn demo_audio_validation_rejects_pcm_drift_duplicate_chunks_and_short_buffers() {
+        let root = unique_test_dir("demo-contract-reject");
+        std::fs::create_dir_all(&root).expect("demo root should be created");
+        let demo_audio_path = root.join(DEMO_AUDIO_FILE_NAME);
+
+        write_sized_demo_wav(&demo_audio_path, DEMO_AUDIO_BYTES, true, true);
+        let mut wrong_pcm =
+            std::fs::read(&demo_audio_path).expect("valid demo fixture should be readable");
+        wrong_pcm[24..28].copy_from_slice(&44_100u32.to_le_bytes());
+        wrong_pcm[28..32].copy_from_slice(&88_200u32.to_le_bytes());
+        std::fs::write(&demo_audio_path, wrong_pcm).expect("PCM drift fixture should be writable");
+        assert!(validate_demo_audio_source(&demo_audio_path).is_err());
+
+        let mut duplicate_chunks = vec![0u8; DEMO_AUDIO_BYTES as usize];
+        let wav_length = duplicate_chunks.len() as u32;
+        duplicate_chunks[0..4].copy_from_slice(b"RIFF");
+        duplicate_chunks[4..8].copy_from_slice(&(wav_length - 8).to_le_bytes());
+        duplicate_chunks[8..12].copy_from_slice(b"WAVE");
+        for format_offset in [12usize, 36usize] {
+            duplicate_chunks[format_offset..format_offset + 4].copy_from_slice(b"fmt ");
+            duplicate_chunks[format_offset + 4..format_offset + 8]
+                .copy_from_slice(&16u32.to_le_bytes());
+            duplicate_chunks[format_offset + 8..format_offset + 10]
+                .copy_from_slice(&1u16.to_le_bytes());
+            duplicate_chunks[format_offset + 10..format_offset + 12]
+                .copy_from_slice(&1u16.to_le_bytes());
+            duplicate_chunks[format_offset + 12..format_offset + 16]
+                .copy_from_slice(&22_050u32.to_le_bytes());
+            duplicate_chunks[format_offset + 16..format_offset + 20]
+                .copy_from_slice(&44_100u32.to_le_bytes());
+            duplicate_chunks[format_offset + 20..format_offset + 22]
+                .copy_from_slice(&2u16.to_le_bytes());
+            duplicate_chunks[format_offset + 22..format_offset + 24]
+                .copy_from_slice(&16u16.to_le_bytes());
+        }
+        duplicate_chunks[60..64].copy_from_slice(b"data");
+        duplicate_chunks[64..68].copy_from_slice(&(wav_length - 68).to_le_bytes());
+        std::fs::write(&demo_audio_path, duplicate_chunks)
+            .expect("duplicate chunk fixture should be writable");
+        assert!(validate_demo_audio_source(&demo_audio_path).is_err());
+
+        let short_size = DEMO_AUDIO_BYTES - 2;
+        write_sized_demo_wav(&demo_audio_path, short_size, true, true);
+        let short_wav = std::fs::read(&demo_audio_path).expect("short fixture should be readable");
+        assert!(!is_valid_demo_wav(&short_wav));
+
         let _ = std::fs::remove_dir_all(root);
     }
 
