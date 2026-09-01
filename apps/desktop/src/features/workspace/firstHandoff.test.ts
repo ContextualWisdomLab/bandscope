@@ -3,22 +3,43 @@ import { describe, expect, it } from "vitest";
 import { fillRangeCopy } from "./firstRangeSqueeze";
 import { firstHandoff } from "./firstHandoff";
 
+function withDestination(song: RehearsalSong): RehearsalSong {
+  const source = song.sections[0];
+  return {
+    ...song,
+    sections: [
+      source,
+      {
+        ...source,
+        id: "chorus-1",
+        label: "chorus",
+        partGraph: source.partGraph.map((node) => ({
+          ...node,
+          handoff_to: [],
+          handoff_from: []
+        }))
+      }
+    ]
+  };
+}
+
 function withPartGraph(
   song: RehearsalSong,
   partGraph: RehearsalSong["sections"][number]["partGraph"]
 ): RehearsalSong {
+  const readySong = withDestination(song);
   return {
-    ...song,
-    sections: song.sections.map((section, index) =>
+    ...readySong,
+    sections: readySong.sections.map((section, index) =>
       index === 0 ? { ...section, partGraph } : section
     )
   };
 }
 
 describe("firstHandoff", () => {
-  it("names the first active pass from the existing part graph", () => {
-    expect(firstHandoff(createDemoRehearsalSong())).toEqual({
-      sectionLabel: "verse",
+  it("names the first active pass from the source graph at its destination section", () => {
+    expect(firstHandoff(withDestination(createDemoRehearsalSong()))).toEqual({
+      sectionLabel: "chorus",
       fromRole: "Bass Guitar",
       toRole: "Lead Vocal"
     });
@@ -55,6 +76,17 @@ describe("firstHandoff", () => {
     expect(firstHandoff(malformed)).toBeNull();
   });
 
+  it("fails closed when the destination section has no meaningful label", () => {
+    const song = withDestination(createDemoRehearsalSong());
+    const destination = { ...song.sections[1], label: " " };
+
+    expect(firstHandoff({ ...song, sections: [song.sections[0], destination] })).toBeNull();
+  });
+
+  it("does not invent a transition for a one-section song", () => {
+    expect(firstHandoff(createDemoRehearsalSong())).toBeNull();
+  });
+
   it("skips inactive nodes until an active named receiver exists", () => {
     const song = withPartGraph(createDemoRehearsalSong(), [
       {
@@ -78,7 +110,7 @@ describe("firstHandoff", () => {
     ]);
 
     expect(firstHandoff(song)).toEqual({
-      sectionLabel: "verse",
+      sectionLabel: "chorus",
       fromRole: "Keyboard 1 Right Hand",
       toRole: "Lead Vocal"
     });
@@ -95,23 +127,24 @@ describe("firstHandoff", () => {
     ]);
 
     expect(firstHandoff(song)).toEqual({
-      sectionLabel: "verse",
+      sectionLabel: "chorus",
       fromRole: "Bass Guitar",
       toRole: "Lead Vocal"
     });
   });
 
   it("limits the pass to the selected role as giver or receiver", () => {
-    expect(firstHandoff(createDemoRehearsalSong(), "lead-vocal")).toEqual({
-      sectionLabel: "verse",
+    expect(firstHandoff(withDestination(createDemoRehearsalSong()), "lead-vocal")).toEqual({
+      sectionLabel: "chorus",
       fromRole: "Bass Guitar",
       toRole: "Lead Vocal"
     });
   });
 
   it("returns null when the selected role is not on a named pass", () => {
-    expect(firstHandoff(createDemoRehearsalSong(), "keys-right")).toBeNull();
-    expect(firstHandoff(createDemoRehearsalSong(), "missing-role")).toBeNull();
+    const song = withDestination(createDemoRehearsalSong());
+    expect(firstHandoff(song, "keys-right")).toBeNull();
+    expect(firstHandoff(song, "missing-role")).toBeNull();
   });
 
   it("skips inherited or malformed part-graph evidence", () => {
@@ -131,7 +164,7 @@ describe("firstHandoff", () => {
     ]);
 
     expect(firstHandoff(song)).toEqual({
-      sectionLabel: "verse",
+      sectionLabel: "chorus",
       fromRole: "Keyboard 1 Right Hand",
       toRole: "Lead Vocal"
     });
