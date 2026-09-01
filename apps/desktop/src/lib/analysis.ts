@@ -38,6 +38,7 @@ const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
+  "Could not prepare the selected audio for playback.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
   "Could not prepare the local temp workspace."
