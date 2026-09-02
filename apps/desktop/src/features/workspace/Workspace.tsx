@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillUnloggedPracticeCopy, firstUnloggedPractice } from "./firstUnloggedPractice";
 import {
   practiceProgressNextAction,
   type PracticeProgressNextAction
@@ -181,6 +182,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstUnlogged = useMemo(() => firstUnloggedPractice(song, activeRole), [activeRole, song]);
+  const firstUnloggedCopy =
+    firstUnlogged.kind === "unlogged"
+      ? fillUnloggedPracticeCopy(t("workspaceFirstUnloggedPracticeCheck"), {
+          roleName: firstUnlogged.roleName,
+          sectionLabel: firstUnlogged.sectionLabel
+        })
+      : firstUnlogged.kind === "selected-logged"
+        ? t("workspaceFirstUnloggedPracticeSelectedReady")
+        : firstUnlogged.kind === "all-logged"
+          ? t("workspaceFirstUnloggedPracticeMissing")
+          : t("workspaceFirstUnloggedPracticeUnavailable");
   const practiceNext = useMemo(
     () => practiceProgressNextAction(song, activeRole),
     [activeRole, song]
@@ -336,6 +349,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+
+          <section
+            className="rounded-2xl border border-indigo-300/20 bg-indigo-300/[0.08] p-4"
+            data-testid="first-unlogged-practice"
+            aria-label={t("workspaceFirstUnloggedPracticeTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-indigo-200">{t("workspaceFirstUnloggedPracticeTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstUnloggedCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
