@@ -155,7 +155,7 @@
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "workspacePracticeProgressStart": "{roleName}의 첫 음역을 확인한 다음, 이 파트를 시작했다고 표시하세요.",
   "workspacePracticeProgressContinue": "{roleName}을 합주실에서 바로 쓸 수 있을 때까지 계속 연습하세요.",
-  "workspacePracticeProgressReadyNext": "{roleName}은 준비됐습니다. {nextRoleName}으로 바꿔 그 파트의 음역을 확인하세요.",
+  "workspacePracticeProgressReadyNext": "{roleName}은 준비됐습니다. {nextRoleName} 파트로 바꿔 그 파트의 음역을 확인하세요.",
   "workspacePracticeProgressReadyDone": "이름이 있는 파트가 모두 준비됐습니다. 오늘 큐시트를 내려받아 그룹에 보내세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
