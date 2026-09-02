@@ -121,15 +121,15 @@ class TemporalAnalyzer:
                 "audio_path": path_str,
             }
 
-        except AudioResourcePolicyError as error:
+        except AudioResourcePolicyError as policy_error:
             logger.info(
                 "Rejected audio against resource policy version %s (%s)",
-                error.policy_version,
-                error.reason,
+                policy_error.policy_version,
+                policy_error.rejection_reason,
             )
             raise
         except ValueError:
             raise
-        except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+        except Exception as analysis_error:
+            logger.error(f"Failed to analyze audio {path_str}: {analysis_error}")
+            raise ValueError(f"Temporal analysis failed: {analysis_error}") from analysis_error
