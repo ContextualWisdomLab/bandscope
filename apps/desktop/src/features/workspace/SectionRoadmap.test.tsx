@@ -131,4 +131,35 @@ describe("SectionRoadmap", () => {
     expect(second).toBeTruthy();
     expect(second?.className).toContain("ring-cyan-300/70");
   });
+
+  it("edits only the renderer-selected occurrence when analysis section and role ids collide", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const firstSection = song.sections[0]!;
+    const duplicate = {
+      ...firstSection,
+      roles: firstSection.roles.map((role) => ({
+        ...role,
+        harmony: { ...role.harmony },
+        manualOverrides: [...role.manualOverrides]
+      }))
+    };
+    song.sections = [firstSection, duplicate];
+    const onSongUpdate = vi.fn();
+    vi.spyOn(window, "prompt").mockReturnValue("Dm7");
+
+    render(<SectionRoadmap song={song} activeRole="bass-guitar" onSongUpdate={onSongUpdate} />);
+
+    const editButtons = screen.getAllByRole("button", {
+      name: "Edit chord for Bass Guitar in verse, current C#m7"
+    });
+    expect(editButtons).toHaveLength(2);
+    fireEvent.click(editButtons[1]!);
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    const updatedSong = onSongUpdate.mock.calls[0]![0];
+    expect(updatedSong.sections[0].roles[0].harmony.chord).toBe("C#m7");
+    expect(updatedSong.sections[1].roles[0].harmony.chord).toBe("Dm7");
+    expect(updatedSong.sections[1].roles[0].harmony.source).toBe("user");
+  });
 });
