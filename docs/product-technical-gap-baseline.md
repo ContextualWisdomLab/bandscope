@@ -44,11 +44,11 @@ The near-term product order remains: merge-train convergence; trusted distributi
 
 ## 2. Live delivery authority
 
-A fresh accessible-repository sweep queried all **74** repositories currently visible under `ContextualWisdomLab` individually. The sequential per-repository counts summed to **2,827 open pull requests**, and an organization-wide aggregate immediately after the sweep returned **2,834 open pull requests** with `incomplete_results=false`. The seven-request delta is retained as live movement during a non-simultaneous census rather than normalized away or treated as evidence of an omitted repository.
+A fresh accessible-repository sweep queried all **74** repositories currently visible under `ContextualWisdomLab` individually. The sequential per-repository counts summed to **2,865 open pull requests**. An organization-wide aggregate captured immediately after that sweep returned **2,866 open pull requests** with `incomplete_results=false`. The one-request delta is retained as non-simultaneous live queue movement rather than normalized away or treated as an omitted repository.
 
-`ContextualWisdomLab/bandscope` remained the highest-backlog repository at **185 open pull requests** and **19 open issues**. Freshly counted high-backlog peers were `ContextualWisdomLab/naruon` (142), `ContextualWisdomLab/OriginWeave` (141), `ContextualWisdomLab/newsdom-api` (137), `ContextualWisdomLab/pg-erd-cloud` (135), and `ContextualWisdomLab/TEPP` (131). BandScope remains the selected delivery boundary not by name alone but because it combines the largest observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
+At this census `ContextualWisdomLab/bandscope` had **196 open pull requests** and remains the selected delivery boundary. Fresh high-backlog peers were `ContextualWisdomLab/naruon` (143), `ContextualWisdomLab/OriginWeave` (141), `ContextualWisdomLab/newsdom-api` (137), `ContextualWisdomLab/pg-erd-cloud` (135), `ContextualWisdomLab/html4tree` (127), and `ContextualWisdomLab/TEPP` (127). BandScope is selected not by name alone but because it combines the largest observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
 
-Because PR creation and closure can occur during a sequential organization census, the organization-wide search is an aggregate capture while the per-repository sweep establishes which repositories were enumerated at that time. Volatile deltas are recorded explicitly rather than normalized away or misrepresented as a simultaneous permanent truth.
+Because PR creation and closure can occur during a sequential organization census, the organization-wide search is an aggregate capture while the per-repository sweep establishes which repositories were enumerated at that time. Volatile deltas are recorded explicitly rather than normalized away or misrepresented as simultaneous permanent truth.
 
 Protected `develop` currently requires these 16 contexts before normal integration: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`.
 
@@ -64,7 +64,7 @@ Only behavior reachable from protected `develop@749511c3ad4000090048718f685c6bee
 - Typed Tauri IPC and bounded local process boundaries are the intended local execution model; ordinary rehearsal analysis does not require a public cloud service.
 - Protected dependency-security repair #783 is already in `develop` ancestry. Open branches must not reframe its historical dependency findings as an unmerged product blocker or suppress them locally.
 - The product already renders rehearsal-oriented section/role evidence, but protected truth does **not** yet satisfy the complete active-player, crash-recovery, real-audio acceptance, diagnostics, activation, accessibility-parity, or trusted-distribution contracts below.
-- The latest GitHub Release revalidated in this run is immutable `v0.1.3`, published 2026-04-28. It is historical release evidence, not proof that the current protected head satisfies the commercial release gate.
+- The latest immutable GitHub Release revalidated in recent delivery evidence is `v0.1.3`, published 2026-04-28. It is historical release evidence, not proof that the current protected head satisfies the commercial release gate.
 
 ## 4. Canonical active workstreams
 
@@ -73,17 +73,18 @@ Active work is not shipped truth until it is normally integrated into protected 
 | Boundary | Canonical live owner / evidence | Current status |
 |---|---|---|
 | Merge-train control plane | Issue #966 with executable queue lane PR #968 | #968 remains Draft; its unique queue machinery must survive every restack and its exact current head is non-passing until hosted/current-head evidence exists |
-| Canonical baseline | PR #1116, this file | Open; every source edit creates a new exact head and invalidates predecessor evidence |
-| Naming-contract repair | PR #1130 | Workspace-owned `RehearsalRoleOption` now uses `roleId`/`roleName` with primary `roleOptions`; previous `roles: { id, name }[]` exists only as a deprecated compatibility input translated immediately at the component boundary; no persisted/shared wire contract changed; exact current head at this capture is `724dd0445039b6e99863b46535a8497c784699ab` |
-| Repository-local Trivy PR-head contract | PR #1119 | Quoted/commented YAML activity-list normalization is repaired on exact head `eadcc9d075128846ce0bbaa40a03d09afcb5b428`; current-head workflows are queued before execution and therefore remain non-passing |
-| Trusted distribution | Issue #960; active release-identity lane PR #1126 | #1126 applies semantic multiword naming across its new release-identity production and test surfaces; Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, and complete version-identity parity remain incomplete as one integrated protected-head receipt |
+| Canonical baseline | PR #1116, this file | Open; a prior census-only edit accidentally truncated sections 7.5–13, and this exact branch now restores that lost source while refreshing current evidence |
+| Workspace role naming | PR #1130 | `RehearsalRoleOption` uses `roleId`/`roleName` with primary `roleOptions`; the previous `roles: { id, name }[]` projection exists only as a deprecated component compatibility input translated immediately at the boundary |
+| Score attachment naming | PR #1092 | Persisted project-format `scoreAttachments` retains compatibility keys `id`/`fileName`, while `trustedScoreAttachment` translates them immediately to workspace-owned `scoreId`/`scoreFileName`; current exact head at this capture is `8099e3b2525723474aca09db4d669167035263b3`; no database or persisted-wire migration is introduced |
+| Repository-local Trivy PR-head contract | PR #1119 | Quoted/commented YAML activity-list normalization is repaired on its canonical branch; current-head workflows remain non-passing until fresh terminal evidence exists |
+| Trusted distribution | Issue #960; active release-identity lane PR #1126 | Semantic release-identity naming is active work; Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, and complete version-identity parity remain incomplete as one integrated protected-head receipt |
 | Active rehearsal player | Issue #961; implementation lane #971 | Real authorized local audio playback/seek/stop/loop/rate/cue transport is active work; count-in and any source-backed stem control must converge into one transport state machine |
 | Crash-safe project | Issue #962; implementation lane #970 | Atomic publication, versioned format, recovery, migration, autosave, rollback/export and persisted transport state remain active work, not protected truth |
 | Real-audio science | Issue #770 and active benchmark lanes | Rights-safe decoded-audio MIR acceptance, recognized metrics, uncertainty and reproducible evidence remain incomplete |
-| Resource admission/decode | Issue #781 plus commercial dependency defect #1129 | No synthetic/mock success may substitute for production-path resource/cancellation evidence; the commercially supported decode path must also remove the libsndfile-backed LGPL runtime boundary with equivalent real-audio behavior and cross-platform/SBOM proof |
+| Resource admission/decode | Issue #781 plus commercial dependency defect #1129 | No synthetic/mock success may substitute for production-path resource/cancellation evidence; the commercially supported decode path must remove the libsndfile-backed LGPL runtime boundary with equivalent real-audio behavior and cross-platform/SBOM proof |
 | Diagnostics/supportability | Issue #963 | Typed redacted crash/hang evidence and user-previewable offline support bundle remain incomplete |
-| Activation | Issue #964; licensed-demo work exists in active PRs | A measured production-path first rehearsal remains incomplete |
-| Accessibility/design parity | Issue #965; design/Storybook work remains active | WCAG 2.2 AA, keyboard/screen-reader parity, EN/KO expansion, exact-value alternatives and current-head UI evidence remain incomplete |
+| Activation | Issue #964 | A measured production-path first rehearsal remains incomplete |
+| Accessibility/design parity | Issue #965 | WCAG 2.2 AA, keyboard/screen-reader parity, EN/KO expansion, exact-value alternatives and current-head UI evidence remain incomplete |
 | Quality floor | PR #1057 and successors | Repository-owned production statement/branch coverage and public API documentation target remain 100%; lower configured thresholds are a gap |
 
 The product boundary, tests, contracts, and unique behavior decide succession—not PR number or title. Duplicate closure requires a technical succession receipt naming the unique behavior/tests preserved in the successor. Checks, approvals, and model output never transfer to a changed successor head.
@@ -94,7 +95,7 @@ Backlog convergence is the primary engineering risk because micro-PR fan-out cre
 
 PR #968 owns the unique executable queue machinery needed by #966: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, reviewed dependency/succession metadata, network-independent validation, deterministic human projection, and symlink-safe atomic publication. It must not be discarded as stale documentation.
 
-The current #968 branch has moved beyond the SHA recorded in its PR body; branch identity must therefore be resolved independently before action. Its target #1116 branch also moved after an earlier non-destructive restack. A new #1116 head requires another ordinary restack/retarget of #968 before current-head review/check evidence can be considered. No predecessor checks/reviews transfer across that restack.
+The latest independently resolved evidence before this baseline repair placed #968 at `docs/bandscope-product-readiness-baseline@bfdc3888de2736753ed93fcf0018459882bfa0e2` and its then-current #1116 target at `docs/gap-baseline-2026-08-31@adbd9df394957ee1a2c68893b8a6025cdcf058c9`. #1116 has advanced again in ordinary history, so that predecessor target identity and all checks/reviews attached to it do not transfer. #968 must be re-resolved/restacked normally against the new canonical baseline head before integration.
 
 PR #1007 is the canonical first-part-handoff lane only to the extent that its live semantic diff still preserves mounted selected-role wiring and the scientific prohibition against manufacturing handoffs from heuristic fallback. Any succession decision is rechecked against the independently resolved live head rather than a remembered PR-body SHA.
 
@@ -134,7 +135,7 @@ Generic `utils`, `helpers`, `common`, `services`, `shared`, `core`, or `models` 
 
 Candidate domain events include `AudioSourceAdmitted`, `AnalysisCompleted`, `CueConfirmed`, `SectionBoundaryCorrected`, `LoopActivated`, `ProjectSnapshotPublished`, `ProjectRecovered`, `SupportBundlePrepared`, `UpdateStaged`, and `UpdateRollbackCompleted`.
 
-### 6.2 Context map (UML/C4-level logical view)
+### 6.2 Context map
 
 ```mermaid
 flowchart LR
@@ -172,7 +173,7 @@ flowchart LR
 
 The diagram is logical responsibility, not a claim that each box is a separate process. Shared contracts stay small and versioned; external codec/model/platform types remain behind anti-corruption layers.
 
-`context-graph-contracts` remains the contract-only shared kernel for canonical refs, authority/truth status, bitemporal/provenance Context Assertions, CloudEvents, schemas and conformance. `enterprise-architecture-core` remains the EA Decision Plane. While their dedicated writer is active they are read-only dependencies here; BandScope projects deployable/runtime/version/risk facts through released contracts and does not copy rehearsal audio/analysis/user truth into EA authoritative storage.
+`context-graph-contracts` remains the contract-only shared kernel for canonical refs, authority/truth status, bitemporal/provenance Context Assertions, CloudEvents, schemas and conformance. `enterprise-architecture-core` remains the EA Decision Plane. BandScope projects deployable/runtime/version/risk facts through released contracts and does not copy rehearsal audio/analysis/user truth into EA authoritative storage.
 
 ## 7. Technical design contract (TRD)
 
@@ -242,19 +243,19 @@ Tauri IPC, shared types, project files, handoff schemas, updater manifests, and 
 
 ### 7.5 Identifier-policy migration boundary
 
-The repository naming policy applies prospectively to new or materially changed **repository-owned internal identifiers**. It does not require blanket renaming of existing persisted fields, IPC keys, public/shared API fields, telemetry/event schemas, or external protocol/vendor fields.
+The organization naming policy applies prospectively to new or materially changed **organization-owned internal identifiers**. Casing follows the host language/framework. Semantic multiword names such as `section_id`, `sectionId`, `SectionId`, `firstGrooveChange`, and `SectionRoadmap` are valid. Generic single-word organization-owned names such as bare `id`, `name`, `status`, `data`, `value`, `type`, `key`, `item`, `record`, `result`, `config`, `event`, `user`, or `role` are defects when a bounded-context name is available.
 
-When an existing bare field such as `id`, `name`, `status`, `data`, `value`, `type`, `key`, `result`, or `config` is already part of a persisted or cross-boundary contract, a semantic rename follows the owning contract's compatibility mechanism:
+When an existing bare field is already part of a persisted or cross-boundary contract, a semantic rename follows the owning contract's compatibility mechanism:
 
-- project files: introduce the renamed field only behind an explicit `project_format_version` migration; readers accept the supported prior representation, migration is deterministic/idempotent, and writers emit one canonical current representation after migration;
-- Tauri IPC/shared API: use an additive/versioned request or response contract or a bounded compatibility alias; do not remove the previous key until all supported callers have migrated and contract tests prove old/new interoperability;
-- database-owned schemas, if introduced under BandScope ownership: use explicit schema migration with backward-compatible read/write sequencing rather than an uncoordinated column rename;
-- released handoff/events/context contracts: retain mandated released spelling until the owning contract publishes a new compatible version; anti-corruption layers translate at the boundary;
+- project files: introduce a renamed persisted field only behind an explicit `project_format_version` migration; readers accept supported prior representations, migration is deterministic/idempotent, and writers emit one canonical current representation after migration;
+- Tauri IPC/shared API: use an additive/versioned request or response contract or a bounded compatibility alias; do not remove the previous key until supported callers have migrated and contract tests prove interoperability;
+- database-owned schemas: use explicit schema migration with backward-compatible read/write sequencing, foreign-key/index/constraint/ORM/query updates, rollback evidence, normalized ownership, UPSERT-path validation, and locking/hot-partition review rather than an uncoordinated column rename;
+- released handoff/events/context contracts: retain mandated released spelling until the owning contract publishes a compatible version; anti-corruption layers translate at the boundary;
 - external/vendor fields: preserve external spelling exactly and map into semantically owned internal names after admission.
 
-Every compatibility-changing rename requires fixtures from the previous supported version, round-trip/no-data-loss tests, deterministic repeated migration, rollback/recovery evidence where persistence is involved, and removal criteria for any temporary alias. There is never dual writable truth after migration. This prevents the naming rule from silently breaking existing projects or IPC while still correcting ambiguous new internal ownership.
+Every compatibility-changing rename requires fixtures from the previous supported version, round-trip/no-data-loss tests, deterministic repeated migration, rollback/recovery evidence where persistence is involved, and removal criteria for any temporary alias. There is never dual writable truth after migration.
 
-A component-local compatibility projection follows the same direction of travel: PR #1130 makes `roleId`, `roleName`, and `roleOptions` the switcher-owned vocabulary while accepting the old `roles: { id, name }[]` only at one deprecated adapter input. The old fields are translated immediately and are not used as a second writable internal truth.
+Current examples demonstrate the intended direction without breaking compatibility. PR #1130 makes `roleId`, `roleName`, and `roleOptions` the switcher-owned vocabulary while accepting the old component projection only at one deprecated adapter input. PR #1092 keeps the established persisted score attachment keys `id` and `fileName` unchanged but makes `trustedScoreAttachment` an explicit anti-corruption boundary that validates those keys and returns `scoreId` and `scoreFileName` for workspace logic. Its focused RED contract was commit `35dc521f03711d749771751ecf39b904f193057d`; the production semantic translation was commit `8cd6756ef242d99fc323181b21b58f96fe24c731`; subsequent documentation commits aligned `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, and `CLAUDE.md` with the same live-workspace/fallback invariant. No database object or persisted project wire key changed in that repair.
 
 ### 7.6 Rust compute ownership
 
@@ -264,7 +265,23 @@ Python is bounded orchestration/compatibility/fixture/reporting during migration
 
 Migration order follows buyer impact and dependency leverage: temporal/beat and harmony; range/pitch/role features; prioritization/weighting; source-separation integration; then remaining repository-owned vector/matrix utilities. Rust↔Python parity is migration evidence, not justification for permanent duplicated production arithmetic.
 
-## 8. Real-audio scientific acceptance
+## 8. Persistence ERD and database discipline
+
+BandScope's current durable project authority is file/project-format based rather than an organization-owned relational production schema. No database DDL changed in the #1092 naming repair. If relational persistence is introduced, database objects must use specific multiword snake_case names, be normalized to at least 3NF where relevant, and preserve one authoritative write path.
+
+```mermaid
+erDiagram
+    REHEARSAL_PROJECT ||--o{ SONG_SECTION : contains
+    SONG_SECTION ||--o{ REHEARSAL_ROLE : guides
+    REHEARSAL_PROJECT ||--o{ SCORE_ATTACHMENT : references
+    REHEARSAL_PROJECT ||--o{ ANALYSIS_EVIDENCE : records
+    ANALYSIS_EVIDENCE ||--o{ MANUAL_OVERRIDE : corrected_by
+    REHEARSAL_PROJECT ||--|| REHEARSAL_TRANSPORT : persists
+```
+
+Any future SQL migration must verify foreign keys, indexes, constraints, sequences, ORM/query mappings, UPSERT semantics, hot-partition risk, lock duration, read/write separation, backward compatibility, rollback and recovery before it is considered complete.
+
+## 9. Real-audio scientific acceptance
 
 Synthetic arrays, mocked UI journeys, direct feature matrices, source-text assertions, or generated audio may support unit tests but cannot prove product accuracy.
 
@@ -272,7 +289,7 @@ Commercial acceptance requires rights-safe real audio to pass the production int
 
 Acceptance criteria are preregistered before tuning and report uncertainty across tracks. Candidate-vs-baseline comparisons disclose sample count, aggregation, confidence interval or other justified uncertainty method, exclusions, and missing-data handling. Configured GPU lanes must actually execute and report parity/peak-resource evidence; unsupported hardware is not converted into a passing claim.
 
-## 9. Security and privacy baseline
+## 10. Security and privacy baseline
 
 Local files, URLs, MIME/codec claims, decoder outputs, model artifacts, project files, updater manifests, subprocess output and support exports are untrusted.
 
@@ -280,35 +297,33 @@ Owning contexts must fail closed on path/symlink/reparse traversal, oversized/de
 
 Ordinary logs/support bundles must not contain raw audio/project payloads, credentials or absolute local paths. Authorization is purpose-bound and least-privilege with field minimization, retention and access/export audit where relevant.
 
-The current protected central control-plane truth is `ContextualWisdomLab/.github@bb14b014eee31e6abdb5d2fffbb805aa29420eac`. Issue `.github#712` remains the organization-wide Actions queue-health/runner-admission owner. The current executable evidence lane is open `.github#1150` at exact head `2f57e716516dc39ffcbed45a8a658631f0172f9b`: it now binds active-run classification to a stable before/after pull-request number/state/head view, preserves stable `workflow_id` identity for duplicate-lane grouping, exports reproducible queue-age provenance, removes an unused pull-request token permission, and eliminates the prior duplicate 817-line collector copies by separating one shared core from the executable consistency boundary. All current actionable review threads on that head are resolved.
+The latest protected central control-plane evidence recorded by this baseline is `ContextualWisdomLab/.github@669505bdf267d92989298857c740a59807bbd735`. Issue `.github#712` remains the organization-wide Actions queue-health/runner-admission causal owner. Earlier protected `.github#1658`, `.github#1656`, `.github#1665`, and `.github#1645` reduce avoidable load/review-routing ambiguity but do not convert a queued current-head check into success. Repository-local BandScope #1119 remains the Trivy PR-head contract owner until normally integrated or superseded.
 
-Fresh `.github#1150` exact-head security/SBOM/CodeQL/Scorecard/OSV/Semgrep workflows remain queued. A sampled SBOM job is still pre-execution with no steps, so this lane does not establish terminal queue health or merge evidence. Repository-local BandScope #1119 shows the same current-head pattern after its Trivy contract repair. The remaining first failing boundary therefore stays in hosted-runner dispatch/capacity/quota/fairness/policy/provider admission unless fresh raw evidence establishes a different source-owned cause. The connected repository write surface does not expose organization runner-pool, Actions quota/billing, or equivalent settings mutation; unchanged-head reruns and runner-label churn are not a substitute for causal evidence.
+Fresh #1092 exact-head verification exists on `8099e3b2525723474aca09db4d669167035263b3`: 27 check runs were observed, with required/security lanes such as `dependency-review`, `scorecard`, and `trivy-fs` still queued at capture. A skipped manual-evidence helper is not a substitute for required evidence. No predecessor-head success is transferred.
 
-Central `.github#1658`, `.github#1656`, `.github#1665`, and `.github#1645` remain protected historical queue/review control-plane repairs. They reduced avoidable load and review-routing ambiguity but do not convert current queued evidence into success.
+## 11. UI/UX evidence gate
 
-`ContextualWisdomLab/bandscope#1119` remains separately open as the repository-local Trivy pull-request-head configuration owner until normally integrated or superseded by a freshly verified successor. Its current exact head `eadcc9d075128846ce0bbaa40a03d09afcb5b428` includes the regression and production normalization needed to accept quoted/commented YAML block lists while preserving required `opened`, `synchronize`, and `reopened` PR-head activities; fresh checks are queued and no predecessor evidence transfers.
-
-## 10. UI/UX evidence gate
-
-The canonical Figma identity must be rediscovered from current protected BandScope docs/source before a material UI merge; the current baseline records the protected-doc reference `zthWmqfNKUgJBECvv002Qk` only as the latest resolved design authority, not a permanent remembered constant.
+The canonical Figma identity must be rediscovered from current protected BandScope docs/source before a material UI merge; the latest baseline reference is `zthWmqfNKUgJBECvv002Qk`, treated as a resolved design authority rather than a permanent remembered constant.
 
 Storybook is the executable component/state inventory, Figma is the reviewed interaction/visual specification, and the shipped Tauri application is the final acceptance target. Material UI work must verify real pointer/touch/keyboard interaction, section/time-axis identity, playback cursor, persistence/reload, stale-response races, loading/partial/error/unsupported-codec/missing-stem states, responsive window sizes, visible focus, reduced motion, non-color-only status, screen-reader names/states, EN/KO expansion and exact-value/list/table alternatives for graph/timeline/waveform content.
 
-A screenshot from a predecessor head, a Storybook-only state, or a Figma-only mock is not shipped UI evidence.
+For the #1092 ready-workspace slice, product guidance now states the actual accessibility/authority condition consistently: the map names a score to open only when attachment metadata is validated and a live Score workspace is available; reopened metadata-only projects or untrusted score metadata fall back to adding a score or checking the range by ear. A screenshot from a predecessor head, a Storybook-only state, or a Figma-only mock is not shipped UI evidence.
 
-## 11. Quality and operability floor
+## 12. Quality and operability floor
 
 Repository-owned production statement coverage, branch/edge-case coverage, and public/repository-owned API documentation target **100%**. A lower configured JavaScript/Python threshold is a gap rather than equivalent evidence; denominator reduction, skip/xfail, generated-code relabeling, or source-text assertions cannot manufacture compliance.
 
 Production-path tests include supported sample rates/channels, short/long recordings, pickup before bar one, odd meter and tempo changes where supported, silence near boundaries, unsupported codecs, moved/replaced files, cancellation, memory/CPU bounds, disk-full/partial-write recovery, corrupted project state, stale async response, missing stems, device changes, keyboard/screen-reader operation, EN/KO expansion, updater rollback, and redacted support export. Applicable scenarios are proven at the owning boundary rather than all forced into one test layer.
 
-## 12. Release gate
+For behavior- or contract-affecting renames, focused regressions must fail on old/new mismatches before production repair whenever practical, then prove serialization/deserialization, adapter compatibility, persistence behavior, migrations and rollback where applicable. Valid tests are never weakened, skipped, xfailed, suppressed, or quote-obfuscated to obtain green.
+
+## 13. Release gate
 
 A release may be created only from one exact integrated protected head where all applicable CI/security/SAST/dependency/coverage/documentation/real-audio/build/package gates, Windows signing, macOS signing/notarization, checksums, SBOM/provenance, reproducibility, independent review, project migration/recovery, accessibility/supportability, updater rollback and operability evidence are terminal-success on that same identity.
 
-Unsigned validation artifacts are not releases. Queued evidence, stale Figma versions and mock-only audio journeys cannot establish release readiness.
+Unsigned validation artifacts are not releases. Queued evidence, stale Figma versions and mock-only audio journeys cannot establish release readiness. Merge requires all live required checks terminal-success, zero valid unresolved review findings/threads, a qualifying independent non-author approval current for the last push, and ordinary branch protection without bypass.
 
-## 13. Traceability
+## 14. Traceability
 
 Primary normative/research anchors for this baseline include:
 
