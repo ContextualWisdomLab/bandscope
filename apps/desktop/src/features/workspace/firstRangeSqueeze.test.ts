@@ -51,7 +51,9 @@ describe("firstRangeSqueeze", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong());
 
     expect(squeeze).toEqual({
+      sectionId: "verse-1",
       sectionLabel: "verse",
+      roleId: "bass-guitar",
       roleName: "Bass Guitar",
       lowestNote: "C#2",
       highestNote: "E3",
@@ -67,7 +69,9 @@ describe("firstRangeSqueeze", () => {
     }));
 
     expect(firstRangeSqueeze(song)).toEqual({
+      sectionId: "verse-1",
       sectionLabel: "verse",
+      roleId: "bass-guitar",
       roleName: "Bass Guitar",
       lowestNote: "C#2",
       highestNote: "E3",
@@ -114,7 +118,9 @@ describe("firstRangeSqueeze", () => {
     expect(
       firstRangeSqueeze({ ...song, sections: [malformedSection] } as unknown as RehearsalSong)
     ).toEqual({
+      sectionId: "verse-1",
       sectionLabel: "verse",
+      roleId: "bass-guitar",
       roleName: "Bass Guitar",
       lowestNote: "C#2",
       highestNote: "E3",
@@ -126,7 +132,9 @@ describe("firstRangeSqueeze", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong(), "lead-vocal");
 
     expect(squeeze).toEqual({
+      sectionId: "verse-1",
       sectionLabel: "verse",
+      roleId: "lead-vocal",
       roleName: "Lead Vocal",
       lowestNote: "G#3",
       highestNote: "C#5",
@@ -163,7 +171,7 @@ describe("firstRangeRoadmap", () => {
     });
   });
 
-  it("fails closed when the named section label is duplicated", () => {
+  it("allows repeated section labels when section identifiers remain unique", () => {
     const rehearsalSong = createDemoRehearsalSong();
     rehearsalSong.sections.push({
       ...rehearsalSong.sections[0]!,
@@ -171,7 +179,12 @@ describe("firstRangeRoadmap", () => {
       label: "verse"
     });
 
-    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toEqual({
+      sectionId: "verse-1",
+      roleId: "bass-guitar",
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
   });
 
   it("fails closed when the matching section identifier is duplicated", () => {
@@ -185,14 +198,19 @@ describe("firstRangeRoadmap", () => {
     expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
   });
 
-  it("fails closed when the named part is duplicated on the matching section", () => {
+  it("allows repeated part display names when role identifiers remain unique", () => {
     const rehearsalSong = createDemoRehearsalSong();
     rehearsalSong.sections[0]!.roles.push({
       ...rehearsalSong.sections[0]!.roles[0]!,
       id: "bass-guitar-double"
     });
 
-    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toEqual({
+      sectionId: "verse-1",
+      roleId: "bass-guitar",
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
   });
 
   it("fails closed when the matching role identifier is duplicated", () => {

@@ -108,18 +108,35 @@ describe("first-range roadmap interaction regressions", () => {
     ).toHaveLength(0);
   });
 
-  it("removes the buyer-visible control when the named part is duplicated on the section", () => {
+  it("keeps the buyer-visible control when display names repeat but IDs remain unique", () => {
     const rehearsalSong = createDemoRehearsalSong();
     rehearsalSong.sections[0]!.roles.push({
       ...rehearsalSong.sections[0]!.roles[0]!,
       id: "bass-guitar-double"
     });
 
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toEqual({
+      sectionId: "verse-1",
+      roleId: "bass-guitar",
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
+
+    render(<Workspace song={rehearsalSong} />);
+    expect(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" })).toBeInTheDocument();
+  });
+
+  it("fails closed when the target role identifier is duplicated on the section", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections[0]!.roles.push({
+      ...rehearsalSong.sections[0]!.roles[0]!,
+      name: "Bass Guitar Double"
+    });
+
     expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
 
     render(<Workspace song={rehearsalSong} />);
     expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
-    expect(screen.queryByTestId("section-roadmap-section-verse-1")?.getAttribute("aria-current")).toBeNull();
   });
 
   it("avoids smooth scrolling when reduced motion is preferred", () => {
