@@ -151,6 +151,10 @@ describe("analysis bridge", () => {
           state: "succeeded",
           requestedAt: "2026-03-12T00:00:00.000Z",
           updatedAt: "2026-03-12T00:00:01.000Z",
+          progressLabel: "Analysis ready for late-night-set.wav",
+          progressStage: "ready",
+          progressPercent: 100,
+          cacheStatus: "stored",
           result: engineResult
         };
       }
@@ -174,9 +178,11 @@ describe("analysis bridge", () => {
     expect(nativeInvoke).toHaveBeenCalledWith("start_analysis_job", {
       request: expect.objectContaining({ sourceLabel: "Late Night Set" })
     });
+    expect(status.progressLabel).toBe("Analysis ready for Late Night Set");
     expect(status.result?.title).toBe("Late Night Set");
 
     const polledStatus = await getAnalysisJobStatus("job-licensed-demo");
+    expect(polledStatus.progressLabel).toBe("Analysis ready for Late Night Set");
     expect(polledStatus.result?.title).toBe("Late Night Set");
   });
 
