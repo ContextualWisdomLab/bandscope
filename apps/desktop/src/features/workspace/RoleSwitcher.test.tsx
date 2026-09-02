@@ -18,7 +18,7 @@ describe("RoleSwitcher", () => {
       { roleId: "lead-vocal", roleName: "Lead Vocal" }
     ];
 
-    render(<RoleSwitcher roles={roleOptions} activeRole={null} onRoleChange={vi.fn()} />);
+    render(<RoleSwitcher roleOptions={roleOptions} activeRole={null} onRoleChange={vi.fn()} />);
 
     expect(screen.getByText("Role-specific View")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "All Roles" })).toBeInTheDocument();
@@ -31,7 +31,7 @@ describe("RoleSwitcher", () => {
 
     render(
       <RoleSwitcher
-        roles={[
+        roleOptions={[
           { roleId: "all", roleName: "Alloy Synth" },
           { roleId: "bass-guitar", roleName: "Bass Guitar" }
         ]}
@@ -50,7 +50,7 @@ describe("RoleSwitcher", () => {
   it("uses the project-standard active tab data selector", () => {
     render(
       <RoleSwitcher
-        roles={[{ roleId: "bass-guitar", roleName: "Bass Guitar" }]}
+        roleOptions={[{ roleId: "bass-guitar", roleName: "Bass Guitar" }]}
         activeRole={null}
         onRoleChange={vi.fn()}
       />
