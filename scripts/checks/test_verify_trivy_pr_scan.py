@@ -213,6 +213,27 @@ jobs:
           sarif_file: different-results.sarif
 """
 
+UPLOAD_BEFORE_PRODUCER = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+"""
+
 JOB_PUSH_ONLY = """name: trivy
 
 on:
@@ -275,6 +296,85 @@ jobs:
           output: trivy-results.sarif
       - uses: github/codeql-action/upload-sarif@fedcba9876543210
         if: github.event_name == 'push'
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PUSH_ONLY_NEEDS_SCALAR = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  prepare-scan:
+    if: github.event_name == 'push'
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs: prepare-scan
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PUSH_ONLY_NEEDS_INLINE = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  prepare-scan:
+    if: github.event_name == 'push'
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs: [prepare-scan]
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PUSH_ONLY_NEEDS_BLOCK = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  prepare-scan:
+    if: github.event_name == 'push'
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs:
+      - prepare-scan
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
         with:
           sarif_file: trivy-results.sarif
 """
@@ -392,6 +492,37 @@ jobs:
           sarif_file: trivy-results.sarif
 """
 
+PR_ELIGIBLE_NEEDS_CHAIN = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  establish-context:
+    if: github.event_name == 'pull_request'
+    steps:
+      - run: echo context
+  prepare-scan:
+    needs: [establish-context]
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs:
+      - prepare-scan
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 INVALID_CASES = {
     "missing protected PR targets": MISSING_PR_TARGETS,
     "activity filter drops synchronized PR heads": RESTRICTED_PR_ACTIVITY,
@@ -401,9 +532,13 @@ INVALID_CASES = {
     "wrong pull_request branch set": WRONG_PR_TARGETS,
     "SARIF format detached from the Trivy action": DISCONNECTED_SARIF,
     "Trivy output and upload paths disagree": MISMATCHED_SARIF,
+    "SARIF upload precedes its producer": UPLOAD_BEFORE_PRODUCER,
     "push-only Trivy job condition": JOB_PUSH_ONLY,
     "push-only Trivy action condition": TRIVY_STEP_PUSH_ONLY,
     "push-only SARIF upload condition": UPLOAD_STEP_PUSH_ONLY,
+    "scalar push-only prerequisite": PUSH_ONLY_NEEDS_SCALAR,
+    "inline-list push-only prerequisite": PUSH_ONLY_NEEDS_INLINE,
+    "block-list push-only prerequisite": PUSH_ONLY_NEEDS_BLOCK,
 }
 
 VALID_CASES = {
@@ -412,6 +547,7 @@ VALID_CASES = {
     "explicit complete PR-head activity filter": EXPLICIT_COMPLETE_PR_ACTIVITY,
     "quoted block PR-head activity filter": QUOTED_BLOCK_PR_ACTIVITY,
     "explicit pull-request eligibility conditions": EXPLICIT_PR_ELIGIBILITY,
+    "recursive PR-eligible needs chain": PR_ELIGIBLE_NEEDS_CHAIN,
 }
 
 
