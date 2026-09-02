@@ -1,7 +1,24 @@
 name: codeql
 
+# INTERIM SAFETY NET (added 2026-09-02, remove once org ruleset is fixed):
+# PR-triggered CodeQL was removed from this repo in commit 6c7ae330 (PR #612,
+# "ci: centralize governance — remove local workflows duplicated by central
+# .github", merged 2026-07-12) on the assumption that the org's central
+# required-workflow ruleset (id 18156473, ContextualWisdomLab/.github) already
+# ran CodeQL PR on every pull request in this repo's context. On 2026-09-02
+# that assumption was verified FALSE: ruleset 18156473 does not actually wire
+# in ContextualWisdomLab/.github's codeql-pr.yml, so this repo had zero
+# CodeQL coverage on pull requests. The `pull_request` trigger below restores
+# that coverage locally until an org admin confirms ruleset 18156473 includes
+# codeql-pr.yml (tracked separately — an org:admin setting this repo-level
+# workflow cannot fix), at which point this trigger should be removed again
+# to avoid duplicate runs.
 on:
   push:
+    branches:
+      - develop
+      - main
+  pull_request:
     branches:
       - develop
       - main
@@ -32,8 +49,8 @@ jobs:
           - python
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+      - uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/autobuild@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
-      - uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+      - uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+      - uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
