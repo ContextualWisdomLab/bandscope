@@ -60,7 +60,8 @@ describe("Workspace", () => {
     expect(updatedSong.sections[0]!.roles[0]!.practiceProgress).toBe(60);
   });
 
-  it("keeps the song-structure grid valid when a project has no sections", () => {
+  it("keeps the song-structure grid and missing guidance truthful when a project has no sections", () => {
+    setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections = [];
 
@@ -70,6 +71,15 @@ describe("Workspace", () => {
 
     expect(grid.style.gridTemplateColumns).not.toContain("repeat(0");
     expect(grid.style.gridTemplateColumns).toContain("repeat(1");
+    expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
+      "Groove change isn't confirmed yet. Analyze section groove evidence before rehearsal."
+    );
+    expect(screen.getByTestId("first-duration-change")).toHaveTextContent(
+      "Section timing isn't confirmed yet. Analyze section timing before using a count-in."
+    );
+    expect(screen.getByTestId("first-confidence-change")).toHaveTextContent(
+      "Section confidence isn't confirmed yet. Analyze section confidence before rehearsal."
+    );
   });
 
   it("falls back to safe timeline text for malformed section times", () => {
@@ -371,7 +381,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
-      "Tonight's first feel change still needs an ear check. Confirm the groove of the first two sections before you count in."
+      "Groove change isn't confirmed yet. Analyze section groove evidence before rehearsal."
     );
   });
 });
