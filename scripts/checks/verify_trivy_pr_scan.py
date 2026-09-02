@@ -56,6 +56,27 @@ def _list_values(
     }
 
 
+def _mapping_list_values(
+    workflow_lines: list[str], mapping_header: str, mapping_indent: int
+) -> set[str]:
+    """Return block- or inline-list scalar values for one mapping key."""
+    mapping_prefix = f"{' ' * mapping_indent}{mapping_header}:"
+    for workflow_line in workflow_lines:
+        if not workflow_line.startswith(mapping_prefix):
+            continue
+        scalar_value = _yaml_scalar(workflow_line[len(mapping_prefix) :].strip())
+        if not scalar_value:
+            return _list_values(workflow_lines, mapping_header, mapping_indent)
+        if scalar_value.startswith("[") and scalar_value.endswith("]"):
+            return {
+                item.strip().strip("'\"")
+                for item in scalar_value[1:-1].split(",")
+                if item.strip().strip("'\"")
+            }
+        return {scalar_value}
+    return set()
+
+
 def _list_item_blocks(
     workflow_lines: list[str], mapping_header: str, mapping_indent: int
 ) -> list[list[str]]:
@@ -164,10 +185,13 @@ def _mapping_value(
 
 
 def main() -> int:
-    """Require the Trivy workflow to cover PRs targeting protected branches."""
+    """Require the Trivy workflow to cover every protected-branch PR head."""
     workflow_lines = TRIVY_WORKFLOW.read_text(encoding="utf-8").splitlines()
     pull_request_block = _indented_block(workflow_lines, "pull_request", 2)
     pull_request_targets = _list_values(pull_request_block, "branches", 4)
+    pull_request_activity_types = _mapping_list_values(
+        pull_request_block, "types", 4
+    )
     jobs_block = _indented_block(workflow_lines, "jobs", 0)
     trivy_job = _indented_block(jobs_block, "trivy-fs-scan", 2)
     workflow_steps = _list_item_blocks(trivy_job, "steps", 4)
@@ -204,6 +228,12 @@ def main() -> int:
             missing_contract_items.append(
                 f"pull_request branch {protected_branch!r}"
             )
+    if _has_mapping_key(pull_request_block, "types", 4):
+        for required_activity in ("opened", "synchronize", "reopened"):
+            if required_activity not in pull_request_activity_types:
+                missing_contract_items.append(
+                    f"pull_request activity {required_activity!r}"
+                )
     if not trivy_job:
         missing_contract_items.append("jobs.trivy-fs-scan")
     if not trivy_output_paths:
