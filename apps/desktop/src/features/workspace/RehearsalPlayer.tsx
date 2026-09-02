@@ -375,11 +375,11 @@ export function RehearsalPlayer({
     if (startNonce <= lastHandledStartNonce.current) {
       return;
     }
-    if (
-      !hasPlayableAudio ||
-      !selectedLoop ||
-      !loopFitsAdmittedMedia(selectedLoop, mediaDurationSeconds)
-    ) {
+    if (!hasPlayableAudio || !selectedLoop || mediaDurationSeconds === null) {
+      return;
+    }
+    if (!loopFitsAdmittedMedia(selectedLoop, mediaDurationSeconds)) {
+      lastHandledStartNonce.current = startNonce;
       return;
     }
     lastHandledStartNonce.current = startNonce;
