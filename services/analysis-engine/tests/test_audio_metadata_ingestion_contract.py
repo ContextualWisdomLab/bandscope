@@ -44,7 +44,7 @@ def test_temporal_rejects_overlong_metadata_before_decode(
     with pytest.raises(AudioResourcePolicyError) as error:
         TemporalAnalyzer().analyze(audio_path)
 
-    assert error.value.reason == "duration_exceeded"
+    assert error.value.rejection_reason == "duration_exceeded"
     load_mock.assert_not_called()
 
 
@@ -59,7 +59,7 @@ def test_transcription_rejects_overlong_metadata_before_decode(
     with pytest.raises(AudioResourcePolicyError) as error:
         transcription_api.transcribe_bass_stem(b"RIFF")
 
-    assert error.value.reason == "duration_exceeded"
+    assert error.value.rejection_reason == "duration_exceeded"
     load_mock.assert_not_called()
 
 
@@ -77,5 +77,5 @@ def test_separation_rejects_overlong_metadata_before_decode(
     with pytest.raises(AudioResourcePolicyError) as error:
         AudioStemSeparator()._load_audio(audio_path)
 
-    assert error.value.reason == "duration_exceeded"
+    assert error.value.rejection_reason == "duration_exceeded"
     load_mock.assert_not_called()
