@@ -10,13 +10,24 @@ export type FirstScoreCheck = {
   highestNote?: string;
 };
 
+/** Semantic score-attachment metadata used after the persisted compatibility boundary. */
+export type TrustedScoreAttachment = {
+  scoreId: string;
+  scoreFileName: string;
+};
+
 const SCORE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 
 /** Return whether a display name contains a forbidden path or control character. */
-function hasForbiddenScoreNameChar(value: string): boolean {
-  for (const character of value) {
-    const code = character.charCodeAt(0);
-    if (code <= 0x1f || code === 0x7f || character === "/" || character === "\\") {
+function hasForbiddenScoreNameChar(scoreFileName: string): boolean {
+  for (const character of scoreFileName) {
+    const characterCode = character.charCodeAt(0);
+    if (
+      characterCode <= 0x1f ||
+      characterCode === 0x7f ||
+      character === "/" ||
+      character === "\\"
+    ) {
       return true;
     }
   }
@@ -37,47 +48,62 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
  * rejects values that cannot represent a PDF display name safely in this
  * copy surface; the value is never used to rebuild a filesystem path.
  */
-export function trustedScoreFileName(value: unknown): string | null {
-  if (typeof value !== "string" || value.length === 0 || hasForbiddenScoreNameChar(value)) {
+export function trustedScoreFileName(scoreFileNameCandidate: unknown): string | null {
+  if (
+    typeof scoreFileNameCandidate !== "string" ||
+    scoreFileNameCandidate.length === 0 ||
+    hasForbiddenScoreNameChar(scoreFileNameCandidate)
+  ) {
     return null;
   }
 
-  const withoutTrailingSpaces = value.replace(/ +$/u, "");
-  if (!/\.pdf$/iu.test(withoutTrailingSpaces) || withoutTrailingSpaces.length <= 4) {
+  const scoreFileNameWithoutTrailingSpaces = scoreFileNameCandidate.replace(/ +$/u, "");
+  if (
+    !/\.pdf$/iu.test(scoreFileNameWithoutTrailingSpaces) ||
+    scoreFileNameWithoutTrailingSpaces.length <= 4
+  ) {
     return null;
   }
 
-  return value;
+  return scoreFileNameCandidate;
 }
 
 /**
  * Admit a score attachment only when its id matches the native UUID allowlist
  * and its file name is safe literal display metadata. Extra keys fail closed.
+ *
+ * Persisted `RehearsalSong.scoreAttachments` retains the established `id` and
+ * `fileName` wire keys for project compatibility. This function is the
+ * anti-corruption boundary that translates those generic wire names into the
+ * semantic `scoreId` and `scoreFileName` names used by workspace logic.
  */
 export function trustedScoreAttachment(
-  value: unknown
-): { id: string; fileName: string } | null {
-  if (!isRuntimeObject(value)) {
+  attachmentCandidate: unknown
+): TrustedScoreAttachment | null {
+  if (!isRuntimeObject(attachmentCandidate)) {
     return null;
   }
-  const keys = Object.keys(value);
-  if (keys.length !== 2) {
+  const attachmentKeys = Object.keys(attachmentCandidate);
+  if (attachmentKeys.length !== 2) {
     return null;
   }
   if (
-    !Object.prototype.hasOwnProperty.call(value, "id") ||
-    !Object.prototype.hasOwnProperty.call(value, "fileName")
+    !Object.prototype.hasOwnProperty.call(attachmentCandidate, "id") ||
+    !Object.prototype.hasOwnProperty.call(attachmentCandidate, "fileName")
   ) {
     return null;
   }
-  if (typeof value.id !== "string" || !SCORE_ID_PATTERN.test(value.id)) {
+  if (
+    typeof attachmentCandidate.id !== "string" ||
+    !SCORE_ID_PATTERN.test(attachmentCandidate.id)
+  ) {
     return null;
   }
-  const fileName = trustedScoreFileName(value.fileName);
-  if (fileName === null) {
+  const scoreFileName = trustedScoreFileName(attachmentCandidate.fileName);
+  if (scoreFileName === null) {
     return null;
   }
-  return { id: value.id, fileName };
+  return { scoreId: attachmentCandidate.id, scoreFileName };
 }
 
 /**
@@ -98,24 +124,24 @@ export function firstScoreCheck(
     return null;
   }
 
-  for (const attachment of song.scoreAttachments) {
-    const trusted = trustedScoreAttachment(attachment);
-    if (trusted === null) {
+  for (const scoreAttachmentCandidate of song.scoreAttachments) {
+    const trustedScoreMetadata = trustedScoreAttachment(scoreAttachmentCandidate);
+    if (trustedScoreMetadata === null) {
       continue;
     }
 
-    const range = firstRangeSqueeze(song as RehearsalSong, activeRole);
-    if (range) {
+    const firstPlayableRange = firstRangeSqueeze(song as RehearsalSong, activeRole);
+    if (firstPlayableRange) {
       return {
-        fileName: trusted.fileName,
-        sectionLabel: range.sectionLabel,
-        roleName: range.roleName,
-        lowestNote: range.lowestNote,
-        highestNote: range.highestNote
+        fileName: trustedScoreMetadata.scoreFileName,
+        sectionLabel: firstPlayableRange.sectionLabel,
+        roleName: firstPlayableRange.roleName,
+        lowestNote: firstPlayableRange.lowestNote,
+        highestNote: firstPlayableRange.highestNote
       };
     }
 
-    return { fileName: trusted.fileName };
+    return { fileName: trustedScoreMetadata.scoreFileName };
   }
 
   return null;
