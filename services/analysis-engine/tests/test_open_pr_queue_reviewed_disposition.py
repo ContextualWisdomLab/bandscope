@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CHECKS_DIR = REPO_ROOT / "scripts" / "checks"
 
@@ -55,6 +57,46 @@ def _reviewed_seed() -> dict[str, object]:
     }
 
 
+def _reviewed_succession_seed() -> dict[str, object]:
+    """Return two reviewed overlapping PRs with one explicit supersession relation."""
+    seed = _reviewed_seed()
+    seed_entry = seed["pull_requests"][0]
+    assert isinstance(seed_entry, dict)
+    seed_entry.update(
+        {
+            "overlap_prs": [1131],
+            "successor_pr": 1131,
+            "disposition": "superseded_by",
+            "decision_rationale": "All unique delta is preserved by PR #1131.",
+        }
+    )
+    seed_successor = {
+        "number": 1131,
+        "title": "canonical successor",
+        "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1131",
+        "initial_train": "T0",
+        "initial_disposition": "triage_required",
+        "base_ref": "develop",
+        "base_sha": "a" * 40,
+        "head_sha": "c" * 40,
+        "head_sha_status": "exact_current_head",
+        "draft": False,
+        "updated_at": "2026-09-02T02:30:00Z",
+        "predecessor_prs": [],
+        "overlap_prs": [968],
+        "successor_pr": None,
+        "disposition": "canonical_active",
+        "decision_timestamp": "2026-09-02T02:30:00Z",
+        "decision_rationale": "Canonical surviving implementation.",
+        "decision_owner": "issue:#966",
+    }
+    pull_requests = seed["pull_requests"]
+    assert isinstance(pull_requests, list)
+    pull_requests.append(seed_successor)
+    seed["open_pr_count"] = 2
+    return seed
+
+
 def _live_pr(number: int, head_sha: str) -> dict[str, object]:
     return {
         "number": number,
@@ -93,47 +135,30 @@ def test_live_refresh_preserves_reviewed_decision_and_marks_new_pr_refresh_requi
     assert by_number[1131]["decision_owner"] is None
 
 
+def test_live_refresh_preserves_reviewed_succession_when_related_identity_is_unchanged() -> None:
+    """Stable own and related identities retain an explicitly reviewed succession decision."""
+    refresher = _load("refresh_open_pr_queue")
+    refreshed = refresher.build_refreshed_manifest(
+        _reviewed_succession_seed(),
+        {
+            "incomplete_results": False,
+            "pull_requests": [_live_pr(968, "b" * 40), _live_pr(1131, "c" * 40)],
+        },
+        base_sha="a" * 40,
+        snapshot_date="2026-09-02",
+    )
+
+    by_number = {item["number"]: item for item in refreshed["pull_requests"]}
+    assert by_number[968]["disposition"] == "superseded_by"
+    assert by_number[968]["decision_timestamp"] == "2026-09-02T02:30:00Z"
+    assert by_number[968]["decision_rationale"] == "All unique delta is preserved by PR #1131."
+
+
 def test_live_refresh_invalidates_reviewed_succession_when_successor_head_moves() -> None:
     """A supersession decision is stale when its reviewed successor identity advances."""
     refresher = _load("refresh_open_pr_queue")
-    seed = _reviewed_seed()
-    seed_entry = seed["pull_requests"][0]
-    assert isinstance(seed_entry, dict)
-    seed_entry.update(
-        {
-            "overlap_prs": [1131],
-            "successor_pr": 1131,
-            "disposition": "superseded_by",
-            "decision_rationale": "All unique delta is preserved by PR #1131.",
-        }
-    )
-    seed_successor = {
-        "number": 1131,
-        "title": "canonical successor",
-        "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1131",
-        "initial_train": "T0",
-        "initial_disposition": "triage_required",
-        "base_ref": "develop",
-        "base_sha": "a" * 40,
-        "head_sha": "c" * 40,
-        "head_sha_status": "exact_current_head",
-        "draft": False,
-        "updated_at": "2026-09-02T02:30:00Z",
-        "predecessor_prs": [],
-        "overlap_prs": [968],
-        "successor_pr": None,
-        "disposition": "canonical_active",
-        "decision_timestamp": "2026-09-02T02:30:00Z",
-        "decision_rationale": "Canonical surviving implementation.",
-        "decision_owner": "issue:#966",
-    }
-    pull_requests = seed["pull_requests"]
-    assert isinstance(pull_requests, list)
-    pull_requests.append(seed_successor)
-    seed["open_pr_count"] = 2
-
     refreshed = refresher.build_refreshed_manifest(
-        seed,
+        _reviewed_succession_seed(),
         {
             "incomplete_results": False,
             "pull_requests": [_live_pr(968, "b" * 40), _live_pr(1131, "d" * 40)],
@@ -147,6 +172,21 @@ def test_live_refresh_invalidates_reviewed_succession_when_successor_head_moves(
     assert by_number[968]["decision_timestamp"] is None
     assert by_number[968]["decision_rationale"] is None
     assert by_number[968]["decision_owner"] is None
+
+
+def test_live_refresh_fails_closed_when_reviewed_successor_leaves_open_queue() -> None:
+    """A removed successor cannot silently leave a reviewed supersession receipt intact."""
+    refresher = _load("refresh_open_pr_queue")
+    with pytest.raises(refresher.RefreshError):
+        refresher.build_refreshed_manifest(
+            _reviewed_succession_seed(),
+            {
+                "incomplete_results": False,
+                "pull_requests": [_live_pr(968, "b" * 40)],
+            },
+            base_sha="a" * 40,
+            snapshot_date="2026-09-02",
+        )
 
 
 def test_complete_reviewed_decision_can_participate_in_passing_exact_head_receipt() -> None:
