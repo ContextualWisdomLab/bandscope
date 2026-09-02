@@ -152,6 +152,26 @@ def collect_paginated_branch_refs(
     _fail("live branch-ref pagination bound would truncate the inventory")
 
 
+def _decision_metadata_for_live_head(
+    prior: dict[str, Any] | None,
+    current_head_sha: str,
+) -> dict[str, object]:
+    """Preserve a reviewed decision only while the exact PR head remains unchanged."""
+    if prior is None or prior.get("head_sha") != current_head_sha or "disposition" not in prior:
+        return {
+            "disposition": "refresh_required",
+            "decision_timestamp": None,
+            "decision_rationale": None,
+            "decision_owner": None,
+        }
+    return {
+        "disposition": prior.get("disposition"),
+        "decision_timestamp": prior.get("decision_timestamp"),
+        "decision_rationale": prior.get("decision_rationale"),
+        "decision_owner": prior.get("decision_owner"),
+    }
+
+
 def _live_pr_entry(
     raw_pr: object,
     *,
@@ -204,6 +224,7 @@ def _live_pr_entry(
         )
         overlap_prs = list(_require_list(prior.get("overlap_prs", []), "existing.overlap_prs"))
         successor_pr = prior.get("successor_pr")
+    decision = _decision_metadata_for_live_head(prior, head_sha)
 
     return {
         "number": number,
@@ -220,6 +241,7 @@ def _live_pr_entry(
         "predecessor_prs": predecessor_prs,
         "overlap_prs": overlap_prs,
         "successor_pr": successor_pr,
+        **decision,
     }
 
 
