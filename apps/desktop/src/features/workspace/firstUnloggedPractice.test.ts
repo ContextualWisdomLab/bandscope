@@ -57,7 +57,7 @@ describe("firstUnloggedPractice", () => {
     expect(firstUnloggedPractice(song, "lead-vocal")).toBeNull();
   });
 
-  it("skips malformed marks and duplicate role ids", () => {
+  it("skips malformed marks and duplicate role ids inside one section", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
@@ -69,6 +69,56 @@ describe("firstUnloggedPractice", () => {
     };
 
     expect(firstUnloggedPractice(song)?.roleName).toBe("Lead Vocal");
+  });
+
+  it("treats the same named role across sections as one part", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections.push({
+      ...structuredClone(verse),
+      id: "chorus-1",
+      label: "chorus",
+      timeRange: { start: 30, end: 50 }
+    });
+
+    expect(firstUnloggedPractice(song)).toEqual({
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
+  });
+
+  it("fails closed when repeated section copies disagree about practice state", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    const chorus = structuredClone(verse);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 30, end: 50 };
+    chorus.roles[0] = {
+      ...chorus.roles[0]!,
+      practiceProgress: 40
+    };
+    song.sections.push(chorus);
+
+    expect(firstUnloggedPractice(song, "bass-guitar")).toBeNull();
+  });
+
+  it("rejects inherited identity and practice evidence", () => {
+    const inheritedRole = Object.create({
+      id: "ghost-role",
+      name: "Ghost Role",
+      practiceProgress: 40
+    }) as Record<string, unknown>;
+    const song = {
+      sections: [
+        {
+          label: "verse",
+          roles: [inheritedRole]
+        }
+      ]
+    } as unknown as RehearsalSong;
+
+    expect(firstUnloggedPractice(song)).toBeNull();
   });
 
   it("fails closed on malformed runtime roots and collections", () => {
