@@ -46,6 +46,10 @@ PULL_REQUEST_FIELDS = frozenset(
         "predecessor_prs",
         "overlap_prs",
         "successor_pr",
+        "disposition",
+        "decision_timestamp",
+        "decision_rationale",
+        "decision_owner",
     }
 )
 ALLOWED_INITIAL_DISPOSITIONS = frozenset(
@@ -75,6 +79,20 @@ ALLOWED_INITIAL_DISPOSITIONS = frozenset(
         "workspace_rehearsal_map_slice",
         "youtube_import_failure_next_action_copy",
     }
+)
+ALLOWED_DISPOSITIONS = frozenset(
+    {
+        "canonical_active",
+        "stacked_after",
+        "refresh_required",
+        "superseded_by",
+        "duplicate_of",
+        "invalid_or_out_of_scope",
+        "blocked_by_external_owner",
+    }
+)
+DECISION_FIELDS = frozenset(
+    {"disposition", "decision_timestamp", "decision_rationale", "decision_owner"}
 )
 
 
@@ -155,6 +173,45 @@ def _require_optional_pr_number(value: object, field: str) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         _fail(f"{field} must be null or a positive integer")
     return value
+
+
+def _validate_reviewed_disposition(
+    pr: dict[str, Any],
+    *,
+    prefix: str,
+    predecessors: list[int],
+    successor: int | None,
+) -> None:
+    """Validate optional legacy-compatible reviewed routing without inventing decisions."""
+    present = DECISION_FIELDS.intersection(pr)
+    if not present:
+        return
+    if "disposition" not in pr:
+        _fail(f"{prefix}.disposition is required when decision metadata is present")
+
+    disposition = _require_non_empty_string(pr.get("disposition"), f"{prefix}.disposition")
+    if disposition not in ALLOWED_DISPOSITIONS:
+        _fail(f"{prefix}.disposition is unsupported: {disposition}")
+
+    if disposition == "refresh_required":
+        missing = DECISION_FIELDS - set(pr)
+        if missing:
+            _fail(f"{prefix} refresh_required decision must include explicit null metadata")
+        for field in ("decision_timestamp", "decision_rationale", "decision_owner"):
+            if pr.get(field) is not None:
+                _fail(f"{prefix}.{field} must be null while disposition is refresh_required")
+    else:
+        missing = DECISION_FIELDS - set(pr)
+        if missing:
+            _fail(f"{prefix} reviewed decision metadata is incomplete")
+        _require_github_timestamp(pr.get("decision_timestamp"), f"{prefix}.decision_timestamp")
+        _require_non_empty_string(pr.get("decision_rationale"), f"{prefix}.decision_rationale")
+        _require_non_empty_string(pr.get("decision_owner"), f"{prefix}.decision_owner")
+
+    if disposition == "stacked_after" and not predecessors:
+        _fail(f"{prefix}.stacked_after requires at least one predecessor_prs entry")
+    if disposition in {"superseded_by", "duplicate_of"} and successor is None:
+        _fail(f"{prefix}.{disposition} requires successor_pr")
 
 
 def _validate_predecessor_graph(
@@ -280,15 +337,14 @@ def validate_manifest(manifest: object) -> None:
         if number in seen_numbers:
             _fail(f"duplicate pull request number: {number}")
         seen_numbers.add(number)
-        predecessors_by_pr[number] = _require_pr_numbers(
+        predecessors = _require_pr_numbers(
             pr.get("predecessor_prs", []), f"{prefix}.predecessor_prs"
         )
-        overlaps_by_pr[number] = _require_pr_numbers(
-            pr.get("overlap_prs", []), f"{prefix}.overlap_prs"
-        )
-        successor_by_pr[number] = _require_optional_pr_number(
-            pr.get("successor_pr"), f"{prefix}.successor_pr"
-        )
+        overlaps = _require_pr_numbers(pr.get("overlap_prs", []), f"{prefix}.overlap_prs")
+        successor = _require_optional_pr_number(pr.get("successor_pr"), f"{prefix}.successor_pr")
+        predecessors_by_pr[number] = predecessors
+        overlaps_by_pr[number] = overlaps
+        successor_by_pr[number] = successor
 
         _require_non_empty_string(pr.get("title"), f"{prefix}.title")
         expected_url = f"https://github.com/{REPOSITORY}/pull/{number}"
@@ -298,11 +354,11 @@ def validate_manifest(manifest: object) -> None:
         train_name = _require_non_empty_string(pr.get("initial_train"), f"{prefix}.initial_train")
         if train_name not in trains:
             _fail(f"{prefix}.initial_train references unknown train: {train_name}")
-        disposition = _require_non_empty_string(
+        initial_disposition = _require_non_empty_string(
             pr.get("initial_disposition"), f"{prefix}.initial_disposition"
         )
-        if disposition not in ALLOWED_INITIAL_DISPOSITIONS:
-            _fail(f"{prefix}.initial_disposition is unsupported: {disposition}")
+        if initial_disposition not in ALLOWED_INITIAL_DISPOSITIONS:
+            _fail(f"{prefix}.initial_disposition is unsupported: {initial_disposition}")
 
         base_ref = pr.get("base_ref")
         pr_base_sha = pr.get("base_sha")
@@ -330,6 +386,13 @@ def validate_manifest(manifest: object) -> None:
             _fail(f"{prefix}.draft must be boolean")
         if "updated_at" in pr:
             _require_github_timestamp(pr["updated_at"], f"{prefix}.updated_at")
+
+        _validate_reviewed_disposition(
+            pr,
+            prefix=prefix,
+            predecessors=predecessors,
+            successor=successor,
+        )
 
     _validate_predecessor_graph(predecessors_by_pr, seen_numbers)
     _validate_overlap_and_successor_graph(overlaps_by_pr, successor_by_pr, seen_numbers)
