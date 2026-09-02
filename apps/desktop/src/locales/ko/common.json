@@ -157,6 +157,7 @@
   "workspaceFirstUnloggedPracticeCheck": "{sectionLabel}의 {roleName}은 아직 연습 기록이 없습니다. 그 파트를 선택하고 오늘 첫 패스를 기록하세요.",
   "workspaceFirstUnloggedPracticeMissing": "이름 있는 파트는 모두 연습 기록이 있습니다. 방이 준비될 때까지 이어서 연습하세요.",
   "workspaceFirstUnloggedPracticeSelectedReady": "이 파트는 이미 연습 기록이 있습니다. 아직 기록 안 된 다음 파트로 바꿔 오늘 첫 패스를 기록하세요.",
+  "workspaceFirstUnloggedPracticeUnavailable": "이 파트의 연습 진행 정보가 서로 맞지 않거나 유효하지 않습니다. 기록된 것으로 보기 전에 연습 표시를 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
