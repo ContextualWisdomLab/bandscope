@@ -226,10 +226,10 @@ export function formatRangeClock(clockSecondsCandidate: unknown): string | null 
 /**
  * Pick the first playable range a player should check before the next section.
  *
- * The selected range carries its originating section and role identities so
- * navigation can remain exact even when ordinary song-form labels or display
- * names repeat. Runtime roots and collection members are treated as untrusted;
- * malformed range evidence is isolated instead of becoming rehearsal truth.
+ * Playable-range truth does not depend on whether the originating record can
+ * also become UI navigation authority. Exact section/role identity evidence is
+ * preserved here and validated separately by the timeline/roadmap resolvers,
+ * so an unsafe ID can hide Find without erasing valid range guidance.
  */
 export function firstRangeSqueeze(
   rehearsalSong: RehearsalSong,
@@ -246,9 +246,9 @@ export function firstRangeSqueeze(
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
       continue;
     }
-    const sectionId = exactNavigationIdentity(sectionValue.id);
+    const sectionId = typeof sectionValue.id === "string" ? sectionValue.id : undefined;
     const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (!sectionId || !sectionLabel) {
+    if (!sectionLabel) {
       continue;
     }
 
@@ -256,9 +256,9 @@ export function firstRangeSqueeze(
       if (!isRuntimeObject(roleValue)) {
         continue;
       }
-      const roleId = exactNavigationIdentity(roleValue.id);
+      const roleId = typeof roleValue.id === "string" ? roleValue.id : "";
       const roleName = meaningfulRangeText(roleValue.name);
-      if (!roleId || !roleName || (activeRoleId && roleId !== activeRoleId)) {
+      if (!roleName || (activeRoleId && roleId !== activeRoleId)) {
         continue;
       }
       if (!isRuntimeObject(roleValue.range)) {
