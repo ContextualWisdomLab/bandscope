@@ -123,6 +123,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [loopStartNonce, setLoopStartNonce] = useState(0);
+  const [loopedSectionIndex, setLoopedSectionIndex] = useState<number | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const parsedSourceBootstrap = useMemo(
     () => safeProjectBootstrapSummary(sourceBootstrap),
@@ -376,6 +377,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <RehearsalPlayer
             song={song}
             onSongUpdate={onSongUpdate}
+            onSelectedSectionIndexChange={setLoopedSectionIndex}
             hasLocalAudio={hasLocalAudio}
             audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
             activeRole={resolvedActiveRole}
@@ -543,6 +545,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SectionRoadmap
             song={song}
             activeRole={resolvedActiveRole}
+            loopedSectionIndex={loopedSectionIndex}
             onSongUpdate={onSongUpdate}
           />
           </section>
