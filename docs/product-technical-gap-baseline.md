@@ -6,7 +6,9 @@ Protected product truth: `develop@749511c3ad4000090048718f685c6bee6b3d2c25`
 
 ## Purpose
 
-This document is the canonical product/technical gap baseline for BandScope. It separates protected shipped truth from active pull-request work, research/acceptance work, superseded work, and external control-plane dependencies. A PR body, predecessor check, model review, screenshot, remembered SHA, or generated routing manifest is never shipped truth.
+This document is the canonical live product/technical gap synthesis for BandScope. It is governed by `AGENTS.md`, `ARCHITECTURE.md`, the security/repository/engineering sources they reference, and `docs/brand-story.md`; if this synthesis conflicts with those owning sources, the owning source wins and this baseline must be repaired. Mechanical enforcement remains in the repository's tests, root verification scripts, workflows, and protected-branch rules rather than in prose alone.
+
+It separates protected shipped truth from active pull-request work, research/acceptance work, superseded work, and external control-plane dependencies. A PR body, predecessor check, model review, screenshot, remembered SHA, or generated routing manifest is never shipped truth.
 
 BandScope is a local-first rehearsal decision product. The commercial loop is complete only when a musician can admit a real local recording, obtain evidence-backed rehearsal guidance, rehearse a precise passage, save and recover the project, share a bounded handoff, diagnose failures without leaking private media, and install, update, repair, or roll back a verifiable signed build.
 
@@ -44,15 +46,15 @@ The near-term product order remains: merge-train convergence; trusted distributi
 
 ## 2. Live delivery authority
 
-A fresh accessible-repository sweep begun at **2026-09-02 16:32 KST** queried all **74** repositories currently visible under `ContextualWisdomLab` individually. The sequential per-repository counts summed to **2,894 open pull requests**. An organization-wide aggregate captured immediately after that sweep also returned **2,894 open pull requests** with `incomplete_results=false`. Equality between these non-atomic captures is evidence for this capture only; concurrent creations and closures can still occur while a sequential census is running.
+A fresh accessible-repository sweep begun at **2026-09-02 17:33 KST** queried all **74** repositories currently visible under `ContextualWisdomLab` individually. The sequential per-repository counts summed to **2,907 open pull requests**. An organization-wide aggregate captured immediately after that sweep returned **2,908 open pull requests** with `incomplete_results=false`. The one-PR difference proves only non-simultaneous queue movement during the census; it is not attributed to a particular repository without a separate exact observation.
 
-At this census `ContextualWisdomLab/bandscope` had **193 open pull requests** and remains the selected delivery boundary. Fresh high-backlog peers were `ContextualWisdomLab/naruon` (145), `ContextualWisdomLab/OriginWeave` (142), `ContextualWisdomLab/newsdom-api` (137), `ContextualWisdomLab/pg-erd-cloud` (136), `ContextualWisdomLab/TEPP` (128), `ContextualWisdomLab/html4tree` (127), `ContextualWisdomLab/.github` (119), and `ContextualWisdomLab/Orgmetra` (117). BandScope is selected not by name alone but because it combines the largest observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
+At this census `ContextualWisdomLab/bandscope` had **193 open pull requests** and **19 open issues**, and remains the selected delivery boundary. Fresh high-backlog peers were `ContextualWisdomLab/naruon` (146), `ContextualWisdomLab/OriginWeave` (142), `ContextualWisdomLab/newsdom-api` (137), `ContextualWisdomLab/pg-erd-cloud` (136), `ContextualWisdomLab/TEPP` (130), `ContextualWisdomLab/html4tree` (127), `ContextualWisdomLab/.github` (121), `ContextualWisdomLab/Orgmetra` (117), and `ContextualWisdomLab/LineageWeave` (112). BandScope is selected not by name alone but because it combines the largest observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
 
 The exact 74-repository set for this same capture is enumerated verbatim in `docs/doctoring/product-gap-baseline-2026-09-01.md`; capitalization there is the GitHub repository identity and is not normalized. Because PR creation and closure can occur during a sequential organization census, later counts are historical observations unless a new complete sweep is performed.
 
 Protected `develop` was previously recorded with these 16 required contexts: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`. A fresh branch-protection read in this run returned GitHub 403 `Resource not accessible by integration`, so this inventory is not represented as newly revalidated protection truth; merge decisions must refetch through an authorized surface.
 
-Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change invalidates predecessor review/check receipts. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
+Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change prevents predecessor review/check receipts from transferring to the successor head; the original historical evidence remains preserved. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
 
 Merge readiness is re-evaluated per unchanged exact PR head; an organization-wide approval search is not a substitute for per-head proof.
 
@@ -95,7 +97,7 @@ Backlog convergence is the primary engineering risk because micro-PR fan-out cre
 
 PR #968 owns the unique executable queue machinery needed by #966: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, reviewed dependency/succession metadata, network-independent validation, deterministic human projection/parity, and symlink-safe atomic publication. It must not be discarded as stale documentation.
 
-Current identities are deliberately separated rather than conflated. At this pre-write audit, canonical baseline PR #1116 was `docs/gap-baseline-2026-08-31@9e88ba2cf4dc0fdaf64f80b1f540c37bb4d9ce49`, base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. A fresh GitHub read of PR #968 reported queue head `docs/bandscope-product-readiness-baseline@a1ccf9348343a835c640d0b7e830d9c10b0c0482` and base SHA exactly `9e88ba2cf4dc0fdaf64f80b1f540c37bb4d9ce49` for base branch `docs/gap-baseline-2026-08-31`; that head is the ordinary non-force two-parent restack that preserved #968 queue machinery while taking the then-current #1116 baseline/doctoring blobs. Any later #1116 advance invalidates that base-tip receipt and requires #968 to reconcile again before predecessor checks/reviews can qualify.
+Current identities are deliberately separated rather than conflated. At this pre-write audit, canonical baseline PR #1116 was `docs/gap-baseline-2026-08-31@b947afd05fd4fa1e1e0489cdccab34f9cef714b4`, base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. A fresh GitHub read of PR #968 reported queue head `docs/bandscope-product-readiness-baseline@45ef3da0e40980bb9b532dd754d14f9e309536bf` and base SHA exactly `b947afd05fd4fa1e1e0489cdccab34f9cef714b4` for base branch `docs/gap-baseline-2026-08-31`; that head is the ordinary non-force two-parent restack that preserved #968 queue machinery while taking the then-current #1116 baseline/doctoring blobs. This #1116 advance makes that base-tip receipt predecessor evidence; #968 must reconcile again before its checks/reviews can qualify.
 
 PR #1117 is a separate lane: `refactor/temporal-features-api@b98f266d2356d56be624fb617580b5252e85baaa`, base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Its visible review threads are independently resolved; that review evidence belongs to #1117 and never substitutes for #1116 or #968 evidence. #1117 does not own `docs/product-technical-gap-baseline.md`, so no canonical baseline document blob is attributed to its exact ref.
 
@@ -104,6 +106,8 @@ PR #1007 is the canonical first-part-handoff lane only to the extent that its li
 Draft status is used only for a real unverified or blocked boundary and is never toggled solely to manufacture CI.
 
 ## 6. Domain model and ownership
+
+For a musician, these boundaries serve one simple flow: pick a song, understand what matters tonight, rehearse it, save it safely, and share only what was intended. The technical split below exists so those actions do not fight over authority or expose private media.
 
 BandScope keeps these bounded contexts distinct:
 
@@ -179,6 +183,8 @@ The diagram is logical responsibility, not a claim that each box is a separate p
 
 ## 7. Technical design contract (TRD)
 
+The technical design has one rehearsal-facing goal: every click should keep the musician on the same trusted song and project while the app does the complicated validation and analysis out of sight.
+
 ### 7.1 Production topology and ports
 
 Protected `develop` is a local desktop architecture with these principal implementation surfaces:
@@ -217,12 +223,17 @@ sequenceDiagram
 
 If decode, analysis, persistence, or playback fails, the error remains typed and bounded; a synthetic analysis object is not substituted as production success.
 
-### 7.3 Transport and project state ownership
+### 7.3 Transport, source replacement, and project state ownership
 
 ```mermaid
 stateDiagram-v2
     [*] --> NoSource
-    NoSource --> Ready: authorized source admitted
+    NoSource --> SourceSelecting: choose source
+    NoSource --> Recovering: project recovery requested
+    SourceSelecting --> Ready: source admitted
+    SourceSelecting --> NoSource: cancelled/failed with no prior source
+    Ready --> SourceSelecting: replace source
+    Ready --> Ready: cancelled/failed replacement keeps prior source
     Ready --> Playing: play
     Playing --> Paused: pause
     Paused --> Playing: resume
@@ -235,12 +246,17 @@ stateDiagram-v2
     Paused --> Ready: stop
     Looping --> Ready: stop
     LoopPaused --> Ready: stop
+    Playing --> SourceSelecting: replace source requested / stop transport
+    Paused --> SourceSelecting: replace source requested
+    Looping --> SourceSelecting: replace source requested / stop transport
+    LoopPaused --> SourceSelecting: replace source requested
+    Ready --> NoSource: clear source
     Ready --> Recovering: project recovery requested
     Recovering --> Ready: last-known-good restored
     Recovering --> RecoveryFailed: no valid recoverable snapshot
 ```
 
-The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. UI components, cue cards, map cursors, and persisted project data project from that authority; they do not each own independent writable transport state. Project publication is atomic and crash-safe rather than implied by the diagram's UI state.
+The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. Source replacement is transactional: a pending replacement must not erase the prior admitted source; conflicting source/import/analysis actions remain unavailable until selection resolves, and a cancelled or failed replacement returns to the prior source authority. UI components, cue cards, map cursors, and persisted project data project from the owning authority rather than creating competing writable state. Project publication **must become** atomic and crash-safe; that is a target persistence contract, not a shipped guarantee, and this state diagram does not prove it.
 
 ### 7.4 Persistence and contract versioning
 
