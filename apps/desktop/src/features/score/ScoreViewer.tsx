@@ -27,7 +27,7 @@ export interface ScoreViewerProps {
    * loads arbitrary URLs; callers (PR3 wires Tauri `read_score_pdf`) must
    * hand it bytes they already validated.
    */
-  data: Uint8Array | null;
+  scorePdfBytes: Uint8Array | null;
   /** Optional display name of the attached score file. */
   fileName?: string;
   /** Optional observer notified on every LOADING/FAILED/READY transition. */
@@ -45,14 +45,14 @@ const MAX_ZOOM = 4;
  * error with retry, READY canvas) plus rehearsal-friendly page navigation
  * and zoom in/out/fit-width controls.
  */
-export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps) {
-  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const [status, setStatus] = useState<ScoreViewerStatus>("LOADING");
+export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreViewerProps) {
+  const scoreTranslator = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const [viewerStatus, setViewerStatus] = useState<ScoreViewerStatus>("LOADING");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pdfDocument, setPdfDocument] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [pageCount, setPageCount] = useState(0);
-  const [zoom, setZoom] = useState(1);
+  const [zoomScale, setZoomScale] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
   const [containerWidth, setContainerWidth] = useState(0);
   const [retryToken, setRetryToken] = useState(0);
@@ -60,22 +60,22 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (data !== null) {
-      onStatusChange?.(status);
+    if (scorePdfBytes !== null) {
+      onStatusChange?.(viewerStatus);
     }
-  }, [data, status, onStatusChange]);
+  }, [scorePdfBytes, viewerStatus, onStatusChange]);
 
   useEffect(() => {
-    if (data === null) {
+    if (scorePdfBytes === null) {
       return;
     }
 
     let cancelled = false;
-    setStatus("LOADING");
+    setViewerStatus("LOADING");
     setErrorMessage(null);
     setPdfDocument(null);
 
-    const loadingTask = loadScorePdf(data);
+    const loadingTask = loadScorePdf(scorePdfBytes);
     loadingTask.promise
       .then((loadedDocument) => {
         if (cancelled) {
@@ -84,40 +84,44 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
         setPdfDocument(loadedDocument);
         setPageCount(loadedDocument.numPages);
         setPageNumber(1);
-        setStatus("READY");
+        setViewerStatus("READY");
       })
       .catch((error: unknown) => {
         if (cancelled) {
           return;
         }
         setErrorMessage(error instanceof Error ? error.message : String(error));
-        setStatus("FAILED");
+        setViewerStatus("FAILED");
       });
 
     return () => {
       cancelled = true;
       void loadingTask.destroy().catch(() => undefined);
     };
-  }, [data, retryToken]);
+  }, [scorePdfBytes, retryToken]);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (status !== "READY" || !container || typeof ResizeObserver === "undefined") {
+    const viewerContainer = containerRef.current;
+    if (
+      viewerStatus !== "READY" ||
+      !viewerContainer ||
+      typeof ResizeObserver === "undefined"
+    ) {
       return;
     }
 
-    const observer = new ResizeObserver((entries) => {
+    const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setContainerWidth(entry.contentRect.width);
       }
     });
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [status]);
+    resizeObserver.observe(viewerContainer);
+    return () => resizeObserver.disconnect();
+  }, [viewerStatus]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (status !== "READY" || !pdfDocument || !canvas) {
+    const scoreCanvas = canvasRef.current;
+    if (viewerStatus !== "READY" || !pdfDocument || !scoreCanvas) {
       return;
     }
 
@@ -126,17 +130,17 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
 
     pdfDocument
       .getPage(pageNumber)
-      .then((page) => {
+      .then((pdfPage) => {
         if (cancelled) {
           return;
         }
-        const baseViewport = page.getViewport({ scale: 1 });
-        const scale =
-          fitWidth && containerWidth > 0 ? containerWidth / baseViewport.width : zoom;
-        const viewport = page.getViewport({ scale });
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        renderTask = page.render({ canvas, viewport });
+        const baseViewport = pdfPage.getViewport({ scale: 1 });
+        const viewportScale =
+          fitWidth && containerWidth > 0 ? containerWidth / baseViewport.width : zoomScale;
+        const pageViewport = pdfPage.getViewport({ scale: viewportScale });
+        scoreCanvas.width = Math.floor(pageViewport.width);
+        scoreCanvas.height = Math.floor(pageViewport.height);
+        renderTask = pdfPage.render({ canvas: scoreCanvas, viewport: pageViewport });
         renderTask.promise.catch(() => {
           // Cancelled renders (rapid page/zoom changes) are expected.
         });
@@ -149,7 +153,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [status, pdfDocument, pageNumber, zoom, fitWidth, containerWidth]);
+  }, [viewerStatus, pdfDocument, pageNumber, zoomScale, fitWidth, containerWidth]);
 
   /** Move to the previous page, clamped at the first page. */
   const goToPreviousPage = () => {
@@ -164,13 +168,13 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   /** Switch to manual zoom and enlarge, clamped at the maximum scale. */
   const zoomIn = () => {
     setFitWidth(false);
-    setZoom((current) => Math.min(MAX_ZOOM, current * ZOOM_STEP));
+    setZoomScale((current) => Math.min(MAX_ZOOM, current * ZOOM_STEP));
   };
 
   /** Switch to manual zoom and shrink, clamped at the minimum scale. */
   const zoomOut = () => {
     setFitWidth(false);
-    setZoom((current) => Math.max(MIN_ZOOM, current / ZOOM_STEP));
+    setZoomScale((current) => Math.max(MIN_ZOOM, current / ZOOM_STEP));
   };
 
   /** Re-enable fit-width so the page tracks the container size. */
@@ -179,24 +183,24 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   };
 
   /** Re-run the load state machine with the same validated bytes. */
-  const retry = () => {
+  const retryPdfLoad = () => {
     setRetryToken((current) => current + 1);
   };
 
-  if (data === null) {
+  if (scorePdfBytes === null) {
     return (
       <Card className="border-2 border-dashed border-cyan-300/20 bg-slate-950/50 backdrop-blur-xl">
         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
           <div className="mb-4 rounded-full border border-cyan-300/30 bg-cyan-300/10 p-4 text-cyan-200">
             <FileMusic className="size-8" aria-hidden="true" />
           </div>
-          <p className="max-w-sm text-slate-400">{t("scoreViewerEmpty")}</p>
+          <p className="max-w-sm text-slate-400">{scoreTranslator("scoreViewerEmpty")}</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (status === "LOADING") {
+  if (viewerStatus === "LOADING") {
     return (
       <Card
         className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl"
@@ -206,13 +210,13 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
       >
         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
           <Loader2 className="mb-4 size-10 animate-spin text-cyan-300" aria-hidden="true" />
-          <p className="animate-pulse text-slate-400">{t("scoreViewerLoading")}</p>
+          <p className="animate-pulse text-slate-400">{scoreTranslator("scoreViewerLoading")}</p>
         </CardContent>
       </Card>
     );
   }
 
-  if (status === "FAILED") {
+  if (viewerStatus === "FAILED") {
     return (
       <Card
         className="border-rose-300/30 bg-rose-950/40 backdrop-blur-xl"
@@ -223,22 +227,24 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200">
             <AlertCircle className="size-8" aria-hidden="true" />
           </div>
-          <h3 className="mb-2 text-lg font-black text-rose-100">{t("scoreViewerFailedTitle")}</h3>
+          <h3 className="mb-2 text-lg font-black text-rose-100">
+            {scoreTranslator("scoreViewerFailedTitle")}
+          </h3>
           {errorMessage && (
             <p className="mb-4 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">
               {errorMessage}
             </p>
           )}
-          <Button variant="outline" className="h-12 min-w-32 text-base" onClick={retry}>
+          <Button variant="outline" className="h-12 min-w-32 text-base" onClick={retryPdfLoad}>
             <RotateCw aria-hidden="true" />
-            {t("scoreViewerRetry")}
+            {scoreTranslator("scoreViewerRetry")}
           </Button>
         </CardContent>
       </Card>
     );
   }
 
-  const pageIndicator = t("scoreViewerPageIndicator")
+  const pageIndicator = scoreTranslator("scoreViewerPageIndicator")
     .replace("{current}", String(pageNumber))
     .replace("{total}", String(pageCount));
 
@@ -257,7 +263,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant="outline"
               size="icon-lg"
               className="size-12"
-              aria-label={t("scoreViewerZoomOut")}
+              aria-label={scoreTranslator("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
               <ZoomOut aria-hidden="true" />
@@ -266,7 +272,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant="outline"
               size="icon-lg"
               className="size-12"
-              aria-label={t("scoreViewerZoomIn")}
+              aria-label={scoreTranslator("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
               <ZoomIn aria-hidden="true" />
@@ -274,12 +280,12 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             <Button
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
-              aria-label={t("scoreViewerFitWidth")}
+              aria-label={scoreTranslator("scoreViewerFitWidth")}
               aria-pressed={fitWidth}
               onClick={fitToWidth}
             >
               <MoveHorizontal aria-hidden="true" />
-              {t("scoreViewerFitWidth")}
+              {scoreTranslator("scoreViewerFitWidth")}
             </Button>
           </div>
         </div>
@@ -291,7 +297,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             variant="outline"
             size="icon-lg"
             className="size-14"
-            aria-label={t("scoreViewerPrevPage")}
+            aria-label={scoreTranslator("scoreViewerPrevPage")}
             disabled={pageNumber <= 1}
             onClick={goToPreviousPage}
           >
@@ -304,7 +310,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             variant="outline"
             size="icon-lg"
             className="size-14"
-            aria-label={t("scoreViewerNextPage")}
+            aria-label={scoreTranslator("scoreViewerNextPage")}
             disabled={pageNumber >= pageCount}
             onClick={goToNextPage}
           >
