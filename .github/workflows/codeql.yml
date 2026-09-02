@@ -1,7 +1,15 @@
 name: codeql
 
+# Temporary repository-local pull-request safety net: organization ruleset 18156473
+# does not yet attach ContextualWisdomLab/.github's codeql-pr.yml required workflow.
+# Remove this pull_request trigger only after the live organization ruleset is verified
+# to require the central CodeQL PR workflow for BandScope.
 on:
   push:
+    branches:
+      - develop
+      - main
+  pull_request:
     branches:
       - develop
       - main
