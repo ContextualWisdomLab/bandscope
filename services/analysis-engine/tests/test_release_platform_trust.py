@@ -10,19 +10,28 @@ import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_platform_trust.py"
+_PACKAGER_PATH = _REPOSITORY_ROOT / "scripts" / "release" / "package_desktop_artifact.py"
 _BUILD_BASELINE_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
+
+
+def _load_module(path: Path, module_name: str) -> ModuleType:
+    """Load one repository-owned executable module without adding a package boundary."""
+    assert path.is_file(), f"release boundary module is missing: {path.name}"
+    module_spec = importlib.util.spec_from_file_location(module_name, path)
+    assert module_spec is not None and module_spec.loader is not None
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module
 
 
 def _load_guard() -> ModuleType:
     """Load the executable release-trust guard from its repository path."""
-    assert _GUARD_PATH.is_file(), "release builds must own a platform trust verifier"
-    guard_spec = importlib.util.spec_from_file_location(
-        "verify_release_platform_trust", _GUARD_PATH
-    )
-    assert guard_spec is not None and guard_spec.loader is not None
-    guard_module = importlib.util.module_from_spec(guard_spec)
-    guard_spec.loader.exec_module(guard_module)
-    return guard_module
+    return _load_module(_GUARD_PATH, "verify_release_platform_trust")
+
+
+def _load_packager() -> ModuleType:
+    """Load the release packager that owns the tag-publication trust call."""
+    return _load_module(_PACKAGER_PATH, "package_desktop_artifact_trust")
 
 
 def _command_result(
@@ -82,7 +91,9 @@ def test_windows_release_trust_requires_valid_exact_publisher(tmp_path: Path) ->
 
     def wrong_publisher_runner(command: list[str], **_: object) -> SimpleNamespace:
         del command
-        return _command_result(stdout='{"Status":"Valid","Subject":"CN=Other Publisher"}')
+        return _command_result(
+            stdout='{"Status":"Valid","Subject":"CN=Other Publisher"}'
+        )
 
     with pytest.raises(ValueError, match="approved Windows publisher"):
         guard.verify_windows_artifacts(
@@ -196,26 +207,103 @@ def test_macos_release_trust_fails_closed_without_identity_or_outputs(
         guard.verify_macos_artifacts(artifact_root, bundle_root, "ABCDE12345")
 
 
-def test_tag_builds_verify_platform_trust_before_upload() -> None:
-    """Keep immutable publication downstream of platform-native trust verification."""
+def test_tag_packager_invokes_windows_trust_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Bind Windows tag packaging to the native verifier before artifact upload."""
+    packager = _load_packager()
+    monkeypatch.setenv("GITHUB_REF", "refs/tags/v1.2.3")
+    monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "windows")
+    monkeypatch.setenv(
+        "BANDSCOPE_WINDOWS_PUBLISHER_SUBJECT", "CN=ContextualWisdomLab"
+    )
+    commands: list[list[str]] = []
+
+    def runner(command: list[str], **_: object) -> SimpleNamespace:
+        commands.append(command)
+        return _command_result()
+
+    packager.verify_tag_platform_trust(tmp_path, tmp_path / "artifacts", runner=runner)
+
+    assert len(commands) == 1
+    assert commands[0][2:5] == [
+        "windows",
+        str(tmp_path / "artifacts"),
+        "--expected-identity",
+    ]
+    assert commands[0][-1] == "CN=ContextualWisdomLab"
+
+
+def test_tag_packager_invokes_macos_trust_guard(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Bind macOS tag packaging to signature, team, and notarization verification."""
+    packager = _load_packager()
+    monkeypatch.setenv("GITHUB_REF", "refs/tags/v1.2.3")
+    monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "macos")
+    monkeypatch.setenv("BANDSCOPE_TARGET_TRIPLE", "aarch64-apple-darwin")
+    monkeypatch.setenv("BANDSCOPE_APPLE_TEAM_ID", "ABCDE12345")
+    commands: list[list[str]] = []
+
+    def runner(command: list[str], **_: object) -> SimpleNamespace:
+        commands.append(command)
+        return _command_result()
+
+    packager.verify_tag_platform_trust(tmp_path, tmp_path / "artifacts", runner=runner)
+
+    expected_bundle_root = (
+        tmp_path
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / "aarch64-apple-darwin"
+        / "release"
+        / "bundle"
+        / "macos"
+    )
+    assert len(commands) == 1
+    assert "macos" in commands[0]
+    assert str(expected_bundle_root) in commands[0]
+    assert commands[0][-1] == "ABCDE12345"
+
+
+def test_tag_packager_is_fail_closed_and_non_tag_packaging_stays_build_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Reject failed release trust while leaving ordinary validation builds unsigned."""
+    packager = _load_packager()
+    commands: list[list[str]] = []
+
+    def failing_runner(command: list[str], **_: object) -> SimpleNamespace:
+        commands.append(command)
+        return _command_result(returncode=1)
+
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/develop")
+    packager.verify_tag_platform_trust(
+        tmp_path, tmp_path / "artifacts", runner=failing_runner
+    )
+    assert commands == []
+
+    monkeypatch.setenv("GITHUB_REF", "refs/tags/v1.2.3")
+    monkeypatch.setenv("BANDSCOPE_ARTIFACT_OS", "windows")
+    with pytest.raises(RuntimeError, match="Platform release trust verification failed"):
+        packager.verify_tag_platform_trust(
+            tmp_path, tmp_path / "artifacts", runner=failing_runner
+        )
+
+
+def test_tag_builds_package_before_artifact_upload() -> None:
+    """Keep immutable publication downstream of the packager-owned trust gate."""
     workflow_text = _BUILD_BASELINE_PATH.read_text(encoding="utf-8")
 
-    for job_name in ("build-windows-native", "build-windows-arm64"):
+    for job_name in (
+        "build-windows-native",
+        "build-windows-arm64",
+        "build-macos-native",
+        "build-macos-arm64",
+    ):
         job_block = _workflow_job_block(workflow_text, job_name)
-        verification_index = job_block.index(
-            "python scripts/checks/verify_release_platform_trust.py windows"
-        )
+        packaging_index = job_block.index("scripts/release/package_desktop_artifact.py")
         upload_index = job_block.index("uses: actions/upload-artifact@")
-        assert "if: startsWith(github.ref, 'refs/tags/v')" in job_block
-        assert "BANDSCOPE_WINDOWS_PUBLISHER_SUBJECT" in job_block
-        assert verification_index < upload_index
-
-    for job_name in ("build-macos-native", "build-macos-arm64"):
-        job_block = _workflow_job_block(workflow_text, job_name)
-        verification_index = job_block.index(
-            "python3 scripts/checks/verify_release_platform_trust.py macos"
-        )
-        upload_index = job_block.index("uses: actions/upload-artifact@")
-        assert "if: startsWith(github.ref, 'refs/tags/v')" in job_block
-        assert "BANDSCOPE_APPLE_TEAM_ID" in job_block
-        assert verification_index < upload_index
+        assert packaging_index < upload_index
