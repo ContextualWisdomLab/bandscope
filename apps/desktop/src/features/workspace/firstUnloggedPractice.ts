@@ -40,7 +40,7 @@ export function hasLoggedPracticeProgress(value: unknown): boolean {
 
 /** Admit one role-copy practice mark without granting inherited values authority. */
 function practiceMark(roleValue: Record<string, unknown>): PracticeMark {
-  if (!owns(roleValue, "practiceProgress")) {
+  if (!owns(roleValue, "practiceProgress") || roleValue.practiceProgress === undefined) {
     return { kind: "unlogged" };
   }
   const value = roleValue.practiceProgress;
