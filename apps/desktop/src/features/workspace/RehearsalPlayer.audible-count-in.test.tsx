@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, expect, it, vi } from "vitest";
@@ -150,6 +151,26 @@ it("sounds the transport count-in without replaying a beat when playback rate ch
 
   fireEvent.click(screen.getByRole("button", { name: /Pause/i }));
   expect(oscillators[1]?.stop).toHaveBeenCalledTimes(2);
+});
+
+it("keeps audible count-in available across Strict Mode effect replay", () => {
+  const { closeAudioContext, oscillators } = installPlayableAudioMocks();
+  const song = createDemoRehearsalSong();
+  const { unmount } = render(
+    <StrictMode>
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={audioSourcePath}
+      />
+    </StrictMode>,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
+
+  expect(oscillators).toHaveLength(1);
+  unmount();
+  expect(closeAudioContext).toHaveBeenCalledTimes(1);
 });
 
 it("closes the count-in audio context when the mounted player unmounts", () => {
