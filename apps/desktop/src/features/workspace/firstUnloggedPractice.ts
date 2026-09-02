@@ -7,9 +7,25 @@ export type FirstUnloggedPractice = {
   roleName: string;
 };
 
+type PracticeMark =
+  | { kind: "unlogged" }
+  | { kind: "logged"; value: number }
+  | { kind: "invalid" };
+
+type RoleEvidence = {
+  roleName: string;
+  firstSectionLabel: string;
+  marks: PracticeMark[];
+};
+
 /** Return whether an untrusted runtime value is a plain object record. */
 function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Return whether a record owns a field rather than inheriting it. */
+function owns(record: Record<string, unknown>, field: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, field);
 }
 
 /** Return whether a role already owns a 0–100 integer practice mark. */
@@ -17,74 +33,126 @@ export function hasLoggedPracticeProgress(value: unknown): boolean {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100;
 }
 
+/** Admit one role-copy practice mark without granting inherited values authority. */
+function practiceMark(roleValue: Record<string, unknown>): PracticeMark {
+  if (!owns(roleValue, "practiceProgress")) {
+    return { kind: "unlogged" };
+  }
+  const value = roleValue.practiceProgress;
+  if (!hasLoggedPracticeProgress(value)) {
+    return { kind: "invalid" };
+  }
+  return { kind: "logged", value };
+}
+
+/** Return whether every section copy agrees that the named part is still unlogged. */
+function isConsistentlyUnlogged(marks: PracticeMark[]): boolean {
+  if (marks.length === 0 || marks.some((mark) => mark.kind === "invalid")) {
+    return false;
+  }
+
+  const logged = marks.filter((mark): mark is Extract<PracticeMark, { kind: "logged" }> => mark.kind === "logged");
+  if (logged.length === 0) {
+    return true;
+  }
+  if (logged.length !== marks.length) {
+    return false;
+  }
+
+  const expected = logged[0]!.value;
+  return logged.every((mark) => mark.value === expected) ? false : false;
+}
+
 /**
  * Pick the first named part that still needs tonight's first practice mark.
  *
- * Missing `practiceProgress` is unlogged. Out-of-range or non-integer marks are
- * not authority and are skipped. Runtime roots and collection members are
- * untrusted; malformed evidence fails closed instead of naming a pass.
+ * The same role id may legitimately appear in several song sections. Those
+ * copies are one rehearsal part only when their display name agrees and every
+ * copy consistently omits `practiceProgress`. A duplicate id inside one
+ * section, conflicting names, mixed logged/unlogged copies, malformed marks,
+ * inherited identity, or malformed collection evidence is not authority and
+ * cannot produce a rehearsal instruction.
  */
 export function firstUnloggedPractice(
   song: RehearsalSong,
   activeRole: string | null = null
 ): FirstUnloggedPractice | null {
   const runtimeSong: unknown = song;
-  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+  if (!isRuntimeObject(runtimeSong) || !owns(runtimeSong, "sections") || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
 
-  const seenRoleIds = new Set<string>();
-  const repeatedRoleIds = new Set<string>();
+  const evidenceByRole = new Map<string, RoleEvidence>();
+  const roleOrder: string[] = [];
+  const invalidRoleIds = new Set<string>();
 
   for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
-      continue;
+    if (
+      !isRuntimeObject(sectionValue) ||
+      !owns(sectionValue, "label") ||
+      !owns(sectionValue, "roles") ||
+      !Array.isArray(sectionValue.roles)
+    ) {
+      return null;
     }
+
+    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    if (!sectionLabel) {
+      return null;
+    }
+
+    const sectionRoleIds = new Set<string>();
     for (const roleValue of sectionValue.roles) {
-      if (!isRuntimeObject(roleValue)) {
+      if (
+        !isRuntimeObject(roleValue) ||
+        !owns(roleValue, "id") ||
+        !owns(roleValue, "name")
+      ) {
         continue;
       }
+
       const roleId = meaningfulRangeText(roleValue.id);
-      if (!roleId) {
+      const roleName = meaningfulRangeText(roleValue.name);
+      if (!roleId || !roleName) {
         continue;
       }
-      if (seenRoleIds.has(roleId)) {
-        repeatedRoleIds.add(roleId);
-      } else {
-        seenRoleIds.add(roleId);
+
+      if (sectionRoleIds.has(roleId)) {
+        invalidRoleIds.add(roleId);
+        continue;
       }
+      sectionRoleIds.add(roleId);
+
+      const existing = evidenceByRole.get(roleId);
+      if (!existing) {
+        evidenceByRole.set(roleId, {
+          roleName,
+          firstSectionLabel: sectionLabel,
+          marks: [practiceMark(roleValue)]
+        });
+        roleOrder.push(roleId);
+        continue;
+      }
+
+      if (existing.roleName !== roleName) {
+        invalidRoleIds.add(roleId);
+      }
+      existing.marks.push(practiceMark(roleValue));
     }
   }
 
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+  for (const roleId of roleOrder) {
+    if (invalidRoleIds.has(roleId) || (activeRole && roleId !== activeRole)) {
       continue;
     }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (!sectionLabel) {
+    const evidence = evidenceByRole.get(roleId);
+    if (!evidence || !isConsistentlyUnlogged(evidence.marks)) {
       continue;
     }
-
-    for (const roleValue of sectionValue.roles) {
-      if (!isRuntimeObject(roleValue)) {
-        continue;
-      }
-      const roleId = meaningfulRangeText(roleValue.id);
-      const roleName = meaningfulRangeText(roleValue.name);
-      if (!roleId || !roleName || repeatedRoleIds.has(roleId)) {
-        continue;
-      }
-      if (activeRole && roleId !== activeRole) {
-        continue;
-      }
-      if (hasLoggedPracticeProgress(roleValue.practiceProgress)) {
-        continue;
-      }
-      if (roleValue.practiceProgress !== undefined && !hasLoggedPracticeProgress(roleValue.practiceProgress)) {
-        continue;
-      }
-      return { sectionLabel, roleName };
-    }
+    return {
+      sectionLabel: evidence.firstSectionLabel,
+      roleName: evidence.roleName
+    };
   }
 
   return null;
