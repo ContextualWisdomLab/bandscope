@@ -28,6 +28,30 @@ describe("firstUnloggedPractice", () => {
     });
   });
 
+  it("treats an owned undefined optional mark as unlogged", () => {
+    const song = createDemoRehearsalSong();
+    Object.defineProperty(song.sections[0]!.roles[0]!, "practiceProgress", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: undefined
+    });
+    song.sections[0]!.roles[1] = {
+      ...song.sections[0]!.roles[1]!,
+      practiceProgress: 40
+    };
+    song.sections[0]!.roles[2] = {
+      ...song.sections[0]!.roles[2]!,
+      practiceProgress: 40
+    };
+
+    expect(firstUnloggedPractice(song)).toEqual({
+      kind: "unlogged",
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
+  });
+
   it("skips parts that already own a 0–100 mark", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
