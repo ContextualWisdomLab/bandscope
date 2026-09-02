@@ -1,5 +1,6 @@
 """Fail closed when Trivy code scanning cannot run on pull-request heads."""
 
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 TRIVY_WORKFLOW = Path(".github/workflows/trivy.yml")
@@ -32,39 +33,69 @@ def _has_mapping_key(workflow_lines: list[str], mapping_header: str, mapping_ind
     return any(workflow_line.startswith(mapping_prefix) for workflow_line in workflow_lines)
 
 
-def _list_values(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> set[str]:
-    """Return normalized YAML scalar list items under the requested mapping key."""
+def _list_sequence(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> list[str]:
+    """Return normalized YAML scalar list items in source order."""
     nested_block = _indented_block(workflow_lines, mapping_header, mapping_indent)
     item_prefix = " " * (mapping_indent + 2) + "- "
-    raw_list_items = {
-        workflow_line[len(item_prefix) :].strip()
-        for workflow_line in nested_block
-        if workflow_line.startswith(item_prefix) and workflow_line[len(item_prefix) :].strip()
-    }
-    return {
-        normalized_list_value
-        for raw_list_item in raw_list_items
-        if (normalized_list_value := _yaml_scalar(raw_list_item))
-    }
+    normalized_items: list[str] = []
+    for workflow_line in nested_block:
+        if not workflow_line.startswith(item_prefix):
+            continue
+        raw_list_item = workflow_line[len(item_prefix) :].strip()
+        if raw_list_item and (normalized_item := _yaml_scalar(raw_list_item)):
+            normalized_items.append(normalized_item)
+    return normalized_items
 
 
-def _mapping_list_values(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> set[str]:
-    """Return block- or inline-list scalar values for one mapping key."""
+def _list_values(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> set[str]:
+    """Return normalized YAML scalar list items under the requested mapping key."""
+    return set(_list_sequence(workflow_lines, mapping_header, mapping_indent))
+
+
+def _mapping_list_sequence(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> list[str]:
+    """Return block- or inline-list scalar values in YAML source order."""
     mapping_prefix = f"{' ' * mapping_indent}{mapping_header}:"
     for workflow_line in workflow_lines:
         if not workflow_line.startswith(mapping_prefix):
             continue
         scalar_value = _yaml_scalar(workflow_line[len(mapping_prefix) :].strip())
         if not scalar_value:
-            return _list_values(workflow_lines, mapping_header, mapping_indent)
+            return _list_sequence(workflow_lines, mapping_header, mapping_indent)
         if scalar_value.startswith("[") and scalar_value.endswith("]"):
-            return {
+            return [
                 normalized_item
                 for item in scalar_value[1:-1].split(",")
                 if (normalized_item := _yaml_scalar(item.strip()))
-            }
-        return {scalar_value}
-    return set()
+            ]
+        return [scalar_value]
+    return []
+
+
+def _mapping_list_values(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> set[str]:
+    """Return block- or inline-list scalar values for one mapping key."""
+    return set(_mapping_list_sequence(workflow_lines, mapping_header, mapping_indent))
+
+
+def _branch_patterns_allow(branch_patterns: list[str], protected_branch: str) -> bool:
+    """Evaluate ordered GitHub branch include/exclude patterns for one branch.
+
+    GitHub evaluates ``branches`` patterns in order: a matching ``!`` pattern
+    excludes a previously included ref, while a later positive pattern can
+    re-include it.  Preserve that ordering so a contract checker cannot be
+    fooled by merely seeing ``develop``/``main`` somewhere in the list.
+    ``fnmatchcase`` covers the ordinary glob forms relevant to these literal
+    protected branch names; patterns that do not match simply leave the prior
+    decision unchanged.
+    """
+    included = False
+    for branch_pattern in branch_patterns:
+        is_negative = branch_pattern.startswith("!")
+        effective_pattern = branch_pattern[1:] if is_negative else branch_pattern
+        if not effective_pattern:
+            continue
+        if fnmatchcase(protected_branch, effective_pattern):
+            included = not is_negative
+    return included
 
 
 def _list_item_blocks(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> list[list[str]]:
@@ -198,7 +229,7 @@ def main() -> int:
     """Require the Trivy workflow to cover every protected-branch PR head."""
     workflow_lines = TRIVY_WORKFLOW.read_text(encoding="utf-8").splitlines()
     pull_request_block = _indented_block(workflow_lines, "pull_request", 2)
-    pull_request_targets = _mapping_list_values(pull_request_block, "branches", 4)
+    pull_request_branch_patterns = _mapping_list_sequence(pull_request_block, "branches", 4)
     pull_request_activity_types = _mapping_list_values(pull_request_block, "types", 4)
     jobs_block = _indented_block(workflow_lines, "jobs", 0)
     trivy_job = _indented_block(jobs_block, "trivy-fs-scan", 2)
@@ -224,7 +255,7 @@ def main() -> int:
     if _has_mapping_key(workflow_lines, "pull_request_target", 2):
         missing_contract_items.append("forbidden pull_request_target event")
     for protected_branch in ("develop", "main"):
-        if protected_branch not in pull_request_targets:
+        if not _branch_patterns_allow(pull_request_branch_patterns, protected_branch):
             missing_contract_items.append(f"pull_request branch {protected_branch!r}")
     if _has_mapping_key(pull_request_block, "types", 4):
         for required_activity in ("opened", "synchronize", "reopened"):
