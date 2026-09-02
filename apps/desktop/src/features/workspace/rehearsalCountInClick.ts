@@ -1,13 +1,16 @@
+/** Oscillator operations the count-in engine owns across browser and test contexts. */
 export type RehearsalCountInOscillator = {
   connect: (destination: unknown) => void;
   disconnect: () => void;
   frequency: { value: number };
+  /** Release the retained graph node when the browser reports oscillator completion. */
   onended: (() => void) | null;
   start: (when?: number) => void;
   stop: (when?: number) => void;
   type: string;
 };
 
+/** Gain-envelope operations needed to shape one bounded count-in click. */
 export type RehearsalCountInGain = {
   connect: (destination: unknown) => RehearsalCountInGain;
   disconnect: () => void;
@@ -17,6 +20,7 @@ export type RehearsalCountInGain = {
   };
 };
 
+/** Minimal Web Audio context authority retained by one mounted rehearsal player. */
 export type RehearsalCountInAudioContext = {
   close: () => Promise<void>;
   createGain: () => RehearsalCountInGain;
@@ -27,8 +31,10 @@ export type RehearsalCountInAudioContext = {
   state: string;
 };
 
+/** Lazily construct the browser audio context only when a count-in first sounds. */
 export type RehearsalCountInContextFactory = () => RehearsalCountInAudioContext;
 
+/** Count-in lifecycle port: stop is reusable while dispose is terminal after acquisition. */
 export type RehearsalCountInClickEngine = {
   available: boolean;
   click: (accent: boolean) => Promise<void>;
@@ -116,18 +122,19 @@ export function createRehearsalCountInClickEngine(
     }
   };
 
-  /** Permanently release the mounted player's Web Audio authority. */
+  /** Permanently release Web Audio authority once this engine has acquired it. */
   const dispose = async (): Promise<void> => {
     if (disposed) {
       return;
     }
-    disposed = true;
-    stop();
     const closingContext = context;
-    context = null;
     if (!closingContext) {
+      // React Strict Mode replays effect cleanup before lazy audio acquisition.
       return;
     }
+    disposed = true;
+    stop();
+    context = null;
     try {
       await closingContext.close();
     } catch {
@@ -136,6 +143,7 @@ export function createRehearsalCountInClickEngine(
   };
 
   return {
+    /** Report whether this effect-lifetime engine can still sound a local click. */
     get available(): boolean {
       return contextFactory !== null && !disposed;
     },
@@ -175,6 +183,7 @@ export function createRehearsalCountInClickEngine(
         gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_SECONDS);
         oscillator.connect(gain);
         gain.connect(activeContext.destination);
+        /** Release this node after the bounded oscillator has naturally ended. */
         oscillator.onended = () => releaseNode(node, false);
         oscillator.start(when);
         oscillator.stop(when + CLICK_SECONDS + 0.01);
