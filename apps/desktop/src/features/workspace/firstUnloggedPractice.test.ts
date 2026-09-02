@@ -74,14 +74,18 @@ describe("firstUnloggedPractice", () => {
     });
   });
 
-  it("distinguishes a selected part with a trustworthy practice mark while another unlogged part remains", () => {
+  it("names the next trustworthy unlogged part when the selected part has a mark", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[2] = {
       ...song.sections[0]!.roles[2]!,
       practiceProgress: 0
     };
 
-    expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({ kind: "selected-logged" });
+    expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({
+      kind: "unlogged",
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
   });
 
   it("reports all logged when the selected part is logged and no trustworthy unlogged part remains", () => {

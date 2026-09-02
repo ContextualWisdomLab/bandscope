@@ -75,4 +75,20 @@ describe("Workspace first-unlogged practice admission", () => {
       "Check Bass Guitar's first range, then mark this part started."
     );
   });
+
+  it("names the next unlogged part instead of sending a player back to role hunting", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[2] = {
+      ...song.sections[0]!.roles[2]!,
+      practiceProgress: 0
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-unlogged-practice")).toHaveTextContent(
+      "Bass Guitar in verse has no practice logged yet. Select that part and record tonight's first pass."
+    );
+  });
 });
