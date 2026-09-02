@@ -180,6 +180,52 @@ def _decision_metadata_for_live_head(
     }
 
 
+def _invalidate_decisions_after_related_identity_movement(
+    refreshed_items: list[dict[str, object]],
+    existing: dict[int, dict[str, Any]],
+) -> None:
+    """Invalidate reviewed routing when any referenced PR head or target-base identity moved."""
+    current_by_number = {int(item["number"]): item for item in refreshed_items}
+    for entry in refreshed_items:
+        number = int(entry["number"])
+        prior = existing.get(number)
+        if prior is None or entry.get("disposition") == "refresh_required":
+            continue
+
+        related_numbers = set(prior.get("predecessor_prs", []))
+        related_numbers.update(prior.get("overlap_prs", []))
+        successor = prior.get("successor_pr")
+        if successor is not None:
+            related_numbers.add(successor)
+
+        for related_number in related_numbers:
+            reviewed_related = existing.get(related_number)
+            current_related = current_by_number.get(related_number)
+            if reviewed_related is None or current_related is None:
+                entry.update(
+                    {
+                        "disposition": "refresh_required",
+                        "decision_timestamp": None,
+                        "decision_rationale": None,
+                        "decision_owner": None,
+                    }
+                )
+                break
+            if any(
+                reviewed_related.get(field) != current_related.get(field)
+                for field in ("head_sha", "base_ref", "base_sha")
+            ):
+                entry.update(
+                    {
+                        "disposition": "refresh_required",
+                        "decision_timestamp": None,
+                        "decision_rationale": None,
+                        "decision_owner": None,
+                    }
+                )
+                break
+
+
 def _live_pr_entry(
     raw_pr: object,
     *,
@@ -305,6 +351,7 @@ def build_refreshed_manifest(
         seen.add(number)
         refreshed_items.append(entry)
     refreshed_items.sort(key=lambda item: int(item["number"]))
+    _invalidate_decisions_after_related_identity_movement(refreshed_items, existing)
 
     refreshed = deepcopy(seed_record)
     trains = _require_record(refreshed.get("trains"), "seed.trains")
