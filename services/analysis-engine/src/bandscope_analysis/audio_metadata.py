@@ -43,8 +43,8 @@ def _malformed_header_error() -> AudioResourcePolicyError:
 
 
 def preflight_audio_metadata(
-    source: AudioSource,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_source: AudioSource,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Validate source metadata without decoding PCM into the analysis process.
 
@@ -53,44 +53,53 @@ def preflight_audio_metadata(
     sources remain on the libsndfile-only path because audioread requires a
     filesystem path for its fixed decoder invocation.
     """
-    if isinstance(source, (str, os.PathLike)):
+    if isinstance(audio_source, (str, os.PathLike)):
         try:
-            info = soundfile.info(source)
+            audio_metadata = soundfile.info(audio_source)
         except Exception:
             try:
-                with audioread.audio_open(str(source)) as descriptor:
-                    validate_source_sampling_rate(descriptor.samplerate, policy)
-                    validate_channel_count(descriptor.channels, policy)
-                    validate_duration_seconds(descriptor.duration, policy)
+                with audioread.audio_open(str(audio_source)) as decoder_descriptor:
+                    validate_source_sampling_rate(
+                        decoder_descriptor.samplerate, audio_resource_policy
+                    )
+                    validate_channel_count(
+                        decoder_descriptor.channels, audio_resource_policy
+                    )
+                    validate_duration_seconds(
+                        decoder_descriptor.duration, audio_resource_policy
+                    )
                 return
             except AudioResourcePolicyError:
                 raise
-            except Exception as error:
-                raise _malformed_header_error() from error
+            except Exception as metadata_error:
+                raise _malformed_header_error() from metadata_error
 
-        validate_source_sampling_rate(info.samplerate, policy)
-        validate_channel_count(info.channels, policy)
-        sampling_rate_hz = int(info.samplerate)
-        validate_duration_seconds(float(info.frames) / float(sampling_rate_hz), policy)
+        validate_source_sampling_rate(audio_metadata.samplerate, audio_resource_policy)
+        validate_channel_count(audio_metadata.channels, audio_resource_policy)
+        sampling_rate_hz = int(audio_metadata.samplerate)
+        validate_duration_seconds(
+            float(audio_metadata.frames) / float(sampling_rate_hz),
+            audio_resource_policy,
+        )
         return
 
-    fileobj = source
+    audio_file_object = audio_source
     try:
-        fileobj.seek(0)
-        info = soundfile.info(fileobj)
-    except Exception as error:
+        audio_file_object.seek(0)
+        audio_metadata = soundfile.info(audio_file_object)
+    except Exception as metadata_error:
         # No decoder runs after a failed metadata probe, so there is no consumer
         # that needs the rejected handle rewound. Preserve the parser failure as
         # the internal cause instead of masking it with a best-effort seek.
-        raise _malformed_header_error() from error
+        raise _malformed_header_error() from metadata_error
 
     try:
-        fileobj.seek(0)
-    except Exception as error:
-        raise _malformed_header_error() from error
+        audio_file_object.seek(0)
+    except Exception as rewind_error:
+        raise _malformed_header_error() from rewind_error
 
-    validate_source_sampling_rate(info.samplerate, policy)
-    validate_channel_count(info.channels, policy)
-    sampling_rate_hz = int(info.samplerate)
-    duration_seconds = float(info.frames) / float(sampling_rate_hz)
-    validate_duration_seconds(duration_seconds, policy)
+    validate_source_sampling_rate(audio_metadata.samplerate, audio_resource_policy)
+    validate_channel_count(audio_metadata.channels, audio_resource_policy)
+    sampling_rate_hz = int(audio_metadata.samplerate)
+    duration_seconds = float(audio_metadata.frames) / float(sampling_rate_hz)
+    validate_duration_seconds(duration_seconds, audio_resource_policy)
