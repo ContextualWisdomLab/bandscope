@@ -26,6 +26,7 @@ export type FirstStopHandoff = {
   atSeconds: number;
   previousSectionLabel: RehearsalSection["label"] | null;
   nextSectionLabel: RehearsalSection["label"] | null;
+  hasFollowingSection: boolean;
 };
 
 /** Format a non-negative stop time as m:ss for rehearsal copy. */
@@ -206,11 +207,13 @@ export function resolveFirstStopHandoff(song: RehearsalSong): FirstStopHandoff |
     return null;
   }
 
+  const followingSection = timelineSections[stopIndex + 1];
   return {
     section,
     holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
     atSeconds: section.timeRange.start,
     previousSectionLabel: safeSectionLabel(timelineSections[stopIndex - 1]),
-    nextSectionLabel: safeSectionLabel(timelineSections[stopIndex + 1])
+    nextSectionLabel: safeSectionLabel(followingSection),
+    hasFollowingSection: followingSection !== undefined
   };
 }
