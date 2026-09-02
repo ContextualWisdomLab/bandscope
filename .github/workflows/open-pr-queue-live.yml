@@ -9,6 +9,8 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  checks: read
+  statuses: read
 
 jobs:
   refresh-live-queue:
@@ -25,6 +27,12 @@ jobs:
         run: python3 scripts/checks/refresh_open_pr_queue.py
       - name: Validate machine queue without network authority
         run: python3 scripts/checks/verify_open_pr_queue.py
+      - name: Collect exact-head check, review, and thread readiness
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/checks/collect_open_pr_readiness.py
+      - name: Validate exact-head readiness without network authority
+        run: python3 scripts/checks/verify_open_pr_readiness.py
       - name: Render deterministic human queue
         run: python3 scripts/checks/render_open_pr_queue.py
       - name: Verify machine/human projection parity
@@ -36,5 +44,6 @@ jobs:
           path: |
             docs/product-readiness/open-pr-queue.json
             docs/product-readiness/open-pr-queue.md
+            docs/product-readiness/open-pr-readiness.json
           if-no-files-found: error
           retention-days: 7
