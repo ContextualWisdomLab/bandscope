@@ -170,9 +170,9 @@ def _condition_preserves_pull_request_eligibility(condition_text: str | None) ->
     """Accept only conditions proven not to exclude ordinary pull-request runs.
 
     Missing conditions inherit GitHub's normal job/step eligibility. Explicit
-    conditions are intentionally fail-closed: only unconditional forms and a
-    direct equality that is guaranteed true for ``pull_request`` events are
-    accepted. More complex expressions must be made structurally auditable
+    conditions are intentionally fail-closed: only unconditional forms and
+    direct pull-request gates, including failure-safe ``always()`` conjunctions,
+    are accepted. More complex expressions must be made structurally auditable
     before this admission checker can rely on them.
     """
     compact_condition = _normalized_condition(condition_text)
@@ -187,6 +187,10 @@ def _condition_preserves_pull_request_eligibility(condition_text: str | None) ->
         'github.event_name=="pull_request"',
         "'pull_request'==github.event_name",
         '"pull_request"==github.event_name',
+        "always()&&github.event_name=='pull_request'",
+        'always()&&github.event_name=="pull_request"',
+        "github.event_name=='pull_request'&&always()",
+        'github.event_name=="pull_request"&&always()',
     }
 
 
