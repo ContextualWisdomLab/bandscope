@@ -17,6 +17,11 @@ interface SectionRoadmapProps {
   focusRequestSequence?: number;
 }
 
+/** Encode the exact section/role pair without delimiter-collision ambiguity. */
+function roadmapRoleFocusKey(sectionId: string, roleId: string): string {
+  return JSON.stringify([sectionId, roleId]);
+}
+
 /** Documented. */
 export function SectionRoadmap({
   song,
@@ -30,23 +35,26 @@ export function SectionRoadmap({
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
   const sectionCardRefs = useRef(new Map<string, HTMLDivElement>());
+  const roleCardRefs = useRef(new Map<string, HTMLDivElement>());
 
   useEffect(() => {
     if (!focusSectionId || focusRequestSequence < 1) {
       return;
     }
-    const sectionCard = sectionCardRefs.current.get(focusSectionId);
-    if (sectionCard && typeof sectionCard.scrollIntoView === "function") {
+    const focusTarget = focusRoleId
+      ? roleCardRefs.current.get(roadmapRoleFocusKey(focusSectionId, focusRoleId))
+      : sectionCardRefs.current.get(focusSectionId);
+    if (focusTarget && typeof focusTarget.scrollIntoView === "function") {
       const reducedMotionPreferred =
         typeof window.matchMedia === "function" &&
         window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      sectionCard.scrollIntoView({
+      focusTarget.scrollIntoView({
         behavior: reducedMotionPreferred ? "auto" : "smooth",
         inline: "center",
         block: "nearest"
       });
     }
-  }, [focusRequestSequence, focusSectionId]);
+  }, [focusRequestSequence, focusRoleId, focusSectionId]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -174,9 +182,17 @@ export function SectionRoadmap({
                 .map(role => {
                   const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
                   const roleFocused = sectionFocused && focusRoleId === role.id;
+                  const roleFocusKey = roadmapRoleFocusKey(section.id, role.id);
                   return (
                   <div
                     key={role.id}
+                    ref={(roleNode) => {
+                      if (roleNode) {
+                        roleCardRefs.current.set(roleFocusKey, roleNode);
+                      } else {
+                        roleCardRefs.current.delete(roleFocusKey);
+                      }
+                    }}
                     data-testid={`section-roadmap-role-${section.id}-${role.id}`}
                     aria-current={roleFocused ? "true" : undefined}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}${
