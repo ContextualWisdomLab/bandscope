@@ -135,6 +135,17 @@ describe("first-range roadmap interaction regressions", () => {
     expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
   });
 
+  it("keeps playable-range evidence visible when noncanonical identity disables navigation", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections[0]!.id = " verse-1 ";
+
+    render(<Workspace song={rehearsalSong} />);
+
+    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(/Bass Guitar.*C#2.*E3/i);
+    expect(screen.queryByRole("button", { name: /Find .+ on the timeline/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
+  });
+
   it("hides the roadmap control when no role has a named playable range", () => {
     const rehearsalSong = createDemoRehearsalSong();
     rehearsalSong.sections = rehearsalSong.sections.map((section) => ({
