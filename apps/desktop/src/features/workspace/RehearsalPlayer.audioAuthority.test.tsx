@@ -19,7 +19,7 @@ describe("RehearsalPlayer audio authority", () => {
     }
   });
 
-  it("refuses to start when local-audio metadata has no playable asset URL", () => {
+  it("refuses to start when local-audio metadata has no playable authority handle", () => {
     const song = createDemoRehearsalSong();
 
     render(
@@ -39,12 +39,12 @@ describe("RehearsalPlayer audio authority", () => {
     ).not.toMatch(/count in 4 beats/i);
   });
 
-  it("reports native asset conversion failures instead of presenting missing-audio copy", () => {
+  it("reports native playback conversion failures instead of presenting missing-audio copy", () => {
     Object.defineProperty(window, "__TAURI_INTERNALS__", {
       configurable: true,
       value: {
         convertFileSrc: () => {
-          throw new Error("asset conversion failed");
+          throw new Error("playback conversion failed");
         },
       },
     });
@@ -54,8 +54,7 @@ describe("RehearsalPlayer audio authority", () => {
       <RehearsalPlayer
         song={song}
         hasLocalAudio={true}
-        audioSourcePath="/Users/test/Music/late-night-set.wav"
-        audioPlaybackProjectId="project-1"
+        audioSourcePath="bandscope-project://project-100-1"
       />,
     );
 
@@ -67,9 +66,9 @@ describe("RehearsalPlayer audio authority", () => {
     );
   });
 
-  it("mints the media URL from the app-owned project authority, never the native source path", () => {
+  it("mints the media URL from the app-owned project authority, never a native source path", () => {
     const convertFileSrc = vi.fn(
-      () => "bandscope-playback://localhost/project-1",
+      () => "bandscope-playback://localhost/project-100-1",
     );
     Object.defineProperty(window, "__TAURI_INTERNALS__", {
       configurable: true,
@@ -81,13 +80,12 @@ describe("RehearsalPlayer audio authority", () => {
       <RehearsalPlayer
         song={song}
         hasLocalAudio={true}
-        audioSourcePath="/Users/test/Music/private-rehearsal.wav"
-        audioPlaybackProjectId="project-1"
+        audioSourcePath="bandscope-project://project-100-1"
       />,
     );
 
     expect(convertFileSrc).toHaveBeenCalledWith(
-      "project-1",
+      "project-100-1",
       "bandscope-playback",
     );
     expect(convertFileSrc).not.toHaveBeenCalledWith(
