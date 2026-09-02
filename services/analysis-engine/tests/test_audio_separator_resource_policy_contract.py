@@ -28,4 +28,4 @@ def test_separator_rejects_non_finite_decoder_output_before_normalization(
     with pytest.raises(AudioResourcePolicyError) as error:
         AudioStemSeparator()._load_audio(audio_path)
 
-    assert error.value.reason == "malformed_header"
+    assert error.value.rejection_reason == "malformed_header"
