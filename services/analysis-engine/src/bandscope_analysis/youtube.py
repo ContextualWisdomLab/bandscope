@@ -147,12 +147,12 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if duration is not None:
                 try:
                     validate_duration_seconds(duration)
-                except AudioResourcePolicyError as error:
+                except AudioResourcePolicyError as policy_error:
                     return {
                         "ok": False,
                         "error": {
-                            "code": error.reason,
-                            "message": error.message,
+                            "code": policy_error.rejection_reason,
+                            "message": policy_error.safe_message,
                         },
                     }
 
@@ -182,13 +182,13 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 }
             try:
                 validate_encoded_file_bytes(os.path.getsize(actual_filepath))
-            except AudioResourcePolicyError as error:
+            except AudioResourcePolicyError as policy_error:
                 os.remove(actual_filepath)
                 return {
                     "ok": False,
                     "error": {
-                        "code": error.reason,
-                        "message": error.message,
+                        "code": policy_error.rejection_reason,
+                        "message": policy_error.safe_message,
                     },
                 }
             return {
