@@ -42,6 +42,8 @@ def _reviewed_seed() -> dict[str, object]:
                 "url": "https://github.com/ContextualWisdomLab/bandscope/pull/968",
                 "initial_train": "T0",
                 "initial_disposition": "product_readiness_baseline_program",
+                "base_ref": "develop",
+                "base_sha": "a" * 40,
                 "head_sha": "b" * 40,
                 "head_sha_status": "exact_current_head",
                 "disposition": "canonical_active",
