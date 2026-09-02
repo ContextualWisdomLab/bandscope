@@ -149,7 +149,7 @@ flowchart LR
     UI[UI / Interaction]
     ING[Audio Ingestion]
     DEC[Resource Admission & Decode]
-    MIR[Signal / MIR Analysis]
+    MIR[Signal/MIR Analysis]
     RI[Rehearsal Insight]
     PLAYER[Active Player]
     PROJ[Project Persistence]
@@ -228,12 +228,13 @@ If decode, analysis, persistence, or playback fails, the error remains typed and
 ```mermaid
 stateDiagram-v2
     [*] --> NoSource
-    NoSource --> SourceSelecting: choose source
+    NoSource --> InitialSourceSelecting: choose source
     NoSource --> Recovering: project recovery requested
-    SourceSelecting --> Ready: source admitted
-    SourceSelecting --> NoSource: cancelled/failed with no prior source
-    Ready --> SourceSelecting: replace source
-    Ready --> Ready: cancelled/failed replacement keeps prior source
+    InitialSourceSelecting --> Ready: source admitted
+    InitialSourceSelecting --> NoSource: cancelled/failed initial selection
+    Ready --> ReplacementSourceSelecting: replace source
+    ReplacementSourceSelecting --> Ready: replacement admitted
+    ReplacementSourceSelecting --> Ready: cancelled/failed replacement keeps prior source
     Ready --> Playing: play
     Playing --> Paused: pause
     Paused --> Playing: resume
@@ -246,17 +247,17 @@ stateDiagram-v2
     Paused --> Ready: stop
     Looping --> Ready: stop
     LoopPaused --> Ready: stop
-    Playing --> SourceSelecting: replace source requested / stop transport
-    Paused --> SourceSelecting: replace source requested
-    Looping --> SourceSelecting: replace source requested / stop transport
-    LoopPaused --> SourceSelecting: replace source requested
+    Playing --> ReplacementSourceSelecting: replace source requested / stop transport
+    Paused --> ReplacementSourceSelecting: replace source requested
+    Looping --> ReplacementSourceSelecting: replace source requested / stop transport
+    LoopPaused --> ReplacementSourceSelecting: replace source requested
     Ready --> NoSource: clear source
     Ready --> Recovering: project recovery requested
     Recovering --> Ready: last-known-good restored
     Recovering --> RecoveryFailed: no valid recoverable snapshot
 ```
 
-The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. Source replacement is transactional: a pending replacement must not erase the prior admitted source; conflicting source/import/analysis actions remain unavailable until selection resolves, and a cancelled or failed replacement returns to the prior source authority. UI components, cue cards, map cursors, and persisted project data project from the owning authority rather than creating competing writable state. Project publication **must become** atomic and crash-safe; that is a target persistence contract, not a shipped guarantee, and this state diagram does not prove it.
+The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. Initial admission and replacement use distinct selection-intent states so cancellation has one unambiguous outcome: a cancelled or failed initial selection returns to no source, while a cancelled or failed replacement returns to the prior admitted source. Source replacement is transactional: a pending replacement must not erase the prior admitted source; conflicting source/import/analysis actions remain unavailable until selection resolves. UI components, cue cards, map cursors, and persisted project data project from the owning authority rather than creating competing writable state. Project publication **must become** atomic and crash-safe; that is a target persistence contract, not a shipped guarantee, and this state diagram does not prove it.
 
 ### 7.4 Persistence and contract versioning
 
