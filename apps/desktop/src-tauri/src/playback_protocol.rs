@@ -19,6 +19,10 @@ use tauri::http::{
 /// Custom scheme used only for current-project audio playback.
 pub const PLAYBACK_SCHEME: &str = "bandscope-playback";
 
+/// Opaque renderer-side handle prefix. The suffix is an app-minted project id,
+/// never a native path or user-controlled URL.
+pub const PLAYBACK_AUTHORITY_PREFIX: &str = "bandscope-project://";
+
 /// Match Tauri's bounded single-range chunk size so media seeks do not allocate
 /// an arbitrarily large buffer from an untrusted Range header.
 const MAX_RANGE_BYTES: u64 = 1_000 * 1024;
@@ -36,6 +40,14 @@ struct PlaybackSourceAuthority {
 #[derive(Default)]
 pub struct PlaybackAuthority {
     current: Mutex<Option<PlaybackSourceAuthority>>,
+}
+
+/// Return the only renderer-visible handle for an app-minted playback project.
+pub fn playback_authority_uri(project_id: &str) -> Result<String, String> {
+    if !is_valid_project_id(project_id) {
+        return Err("Could not prepare the selected audio for playback.".to_string());
+    }
+    Ok(format!("{PLAYBACK_AUTHORITY_PREFIX}{project_id}"))
 }
 
 impl PlaybackAuthority {
@@ -274,6 +286,15 @@ mod tests {
     }
 
     #[test]
+    fn renderer_handle_contains_only_the_app_minted_project_id() {
+        assert_eq!(
+            playback_authority_uri("project-100-1").as_deref(),
+            Ok("bandscope-project://project-100-1")
+        );
+        assert!(playback_authority_uri("../../private.wav").is_err());
+    }
+
+    #[test]
     fn rotating_authority_revokes_the_previous_project_immediately() {
         let (first_root, first_source) = test_source("first", b"first-audio");
         let (second_root, second_source) = test_source("second", b"second-audio");
@@ -337,12 +358,13 @@ mod tests {
             .expect("range request should build");
 
         let response = authority.respond(request);
+        let expected_content_range = format!("bytes 0-{}/{}", MAX_RANGE_BYTES - 1, bytes.len());
 
         assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
         assert_eq!(response.body().len() as u64, MAX_RANGE_BYTES);
         assert_eq!(
             response.headers().get(CONTENT_RANGE).and_then(|value| value.to_str().ok()),
-            Some(&*format!("bytes 0-{}/{ }", MAX_RANGE_BYTES - 1, bytes.len()).replace("/ ", "/"))
+            Some(expected_content_range.as_str())
         );
         let _ = std::fs::remove_dir_all(root);
     }
@@ -383,6 +405,35 @@ mod tests {
             authority.respond(request("project-500-6")).status(),
             StatusCode::GONE
         );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn head_is_metadata_only_and_other_methods_fail_closed() {
+        let (root, source) = test_source("head", b"audio-bytes");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-600-7", &source)
+            .expect("source should activate");
+        let head = Request::builder()
+            .method(Method::HEAD)
+            .uri(format!("{PLAYBACK_SCHEME}://localhost/project-600-7"))
+            .body(Vec::new())
+            .expect("HEAD request should build");
+        let post = Request::builder()
+            .method(Method::POST)
+            .uri(format!("{PLAYBACK_SCHEME}://localhost/project-600-7"))
+            .body(Vec::new())
+            .expect("POST request should build");
+
+        let head_response = authority.respond(head);
+        assert_eq!(head_response.status(), StatusCode::OK);
+        assert!(head_response.body().is_empty());
+        assert_eq!(
+            head_response.headers().get(CONTENT_LENGTH).and_then(|value| value.to_str().ok()),
+            Some("11")
+        );
+        assert_eq!(authority.respond(post).status(), StatusCode::METHOD_NOT_ALLOWED);
         let _ = std::fs::remove_dir_all(root);
     }
 }
