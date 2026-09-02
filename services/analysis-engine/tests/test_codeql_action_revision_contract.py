@@ -7,8 +7,8 @@ from pathlib import Path
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _WORKFLOW_ROOT = _REPOSITORY_ROOT / ".github" / "workflows"
-_EXPECTED_CODEQL_ACTION_SHA = "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28"
-_EXPECTED_CODEQL_ACTION_VERSION = "v4.37.8"
+_EXPECTED_CODEQL_ACTION_SHA = "cdf488f595d80d6e07e03d4674febd5ab45fa938"
+_EXPECTED_CODEQL_ACTION_VERSION = "v4.37.9"
 _CODEQL_ACTION_REFERENCE = re.compile(
     r"github/codeql-action/(init|autobuild|analyze|upload-sarif)@([^\s#]+)([^\n]*)"
 )
