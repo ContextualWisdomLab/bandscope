@@ -154,12 +154,19 @@ export function FirstStopCallout({
               markStopActionComplete();
               return;
             }
-            const grid = document.querySelector('[data-testid="song-structure-grid"]');
-            const target = stopSectionIndex >= 0 ? grid?.children.item(stopSectionIndex) : null;
-            if (typeof target?.scrollIntoView !== "function") {
+            const structureGrid = document.querySelector('[data-testid="song-structure-grid"]');
+            const sectionTarget =
+              stopSectionIndex >= 0
+                ? Array.from(structureGrid?.children ?? []).find(
+                    (gridChild) =>
+                      gridChild instanceof HTMLElement &&
+                      gridChild.dataset.sectionPosition === String(stopSectionIndex)
+                  )
+                : undefined;
+            if (typeof sectionTarget?.scrollIntoView !== "function") {
               return;
             }
-            target.scrollIntoView({
+            sectionTarget.scrollIntoView({
               block: "nearest",
               behavior: preferredStopScrollBehavior()
             });
