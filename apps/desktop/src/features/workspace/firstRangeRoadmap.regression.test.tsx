@@ -95,6 +95,20 @@ describe("first-range roadmap interaction regressions", () => {
     expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).not.toHaveAttribute("aria-current");
   });
 
+  it("does not conflate a project identity with a fallback song identity of the same spelling", () => {
+    installScrollRecorder();
+    const projectSong = { ...createDemoRehearsalSong(), id: "shared-source-id" };
+    const replacementSong = { ...createDemoRehearsalSong(), id: "shared-source-id" };
+    const renderedWorkspace = render(<Workspace song={projectSong} sourceBootstrap={projectBootstrap("shared-source-id")} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "location");
+
+    renderedWorkspace.rerender(<Workspace song={replacementSong} sourceBootstrap={null} />);
+
+    expect(screen.getByTestId("section-roadmap-section-verse-1")).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).not.toHaveAttribute("aria-current");
+  });
+
   it("drops an existing roadmap request when a same-source song update makes the target role ambiguous", () => {
     installScrollRecorder();
     const rehearsalSong = createDemoRehearsalSong();
