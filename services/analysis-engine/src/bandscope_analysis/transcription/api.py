@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import io
-import warnings
 from dataclasses import dataclass
 
 import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_decode import decode_mono_audio
 from bandscope_analysis.audio_resource_policy import AudioResourcePolicy
 
 TARGET_SR = 22050
@@ -52,19 +51,7 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
         raise ValueError("Stem data is too large for transcription.")
 
     source = io.BytesIO(stem_data)
-    preflight_audio_metadata(source, TRANSCRIPTION_RESOURCE_POLICY)
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
-        y, sr = librosa.load(
-            source,
-            sr=TARGET_SR,
-            mono=True,
-            duration=TRANSCRIPTION_RESOURCE_POLICY.decode_probe_duration_seconds,
-        )
-
-    y_array = np.asarray(
-        TRANSCRIPTION_RESOURCE_POLICY.validate_decoded_audio(y, sr), dtype=np.float32
-    )
+    y_array, sr = decode_mono_audio(source, policy=TRANSCRIPTION_RESOURCE_POLICY)
     if y_array.size == 0 or float(np.max(np.abs(y_array))) < MIN_SIGNAL_PEAK:
         return []
 

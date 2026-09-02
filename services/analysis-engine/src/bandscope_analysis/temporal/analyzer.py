@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +11,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_decode import decode_mono_audio
 from bandscope_analysis.audio_resource_policy import (
     DEFAULT_AUDIO_RESOURCE_POLICY,
     DEFAULT_MAX_DURATION_SECONDS,
@@ -38,7 +37,6 @@ _SAFE_TEMPORAL_FAILURE_MESSAGES = frozenset(
     {
         "Audio file is too large for temporal analysis",
         "Audio input violates the audio resource policy.",
-        "Expected numpy array from librosa.load",
     }
 )
 _MISSING_AUDIO_MESSAGE = "Audio source is unavailable for temporal analysis."
@@ -124,38 +122,8 @@ class TemporalAnalyzer:
                     self.resource_policy.validate_encoded_file_bytes(file_size)
                 except ValueError as error:
                     raise ValueError("Audio file is too large for temporal analysis") from error
-                preflight_audio_metadata(fileobj, self.resource_policy)
+                y_array, sr = decode_mono_audio(fileobj, policy=self.resource_policy)
 
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
-                    warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
-
-                    # Keep the loader's known third-party churn quiet without hiding
-                    # unrelated decoder warnings that tests and callers should see.
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    # Decode one sample beyond the accepted duration so longer
-                    # sources fail closed instead of becoming silently truncated.
-                    y, sr = librosa.load(
-                        fileobj,
-                        sr=self.resource_policy.target_sample_rate,
-                        mono=True,
-                        duration=self.resource_policy.decode_probe_duration_seconds,
-                    )
-
-            # Preserve the established diagnostic for decoder contract violations
-            # before applying the canonical numeric policy.
-            if not isinstance(y, np.ndarray):
-                raise ValueError("Expected numpy array from librosa.load")
-
-            y_array = self.resource_policy.validate_decoded_audio(y, sr)
             duration = float(librosa.get_duration(y=y_array, sr=sr))
 
             logger.info("Extracting tempo and beat tracking...")

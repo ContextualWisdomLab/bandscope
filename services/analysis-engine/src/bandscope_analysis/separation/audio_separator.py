@@ -30,24 +30,18 @@ import contextlib
 import logging
 import os
 import sys
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-import librosa
 import numpy as np
 
-from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_decode import decode_mono_audio
 from bandscope_analysis.audio_resource_policy import (
     DEFAULT_MAX_DURATION_SECONDS,
     AudioResourcePolicy,
 )
-from bandscope_analysis.temporal.analyzer import (
-    KNOWN_LIBROSA_NUMBA_WARNING_FILTERS,
-    MAX_AUDIO_FILE_BYTES,
-    TARGET_SR,
-)
+from bandscope_analysis.temporal.analyzer import MAX_AUDIO_FILE_BYTES, TARGET_SR
 
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
@@ -213,7 +207,7 @@ class AudioStemSeparator:
         return path
 
     def _load_audio(self, path: Path) -> tuple[AudioStemArray, int]:
-        """Load and revalidate bounded mono audio before model inference."""
+        """Load bounded mono audio through the canonical decoder authority."""
         try:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
@@ -223,35 +217,15 @@ class AudioStemSeparator:
                     self.resource_policy.validate_encoded_file_bytes(file_size)
                 except ValueError as error:
                     raise ValueError("Audio file is too large for stem separation") from error
-                preflight_audio_metadata(fileobj, self.resource_policy)
-
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
-                    warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    y, sr = librosa.load(
-                        fileobj,
-                        sr=self.resource_policy.target_sample_rate,
-                        mono=True,
-                        duration=self.resource_policy.decode_probe_duration_seconds,
-                    )
+                y, sr = decode_mono_audio(fileobj, policy=self.resource_policy)
         except ValueError:
             raise
         except Exception as error:
             raise ValueError(f"Stem separation decode failed for {path.name}") from error
 
-        if isinstance(y, np.ndarray) and y.size == 0:
+        if y.size == 0:
             raise ValueError(f"Stem separation decode failed for {path.name}")
-        validated_audio = self.resource_policy.validate_decoded_audio(y, sr)
-        return _as_float_array(validated_audio), int(sr)
+        return _as_float_array(y), int(sr)
 
     def _fit_length(self, audio: AudioStemArray, target_length: int) -> AudioStemArray:
         """Trim or pad a stem to match the source length exactly."""
