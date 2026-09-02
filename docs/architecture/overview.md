@@ -12,6 +12,7 @@ It is technically defined as a rehearsal-analysis product, not a single-output c
 - section roadmap with entries, dropouts, pickups, stops, and handoffs
 - groove and timing cues
 - role ranges, overlap warnings, and simplification guidance
+- the first named part that still has no practice mark, with a record-tonight's-first-pass next action
 - transposition, capo, tuning, or setup cues where relevant
 - role-specific confidence and rehearsal priority
 

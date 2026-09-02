@@ -196,6 +196,35 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first unlogged practice pass and tells the player to record it", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-unlogged-practice");
+    expect(callout).toHaveTextContent("Tonight's first unlogged pass");
+    expect(callout).toHaveTextContent(
+      "Bass Guitar in verse has no practice logged yet. Select that part and record tonight's first pass."
+    );
+  });
+
+  it("asks the selected part to switch when it already has a practice mark", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[2] = {
+      ...song.sections[0]!.roles[2]!,
+      practiceProgress: 80
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-unlogged-practice")).toHaveTextContent(
+      "This part already has a practice mark. Switch to the next unlogged part and record tonight's first pass."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
