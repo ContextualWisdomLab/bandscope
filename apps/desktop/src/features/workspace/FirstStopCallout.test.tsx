@@ -34,7 +34,9 @@ function appendSongStructureTarget() {
   const grid = document.createElement("div");
   grid.dataset.testid = "song-structure-grid";
   const first = document.createElement("div");
+  first.dataset.sectionPosition = "0";
   const target = document.createElement("div");
+  target.dataset.sectionPosition = "1";
   const scrollIntoView = vi.fn();
   Object.defineProperty(target, "scrollIntoView", {
     configurable: true,
@@ -42,6 +44,26 @@ function appendSongStructureTarget() {
   });
   grid.appendChild(first);
   grid.appendChild(target);
+  document.body.appendChild(grid);
+  return { grid, scrollIntoView };
+}
+
+function appendSongStructureTargetAfterExtraChild() {
+  const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
+  const gridHeader = document.createElement("div");
+  const firstSection = document.createElement("div");
+  firstSection.dataset.sectionPosition = "0";
+  const targetSection = document.createElement("div");
+  targetSection.dataset.sectionPosition = "1";
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(targetSection, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView
+  });
+  grid.appendChild(gridHeader);
+  grid.appendChild(firstSection);
+  grid.appendChild(targetSection);
   document.body.appendChild(grid);
   return { grid, scrollIntoView };
 }
@@ -59,6 +81,17 @@ describe("FirstStopCallout", () => {
     fireEvent.click(action);
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
     expect(screen.getByText(/Hold Lead Vocal's cut at 0:18. Do not play through it./)).toBeTruthy();
+
+    grid.remove();
+  });
+
+  it("uses renderer-owned section position instead of direct child order", () => {
+    const { grid, scrollIntoView } = appendSongStructureTargetAfterExtraChild();
+
+    render(<FirstStopCallout song={songWithStop()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal stop at 0:18" }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
 
     grid.remove();
   });
