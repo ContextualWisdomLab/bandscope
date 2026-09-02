@@ -158,7 +158,7 @@
   "firstStopBodyBand": "밴드가 {at} {section}에서 컷합니다.",
   "firstStopRouteBoth": "{previousSection} 다음에 여기서 함께 끊고, {nextSection}에서 다시 들어옵니다.",
   "firstStopRouteNext": "여기서 함께 끊고, {nextSection}에서 다시 들어옵니다.",
-  "firstStopRoutePrevious": "{previousSection} 다음에 여기서 함께 끊고, 다음 다운비트에서 다시 들어옵니다.",
+  "firstStopRoutePrevious": "{previousSection} 다음에 여기서 함께 끊고, 컷을 유지합니다.",
   "firstStopArmed": "{at}에서 {role} 컷을 지키세요. 그대로 밀고 가지 마세요.",
   "firstStopArmedBand": "{at}에서 컷을 지키세요. 그대로 밀고 가지 마세요.",
   "firstStopUnavailable": "아직 스톱이 없습니다. 컷이 표시될 때까지 오늘 지도에 머무르세요.",
@@ -170,5 +170,5 @@
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
   "sectionStopNextAction": "여기서 함께 끊고, {nextSectionLabel}에서 다시 들어옵니다.",
-  "sectionStopNextActionBare": "여기서 함께 끊고, 다음 다운비트에서 다시 들어옵니다."
+  "sectionStopNextActionBare": "여기서 함께 끊고, 컷을 유지합니다."
 }
