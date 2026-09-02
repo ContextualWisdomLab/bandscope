@@ -50,21 +50,28 @@ interface RehearsalPlayerProps {
   startNonce?: number;
 }
 
-/** Convert a validated native source path into a scoped Tauri asset URL. */
+const PLAYBACK_AUTHORITY_PREFIX = "bandscope-project://";
+const PLAYBACK_PROJECT_ID = /^project-[0-9]+-[0-9]+$/;
+
+/** Convert an opaque current-project authority into BandScope's native media URL. */
 function resolveAudioSourceUrl(
   sourcePath: string | null | undefined,
 ): string | null {
-  if (!sourcePath || sourcePath.startsWith("browser://")) {
+  if (!sourcePath?.startsWith(PLAYBACK_AUTHORITY_PREFIX)) {
+    return null;
+  }
+  const projectId = sourcePath.slice(PLAYBACK_AUTHORITY_PREFIX.length);
+  if (!PLAYBACK_PROJECT_ID.test(projectId)) {
     return null;
   }
   try {
-    return convertFileSrc(sourcePath);
+    return convertFileSrc(projectId, "bandscope-playback");
   } catch {
     return null;
   }
 }
 
-/** Return whether a source path can be converted into a playable native asset URL. */
+/** Return whether a source authority can be converted into a playable native URL. */
 export function isPlayableAudioSource(
   sourcePath: string | null | undefined,
 ): boolean {
