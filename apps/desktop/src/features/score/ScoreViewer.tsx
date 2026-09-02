@@ -31,7 +31,7 @@ export interface ScoreViewerProps {
   /** Optional display name of the attached score file. */
   fileName?: string;
   /** Optional observer notified on every LOADING/FAILED/READY transition. */
-  onStatusChange?: (status: ScoreViewerStatus) => void;
+  onStatusChange?: (viewerStatus: ScoreViewerStatus) => void;
 }
 
 const ZOOM_STEP = 1.25;
