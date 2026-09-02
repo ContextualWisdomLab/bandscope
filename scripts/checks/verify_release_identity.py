@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Fail closed when BandScope release-version projections disagree."""
+"""Fail closed when BandScope release-version projections disagree.
+
+Security Notes:
+- ``repository_root`` is an already-selected repository boundary; this guard
+  reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration
+  paths beneath it and never follows metadata-provided file paths.
+- VERSION and JSON fields are validated as exact, non-empty, trimmed strings
+  before comparison; malformed text or JSON fails closed without echoing values.
+- The guard has no network, filesystem-write, subprocess, update, credential,
+  signing, or publication authority. It only returns a version or a failure.
+"""
 
 from __future__ import annotations
 
