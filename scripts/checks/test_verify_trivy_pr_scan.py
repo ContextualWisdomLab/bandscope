@@ -33,6 +33,32 @@ jobs:
           sarif_file: trivy-results.sarif
 """
 
+RESTRICTED_PR_ACTIVITY = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+    types: [opened]
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 TARGET_ONLY = """name: trivy
 
 on:
@@ -229,8 +255,31 @@ jobs:
           sarif_file: 'trivy#results.sarif' # same path, different YAML quoting
 """
 
+EXPLICIT_COMPLETE_PR_ACTIVITY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 INVALID_CASES = {
     "missing protected PR targets": MISSING_PR_TARGETS,
+    "activity filter drops synchronized PR heads": RESTRICTED_PR_ACTIVITY,
     "target-only privileged PR event": TARGET_ONLY,
     "mixed pull_request and pull_request_target events": MIXED_PR_TARGET,
     "commented privileged PR event": COMMENTED_MIXED_PR_TARGET,
@@ -242,6 +291,7 @@ INVALID_CASES = {
 VALID_CASES = {
     "equivalent SARIF paths with inline comments": INLINE_COMMENTED_SARIF,
     "quoted SARIF path containing a literal hash": QUOTED_HASH_SARIF,
+    "explicit complete PR-head activity filter": EXPLICIT_COMPLETE_PR_ACTIVITY,
 }
 
 
