@@ -2,9 +2,11 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users } from "lucide-react";
 
-/** Renderable role option accepted by the role tab allowlist. */
+/** A selectable rehearsal-role projection owned by the workspace role switcher. */
 export interface RehearsalRoleOption {
+  /** Stable role identity used by selection and tab-value mapping. */
   roleId: string;
+  /** Human-readable role name rendered in the role switcher. */
   roleName: string;
 }
 
