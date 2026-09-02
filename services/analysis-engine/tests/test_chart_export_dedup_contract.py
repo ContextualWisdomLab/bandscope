@@ -56,3 +56,35 @@ def test_ordered_deduplication_preserves_first_occurrence_semantics() -> None:
     text = build_chart_text(_song())
     priority_lines = [line for line in text.splitlines() if line.startswith("  - ")]
     assert priority_lines == ["  - Bass: high", "  - Drums: medium"]
+
+
+def test_duplicate_role_ids_preserve_first_payload_and_graph_position() -> None:
+    """Repeated role identities keep the first role payload and one active position."""
+    song: dict[str, Any] = {
+        "sections": [
+            {
+                "id": "section-1",
+                "label": "verse",
+                "timeRange": {"start": 0, "end": 16},
+                "roles": [
+                    _role("bass", "Bass", "Walk up", "high"),
+                    _role("bass", "Bass Copy", "Late replacement", "low"),
+                ],
+                "partGraph": [
+                    {"role_id": "bass", "is_active": True},
+                    {"role_id": "bass", "is_active": True},
+                ],
+            }
+        ]
+    }
+
+    rows = build_cue_sheet_rows(song)
+    assert rows == [
+        {
+            "section": "verse",
+            "start": "00:00",
+            "end": "00:16",
+            "cue": "Walk up",
+            "roles": ["Bass"],
+        }
+    ]
