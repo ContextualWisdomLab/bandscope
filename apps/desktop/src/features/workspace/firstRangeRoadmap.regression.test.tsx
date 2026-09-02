@@ -101,7 +101,7 @@ describe("first-range roadmap interaction regressions", () => {
     const replacementSong = { ...createDemoRehearsalSong(), id: "shared-source-id" };
     const renderedWorkspace = render(<Workspace song={projectSong} sourceBootstrap={projectBootstrap("shared-source-id")} />);
     fireEvent.click(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" }));
-    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "location");
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "true");
 
     renderedWorkspace.rerender(<Workspace song={replacementSong} sourceBootstrap={null} />);
 
@@ -114,7 +114,7 @@ describe("first-range roadmap interaction regressions", () => {
     const rehearsalSong = createDemoRehearsalSong();
     const renderedWorkspace = render(<Workspace song={rehearsalSong} />);
     fireEvent.click(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" }));
-    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "location");
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "true");
 
     const ambiguousSong = createDemoRehearsalSong();
     ambiguousSong.sections[0]!.roles.push({ ...ambiguousSong.sections[0]!.roles[0]!, name: "Bass Guitar Double" });
