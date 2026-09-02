@@ -17,6 +17,7 @@ REQUIRED_PATHS = [
     Path("docs/architecture/overview.md"),
     Path("docs/i18n/i18n-policy.md"),
     Path("docs/release/release-policy.md"),
+    Path("docs/product-technical-gap-baseline.md"),
     Path(".github/CODEOWNERS"),
     Path(".github/PULL_REQUEST_TEMPLATE.md"),
     Path(".github/ISSUE_TEMPLATE/bug_report.yml"),
@@ -57,6 +58,10 @@ REQUIRED_REFERENCES = {
         "docs/security/dependency-policy.md",
         "docs/security/cross-platform-build-policy.md",
         "docs/workflow/github-bootstrap-execution-policy.md",
+    ],
+    Path("docs/product-technical-gap-baseline.md"): [
+        "Recovering --> RecoveryFailed: no valid recoverable snapshot",
+        "RecoveryFailed --> NoSource: recovery failure acknowledged",
     ],
 }
 
