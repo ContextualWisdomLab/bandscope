@@ -47,11 +47,11 @@ POLICY_MESSAGES: Final[dict[str, str]] = {
 class AudioResourcePolicyError(ValueError):
     """Payload-free rejection of one audio resource against the canonical policy."""
 
-    def __init__(self, reason: str, message: str) -> None:
-        """Record the stable reason code together with operator-safe copy."""
-        super().__init__(message)
-        self.reason = reason
-        self.message = message
+    def __init__(self, rejection_reason: str, safe_message: str) -> None:
+        """Record the stable rejection reason together with operator-safe copy."""
+        super().__init__(safe_message)
+        self.rejection_reason = rejection_reason
+        self.safe_message = safe_message
         self.policy_version = AUDIO_RESOURCE_POLICY_VERSION
 
 
@@ -59,7 +59,7 @@ class AudioResourcePolicyError(ValueError):
 class AudioResourcePolicy:
     """Versioned bounds shared by desktop intake, IPC, orchestration, and analyzers."""
 
-    version: int
+    policy_version: int
     max_encoded_file_bytes: int
     max_duration_seconds: float
     min_duration_seconds: float
@@ -73,38 +73,45 @@ class AudioResourcePolicy:
     max_decoded_memory_bytes: int
 
 
-def policy_rejection_message(reason: str) -> str:
+def policy_rejection_message(rejection_reason: str) -> str:
     """Return payload-free copy that names the next rehearsal action."""
     try:
-        return POLICY_MESSAGES[reason]
-    except KeyError as error:
+        return POLICY_MESSAGES[rejection_reason]
+    except KeyError as catalog_error:
         raise AudioResourcePolicyError(
             "malformed_header", POLICY_MESSAGES["malformed_header"]
-        ) from error
+        ) from catalog_error
 
 
-def _raise(reason: str) -> NoReturn:
-    """Fail closed with the stable reason and payload-free copy."""
-    raise AudioResourcePolicyError(reason, policy_rejection_message(reason))
+def _raise_policy_rejection(rejection_reason: str) -> NoReturn:
+    """Fail closed with the stable rejection reason and payload-free copy."""
+    raise AudioResourcePolicyError(
+        rejection_reason, policy_rejection_message(rejection_reason)
+    )
 
 
-def _checked_int_product(left: int, right: int) -> int:
+def _checked_int_product(left_operand: int, right_operand: int) -> int:
     """Multiply two non-negative integers or fail closed on overflow."""
-    if left < 0 or right < 0:
-        _raise("integer_overflow")
-    if left != 0 and right > _MAX_SAFE_PRODUCT // left:
-        _raise("integer_overflow")
-    return left * right
+    if left_operand < 0 or right_operand < 0:
+        _raise_policy_rejection("integer_overflow")
+    if (
+        left_operand != 0
+        and right_operand > _MAX_SAFE_PRODUCT // left_operand
+    ):
+        _raise_policy_rejection("integer_overflow")
+    return left_operand * right_operand
 
 
-_MAX_DECODED_SAMPLE_COUNT = _checked_int_product(_MAX_DURATION_SECONDS, _TARGET_SAMPLING_RATE_HZ)
+_MAX_DECODED_SAMPLE_COUNT = _checked_int_product(
+    _MAX_DURATION_SECONDS, _TARGET_SAMPLING_RATE_HZ
+)
 _MAX_DECODED_MEMORY_BYTES = _checked_int_product(
     _checked_int_product(_MAX_DECODED_SAMPLE_COUNT, _MAX_CHANNEL_COUNT),
     _BYTES_PER_DECODED_SAMPLE,
 )
 
 DEFAULT_AUDIO_RESOURCE_POLICY = AudioResourcePolicy(
-    version=AUDIO_RESOURCE_POLICY_VERSION,
+    policy_version=AUDIO_RESOURCE_POLICY_VERSION,
     max_encoded_file_bytes=100 * 1024 * 1024,
     max_duration_seconds=float(_MAX_DURATION_SECONDS),
     min_duration_seconds=0.05,
@@ -124,113 +131,129 @@ TARGET_SAMPLING_RATE_HZ = DEFAULT_AUDIO_RESOURCE_POLICY.target_sampling_rate_hz
 MAX_DECODED_SAMPLE_COUNT = DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_sample_count
 
 
-def _require_finite_number(value: object) -> float:
+def _require_finite_number(numeric_value: object) -> float:
     """Return a finite float or fail closed on malformed metadata."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        _raise("non_finite_metadata")
+    if isinstance(numeric_value, bool) or not isinstance(numeric_value, (int, float)):
+        _raise_policy_rejection("non_finite_metadata")
     try:
-        number = float(value)
+        finite_number = float(numeric_value)
     except (OverflowError, TypeError, ValueError):
-        _raise("non_finite_metadata")
-    if not np.isfinite(number):
-        _raise("non_finite_metadata")
-    return number
+        _raise_policy_rejection("non_finite_metadata")
+    if not np.isfinite(finite_number):
+        _raise_policy_rejection("non_finite_metadata")
+    return finite_number
 
 
 def estimate_decoded_memory_bytes(
     sample_count: int,
     channel_count: int,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> int:
     """Return the float32 memory estimate for one decoded buffer, checked for overflow."""
-    per_frame = _checked_int_product(channel_count, policy.bytes_per_decoded_sample)
-    return _checked_int_product(sample_count, per_frame)
+    bytes_per_audio_frame = _checked_int_product(
+        channel_count, audio_resource_policy.bytes_per_decoded_sample
+    )
+    return _checked_int_product(sample_count, bytes_per_audio_frame)
 
 
 def validate_encoded_file_bytes(
-    file_size: object,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    file_size_bytes: object,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Reject encoded sizes that are missing, non-finite, empty, or over budget."""
-    size = _require_finite_number(file_size)
-    if size != int(size) or size < 0:
-        _raise("non_finite_metadata")
-    if int(size) == 0:
-        _raise("malformed_header")
-    if int(size) > policy.max_encoded_file_bytes:
-        _raise("encoded_file_too_large")
+    normalized_file_size = _require_finite_number(file_size_bytes)
+    if normalized_file_size != int(normalized_file_size) or normalized_file_size < 0:
+        _raise_policy_rejection("non_finite_metadata")
+    if int(normalized_file_size) == 0:
+        _raise_policy_rejection("malformed_header")
+    if int(normalized_file_size) > audio_resource_policy.max_encoded_file_bytes:
+        _raise_policy_rejection("encoded_file_too_large")
 
 
 def validate_duration_seconds(
     duration_seconds: object,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Reject durations that are missing, non-finite, too short, or too long."""
-    duration = _require_finite_number(duration_seconds)
-    if duration < policy.min_duration_seconds:
-        _raise("duration_too_short")
-    if duration > policy.max_duration_seconds:
-        _raise("duration_exceeded")
+    normalized_duration_seconds = _require_finite_number(duration_seconds)
+    if normalized_duration_seconds < audio_resource_policy.min_duration_seconds:
+        _raise_policy_rejection("duration_too_short")
+    if normalized_duration_seconds > audio_resource_policy.max_duration_seconds:
+        _raise_policy_rejection("duration_exceeded")
 
 
 def validate_source_sampling_rate(
     sampling_rate_hz: object,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Reject sampling rates outside the supported rehearsal recording range."""
-    rate = _require_finite_number(sampling_rate_hz)
-    if rate != int(rate) or rate <= 0:
-        _raise("sampling_rate_unsupported")
-    hz = int(rate)
-    if hz < policy.min_source_sampling_rate_hz or hz > policy.max_source_sampling_rate_hz:
-        _raise("sampling_rate_unsupported")
+    normalized_sampling_rate = _require_finite_number(sampling_rate_hz)
+    if (
+        normalized_sampling_rate != int(normalized_sampling_rate)
+        or normalized_sampling_rate <= 0
+    ):
+        _raise_policy_rejection("sampling_rate_unsupported")
+    sampling_rate_integer_hz = int(normalized_sampling_rate)
+    if (
+        sampling_rate_integer_hz < audio_resource_policy.min_source_sampling_rate_hz
+        or sampling_rate_integer_hz > audio_resource_policy.max_source_sampling_rate_hz
+    ):
+        _raise_policy_rejection("sampling_rate_unsupported")
 
 
 def validate_channel_count(
     channel_count: object,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Reject channel counts outside the mono/stereo rehearsal policy."""
-    count = _require_finite_number(channel_count)
-    if count != int(count):
-        _raise("channel_count_unsupported")
-    channels = int(count)
-    if channels < policy.min_channel_count or channels > policy.max_channel_count:
-        _raise("channel_count_unsupported")
+    normalized_channel_count = _require_finite_number(channel_count)
+    if normalized_channel_count != int(normalized_channel_count):
+        _raise_policy_rejection("channel_count_unsupported")
+    channel_count_integer = int(normalized_channel_count)
+    if (
+        channel_count_integer < audio_resource_policy.min_channel_count
+        or channel_count_integer > audio_resource_policy.max_channel_count
+    ):
+        _raise_policy_rejection("channel_count_unsupported")
 
 
-def _array_layout(audio: np.ndarray) -> tuple[int, int]:
+def _decoded_audio_layout(decoded_audio: np.ndarray) -> tuple[int, int]:
     """Return ``(channel_count, sample_count)`` for a 1-D or 2-D decoded buffer."""
-    if audio.ndim == 1:
-        return 1, int(audio.size)
-    if audio.ndim == 2:
-        first, second = int(audio.shape[0]), int(audio.shape[1])
-        if first <= 4 and second >= first:
-            return first, second
-        return second, first
-    raise AudioResourcePolicyError("malformed_header", POLICY_MESSAGES["malformed_header"])
+    if decoded_audio.ndim == 1:
+        return 1, int(decoded_audio.size)
+    if decoded_audio.ndim == 2:
+        first_axis_size = int(decoded_audio.shape[0])
+        second_axis_size = int(decoded_audio.shape[1])
+        if first_axis_size <= 4 and second_axis_size >= first_axis_size:
+            return first_axis_size, second_axis_size
+        return second_axis_size, first_axis_size
+    raise AudioResourcePolicyError(
+        "malformed_header", POLICY_MESSAGES["malformed_header"]
+    )
 
 
 def validate_decoded_audio(
-    audio: object,
+    decoded_audio: object,
     sampling_rate_hz: object,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> None:
     """Revalidate decoded samples because container metadata is untrusted."""
-    if not isinstance(audio, np.ndarray) or audio.dtype.kind not in "fiu":
-        _raise("malformed_header")
-    if audio.size == 0:
-        _raise("duration_too_short")
-    if not np.isfinite(audio).all():
-        _raise("malformed_header")
-    validate_source_sampling_rate(sampling_rate_hz, policy)
-    channel_count, sample_count = _array_layout(audio)
-    validate_channel_count(channel_count, policy)
-    if sample_count > policy.max_decoded_sample_count:
-        _raise("decoded_sample_count_exceeded")
-    rate = int(_require_finite_number(sampling_rate_hz))
-    duration = float(sample_count) / float(rate)
-    validate_duration_seconds(duration, policy)
-    memory_bytes = estimate_decoded_memory_bytes(sample_count, channel_count, policy)
-    if memory_bytes > policy.max_decoded_memory_bytes:
-        _raise("memory_budget_exceeded")
+    if not isinstance(decoded_audio, np.ndarray) or decoded_audio.dtype.kind not in "fiu":
+        _raise_policy_rejection("malformed_header")
+    if decoded_audio.size == 0:
+        _raise_policy_rejection("duration_too_short")
+    if not np.isfinite(decoded_audio).all():
+        _raise_policy_rejection("malformed_header")
+    validate_source_sampling_rate(sampling_rate_hz, audio_resource_policy)
+    channel_count, sample_count = _decoded_audio_layout(decoded_audio)
+    validate_channel_count(channel_count, audio_resource_policy)
+    if sample_count > audio_resource_policy.max_decoded_sample_count:
+        _raise_policy_rejection("decoded_sample_count_exceeded")
+    sample_rate_integer_hz = int(_require_finite_number(sampling_rate_hz))
+    decoded_duration_seconds = float(sample_count) / float(sample_rate_integer_hz)
+    validate_duration_seconds(decoded_duration_seconds, audio_resource_policy)
+    decoded_memory_bytes = estimate_decoded_memory_bytes(
+        sample_count, channel_count, audio_resource_policy
+    )
+    if decoded_memory_bytes > audio_resource_policy.max_decoded_memory_bytes:
+        _raise_policy_rejection("memory_budget_exceeded")
