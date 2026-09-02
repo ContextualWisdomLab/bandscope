@@ -223,7 +223,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
           </CardContent>
         </Card>
       ) : (
-        <ScoreViewer data={pdfBytes} fileName={selected?.fileName} />
+        <ScoreViewer scorePdfBytes={pdfBytes} fileName={selected?.fileName} />
       )}
     </section>
   );
