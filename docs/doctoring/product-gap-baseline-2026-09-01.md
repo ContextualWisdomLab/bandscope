@@ -6,9 +6,9 @@ This note records why `docs/product-technical-gap-baseline.md` is maintained on 
 
 ## Current live-state correction — 2026-09-02
 
-Protected BandScope source remains `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at this capture. A fresh complete accessible-repository sweep queried all **74** currently visible `ContextualWisdomLab` repositories individually and summed **2,856 open pull requests**. An organization-wide aggregate captured around the same sweep returned **2,855 open pull requests** with `incomplete_results=false`. The one-request difference is retained as non-simultaneous live queue movement rather than normalized away or treated as evidence of an omitted repository.
+Protected BandScope source remains `develop@749511c3ad4000090048718f685c6bee6b3d2c25` at this capture. A fresh complete accessible-repository sweep queried all **74** currently visible `ContextualWisdomLab` repositories individually and summed **2,865 open pull requests**. An organization-wide aggregate captured immediately after the sweep returned **2,866 open pull requests** with `incomplete_results=false`. The one-request difference is retained as non-simultaneous live queue movement rather than normalized away or treated as evidence of an omitted repository.
 
-`ContextualWisdomLab/bandscope` was the highest observed backlog at **194 open pull requests**. Fresh high-backlog peers were `ContextualWisdomLab/naruon` 143, `ContextualWisdomLab/OriginWeave` 141, `ContextualWisdomLab/newsdom-api` 137, `ContextualWisdomLab/pg-erd-cloud` 135, and `ContextualWisdomLab/TEPP` 131. BandScope remains selected by both backlog and product responsibility: it owns the buyer-facing local-first rehearsal/audio path plus high-leverage release, security, persistence, workflow, and shared-contract boundaries.
+`ContextualWisdomLab/bandscope` was the highest observed backlog at **196 open pull requests**. Fresh high-backlog peers were `ContextualWisdomLab/naruon` 143, `ContextualWisdomLab/OriginWeave` 141, `ContextualWisdomLab/newsdom-api` 137, `ContextualWisdomLab/pg-erd-cloud` 135, `ContextualWisdomLab/html4tree` 127, and `ContextualWisdomLab/TEPP` 127. BandScope remains selected by both backlog and product responsibility: it owns the buyer-facing local-first rehearsal/audio path plus high-leverage release, security, persistence, workflow, and shared-contract boundaries.
 
 Volatile queue counts are dated evidence, not product truth. Every branch advance invalidates predecessor checks and approvals, and every later census must preserve non-simultaneous movement rather than manufacture a false simultaneous total.
 
@@ -56,7 +56,7 @@ The connected repository write surface permits ordinary source/workflow/PR chang
 
 ## Historical observations and RCA
 
-Historical queue observations remain useful only as dated evidence. On 2026-09-01 10:31 KST BandScope had 190 open pull requests. At 2026-09-01 13:29 KST, 72 repositories were visible and an organization recount reported 2,697 open pull requests, with BandScope at 188. Later 2026-09-02 sweeps observed 2,827/2,834 and 185 BandScope before the current 2,856/2,855 and 194 BandScope capture. None may be reused as an undated permanent count.
+Historical queue observations remain useful only as dated evidence. On 2026-09-01 10:31 KST BandScope had 190 open pull requests. At 2026-09-01 13:29 KST, 72 repositories were visible and an organization recount reported 2,697 open pull requests, with BandScope at 188. Later 2026-09-02 sweeps observed 2,827/2,834 and 185 BandScope, then 2,856/2,855 and 194 BandScope, before the current 2,865/2,866 and 196 BandScope capture. None may be reused as an undated permanent count.
 
 Review findings previously validated on #1116 included stale PR evidence, a false repository-wide Mermaid-absence claim, stale product-owner issue numbers, and prose-inherited live Noema/PR claims. The replacement baseline separates protected-source facts from timestamped GitHub observations and uses exact current-head examples instead of assigning one cause to the whole queue.
 
