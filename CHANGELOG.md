@@ -16,6 +16,7 @@
 
 - Run the pinned Trivy filesystem/SARIF scan on pull-request heads targeting `develop` or `main`, so GitHub code scanning can compare the PR configuration instead of reporting the protected-branch Trivy configuration as missing.
 - Hardened the Trivy policy regression so ordinary `pull_request` coverage for `develop` and `main` is structurally required and `pull_request_target` is rejected, while CodeQL and OSSF Scorecard remain push-only repository-local signals.
+- Reject restrictive Trivy `pull_request.types` filters unless they preserve `opened`, `synchronize`, and `reopened`, so every newly opened, updated, or reopened PR head remains eligible for current-head SARIF evidence.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
