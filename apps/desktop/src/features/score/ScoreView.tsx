@@ -249,7 +249,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
           aria-busy="true"
         >
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Loader2 className="mb-4 size-10 animate-spin" aria-hidden="true" />
+            <Loader2 className="mb-4 size-10 animate-spin text-cyan-300" aria-hidden="true" />
             <p className="animate-pulse text-slate-400">{scoreTranslator("scoreOpening")}</p>
           </CardContent>
         </Card>
