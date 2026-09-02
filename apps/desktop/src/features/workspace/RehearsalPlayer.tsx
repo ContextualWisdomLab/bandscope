@@ -213,7 +213,7 @@ export function RehearsalPlayer({
 
   useEffect(
     () => () => {
-      countInClickEngine.stop();
+      void countInClickEngine.dispose();
     },
     [countInClickEngine],
   );
