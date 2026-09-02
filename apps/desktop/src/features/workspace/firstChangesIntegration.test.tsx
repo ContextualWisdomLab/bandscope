@@ -64,7 +64,7 @@ describe("canonical first-change rehearsal guidance", () => {
     );
   });
 
-  it("fails closed with explicit ear-check copy when named duration and confidence evidence are unusable", () => {
+  it("fails closed with truthful analysis guidance when duration and confidence evidence are unusable", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections[0] = {
@@ -77,10 +77,10 @@ describe("canonical first-change rehearsal guidance", () => {
     render(<Workspace song={song} />);
 
     expect(screen.getByTestId("first-duration-change")).toHaveTextContent(
-      "Tonight's first length change still needs an ear check. Confirm how long the first two sections last before you count in."
+      "Section timing isn't confirmed yet. Analyze section timing before using a count-in."
     );
     expect(screen.getByTestId("first-confidence-change")).toHaveTextContent(
-      "Tonight's first confidence change still needs an ear check. Confirm how sure the first two sections are before you count in."
+      "Section confidence isn't confirmed yet. Analyze section confidence before rehearsal."
     );
   });
 
