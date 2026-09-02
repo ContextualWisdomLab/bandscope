@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { firstRangeRoadmap, firstRangeSqueeze } from "./firstRangeSqueeze";
 
+const originalLanguage = navigator.language;
 const originalMatchMedia = window.matchMedia;
 const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
@@ -15,6 +16,10 @@ function installScrollRecorder() {
 
 function setReducedMotionPreference(reducedMotionPreferred: boolean) {
   Object.defineProperty(window, "matchMedia", { configurable: true, value: vi.fn().mockReturnValue({ matches: reducedMotionPreferred }) });
+}
+
+function setNavigatorLanguage(language: string) {
+  Object.defineProperty(navigator, "language", { configurable: true, value: language });
 }
 
 function projectBootstrap(projectId: string): ProjectBootstrapSummary {
@@ -30,6 +35,7 @@ function projectBootstrap(projectId: string): ProjectBootstrapSummary {
 
 describe("first-range roadmap interaction regressions", () => {
   afterEach(() => {
+    setNavigatorLanguage(originalLanguage);
     if (originalScrollIntoView) {
       Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: originalScrollIntoView });
     } else {
@@ -112,6 +118,31 @@ describe("first-range roadmap interaction regressions", () => {
     expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
     render(<Workspace song={rehearsalSong} />);
     expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
+  });
+
+  it("hides the roadmap control when no role has a named playable range", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections = rehearsalSong.sections.map((section) => ({
+      ...section,
+      roles: section.roles.map((role) => ({
+        ...role,
+        range: { lowestNote: "", highestNote: "none" },
+        overlapWarnings: []
+      }))
+    }));
+
+    render(<Workspace song={rehearsalSong} />);
+
+    expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
+  });
+
+  it("localizes the roadmap find control in Korean", () => {
+    setNavigatorLanguage("ko-KR");
+    const rehearsalSong = createDemoRehearsalSong();
+
+    render(<Workspace song={rehearsalSong} />);
+
+    expect(screen.getByRole("button", { name: "로드맵에서 Bass Guitar verse 찾기" })).toBeInTheDocument();
   });
 
   it("avoids smooth scrolling when reduced motion is preferred", () => {
