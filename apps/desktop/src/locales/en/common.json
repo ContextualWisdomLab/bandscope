@@ -157,6 +157,7 @@
   "workspaceFirstUnloggedPracticeCheck": "{roleName} in {sectionLabel} has no practice logged yet. Select that part and record tonight's first pass.",
   "workspaceFirstUnloggedPracticeMissing": "Every named part already has a practice mark. Keep going until the room is ready.",
   "workspaceFirstUnloggedPracticeSelectedReady": "This part already has a practice mark. Switch to the next unlogged part and record tonight's first pass.",
+  "workspaceFirstUnloggedPracticeUnavailable": "Practice progress is inconsistent or invalid for this part. Check its practice mark before treating it as logged.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
