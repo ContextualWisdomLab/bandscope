@@ -76,6 +76,93 @@ export function meaningfulRangeText(rangeTextCandidate: unknown): string | undef
   return trimmedRangeText;
 }
 
+/**
+ * Admit a navigation identity only when its serialized spelling is already canonical.
+ *
+ * DOM refs and shared-type identities are keyed by the exact value. Trimming an
+ * untrusted ID would create a control whose target does not exist, so surrounding
+ * whitespace is rejected rather than silently normalized.
+ */
+function exactNavigationIdentity(identityCandidate: unknown): string | null {
+  if (typeof identityCandidate !== "string" || !identityCandidate) {
+    return null;
+  }
+  return identityCandidate.trim() === identityCandidate ? identityCandidate : null;
+}
+
+/** Resolve one exact section identity only when it occurs once in the current song. */
+function uniqueSectionByIdentity(
+  rehearsalSong: RehearsalSong,
+  sectionIdentity: string
+): Record<string, unknown> | null {
+  const runtimeSong: unknown = rehearsalSong;
+  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+    return null;
+  }
+
+  let sectionIdOccurrences = 0;
+  let targetSection: Record<string, unknown> | null = null;
+  for (const sectionValue of runtimeSong.sections) {
+    if (!isRuntimeObject(sectionValue)) {
+      continue;
+    }
+    if (exactNavigationIdentity(sectionValue.id) === sectionIdentity) {
+      sectionIdOccurrences += 1;
+      targetSection = sectionValue;
+    }
+  }
+
+  return sectionIdOccurrences === 1 ? targetSection : null;
+}
+
+/** Resolve one exact role identity only when it occurs once inside the target section. */
+function uniqueRoleByIdentity(
+  targetSection: Record<string, unknown>,
+  roleIdentity: string
+): Record<string, unknown> | null {
+  if (!Array.isArray(targetSection.roles)) {
+    return null;
+  }
+
+  let roleIdOccurrences = 0;
+  let targetRole: Record<string, unknown> | null = null;
+  for (const roleValue of targetSection.roles) {
+    if (!isRuntimeObject(roleValue)) {
+      continue;
+    }
+    if (exactNavigationIdentity(roleValue.id) === roleIdentity) {
+      roleIdOccurrences += 1;
+      targetRole = roleValue;
+    }
+  }
+
+  return roleIdOccurrences === 1 ? targetRole : null;
+}
+
+/** Revalidate an existing timeline focus request against the current song identity graph. */
+export function hasUniqueSectionNavigationTarget(
+  rehearsalSong: RehearsalSong,
+  sectionIdentityCandidate: unknown
+): boolean {
+  const sectionIdentity = exactNavigationIdentity(sectionIdentityCandidate);
+  return sectionIdentity !== null && uniqueSectionByIdentity(rehearsalSong, sectionIdentity) !== null;
+}
+
+/** Revalidate an existing roadmap focus request against the current song identity graph. */
+export function hasUniqueRoadmapNavigationTarget(
+  rehearsalSong: RehearsalSong,
+  sectionIdentityCandidate: unknown,
+  roleIdentityCandidate: unknown
+): boolean {
+  const sectionIdentity = exactNavigationIdentity(sectionIdentityCandidate);
+  const roleIdentity = exactNavigationIdentity(roleIdentityCandidate);
+  if (sectionIdentity === null || roleIdentity === null) {
+    return false;
+  }
+  const targetSection = uniqueSectionByIdentity(rehearsalSong, sectionIdentity);
+  return targetSection !== null && uniqueRoleByIdentity(targetSection, roleIdentity) !== null;
+}
+
 /** Convert a bounded scientific-pitch label into chromatic ordering. */
 function notePitchValue(noteLabel: string): number | null {
   const noteMatch = NOTE_PATTERN.exec(noteLabel);
@@ -159,9 +246,9 @@ export function firstRangeSqueeze(
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
       continue;
     }
-    const sectionId = meaningfulRangeText(sectionValue.id);
+    const sectionId = exactNavigationIdentity(sectionValue.id);
     const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (!sectionLabel) {
+    if (!sectionId || !sectionLabel) {
       continue;
     }
 
@@ -169,7 +256,7 @@ export function firstRangeSqueeze(
       if (!isRuntimeObject(roleValue)) {
         continue;
       }
-      const roleId = meaningfulRangeText(roleValue.id);
+      const roleId = exactNavigationIdentity(roleValue.id);
       const roleName = meaningfulRangeText(roleValue.name);
       if (!roleId || !roleName || (activeRoleId && roleId !== activeRoleId)) {
         continue;
@@ -235,33 +322,13 @@ export function firstRangeTimeline(
     return null;
   }
 
-  const targetSectionId = meaningfulRangeText(rangeSqueeze.sectionId);
+  const targetSectionId = exactNavigationIdentity(rangeSqueeze.sectionId);
   if (!targetSectionId) {
     return null;
   }
 
-  const runtimeSong: unknown = rehearsalSong;
-  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
-    return null;
-  }
-
-  let sectionIdOccurrences = 0;
-  let targetSection: Record<string, unknown> | null = null;
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue)) {
-      continue;
-    }
-    if (meaningfulRangeText(sectionValue.id) === targetSectionId) {
-      sectionIdOccurrences += 1;
-      targetSection = sectionValue;
-    }
-  }
-
-  if (
-    sectionIdOccurrences !== 1 ||
-    !targetSection ||
-    !isRuntimeObject(targetSection.timeRange)
-  ) {
+  const targetSection = uniqueSectionByIdentity(rehearsalSong, targetSectionId);
+  if (!targetSection || !isRuntimeObject(targetSection.timeRange)) {
     return null;
   }
 
@@ -276,7 +343,7 @@ export function firstRangeTimeline(
     endSeconds === null ||
     startClock === null ||
     endClock === null ||
-    endSeconds < startSeconds
+    endSeconds <= startSeconds
   ) {
     return null;
   }
@@ -305,46 +372,18 @@ export function firstRangeRoadmap(
     return null;
   }
 
-  const targetSectionId = meaningfulRangeText(rangeSqueeze.sectionId);
-  const targetRoleId = meaningfulRangeText(rangeSqueeze.roleId);
+  const targetSectionId = exactNavigationIdentity(rangeSqueeze.sectionId);
+  const targetRoleId = exactNavigationIdentity(rangeSqueeze.roleId);
   if (!targetSectionId || !targetRoleId) {
     return null;
   }
 
-  const runtimeSong: unknown = rehearsalSong;
-  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+  const targetSection = uniqueSectionByIdentity(rehearsalSong, targetSectionId);
+  if (!targetSection) {
     return null;
   }
-
-  let sectionIdOccurrences = 0;
-  let targetSection: Record<string, unknown> | null = null;
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue)) {
-      continue;
-    }
-    if (meaningfulRangeText(sectionValue.id) === targetSectionId) {
-      sectionIdOccurrences += 1;
-      targetSection = sectionValue;
-    }
-  }
-
-  if (sectionIdOccurrences !== 1 || !targetSection || !Array.isArray(targetSection.roles)) {
-    return null;
-  }
-
-  let roleIdOccurrences = 0;
-  let targetRole: Record<string, unknown> | null = null;
-  for (const roleValue of targetSection.roles) {
-    if (!isRuntimeObject(roleValue)) {
-      continue;
-    }
-    if (meaningfulRangeText(roleValue.id) === targetRoleId) {
-      roleIdOccurrences += 1;
-      targetRole = roleValue;
-    }
-  }
-
-  if (roleIdOccurrences !== 1 || !targetRole) {
+  const targetRole = uniqueRoleByIdentity(targetSection, targetRoleId);
+  if (!targetRole) {
     return null;
   }
 
