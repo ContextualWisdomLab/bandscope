@@ -42,6 +42,7 @@ import {
 interface RehearsalPlayerProps {
   song: RehearsalSong;
   onSongUpdate?: (song: RehearsalSong) => void;
+  onSelectedSectionIndexChange?: (sectionIndex: number | null) => void;
   hasLocalAudio?: boolean;
   audioSourcePath?: string | null;
   activeRole?: string | null;
@@ -112,6 +113,7 @@ function loopSelectionKey(loop: RehearsalLoopWindow): string {
 export function RehearsalPlayer({
   song,
   onSongUpdate,
+  onSelectedSectionIndexChange,
   hasLocalAudio = false,
   audioSourcePath = null,
   activeRole = null,
@@ -129,6 +131,9 @@ export function RehearsalPlayer({
     playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
     playableLoops[0] ??
     null;
+  useEffect(() => {
+    onSelectedSectionIndexChange?.(selectedLoop?.sourceIndex ?? null);
+  }, [onSelectedSectionIndexChange, selectedLoop?.sourceIndex]);
   const selectedBoundaryKey = selectedLoop ? loopSelectionKey(selectedLoop) : null;
   const [boundaryDraft, setBoundaryDraft] = useState(() => ({
     end: selectedLoop ? String(selectedLoop.endSeconds) : "",
