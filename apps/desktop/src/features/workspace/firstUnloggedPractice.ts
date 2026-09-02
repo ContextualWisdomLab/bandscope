@@ -1,11 +1,16 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
 
-/** Tonight's first named part that still has no stored practice mark. */
-export type FirstUnloggedPractice = {
-  sectionLabel: string;
-  roleName: string;
-};
+/** Trustworthy state of tonight's first unlogged-practice decision. */
+export type FirstUnloggedPractice =
+  | {
+      kind: "unlogged";
+      sectionLabel: string;
+      roleName: string;
+    }
+  | { kind: "selected-logged" }
+  | { kind: "all-logged" }
+  | { kind: "unavailable" };
 
 type PracticeMark =
   | { kind: "unlogged" }
@@ -50,28 +55,40 @@ function isConsistentlyUnlogged(marks: PracticeMark[]): boolean {
   return marks.length > 0 && marks.every((mark) => mark.kind === "unlogged");
 }
 
+/** Return whether every section copy owns the same trustworthy practice mark. */
+function isConsistentlyLogged(marks: PracticeMark[]): boolean {
+  if (marks.length === 0 || marks.some((mark) => mark.kind !== "logged")) {
+    return false;
+  }
+  const expected = (marks[0] as Extract<PracticeMark, { kind: "logged" }>).value;
+  return marks.every(
+    (mark) => mark.kind === "logged" && mark.value === expected
+  );
+}
+
 /**
- * Pick the first named part that still needs tonight's first practice mark.
+ * Resolve tonight's first trustworthy unlogged-practice state.
  *
  * The same role id may legitimately appear in several song sections. Those
- * copies are one rehearsal part only when their display name agrees and every
- * copy consistently omits `practiceProgress`. A duplicate id inside one
+ * copies are one rehearsal part only when their display name agrees and their
+ * practice evidence is role-wide consistent. Duplicate ids inside one
  * section, conflicting names, mixed logged/unlogged copies, malformed marks,
- * inherited identity, or malformed collection evidence is not authority and
- * cannot produce a rehearsal instruction.
+ * inherited identity, or malformed collection evidence never become proof
+ * that a part—or the whole rehearsal—has already been logged.
  */
 export function firstUnloggedPractice(
   song: RehearsalSong,
   activeRole: string | null = null
-): FirstUnloggedPractice | null {
+): FirstUnloggedPractice {
   const runtimeSong: unknown = song;
   if (!isRuntimeObject(runtimeSong) || !owns(runtimeSong, "sections") || !Array.isArray(runtimeSong.sections)) {
-    return null;
+    return { kind: "unavailable" };
   }
 
   const evidenceByRole = new Map<string, RoleEvidence>();
   const roleOrder: string[] = [];
   const invalidRoleIds = new Set<string>();
+  let hasInvalidEvidence = false;
 
   for (const sectionValue of runtimeSong.sections) {
     if (
@@ -80,12 +97,12 @@ export function firstUnloggedPractice(
       !owns(sectionValue, "roles") ||
       !Array.isArray(sectionValue.roles)
     ) {
-      return null;
+      return { kind: "unavailable" };
     }
 
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     if (!sectionLabel) {
-      return null;
+      return { kind: "unavailable" };
     }
 
     const sectionRoleIds = new Set<string>();
@@ -95,27 +112,35 @@ export function firstUnloggedPractice(
         !owns(roleValue, "id") ||
         !owns(roleValue, "name")
       ) {
+        hasInvalidEvidence = true;
         continue;
       }
 
       const roleId = meaningfulRangeText(roleValue.id);
       const roleName = meaningfulRangeText(roleValue.name);
       if (!roleId || !roleName) {
+        hasInvalidEvidence = true;
         continue;
       }
 
       if (sectionRoleIds.has(roleId)) {
         invalidRoleIds.add(roleId);
+        hasInvalidEvidence = true;
         continue;
       }
       sectionRoleIds.add(roleId);
+
+      const mark = practiceMark(roleValue);
+      if (mark.kind === "invalid") {
+        hasInvalidEvidence = true;
+      }
 
       const existing = evidenceByRole.get(roleId);
       if (!existing) {
         evidenceByRole.set(roleId, {
           roleName,
           firstSectionLabel: sectionLabel,
-          marks: [practiceMark(roleValue)]
+          marks: [mark]
         });
         roleOrder.push(roleId);
         continue;
@@ -123,26 +148,55 @@ export function firstUnloggedPractice(
 
       if (existing.roleName !== roleName) {
         invalidRoleIds.add(roleId);
+        hasInvalidEvidence = true;
       }
-      existing.marks.push(practiceMark(roleValue));
+      existing.marks.push(mark);
     }
+  }
+
+  if (activeRole) {
+    const evidence = evidenceByRole.get(activeRole);
+    if (!evidence || invalidRoleIds.has(activeRole)) {
+      return { kind: "unavailable" };
+    }
+    if (isConsistentlyUnlogged(evidence.marks)) {
+      return {
+        kind: "unlogged",
+        sectionLabel: evidence.firstSectionLabel,
+        roleName: evidence.roleName
+      };
+    }
+    if (isConsistentlyLogged(evidence.marks)) {
+      return { kind: "selected-logged" };
+    }
+    return { kind: "unavailable" };
   }
 
   for (const roleId of roleOrder) {
-    if (invalidRoleIds.has(roleId) || (activeRole && roleId !== activeRole)) {
+    if (invalidRoleIds.has(roleId)) {
       continue;
     }
     const evidence = evidenceByRole.get(roleId);
-    if (!evidence || !isConsistentlyUnlogged(evidence.marks)) {
+    if (!evidence) {
+      hasInvalidEvidence = true;
       continue;
     }
-    return {
-      sectionLabel: evidence.firstSectionLabel,
-      roleName: evidence.roleName
-    };
+    if (isConsistentlyUnlogged(evidence.marks)) {
+      return {
+        kind: "unlogged",
+        sectionLabel: evidence.firstSectionLabel,
+        roleName: evidence.roleName
+      };
+    }
+    if (!isConsistentlyLogged(evidence.marks)) {
+      hasInvalidEvidence = true;
+    }
   }
 
-  return null;
+  if (roleOrder.length === 0 || invalidRoleIds.size > 0 || hasInvalidEvidence) {
+    return { kind: "unavailable" };
+  }
+  return { kind: "all-logged" };
 }
 
 /** Fill trusted `{token}` placeholders for unlogged-practice copy. */
