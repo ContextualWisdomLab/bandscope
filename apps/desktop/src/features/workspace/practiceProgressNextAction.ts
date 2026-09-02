@@ -19,12 +19,16 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
 /**
  * Admit an own-property practice-progress percentage.
  *
- * Missing progress means the part has not been marked started. Inherited,
- * non-finite, or out-of-range values fail closed so a prototype member or
- * corrupt project field cannot become rehearsal authority.
+ * Missing or explicitly undefined optional progress means the part has not
+ * been marked started. Inherited, non-finite, or out-of-range values fail
+ * closed so a prototype member or corrupt project field cannot become
+ * rehearsal authority.
  */
 export function admitPracticeProgress(roleValue: Record<string, unknown>): number | null {
-  if (!Object.prototype.hasOwnProperty.call(roleValue, "practiceProgress")) {
+  if (
+    !Object.prototype.hasOwnProperty.call(roleValue, "practiceProgress") ||
+    roleValue.practiceProgress === undefined
+  ) {
     return 0;
   }
   const value = roleValue.practiceProgress;
