@@ -122,7 +122,7 @@ def test_decode_mono_audio_redacts_third_party_decoder_failure(
             max_duration_seconds=10.0,
         )
 
-    assert caught_error.value.reason == "malformed_header"
+    assert caught_error.value.rejection_reason == "malformed_header"
     assert str(caught_error.value) == policy_rejection_message("malformed_header")
     assert secret_decoder_detail not in str(caught_error.value)
     assert isinstance(caught_error.value.__cause__, RuntimeError)
@@ -145,7 +145,7 @@ def test_decode_mono_audio_redacts_malformed_decoder_output(
             max_duration_seconds=10.0,
         )
 
-    assert caught_error.value.reason == "malformed_header"
+    assert caught_error.value.rejection_reason == "malformed_header"
     assert str(caught_error.value) == policy_rejection_message("malformed_header")
 
 
