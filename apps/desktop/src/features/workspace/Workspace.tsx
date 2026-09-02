@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillStopCopy, firstStop, stopCopyValues } from "./firstStop";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,21 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const tonightStop = useMemo(() => firstStop(song), [song]);
+  const firstStopCopy = tonightStop
+    ? fillStopCopy(
+        t(
+          tonightStop.previousSectionLabel && tonightStop.nextSectionLabel
+            ? "workspaceFirstStopCheck"
+            : tonightStop.nextSectionLabel
+              ? "workspaceFirstStopCheckNoPrevious"
+              : tonightStop.previousSectionLabel
+                ? "workspaceFirstStopCheckNoNext"
+                : "workspaceFirstStopCheckBare"
+        ),
+        stopCopyValues(tonightStop)
+      )
+    : t("workspaceFirstStopMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +324,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+
+          <section
+            className="rounded-2xl border border-orange-300/20 bg-orange-300/[0.07] p-4"
+            data-testid="first-stop"
+            aria-label={t("workspaceFirstStopTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-orange-200">{t("workspaceFirstStopTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstStopCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

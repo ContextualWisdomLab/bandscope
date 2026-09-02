@@ -80,7 +80,7 @@ Last updated: 2026-03-11
 
 - Core rehearsal artifacts should include:
   - likely harmony by section and by role
-  - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
+  - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs, with the ready workspace naming tonight's first stop and the next entrance
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
   - simplification, transposition, capo, tuning, or setup cues where applicable

@@ -153,6 +153,14 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstStopTitle": "Tonight's first stop",
+  "workspaceFirstStopCheck": "Cut together in {sectionLabel} after {previousSectionLabel}, then come back in on {nextSectionLabel}.",
+  "workspaceFirstStopCheckNoPrevious": "Cut together in {sectionLabel}, then come back in on {nextSectionLabel}.",
+  "workspaceFirstStopCheckNoNext": "Cut together in {sectionLabel} after {previousSectionLabel}, then come back in on the next downbeat.",
+  "workspaceFirstStopCheckBare": "Cut together in {sectionLabel}, then come back in on the next downbeat.",
+  "workspaceFirstStopMissing": "Tonight's first stop still needs an ear check. Listen for the place everyone cuts out together before the next section.",
   "sectionRangeLabel": "Range",
-  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
+  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}.",
+  "sectionStopNextAction": "Cut together here, then come back in on {nextSectionLabel}.",
+  "sectionStopNextActionBare": "Cut together here, then come back in on the next downbeat."
 }

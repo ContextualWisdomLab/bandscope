@@ -3,6 +3,7 @@ import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
+import { fillStopCopy, firstStop, isStopTarget, stopCopyValues } from "./firstStop";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +20,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const tonightStop = useMemo(() => firstStop(song), [song]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -120,6 +122,17 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
+              {tonightStop && isStopTarget(tonightStop, section.id) ? (
+                <p
+                  className="mt-2 text-xs font-medium leading-5 text-orange-100"
+                  data-testid={`first-stop-action-${section.id}`}
+                >
+                  {fillStopCopy(
+                    t(tonightStop.nextSectionLabel ? "sectionStopNextAction" : "sectionStopNextActionBare"),
+                    stopCopyValues(tonightStop)
+                  )}
+                </p>
+              ) : null}
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">

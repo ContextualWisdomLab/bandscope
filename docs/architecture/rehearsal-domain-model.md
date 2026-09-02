@@ -24,6 +24,7 @@ BandScope models a song as rehearsal-facing roles, not only as a single global h
 
 - A section model should support intro, verse, pre-chorus, chorus, bridge, outro, tags, pickups, stops, and handoffs.
 - A rehearsal roadmap should expose who enters, who drops out, and where the band must re-enter together.
+- The ready workspace names tonight's first stop so the room can cut together before the next entrance.
 - Cue anchors should support lyric phrases, count-based entries, or section-transition markers.
 
 ## Groove cues and rhythmic feel

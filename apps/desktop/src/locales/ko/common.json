@@ -153,6 +153,14 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstStopTitle": "오늘 먼저 맞출 스톱",
+  "workspaceFirstStopCheck": "{previousSectionLabel} 다음 {sectionLabel}에서 같이 끊고, {nextSectionLabel}에서 다시 들어오세요.",
+  "workspaceFirstStopCheckNoPrevious": "{sectionLabel}에서 같이 끊고, {nextSectionLabel}에서 다시 들어오세요.",
+  "workspaceFirstStopCheckNoNext": "{previousSectionLabel} 다음 {sectionLabel}에서 같이 끊고, 다음 다운비트에 다시 들어오세요.",
+  "workspaceFirstStopCheckBare": "{sectionLabel}에서 같이 끊고, 다음 다운비트에 다시 들어오세요.",
+  "workspaceFirstStopMissing": "오늘 먼저 맞출 스톱은 아직 귀로 확인이 필요합니다. 다음 구간 전에 다 같이 끊는 자리를 들어 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "sectionStopNextAction": "여기서 같이 끊고, {nextSectionLabel}에서 다시 들어오세요.",
+  "sectionStopNextActionBare": "여기서 같이 끊고, 다음 다운비트에 다시 들어오세요."
 }

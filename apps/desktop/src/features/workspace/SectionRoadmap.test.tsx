@@ -106,4 +106,40 @@ describe("SectionRoadmap", () => {
 
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
+
+  it("names the stop next action only on the destination card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-1", label: "verse" },
+      {
+        ...verse,
+        id: "stop-1",
+        label: "stop",
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-stop` }))
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByTestId("first-stop-action-stop-1")).toHaveTextContent(
+      "Cut together here, then come back in on chorus."
+    );
+    expect(screen.queryByTestId("first-stop-action-verse-1")).toBeNull();
+    expect(screen.queryByTestId("first-stop-action-chorus-1")).toBeNull();
+  });
+
+  it("omits the stop next action when no stop is named", () => {
+    setNavigatorLanguage("en-US");
+    render(<SectionRoadmap song={createDemoRehearsalSong()} activeRole={null} />);
+
+    expect(screen.queryByText(/Cut together here/i)).toBeNull();
+  });
 });

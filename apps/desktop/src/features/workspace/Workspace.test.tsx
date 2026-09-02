@@ -196,6 +196,53 @@ describe("Workspace", () => {
     );
   });
 
+  it("asks for an ear check when the map has no named stop", () => {
+    setNavigatorLanguage("en-US");
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(screen.getByTestId("first-stop")).toHaveTextContent("Tonight's first stop");
+    expect(screen.getByTestId("first-stop")).toHaveTextContent(
+      "Tonight's first stop still needs an ear check. Listen for the place everyone cuts out together before the next section."
+    );
+  });
+
+  it("names tonight's first stop and the next entrance", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      { ...verse, id: "verse-1", label: "verse" },
+      {
+        ...verse,
+        id: "stop-1",
+        label: "stop",
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-stop` }))
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-stop")).toHaveTextContent(
+      "Cut together in stop after verse, then come back in on chorus."
+    );
+  });
+
+  it("localizes the missing stop callout", () => {
+    setNavigatorLanguage("ko-KR");
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(screen.getByTestId("first-stop")).toHaveTextContent("오늘 먼저 맞출 스톱");
+    expect(screen.getByTestId("first-stop")).toHaveTextContent(
+      "오늘 먼저 맞출 스톱은 아직 귀로 확인이 필요합니다. 다음 구간 전에 다 같이 끊는 자리를 들어 보세요."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
