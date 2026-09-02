@@ -99,16 +99,26 @@ function readLicensedDemoJobId(): string | null {
 }
 
 /** Preserve the trusted demo title across the current renderer and ordinary WebView module reloads. */
-function withLicensedDemoTitle(status: AnalysisJobStatus): AnalysisJobStatus {
-  if (readLicensedDemoJobId() !== status.jobId || !status.result) {
-    return status;
+function withLicensedDemoTitle(analysisStatus: AnalysisJobStatus): AnalysisJobStatus {
+  if (readLicensedDemoJobId() !== analysisStatus.jobId) {
+    return analysisStatus;
+  }
+  if (!analysisStatus.result && analysisStatus.progressStage !== "ready") {
+    return analysisStatus;
   }
   return {
-    ...status,
-    result: {
-      ...status.result,
-      title: DEMO_SONG_TITLE
-    }
+    ...analysisStatus,
+    ...(analysisStatus.progressStage === "ready"
+      ? { progressLabel: `Analysis ready for ${DEMO_SONG_TITLE}` }
+      : {}),
+    ...(analysisStatus.result
+      ? {
+          result: {
+            ...analysisStatus.result,
+            title: DEMO_SONG_TITLE
+          }
+        }
+      : {})
   };
 }
 
