@@ -31,6 +31,12 @@ EXPECTED_BY_SCOPE = {
 }
 EXPECTED_TOTAL = sum(EXPECTED_BY_SCOPE.values())
 RECORD_HEADING = "### Rust audit stale policy-test repair — 2026-09-02"
+BASELINE_HEADER = """# Product and Technical Gap Baseline
+
+This document records buyer-visible product/technical gaps and exact evidence for
+ContextualWisdomLab/bandscope. Mutable PR observations are Proposed evidence only;
+merge/release authority requires fresh exact-head checks and protected integration.
+"""
 
 
 def function_ranges(source: str) -> dict[str, tuple[int, int]]:
@@ -80,10 +86,12 @@ def repair_tests(source: str) -> str:
 
 
 def update_baseline() -> None:
-    """Record exact input-head provenance and the narrow contract correction."""
-    if not BASELINE_PATH.exists():
-        raise SystemExit(f"missing {BASELINE_PATH}")
-    text = BASELINE_PATH.read_text(encoding="utf-8")
+    """Create or append the exact repair traceability record."""
+    if BASELINE_PATH.exists():
+        text = BASELINE_PATH.read_text(encoding="utf-8")
+    else:
+        BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        text = BASELINE_HEADER
     if RECORD_HEADING in text:
         return
     input_head = os.environ.get("GITHUB_SHA", "unknown-exact-input-head")
