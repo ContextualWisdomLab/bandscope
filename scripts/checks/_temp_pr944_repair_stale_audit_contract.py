@@ -1,23 +1,19 @@
 #!/usr/bin/env python3
-"""Repair the seven stale Rust-audit policy-test scopes for PR #944.
+"""Apply the bounded PR #944 stale Rust-audit test-contract repair.
 
-This temporary owner-side driver is intentionally fail closed. It changes only
-``cargo +stable audit`` tokens inside the seven named regression functions that
-were proven stale by the exact-head quickcheck, preserves intentional floating
-selector rejection fixtures elsewhere, and records the repair in the product
-technical gap baseline. Remove this driver after exact-head verification proves
-the permanent test-contract repair.
+This transition helper exists only to update the seven already-proven stale
+policy-test scopes on the existing PR branch. It must not edit canonical product
+baseline documentation or production policy. Remove it after the repaired test
+file is published and revalidated on the resulting exact head.
 """
 
 from __future__ import annotations
 
 import ast
-import os
 from pathlib import Path
 
 
 TEST_PATH = Path("services/analysis-engine/tests/test_supply_chain_policy.py")
-BASELINE_PATH = Path("docs/product-technical-gap-baseline.md")
 OLD = "cargo +stable audit"
 NEW = "cargo +1.97.1 audit"
 EXPECTED_BY_SCOPE = {
@@ -30,13 +26,6 @@ EXPECTED_BY_SCOPE = {
     "test_supply_chain_check_accepts_explicit_false_continue_on_error_audit_steps": 1,
 }
 EXPECTED_TOTAL = sum(EXPECTED_BY_SCOPE.values())
-RECORD_HEADING = "### Rust audit stale policy-test repair — 2026-09-02"
-BASELINE_HEADER = """# Product and Technical Gap Baseline
-
-This document records buyer-visible product/technical gaps and exact evidence for
-ContextualWisdomLab/bandscope. Mutable PR observations are Proposed evidence only;
-merge/release authority requires fresh exact-head checks and protected integration.
-"""
 
 
 def function_ranges(source: str) -> dict[str, tuple[int, int]]:
@@ -85,36 +74,11 @@ def repair_tests(source: str) -> str:
     return repaired
 
 
-def update_baseline() -> None:
-    """Create or append the exact repair traceability record."""
-    if BASELINE_PATH.exists():
-        text = BASELINE_PATH.read_text(encoding="utf-8")
-    else:
-        BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        text = BASELINE_HEADER
-    if RECORD_HEADING in text:
-        return
-    input_head = os.environ.get("GITHUB_SHA", "unknown-exact-input-head")
-    record = f"""
-
-{RECORD_HEADING}
-
-- **Owner / PR:** `ContextualWisdomLab/bandscope#944`.
-- **Exact repair input:** `{input_head}` on `agent/rust-toolchain-refresh-2026-08-19`; successor evidence must bind the resulting exact head.
-- **Root cause:** seven policy-test scopes retained 11 obsolete `cargo +stable audit` fixture/assertion tokens after the executable Rust audit contract moved to repository-pinned `cargo +1.97.1 audit`, making correct production policy impossible to admit.
-- **Repair:** update only those 11 tokens inside the seven proven stale scopes; preserve floating-selector rejection fixtures outside them and leave `scripts/checks/verify_supply_chain.py` unchanged.
-- **Verification:** focused `test_supply_chain_policy.py` plus repository-pinned Ruff checks execute in the repair lane; ordinary branch CI owns canonical `./scripts/harness/quickcheck.sh` on the resulting exact head.
-- **Status:** Proposed until the resulting exact head receives fresh CI/security/review evidence and inherited dependency-security authority remains with canonical #783.
-"""
-    BASELINE_PATH.write_text(text.rstrip() + record + "\n", encoding="utf-8")
-
-
 def main() -> None:
-    """Apply the bounded stale-test repair and traceability record."""
+    """Apply the bounded stale-test repair without touching canonical baseline docs."""
     source = TEST_PATH.read_text(encoding="utf-8")
     repaired = repair_tests(source)
     TEST_PATH.write_text(repaired, encoding="utf-8")
-    update_baseline()
 
 
 if __name__ == "__main__":
