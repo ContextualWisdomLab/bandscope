@@ -5,6 +5,7 @@ import {
   getAnalysisJobStatus,
   importYoutubeUrl,
   loadProject,
+  saveProject,
   startAnalysisJob
 } from "./analysis";
 import { hasSyntheticSectionTimeRange } from "./rehearsalTimingEvidence";
@@ -101,7 +102,7 @@ describe("analysis bridge", () => {
     expect(selection.ok).toBe(true);
   });
 
-  it("normalizes legacy analysis job status responses before returning them", async () => {
+  it("retains synthetic timing provenance when normalizing a legacy analysis result", async () => {
     const legacyResult = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
     };
@@ -117,9 +118,10 @@ describe("analysis bridge", () => {
     const status = await getAnalysisJobStatus("job-legacy");
 
     expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    expect(hasSyntheticSectionTimeRange(status.result?.sections[0])).toBe(true);
   });
 
-  it("preserves synthetic timing provenance when a legacy project crosses the native load boundary", async () => {
+  it("marks synthetic timing when the JavaScript adapter receives a legacy-shaped load payload", async () => {
     const legacyProject = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
     };
@@ -131,6 +133,20 @@ describe("analysis bridge", () => {
     expect(tauriWindow.__TAURI_INVOKE__).toHaveBeenCalledWith("load_project", undefined);
     expect(loaded.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
     expect(hasSyntheticSectionTimeRange(loaded.sections[0])).toBe(true);
+  });
+
+  it("refuses to persist compatibility-only timing as measured project data", async () => {
+    const legacyProject = createDemoRehearsalSong() as unknown as {
+      sections: Array<Record<string, unknown>>;
+    };
+    delete legacyProject.sections[0]!.timeRange;
+    const invokeMock = vi.fn().mockResolvedValueOnce(legacyProject);
+    tauriWindow.__TAURI_INVOKE__ = invokeMock;
+
+    const loaded = await loadProject();
+
+    await expect(saveProject(loaded)).rejects.toThrow(/reanalyze/i);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it("reports staged browser fallback progress before returning the demo result", async () => {
