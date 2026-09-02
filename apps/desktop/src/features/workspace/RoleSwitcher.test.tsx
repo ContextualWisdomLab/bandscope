@@ -71,4 +71,19 @@ describe("RoleSwitcher", () => {
     expect(tabValueToRoleId("role:unknown-role", roleOptions)).toBeNull();
     expect(tabValueToRoleId("raw-unknown-role", roleOptions)).toBeNull();
   });
+
+  it("keeps the previous role projection behind the compatibility boundary", () => {
+    const roleChangeHandler = vi.fn();
+
+    render(
+      <RoleSwitcher
+        roles={[{ id: "legacy-bass", name: "Legacy Bass" }]}
+        activeRole={null}
+        onRoleChange={roleChangeHandler}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Legacy Bass" }));
+    expect(roleChangeHandler).toHaveBeenLastCalledWith("legacy-bass");
+  });
 });
