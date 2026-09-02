@@ -1,16 +1,12 @@
-import { readFileSync } from "node:fs";
+import { coverageThresholds } from "../vitest.config";
 
 describe("shared-types coverage policy", () => {
   it("requires 100% for every configured coverage metric", () => {
-    const configSource = readFileSync(
-      new URL("../vitest.config.ts", import.meta.url),
-      "utf8"
-    );
-
-    for (const metricName of ["lines", "functions", "branches", "statements"]) {
-      expect(configSource).toMatch(
-        new RegExp(`\\b${metricName}:\\s*100\\b`)
-      );
-    }
+    expect(coverageThresholds).toEqual({
+      lines: 100,
+      functions: 100,
+      branches: 100,
+      statements: 100
+    });
   });
 });
