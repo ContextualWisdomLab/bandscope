@@ -37,40 +37,48 @@ const ACCIDENTAL_OFFSET: Record<string, number> = {
 
 const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
 
-/** Return whether an untrusted runtime value is a plain object record. */
-function isRuntimeObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** Return whether an untrusted runtime candidate is a plain object record. */
+function isRuntimeObject(runtimeCandidate: unknown): runtimeCandidate is Record<string, unknown> {
+  return typeof runtimeCandidate === "object" && runtimeCandidate !== null && !Array.isArray(runtimeCandidate);
 }
 
-/** Return a finite non-negative duration in seconds, or fail closed. */
-function finiteNonNegativeSeconds(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+/** Return finite non-negative seconds, or fail closed. */
+function finiteNonNegativeSeconds(secondsCandidate: unknown): number | null {
+  if (
+    typeof secondsCandidate !== "number" ||
+    !Number.isFinite(secondsCandidate) ||
+    secondsCandidate < 0
+  ) {
     return null;
   }
-  return value;
+  return secondsCandidate;
 }
 
-/** Return trimmed copy that is not a blank or `none` sentinel. */
-export function meaningfulRangeText(value: unknown): string | undefined {
-  if (typeof value !== "string") {
+/** Return trimmed range copy that is not a blank or `none` sentinel. */
+export function meaningfulRangeText(rangeTextCandidate: unknown): string | undefined {
+  if (typeof rangeTextCandidate !== "string") {
     return undefined;
   }
-  const trimmed = value.trim();
-  if (!trimmed || /^none$/i.test(trimmed)) {
+  const trimmedRangeText = rangeTextCandidate.trim();
+  if (!trimmedRangeText || /^none$/i.test(trimmedRangeText)) {
     return undefined;
   }
-  return trimmed;
+  return trimmedRangeText;
 }
 
 /** Convert a bounded scientific-pitch label into chromatic ordering. */
-function notePitchValue(note: string): number | null {
-  const match = NOTE_PATTERN.exec(note);
-  if (!match) {
+function notePitchValue(noteLabel: string): number | null {
+  const noteMatch = NOTE_PATTERN.exec(noteLabel);
+  if (!noteMatch) {
     return null;
   }
-  const letter = match[1].toUpperCase() as keyof typeof NATURAL_PITCH_CLASS;
-  const octave = Number(match[3]);
-  return (octave + 1) * 12 + NATURAL_PITCH_CLASS[letter] + ACCIDENTAL_OFFSET[match[2]];
+  const noteLetter = noteMatch[1].toUpperCase() as keyof typeof NATURAL_PITCH_CLASS;
+  const noteOctave = Number(noteMatch[3]);
+  return (
+    (noteOctave + 1) * 12 +
+    NATURAL_PITCH_CLASS[noteLetter] +
+    ACCIDENTAL_OFFSET[noteMatch[2]]
+  );
 }
 
 /**
@@ -106,16 +114,16 @@ export function playableRange(
  * Unlike the structure-grid fallback that renders `0:00` for NaN times, the
  * first-range find control must not invent a clock the player cannot trust.
  */
-export function formatRangeClock(value: unknown): string | null {
-  const safeSeconds = finiteNonNegativeSeconds(value);
+export function formatRangeClock(clockSecondsCandidate: unknown): string | null {
+  const safeSeconds = finiteNonNegativeSeconds(clockSecondsCandidate);
   if (safeSeconds === null) {
     return null;
   }
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = Math.floor(safeSeconds % 60)
+  const clockMinutes = Math.floor(safeSeconds / 60);
+  const clockSeconds = Math.floor(safeSeconds % 60)
     .toString()
     .padStart(2, "0");
-  return `${minutes}:${seconds}`;
+  return `${clockMinutes}:${clockSeconds}`;
 }
 
 /**
@@ -128,15 +136,15 @@ export function formatRangeClock(value: unknown): string | null {
  * the buyer-visible workspace or becoming playable-range authority.
  */
 export function firstRangeSqueeze(
-  song: RehearsalSong,
-  activeRole: string | null = null
+  rehearsalSong: RehearsalSong,
+  activeRoleId: string | null = null
 ): FirstRangeSqueeze | null {
-  const runtimeSong: unknown = song;
+  const runtimeSong: unknown = rehearsalSong;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
 
-  let fallback: FirstRangeSqueeze | null = null;
+  let fallbackRange: FirstRangeSqueeze | null = null;
 
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
@@ -153,22 +161,25 @@ export function firstRangeSqueeze(
       }
       const roleId = meaningfulRangeText(roleValue.id);
       const roleName = meaningfulRangeText(roleValue.name);
-      if (!roleId || !roleName || (activeRole && roleId !== activeRole)) {
+      if (!roleId || !roleName || (activeRoleId && roleId !== activeRoleId)) {
         continue;
       }
       if (!isRuntimeObject(roleValue.range)) {
         continue;
       }
 
-      const range = playableRange(roleValue.range.lowestNote, roleValue.range.highestNote);
-      if (!range) {
+      const playableRoleRange = playableRange(
+        roleValue.range.lowestNote,
+        roleValue.range.highestNote
+      );
+      if (!playableRoleRange) {
         continue;
       }
 
       let overlapWarning: string | undefined;
       if (Array.isArray(roleValue.overlapWarnings)) {
-        for (const warning of roleValue.overlapWarnings) {
-          const meaningfulWarning = meaningfulRangeText(warning);
+        for (const overlapWarningValue of roleValue.overlapWarnings) {
+          const meaningfulWarning = meaningfulRangeText(overlapWarningValue);
           if (meaningfulWarning) {
             overlapWarning = meaningfulWarning;
             break;
@@ -176,60 +187,76 @@ export function firstRangeSqueeze(
         }
       }
 
-      const candidate: FirstRangeSqueeze = {
+      const rangeCandidate: FirstRangeSqueeze = {
         sectionLabel,
         roleName,
-        ...range,
+        ...playableRoleRange,
         overlapWarning
       };
 
       if (overlapWarning) {
-        return candidate;
+        return rangeCandidate;
       }
 
-      if (!fallback) {
-        fallback = candidate;
+      if (!fallbackRange) {
+        fallbackRange = rangeCandidate;
       }
     }
   }
 
-  return fallback;
+  return fallbackRange;
 }
 
 /**
- * Offer the named first-range section only when its clock is unique and trusted.
+ * Offer the named first-range section only when its clock and identity are unique and trusted.
  *
  * Fail closed when the squeeze is missing, the section label is not unique on
- * the current map, the matching cell has no usable identity, or start/end
- * cannot be formatted as a rehearsal clock. Does not start playback; #961
- * owns the rehearsal player.
+ * the current map, the matching cell has no uniquely owned identity, or
+ * start/end cannot be formatted as a rehearsal clock. Does not start playback;
+ * #961 owns the rehearsal player.
  */
 export function firstRangeTimeline(
-  song: RehearsalSong,
-  squeeze: FirstRangeSqueeze | null
+  rehearsalSong: RehearsalSong,
+  rangeSqueeze: FirstRangeSqueeze | null
 ): FirstRangeTimeline | null {
-  if (!squeeze) {
+  if (!rangeSqueeze) {
     return null;
   }
 
-  const runtimeSong: unknown = song;
+  const runtimeSong: unknown = rehearsalSong;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
 
-  let match: FirstRangeTimeline | null = null;
+  const sectionIdOccurrences = new Map<string, number>();
+  for (const sectionValue of runtimeSong.sections) {
+    if (!isRuntimeObject(sectionValue)) {
+      continue;
+    }
+    const sectionId = meaningfulRangeText(sectionValue.id);
+    if (!sectionId) {
+      continue;
+    }
+    sectionIdOccurrences.set(sectionId, (sectionIdOccurrences.get(sectionId) ?? 0) + 1);
+  }
+
+  let timelineMatch: FirstRangeTimeline | null = null;
 
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
     const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (sectionLabel !== squeeze.sectionLabel) {
+    if (sectionLabel !== rangeSqueeze.sectionLabel) {
       continue;
     }
 
     const sectionId = meaningfulRangeText(sectionValue.id);
-    if (!sectionId || !isRuntimeObject(sectionValue.timeRange)) {
+    if (
+      !sectionId ||
+      sectionIdOccurrences.get(sectionId) !== 1 ||
+      !isRuntimeObject(sectionValue.timeRange)
+    ) {
       return null;
     }
 
@@ -247,11 +274,11 @@ export function firstRangeTimeline(
       return null;
     }
 
-    if (match) {
+    if (timelineMatch) {
       return null;
     }
 
-    match = {
+    timelineMatch = {
       sectionId,
       sectionLabel,
       startClock,
@@ -259,14 +286,22 @@ export function firstRangeTimeline(
     };
   }
 
-  return match;
+  return timelineMatch;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
-export function fillRangeCopy(template: string, values: Record<string, string>): string {
-  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (placeholder, token: string) => {
-    // Own-property lookup only: inherited members such as `toString` must
-    // never satisfy a token, or the raw function source would be rendered.
-    return Object.prototype.hasOwnProperty.call(values, token) ? values[token] : placeholder;
-  });
+export function fillRangeCopy(
+  copyTemplate: string,
+  copyValues: Record<string, string>
+): string {
+  return copyTemplate.replace(
+    /\{([A-Za-z][A-Za-z0-9]*)\}/g,
+    (copyPlaceholder, copyToken: string) => {
+      // Own-property lookup only: inherited members such as `toString` must
+      // never satisfy a token, or the raw function source would be rendered.
+      return Object.prototype.hasOwnProperty.call(copyValues, copyToken)
+        ? copyValues[copyToken]
+        : copyPlaceholder;
+    }
+  );
 }
