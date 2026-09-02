@@ -213,6 +213,72 @@ jobs:
           sarif_file: different-results.sarif
 """
 
+JOB_PUSH_ONLY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    if: github.event_name == 'push'
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+TRIVY_STEP_PUSH_ONLY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        if: github.event_name == 'push'
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+UPLOAD_STEP_PUSH_ONLY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        if: github.event_name == 'push'
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 INLINE_COMMENTED_SARIF = """name: trivy
 
 on:
@@ -302,6 +368,30 @@ jobs:
           sarif_file: trivy-results.sarif
 """
 
+EXPLICIT_PR_ELIGIBILITY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Run Trivy filesystem scan
+        if: github.event_name == 'pull_request'
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 INVALID_CASES = {
     "missing protected PR targets": MISSING_PR_TARGETS,
     "activity filter drops synchronized PR heads": RESTRICTED_PR_ACTIVITY,
@@ -311,6 +401,9 @@ INVALID_CASES = {
     "wrong pull_request branch set": WRONG_PR_TARGETS,
     "SARIF format detached from the Trivy action": DISCONNECTED_SARIF,
     "Trivy output and upload paths disagree": MISMATCHED_SARIF,
+    "push-only Trivy job condition": JOB_PUSH_ONLY,
+    "push-only Trivy action condition": TRIVY_STEP_PUSH_ONLY,
+    "push-only SARIF upload condition": UPLOAD_STEP_PUSH_ONLY,
 }
 
 VALID_CASES = {
@@ -318,6 +411,7 @@ VALID_CASES = {
     "quoted SARIF path containing a literal hash": QUOTED_HASH_SARIF,
     "explicit complete PR-head activity filter": EXPLICIT_COMPLETE_PR_ACTIVITY,
     "quoted block PR-head activity filter": QUOTED_BLOCK_PR_ACTIVITY,
+    "explicit pull-request eligibility conditions": EXPLICIT_PR_ELIGIBILITY,
 }
 
 
