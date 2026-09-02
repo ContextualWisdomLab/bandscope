@@ -4,7 +4,14 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeRoadmap, firstRangeSqueeze, firstRangeTimeline } from "./firstRangeSqueeze";
+import {
+  fillRangeCopy,
+  firstRangeRoadmap,
+  firstRangeSqueeze,
+  firstRangeTimeline,
+  hasUniqueRoadmapNavigationTarget,
+  hasUniqueSectionNavigationTarget
+} from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -248,26 +255,27 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         roleName: firstRangeBoard.roleName
       })
     : null;
-  const timelineFocusedSectionId =
-    timelineFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
-      ? timelineFocusRequest.sectionId
-      : null;
-  const timelineFocusRequestSequence =
-    timelineFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
-      ? timelineFocusRequest.requestSequence
-      : 0;
-  const roadmapFocusedSectionId =
-    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
-      ? roadmapFocusRequest.sectionId
-      : null;
-  const roadmapFocusedRoleId =
-    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
-      ? roadmapFocusRequest.roleId
-      : null;
-  const roadmapFocusRequestSequence =
-    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
-      ? roadmapFocusRequest.requestSequence
-      : 0;
+  const timelineFocusTargetIsCurrent =
+    timelineFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity &&
+    hasUniqueSectionNavigationTarget(song, timelineFocusRequest.sectionId);
+  const timelineFocusedSectionId = timelineFocusTargetIsCurrent
+    ? timelineFocusRequest.sectionId
+    : null;
+  const timelineFocusRequestSequence = timelineFocusTargetIsCurrent
+    ? timelineFocusRequest.requestSequence
+    : 0;
+  const roadmapFocusTargetIsCurrent =
+    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity &&
+    hasUniqueRoadmapNavigationTarget(song, roadmapFocusRequest.sectionId, roadmapFocusRequest.roleId);
+  const roadmapFocusedSectionId = roadmapFocusTargetIsCurrent
+    ? roadmapFocusRequest.sectionId
+    : null;
+  const roadmapFocusedRoleId = roadmapFocusTargetIsCurrent
+    ? roadmapFocusRequest.roleId
+    : null;
+  const roadmapFocusRequestSequence = roadmapFocusTargetIsCurrent
+    ? roadmapFocusRequest.requestSequence
+    : 0;
 
   /** Request the first-range section on every activation, even when it is already highlighted. */
   const handleFindFirstRangeSection = () => {
