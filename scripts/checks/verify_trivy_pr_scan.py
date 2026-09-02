@@ -5,9 +5,7 @@ from pathlib import Path
 TRIVY_WORKFLOW = Path(".github/workflows/trivy.yml")
 
 
-def _indented_block(
-    workflow_lines: list[str], mapping_header: str, mapping_indent: int
-) -> list[str]:
+def _indented_block(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> list[str]:
     """Return the YAML-like block nested under an exact-indentation mapping key."""
     indent_prefix = " " * mapping_indent
     mapping_target = f"{indent_prefix}{mapping_header}:"
@@ -28,31 +26,20 @@ def _indented_block(
     return []
 
 
-def _has_mapping_key(
-    workflow_lines: list[str], mapping_header: str, mapping_indent: int
-) -> bool:
-    """Return whether ``mapping_header`` is a key at exactly ``mapping_indent``.
-
-    The value may be empty, scalar, or followed by an inline YAML comment.  In
-    particular, privileged event keys such as ``pull_request_target: # note``
-    must never evade the security contract merely because a comment follows the
-    colon.
-    """
+def _has_mapping_key(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> bool:
+    """Return whether ``mapping_header`` is a key at exactly ``mapping_indent``."""
     mapping_prefix = f"{' ' * mapping_indent}{mapping_header}:"
     return any(workflow_line.startswith(mapping_prefix) for workflow_line in workflow_lines)
 
 
-def _list_values(
-    workflow_lines: list[str], mapping_header: str, mapping_indent: int
-) -> set[str]:
+def _list_values(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> set[str]:
     """Return normalized YAML scalar list items under the requested mapping key."""
     nested_block = _indented_block(workflow_lines, mapping_header, mapping_indent)
     item_prefix = " " * (mapping_indent + 2) + "- "
     raw_list_items = {
         workflow_line[len(item_prefix) :].strip()
         for workflow_line in nested_block
-        if workflow_line.startswith(item_prefix)
-        and workflow_line[len(item_prefix) :].strip()
+        if workflow_line.startswith(item_prefix) and workflow_line[len(item_prefix) :].strip()
     }
     return {
         normalized_list_value
@@ -61,9 +48,7 @@ def _list_values(
     }
 
 
-def _mapping_list_values(
-    workflow_lines: list[str], mapping_header: str, mapping_indent: int
-) -> set[str]:
+def _mapping_list_values(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> set[str]:
     """Return block- or inline-list scalar values for one mapping key."""
     mapping_prefix = f"{' ' * mapping_indent}{mapping_header}:"
     for workflow_line in workflow_lines:
@@ -82,9 +67,7 @@ def _mapping_list_values(
     return set()
 
 
-def _list_item_blocks(
-    workflow_lines: list[str], mapping_header: str, mapping_indent: int
-) -> list[list[str]]:
+def _list_item_blocks(workflow_lines: list[str], mapping_header: str, mapping_indent: int) -> list[list[str]]:
     """Split one YAML-like sequence block into its top-level item blocks."""
     nested_block = _indented_block(workflow_lines, mapping_header, mapping_indent)
     item_prefix = " " * (mapping_indent + 2) + "- "
@@ -116,23 +99,9 @@ def _step_action(workflow_step: list[str]) -> str | None:
 def _decode_yaml_double_quoted_scalar(quoted_scalar: str) -> str | None:
     """Decode a one-line YAML double-quoted scalar without external dependencies."""
     yaml_simple_escapes = {
-        "0": "\0",
-        "a": "\a",
-        "b": "\b",
-        "t": "\t",
-        "n": "\n",
-        "v": "\v",
-        "f": "\f",
-        "r": "\r",
-        "e": "\x1b",
-        " ": " ",
-        '"': '"',
-        "/": "/",
-        "\\": "\\",
-        "N": "\u0085",
-        "_": "\u00a0",
-        "L": "\u2028",
-        "P": "\u2029",
+        "0": "\0", "a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v",
+        "f": "\f", "r": "\r", "e": "\x1b", " ": " ", '"': '"', "/": "/",
+        "\\": "\\", "N": "\u0085", "_": "\u00a0", "L": "\u2028", "P": "\u2029",
     }
     decoded_characters: list[str] = []
     scalar_index = 1
@@ -169,18 +138,10 @@ def _decode_yaml_double_quoted_scalar(quoted_scalar: str) -> str | None:
 
 
 def _yaml_scalar(scalar_text: str) -> str | None:
-    """Normalize the simple YAML scalars used by workflow mappings and lists.
-
-    A ``#`` starts an inline YAML comment only when it is outside quotes and is
-    separated from the scalar by whitespace. Hash characters inside quoted
-    values, or inside an unquoted value such as ``result#1.sarif``, are data.
-    YAML double-quoted escapes are decoded so semantically equivalent protected
-    branch and activity names cannot be rejected merely because they are escaped.
-    """
+    """Normalize the simple YAML scalars used by workflow mappings and lists."""
     quote_delimiter: str | None = None
     escape_pending = False
     comment_index: int | None = None
-
     for character_index, text_character in enumerate(scalar_text):
         if quote_delimiter == '"':
             if escape_pending:
@@ -199,33 +160,20 @@ def _yaml_scalar(scalar_text: str) -> str | None:
         if text_character in {"'", '"'}:
             quote_delimiter = text_character
             continue
-        if text_character == "#" and (
-            character_index == 0 or scalar_text[character_index - 1].isspace()
-        ):
+        if text_character == "#" and (character_index == 0 or scalar_text[character_index - 1].isspace()):
             comment_index = character_index
             break
-
-    normalized_scalar = (
-        scalar_text[:comment_index].strip()
-        if comment_index is not None
-        else scalar_text.strip()
-    )
+    normalized_scalar = scalar_text[:comment_index].strip() if comment_index is not None else scalar_text.strip()
     if not normalized_scalar:
         return None
-    if (
-        len(normalized_scalar) >= 2
-        and normalized_scalar[0] == normalized_scalar[-1]
-        and normalized_scalar[0] in {"'", '"'}
-    ):
+    if len(normalized_scalar) >= 2 and normalized_scalar[0] == normalized_scalar[-1] and normalized_scalar[0] in {"'", '"'}:
         if normalized_scalar[0] == '"':
             return _decode_yaml_double_quoted_scalar(normalized_scalar)
         return normalized_scalar[1:-1].replace("''", "'")
     return normalized_scalar
 
 
-def _mapping_value(
-    workflow_lines: list[str], mapping_header: str, mapping_key: str
-) -> str | None:
+def _mapping_value(workflow_lines: list[str], mapping_header: str, mapping_key: str) -> str | None:
     """Return a scalar from a nested mapping without borrowing sibling evidence."""
     mapping_target = f"{mapping_header}:"
     for line_index, workflow_line in enumerate(workflow_lines):
@@ -241,9 +189,7 @@ def _mapping_value(
                 break
             mapping_key_prefix = f"{mapping_key}:"
             if candidate_text.startswith(mapping_key_prefix):
-                return _yaml_scalar(
-                    candidate_text[len(mapping_key_prefix) :].strip()
-                )
+                return _yaml_scalar(candidate_text[len(mapping_key_prefix) :].strip())
         return None
     return None
 
@@ -252,10 +198,8 @@ def main() -> int:
     """Require the Trivy workflow to cover every protected-branch PR head."""
     workflow_lines = TRIVY_WORKFLOW.read_text(encoding="utf-8").splitlines()
     pull_request_block = _indented_block(workflow_lines, "pull_request", 2)
-    pull_request_targets = _list_values(pull_request_block, "branches", 4)
-    pull_request_activity_types = _mapping_list_values(
-        pull_request_block, "types", 4
-    )
+    pull_request_targets = _mapping_list_values(pull_request_block, "branches", 4)
+    pull_request_activity_types = _mapping_list_values(pull_request_block, "types", 4)
     jobs_block = _indented_block(workflow_lines, "jobs", 0)
     trivy_job = _indented_block(jobs_block, "trivy-fs-scan", 2)
     workflow_steps = _list_item_blocks(trivy_job, "steps", 4)
@@ -263,23 +207,15 @@ def main() -> int:
     trivy_output_paths = {
         output_path
         for workflow_step in workflow_steps
-        if (_step_action(workflow_step) or "").startswith(
-            "aquasecurity/trivy-action@"
-        )
+        if (_step_action(workflow_step) or "").startswith("aquasecurity/trivy-action@")
         and _mapping_value(workflow_step, "with", "format") == "sarif"
         if (output_path := _mapping_value(workflow_step, "with", "output"))
     }
     uploaded_sarif_paths = {
         sarif_file_path
         for workflow_step in workflow_steps
-        if (_step_action(workflow_step) or "").startswith(
-            "github/codeql-action/upload-sarif@"
-        )
-        if (
-            sarif_file_path := _mapping_value(
-                workflow_step, "with", "sarif_file"
-            )
-        )
+        if (_step_action(workflow_step) or "").startswith("github/codeql-action/upload-sarif@")
+        if (sarif_file_path := _mapping_value(workflow_step, "with", "sarif_file"))
     }
 
     missing_contract_items: list[str] = []
@@ -289,28 +225,18 @@ def main() -> int:
         missing_contract_items.append("forbidden pull_request_target event")
     for protected_branch in ("develop", "main"):
         if protected_branch not in pull_request_targets:
-            missing_contract_items.append(
-                f"pull_request branch {protected_branch!r}"
-            )
+            missing_contract_items.append(f"pull_request branch {protected_branch!r}")
     if _has_mapping_key(pull_request_block, "types", 4):
         for required_activity in ("opened", "synchronize", "reopened"):
             if required_activity not in pull_request_activity_types:
-                missing_contract_items.append(
-                    f"pull_request activity {required_activity!r}"
-                )
+                missing_contract_items.append(f"pull_request activity {required_activity!r}")
     if not trivy_job:
         missing_contract_items.append("jobs.trivy-fs-scan")
     if not trivy_output_paths:
-        missing_contract_items.append(
-            "Trivy SARIF-producing action step with an output file"
-        )
+        missing_contract_items.append("Trivy SARIF-producing action step with an output file")
     if not uploaded_sarif_paths:
         missing_contract_items.append("CodeQL SARIF upload step with sarif_file")
-    if (
-        trivy_output_paths
-        and uploaded_sarif_paths
-        and trivy_output_paths.isdisjoint(uploaded_sarif_paths)
-    ):
+    if trivy_output_paths and uploaded_sarif_paths and trivy_output_paths.isdisjoint(uploaded_sarif_paths):
         missing_contract_items.append("matching Trivy output and CodeQL sarif_file")
 
     if missing_contract_items:
