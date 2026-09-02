@@ -370,6 +370,27 @@ mod tests {
     }
 
     #[test]
+    fn large_get_without_range_fails_closed_before_buffering_the_recording() {
+        let bytes = vec![b'x'; (MAX_RANGE_BYTES + 32) as usize];
+        let (root, source) = test_source("unranged", &bytes);
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-350-4", &source)
+            .expect("source should activate");
+
+        let response = authority.respond(request("project-350-4"));
+        let expected_content_range = format!("bytes */{}", bytes.len());
+
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+        assert!(response.body().is_empty());
+        assert_eq!(
+            response.headers().get(CONTENT_RANGE).and_then(|value| value.to_str().ok()),
+            Some(expected_content_range.as_str())
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn multiple_or_unsatisfiable_ranges_fail_closed() {
         let (root, source) = test_source("invalid-range", b"0123456789");
         let authority = PlaybackAuthority::default();
