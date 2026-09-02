@@ -1,0 +1,83 @@
+name: Temporary PR 971 loop roadmap wiring repair
+
+on:
+  push:
+    branches:
+      - feat/rehearsal-player-first-section-loop
+    paths:
+      - .github/workflows/_temp_pr971_wire_loop_roadmap.yml
+      - scripts/checks/_temp_pr971_wire_loop_roadmap.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temp-pr971-loop-roadmap-wiring
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: github.actor_id == '8172694'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact writer head without persisted write credential
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up repository Node runtime
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22.22.3"
+          package-manager-cache: false
+      - name: Activate repository-pinned npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable npm
+          test "$(npm --version)" = '10.9.9'
+          npm run check:npm-runtime
+      - name: Verify live writer head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin feat/rehearsal-player-first-section-loop
+          test "$(git rev-parse origin/feat/rehearsal-player-first-section-loop)" = "$GITHUB_SHA"
+      - name: Apply bounded production repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/checks/_temp_pr971_wire_loop_roadmap.py
+          git diff --check
+          test "$(git diff --name-only | sort)" = $'apps/desktop/src/features/workspace/RehearsalPlayer.tsx\napps/desktop/src/features/workspace/Workspace.tsx'
+      - name: Install frozen JavaScript dependencies
+        shell: bash
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify production sibling wiring and focused regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --workspace @bandscope/desktop -- vitest run src/features/workspace/Workspace.loop-roadmap-sync.test.tsx
+          npm run typecheck --workspace @bandscope/desktop
+          npm run lint --workspace @bandscope/desktop -- --quiet
+      - name: Publish repair and remove transition machinery
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git add \
+            apps/desktop/src/features/workspace/RehearsalPlayer.tsx \
+            apps/desktop/src/features/workspace/Workspace.tsx
+          git rm \
+            .github/workflows/_temp_pr971_wire_loop_roadmap.yml \
+            scripts/checks/_temp_pr971_wire_loop_roadmap.py
+          git diff --cached --check
+          test "$(git diff --cached --name-only | sort)" = $'.github/workflows/_temp_pr971_wire_loop_roadmap.yml\napps/desktop/src/features/workspace/RehearsalPlayer.tsx\napps/desktop/src/features/workspace/Workspace.tsx\nscripts/checks/_temp_pr971_wire_loop_roadmap.py'
+          git config user.name 'ContextualWisdomLab repair bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'fix(workspace): project player loop selection to roadmap'
+          git fetch origin feat/rehearsal-player-first-section-loop
+          test "$(git rev-parse origin/feat/rehearsal-player-first-section-loop)" = "$GITHUB_SHA"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="$auth_header" push https://github.com/ContextualWisdomLab/bandscope.git HEAD:feat/rehearsal-player-first-section-loop
