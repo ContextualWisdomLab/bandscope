@@ -139,15 +139,31 @@ describe("firstRangeSqueeze", () => {
     expect(firstRangeSqueeze(createDemoRehearsalSong(), "missing-role")).toBeNull();
   });
 
-  it("does not normalize section or role identity before navigation", () => {
+  it("preserves playable-range evidence while noncanonical identity disables navigation", () => {
     const spacedSection = createDemoRehearsalSong();
     spacedSection.sections[0]!.id = " verse-1 ";
-    expect(firstRangeTimeline(spacedSection, firstRangeSqueeze(spacedSection))).toBeNull();
-    expect(firstRangeRoadmap(spacedSection, firstRangeSqueeze(spacedSection))).toBeNull();
+    const sectionSqueeze = firstRangeSqueeze(spacedSection);
+    expect(sectionSqueeze).toMatchObject({
+      sectionId: " verse-1 ",
+      roleId: "bass-guitar",
+      roleName: "Bass Guitar",
+      lowestNote: "C#2",
+      highestNote: "E3"
+    });
+    expect(firstRangeTimeline(spacedSection, sectionSqueeze)).toBeNull();
+    expect(firstRangeRoadmap(spacedSection, sectionSqueeze)).toBeNull();
 
     const spacedRole = createDemoRehearsalSong();
     spacedRole.sections[0]!.roles[0]!.id = " bass-guitar ";
-    expect(firstRangeRoadmap(spacedRole, firstRangeSqueeze(spacedRole))).toBeNull();
+    const roleSqueeze = firstRangeSqueeze(spacedRole);
+    expect(roleSqueeze).toMatchObject({
+      sectionId: "verse-1",
+      roleId: " bass-guitar ",
+      roleName: "Bass Guitar",
+      lowestNote: "C#2",
+      highestNote: "E3"
+    });
+    expect(firstRangeRoadmap(spacedRole, roleSqueeze)).toBeNull();
   });
 });
 
