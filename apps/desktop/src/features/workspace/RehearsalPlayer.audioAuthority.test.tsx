@@ -55,6 +55,7 @@ describe("RehearsalPlayer audio authority", () => {
         song={song}
         hasLocalAudio={true}
         audioSourcePath="/Users/test/Music/late-night-set.wav"
+        audioPlaybackProjectId="project-1"
       />,
     );
 
@@ -64,5 +65,55 @@ describe("RehearsalPlayer audio authority", () => {
     expect(screen.getByRole("alert").textContent).toMatch(
       /could not play this local audio/i,
     );
+  });
+
+  it("mints the media URL from the app-owned project authority, never the native source path", () => {
+    const convertFileSrc = vi.fn(
+      () => "bandscope-playback://localhost/project-1",
+    );
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: { convertFileSrc },
+    });
+    const song = createDemoRehearsalSong();
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath="/Users/test/Music/private-rehearsal.wav"
+        audioPlaybackProjectId="project-1"
+      />,
+    );
+
+    expect(convertFileSrc).toHaveBeenCalledWith(
+      "project-1",
+      "bandscope-playback",
+    );
+    expect(convertFileSrc).not.toHaveBeenCalledWith(
+      "/Users/test/Music/private-rehearsal.wav",
+    );
+  });
+
+  it("does not expose a native path when no current playback project authority exists", () => {
+    const convertFileSrc = vi.fn(() => "asset://localhost/private-rehearsal.wav");
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: { convertFileSrc },
+    });
+    const song = createDemoRehearsalSong();
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath="/Users/test/Music/private-rehearsal.wav"
+      />,
+    );
+
+    expect(convertFileSrc).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /start the count-in/i }),
+    ).toBeDisabled();
   });
 });
