@@ -21,8 +21,8 @@ def _section(section_id: str, label: str, index: int) -> dict[str, object]:
     }
 
 
-def test_real_stem_stop_reaches_rehearsal_song_with_stable_section_anchor() -> None:
-    """A decoded full-band cut must survive analysis as precise rehearsal evidence."""
+def test_real_stem_stop_reaches_rehearsal_song_as_rehearsal_cue_section() -> None:
+    """A decoded full-band cut must survive analysis as an actionable stop section."""
     sr = 1_000
     duration_seconds = 10.0
     sample_count = int(sr * duration_seconds)
@@ -65,13 +65,13 @@ def test_real_stem_stop_reaches_rehearsal_song_with_stable_section_anchor() -> N
         )
 
     assert song["id"] == "analyzed-song"
-    assert song["sections"][0]["id"] == "verse-1"
-    assert song["sections"][1]["id"] == "chorus-1"
-    assert song["stopMoments"] == [
-        {
-            "id": "stop-1",
-            "sectionId": "verse-1",
-            "startMilliseconds": 4_000,
-            "endMilliseconds": 4_500,
-        }
+    assert [section["id"] for section in song["sections"]] == [
+        "verse-1",
+        "detected-stop-1",
+        "chorus-1",
     ]
+    stop = song["sections"][1]
+    assert stop["label"] == "stop"
+    assert stop["timeRange"] == {"start": 4, "end": 5}
+    assert stop["confidence"]["source"] == "model"
+    assert "full-band quiet interval" in stop["confidence"]["notes"]
