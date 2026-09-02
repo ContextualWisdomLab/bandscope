@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze, firstRangeTimeline } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeRoadmap, firstRangeSqueeze, firstRangeTimeline } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,14 @@ interface WorkspaceProps {
 type TimelineFocusRequest = {
   rehearsalSongId: string;
   sectionId: string;
+  requestSequence: number;
+};
+
+/** Request identity for a user-initiated section-roadmap focus action. */
+type RoadmapFocusRequest = {
+  rehearsalSongId: string;
+  sectionId: string;
+  roleId: string;
   requestSequence: number;
 };
 
@@ -177,6 +185,7 @@ const SongStructure = memo(function SongStructure({
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [timelineFocusRequest, setTimelineFocusRequest] = useState<TimelineFocusRequest | null>(null);
+  const [roadmapFocusRequest, setRoadmapFocusRequest] = useState<RoadmapFocusRequest | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -220,21 +229,34 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       )
     : t("workspaceFirstRangeMissing");
   const firstRangeClock = firstRangeTimeline(song, firstRange);
-  const firstRangeFindCopy = firstRangeClock
+  const firstRangeTimelineFindCopy = firstRangeClock
     ? fillRangeCopy(t("workspaceFirstRangeFindSection"), {
         sectionLabel: firstRangeClock.sectionLabel,
         startClock: firstRangeClock.startClock,
         endClock: firstRangeClock.endClock
       })
     : null;
-  const focusedSectionId =
+  const firstRangeBoard = firstRangeRoadmap(song, firstRange);
+  const firstRangeRoadmapFindCopy = firstRangeBoard
+    ? fillRangeCopy(t("workspaceFirstRangeFindRoadmap"), {
+        sectionLabel: firstRangeBoard.sectionLabel,
+        roleName: firstRangeBoard.roleName
+      })
+    : null;
+  const timelineFocusedSectionId =
     timelineFocusRequest?.rehearsalSongId === song.id
       ? timelineFocusRequest.sectionId
       : null;
-  const focusRequestSequence =
+  const timelineFocusRequestSequence =
     timelineFocusRequest?.rehearsalSongId === song.id
       ? timelineFocusRequest.requestSequence
       : 0;
+  const roadmapFocusedSectionId =
+    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.sectionId : null;
+  const roadmapFocusedRoleId =
+    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.roleId : null;
+  const roadmapFocusRequestSequence =
+    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.requestSequence : 0;
 
   /** Request the first-range section on every activation, even when it is already highlighted. */
   const handleFindFirstRangeSection = () => {
@@ -244,6 +266,22 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     setTimelineFocusRequest((previousFocusRequest) => ({
       rehearsalSongId: song.id,
       sectionId: firstRangeClock.sectionId,
+      requestSequence:
+        previousFocusRequest?.rehearsalSongId === song.id
+          ? previousFocusRequest.requestSequence + 1
+          : 1
+    }));
+  };
+
+  /** Request the first-range roadmap cell on every activation, even when it is already highlighted. */
+  const handleFindFirstRangeRoadmap = () => {
+    if (!firstRangeBoard) {
+      return;
+    }
+    setRoadmapFocusRequest((previousFocusRequest) => ({
+      rehearsalSongId: song.id,
+      sectionId: firstRangeBoard.sectionId,
+      roleId: firstRangeBoard.roleId,
       requestSequence:
         previousFocusRequest?.rehearsalSongId === song.id
           ? previousFocusRequest.requestSequence + 1
@@ -395,16 +433,32 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
-            {firstRangeClock && firstRangeFindCopy ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-3 min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
-                onClick={handleFindFirstRangeSection}
-              >
-                {firstRangeFindCopy}
-              </Button>
+            {(firstRangeClock && firstRangeTimelineFindCopy) ||
+            (firstRangeBoard && firstRangeRoadmapFindCopy) ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {firstRangeClock && firstRangeTimelineFindCopy ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                    onClick={handleFindFirstRangeSection}
+                  >
+                    {firstRangeTimelineFindCopy}
+                  </Button>
+                ) : null}
+                {firstRangeBoard && firstRangeRoadmapFindCopy ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                    onClick={handleFindFirstRangeRoadmap}
+                  >
+                    {firstRangeRoadmapFindCopy}
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </section>
 
@@ -454,8 +508,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <SongStructure
             sections={song.sections}
             t={t}
-            focusSectionId={focusedSectionId}
-            focusRequestSequence={focusRequestSequence}
+            focusSectionId={timelineFocusedSectionId}
+            focusRequestSequence={timelineFocusRequestSequence}
           />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -609,6 +663,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             activeRole={activeRole}
             onSongUpdate={onSongUpdate}
+            focusSectionId={roadmapFocusedSectionId}
+            focusRoleId={roadmapFocusedRoleId}
+            focusRequestSequence={roadmapFocusRequestSequence}
           />
           </section>
         </CardContent>
