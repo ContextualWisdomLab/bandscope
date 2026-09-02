@@ -22,6 +22,10 @@ describe("admitPracticeProgress", () => {
     expect(admitPracticeProgress({ id: "bass-guitar", name: "Bass Guitar" })).toBe(0);
   });
 
+  it("treats an explicit undefined optional progress mark as not started", () => {
+    expect(admitPracticeProgress({ practiceProgress: undefined })).toBe(0);
+  });
+
   it("admits a finite percentage in 0–100", () => {
     expect(admitPracticeProgress({ practiceProgress: 0 })).toBe(0);
     expect(admitPracticeProgress({ practiceProgress: 50 })).toBe(50);
@@ -44,6 +48,23 @@ describe("practiceProgressNextAction", () => {
     const action = practiceProgressNextAction(createDemoRehearsalSong(), "bass-guitar");
 
     expect(action).toEqual({
+      kind: "start",
+      roleId: "bass-guitar",
+      roleName: "Bass Guitar",
+      progress: 0
+    });
+  });
+
+  it("keeps an explicitly undefined optional mark on the selected start path", () => {
+    const song = createDemoRehearsalSong();
+    Object.defineProperty(song.sections[0]!.roles[0]!, "practiceProgress", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: undefined
+    });
+
+    expect(practiceProgressNextAction(song, "bass-guitar")).toEqual({
       kind: "start",
       roleId: "bass-guitar",
       roleName: "Bass Guitar",

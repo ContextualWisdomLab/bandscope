@@ -57,4 +57,22 @@ describe("Workspace first-unlogged practice admission", () => {
       "Bass Guitar in verse has no practice logged yet. Select that part and record tonight's first pass."
     );
   });
+
+  it("keeps the selected next action when the optional mark is explicitly undefined", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    Object.defineProperty(song.sections[0]!.roles[0]!, "practiceProgress", {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: undefined
+    });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Check Bass Guitar's first range, then mark this part started."
+    );
+  });
 });
