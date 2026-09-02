@@ -21,7 +21,7 @@ Security Notes:
 from __future__ import annotations
 
 import warnings
-from typing import Any, cast
+from typing import cast
 
 import librosa
 import numpy as np
@@ -52,44 +52,52 @@ def _malformed_decode_error() -> AudioResourcePolicyError:
 
 
 def decode_mono_audio(
-    source: AudioSource,
+    audio_source: AudioSource,
     *,
     target_sample_rate_hz: int,
     max_duration_seconds: float,
-    policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    audio_resource_policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> tuple[AudioMonoArray, int]:
     """Admit and decode one source to bounded mono float32 PCM.
 
-    The source is first measured against the same resource policy that later
-    revalidates the decoded buffer. Decoder/provider detail never becomes the
-    surfaced error message.
+    The audio source is first measured against the same resource policy that
+    later revalidates the decoded buffer. Decoder/provider detail never becomes
+    the surfaced error message.
     """
-    preflight_audio_metadata(source, policy)
+    preflight_audio_metadata(audio_source, audio_resource_policy)
 
     try:
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
-            warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
-            for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
+            warnings.filterwarnings(
+                "ignore", category=DeprecationWarning, module=r"^audioread"
+            )
+            warnings.filterwarnings(
+                "ignore", category=FutureWarning, module=r"^audioread"
+            )
+            for (
+                warning_category,
+                warning_message,
+                warning_module,
+            ) in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
                 warnings.filterwarnings(
                     "ignore",
-                    category=category,
-                    message=message,
-                    module=module,
+                    category=warning_category,
+                    message=warning_message,
+                    module=warning_module,
                 )
-            decoded, sample_rate = librosa.load(  # type: ignore[arg-type]
-                source,
+            decoded_audio, sample_rate_hz = librosa.load(  # type: ignore[arg-type]
+                audio_source,
                 sr=target_sample_rate_hz,
                 mono=True,
                 duration=max_duration_seconds,
             )
-    except Exception as error:
-        raise _malformed_decode_error() from error
+    except Exception as decode_error:
+        raise _malformed_decode_error() from decode_error
 
     try:
-        pcm = np.ravel(np.asarray(decoded, dtype=np.float32))
-    except (TypeError, ValueError) as error:
-        raise _malformed_decode_error() from error
+        pcm_audio = np.ravel(np.asarray(decoded_audio, dtype=np.float32))
+    except (TypeError, ValueError) as decode_error:
+        raise _malformed_decode_error() from decode_error
 
-    validate_decoded_audio(pcm, sample_rate, policy)
-    return cast(AudioMonoArray, pcm), int(sample_rate)
+    validate_decoded_audio(pcm_audio, sample_rate_hz, audio_resource_policy)
+    return cast(AudioMonoArray, pcm_audio), int(sample_rate_hz)
