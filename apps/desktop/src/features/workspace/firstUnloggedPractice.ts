@@ -180,7 +180,11 @@ export function firstUnloggedPractice(
         continue;
       }
       if (isConsistentlyUnlogged(nextEvidence.marks)) {
-        return { kind: "selected-logged" };
+        return {
+          kind: "unlogged",
+          sectionLabel: nextEvidence.firstSectionLabel,
+          roleName: nextEvidence.roleName
+        };
       }
       if (!isConsistentlyLogged(nextEvidence.marks)) {
         hasInvalidEvidence = true;
