@@ -86,9 +86,9 @@ describe("ScoreViewer", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the empty placeholder without loading when no data is attached", () => {
+  it("renders the empty placeholder without loading when no score PDF bytes are attached", () => {
     const onStatusChange = vi.fn();
-    render(<ScoreViewer data={null} onStatusChange={onStatusChange} />);
+    render(<ScoreViewer scorePdfBytes={null} onStatusChange={onStatusChange} />);
 
     expect(
       screen.getByText("No score PDF attached. Attach a validated score PDF to view it here.")
@@ -103,7 +103,7 @@ describe("ScoreViewer", () => {
     const { doc, page } = createFakeDocument(3);
     const onStatusChange = vi.fn();
 
-    render(<ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} onStatusChange={onStatusChange} />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.getByText("Loading score PDF...")).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe("ScoreViewer", () => {
     const { doc } = createFakeDocument(1);
     mockLoadTaskOnce(Promise.resolve(doc));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} fileName="setlist-opener.pdf" />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} fileName="setlist-opener.pdf" />);
 
     expect(await screen.findByText("setlist-opener.pdf")).toBeInTheDocument();
   });
@@ -139,7 +139,7 @@ describe("ScoreViewer", () => {
     mockLoadTaskOnce(Promise.resolve(doc));
     const onStatusChange = vi.fn();
 
-    render(<ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} onStatusChange={onStatusChange} />);
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("Could not display the score")).toBeInTheDocument();
@@ -159,7 +159,7 @@ describe("ScoreViewer", () => {
   it("stringifies non-Error load failures", async () => {
     mockLoadTaskOnce(Promise.reject("password protected"));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} />);
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByText("password protected")).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe("ScoreViewer", () => {
     const { doc } = createFakeDocument(3);
     mockLoadTaskOnce(Promise.resolve(doc));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
@@ -198,7 +198,7 @@ describe("ScoreViewer", () => {
     const { doc, page } = createFakeDocument(1);
     mockLoadTaskOnce(Promise.resolve(doc));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
     const zoomInButton = screen.getByRole("button", { name: "Zoom in" });
@@ -245,7 +245,7 @@ describe("ScoreViewer", () => {
     const { doc, page } = createFakeDocument(1);
     mockLoadTaskOnce(Promise.resolve(doc));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
 
@@ -278,7 +278,7 @@ describe("ScoreViewer", () => {
     const { doc } = createFakeDocument(1, page);
     mockLoadTaskOnce(Promise.resolve(doc));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
     await waitFor(() => {
@@ -294,7 +294,7 @@ describe("ScoreViewer", () => {
     } as unknown as PDFDocumentProxy;
     mockLoadTaskOnce(Promise.resolve(doc));
 
-    render(<ScoreViewer data={SAMPLE_BYTES} />);
+    render(<ScoreViewer scorePdfBytes={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 1")).toBeInTheDocument();
     await waitFor(() => {
@@ -311,7 +311,7 @@ describe("ScoreViewer", () => {
     const onStatusChange = vi.fn();
 
     const { unmount } = render(
-      <ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />
+      <ScoreViewer scorePdfBytes={SAMPLE_BYTES} onStatusChange={onStatusChange} />
     );
     unmount();
 
@@ -330,7 +330,7 @@ describe("ScoreViewer", () => {
     const onStatusChange = vi.fn();
 
     const { unmount } = render(
-      <ScoreViewer data={SAMPLE_BYTES} onStatusChange={onStatusChange} />
+      <ScoreViewer scorePdfBytes={SAMPLE_BYTES} onStatusChange={onStatusChange} />
     );
     unmount();
 
