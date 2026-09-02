@@ -1,4 +1,9 @@
-import { parseRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
+import {
+  parseAnalysisJobStatus,
+  parseRehearsalSong,
+  type AnalysisJobStatus,
+  type RehearsalSong
+} from "@bandscope/shared-types";
 
 const SYNTHETIC_SECTION_TIME_RANGE = Symbol("bandscope.syntheticSectionTimeRange");
 
@@ -50,4 +55,40 @@ export function parseRehearsalSongWithTimingEvidence(songValue: unknown): Rehear
   });
 
   return parsedSong;
+}
+
+/**
+ * Parse an analysis status without losing legacy section-timing provenance in its result.
+ *
+ * Shared-type legacy normalization is intentionally contract-compatible and can synthesize a
+ * missing `timeRange`. Rehearsal decisions must still know that the range was compatibility data,
+ * so the desktop adapter compares the normalized result with the untrusted source envelope and
+ * reapplies the internal marker before returning it to workspace consumers.
+ */
+export function parseAnalysisJobStatusWithTimingEvidence(statusValue: unknown): AnalysisJobStatus {
+  const parsedStatus = parseAnalysisJobStatus(statusValue);
+  if (
+    !parsedStatus.result ||
+    !isRuntimeSectionRecord(statusValue) ||
+    !Object.prototype.hasOwnProperty.call(statusValue, "result")
+  ) {
+    return parsedStatus;
+  }
+
+  parsedStatus.result = parseRehearsalSongWithTimingEvidence(statusValue.result);
+  return parsedStatus;
+}
+
+/**
+ * Fail closed before project persistence can promote compatibility timing to measured evidence.
+ *
+ * The current project schema has no serializable provenance field for a synthesized section range;
+ * serializing the marker would therefore erase the distinction on reload. Until the canonical
+ * Project Persistence context owns a versioned migration for that provenance, reanalysis is the
+ * only truthful path to a persistable range.
+ */
+export function assertMeasuredSectionTimingForPersistence(song: RehearsalSong): void {
+  if (song.sections.some((section) => hasSyntheticSectionTimeRange(section))) {
+    throw new Error("Reanalyze the project to restore measured section timing before saving.");
+  }
 }
