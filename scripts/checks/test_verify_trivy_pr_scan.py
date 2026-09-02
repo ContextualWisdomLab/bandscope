@@ -277,6 +277,31 @@ jobs:
           sarif_file: trivy-results.sarif
 """
 
+QUOTED_BLOCK_PR_ACTIVITY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - "develop" # protected development branch
+      - 'main'
+    types:
+      - "opened" # newly opened pull request
+      - 'synchronize' # updated pull-request head
+      - reopened # restored pull request
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
 INVALID_CASES = {
     "missing protected PR targets": MISSING_PR_TARGETS,
     "activity filter drops synchronized PR heads": RESTRICTED_PR_ACTIVITY,
@@ -292,6 +317,7 @@ VALID_CASES = {
     "equivalent SARIF paths with inline comments": INLINE_COMMENTED_SARIF,
     "quoted SARIF path containing a literal hash": QUOTED_HASH_SARIF,
     "explicit complete PR-head activity filter": EXPLICIT_COMPLETE_PR_ACTIVITY,
+    "quoted block PR-head activity filter": QUOTED_BLOCK_PR_ACTIVITY,
 }
 
 
