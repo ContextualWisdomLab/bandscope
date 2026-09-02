@@ -70,10 +70,10 @@ describe("trustedScoreFileName", () => {
 });
 
 describe("trustedScoreAttachment", () => {
-  it("admits a lowercase UUID plus trusted PDF basename", () => {
+  it("translates persisted generic attachment keys into semantic score metadata", () => {
     expect(
       trustedScoreAttachment({ id: TRUSTED_SCORE_ID, fileName: "opener.pdf" })
-    ).toEqual({ id: TRUSTED_SCORE_ID, fileName: "opener.pdf" });
+    ).toEqual({ scoreId: TRUSTED_SCORE_ID, scoreFileName: "opener.pdf" });
   });
 
   it("fails closed on extra keys, inherited members, and malformed ids", () => {
