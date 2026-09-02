@@ -89,6 +89,22 @@ export function createRehearsalCountInClickEngine(
     }
   };
 
+  /** Release an oscillator acquired before gain-node construction completed. */
+  const releasePartialOscillator = (
+    oscillator: RehearsalCountInOscillator,
+  ): void => {
+    try {
+      oscillator.stop();
+    } catch {
+      // Partial construction still releases every acquired node.
+    }
+    try {
+      oscillator.disconnect();
+    } catch {
+      // Partial construction cleanup is best-effort.
+    }
+  };
+
   /** Invalidate pending resume work and release every active click node. */
   const stop = (): void => {
     playbackGeneration += 1;
@@ -115,14 +131,18 @@ export function createRehearsalCountInClickEngine(
         return;
       }
 
-      let oscillator: RehearsalCountInOscillator | null = null;
-      let gain: RehearsalCountInGain | null = null;
-      let node: LiveClickNode | null = null;
+      const oscillator = context.createOscillator();
+      let gain: RehearsalCountInGain;
       try {
-        oscillator = context.createOscillator();
         gain = context.createGain();
-        node = { gain, oscillator };
-        liveNodes.add(node);
+      } catch (error) {
+        releasePartialOscillator(oscillator);
+        throw error;
+      }
+
+      const node = { gain, oscillator };
+      liveNodes.add(node);
+      try {
         const when = context.currentTime + CLICK_LEAD_SECONDS;
         oscillator.type = "square";
         oscillator.frequency.value = accent
@@ -133,37 +153,11 @@ export function createRehearsalCountInClickEngine(
         gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_SECONDS);
         oscillator.connect(gain);
         gain.connect(context.destination);
-        oscillator.onended = () => {
-          if (node) {
-            releaseNode(node, false);
-          }
-        };
+        oscillator.onended = () => releaseNode(node, false);
         oscillator.start(when);
         oscillator.stop(when + CLICK_SECONDS + 0.01);
       } catch (error) {
-        if (node) {
-          releaseNode(node, true);
-        } else {
-          if (oscillator) {
-            try {
-              oscillator.stop();
-            } catch {
-              // Partial construction still releases every acquired node.
-            }
-            try {
-              oscillator.disconnect();
-            } catch {
-              // Partial construction cleanup is best-effort.
-            }
-          }
-          if (gain) {
-            try {
-              gain.disconnect();
-            } catch {
-              // Partial construction cleanup is best-effort.
-            }
-          }
-        }
+        releaseNode(node, true);
         throw error;
       }
     },
