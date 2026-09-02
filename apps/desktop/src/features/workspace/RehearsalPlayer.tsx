@@ -21,6 +21,10 @@ import {
   type TranslationKey,
 } from "../../i18n";
 import {
+  createRehearsalCountInClickEngine,
+  type RehearsalCountInClickEngine,
+} from "./rehearsalCountInClick";
+import {
   beatDurationMs,
   createIdleTransportState,
   fillRehearsalCopy,
@@ -178,8 +182,13 @@ export function RehearsalPlayer({
       loop: playableLoops[0] ?? null,
     }),
   );
+  const countInClickEngine = useMemo<RehearsalCountInClickEngine>(
+    () => createRehearsalCountInClickEngine(),
+    [],
+  );
   const lastHandledStartNonce = useRef(0);
   const restartAudioOnLoopRef = useRef(false);
+  const lastCountInClickKeyRef = useRef<string | null>(null);
   const countInBeatRef = useRef<{
     durationMs: number;
     startedAt: number;
@@ -201,6 +210,13 @@ export function RehearsalPlayer({
       audioSourceUrl === null,
   );
   const [playbackError, setPlaybackError] = useState(false);
+
+  useEffect(
+    () => () => {
+      countInClickEngine.stop();
+    },
+    [countInClickEngine],
+  );
 
   const handlePlaybackError = useCallback(() => {
     playbackIntentRef.current = "inactive";
@@ -366,6 +382,8 @@ export function RehearsalPlayer({
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
       countInBeatRef.current = null;
+      lastCountInClickKeyRef.current = null;
+      countInClickEngine.stop();
       return undefined;
     }
     const durationMs =
@@ -380,6 +398,18 @@ export function RehearsalPlayer({
     const progress = sameBeat
       ? Math.min(1, previous.progress + elapsedProgress)
       : 0;
+    const currentClickKey = `${transport.loop.selectionKey}:${transport.countInRemainingBeats}`;
+    if (
+      countInClickEngine.available &&
+      lastCountInClickKeyRef.current !== currentClickKey
+    ) {
+      lastCountInClickKeyRef.current = currentClickKey;
+      void countInClickEngine
+        .click(transport.countInRemainingBeats === transport.loop.countInBeats)
+        .catch(() => {
+          // Count-in click failure must not gain authority over admitted song playback.
+        });
+    }
     countInBeatRef.current = {
       durationMs,
       startedAt: now,
@@ -398,6 +428,16 @@ export function RehearsalPlayer({
         current.progress = 0;
         setTransport((state) => reduceRehearsalTransport(state, { type: "beat" }));
         if (current.remainingBeats > 0) {
+          const nextClickKey = `${transport.loop?.selectionKey ?? ""}:${current.remainingBeats}`;
+          if (
+            countInClickEngine.available &&
+            lastCountInClickKeyRef.current !== nextClickKey
+          ) {
+            lastCountInClickKeyRef.current = nextClickKey;
+            void countInClickEngine.click(false).catch(() => {
+              // The transport remains authoritative when Web Audio is unavailable.
+            });
+          }
           current.startedAt = performance.now();
           scheduleBeat(current.durationMs);
         }
@@ -410,6 +450,7 @@ export function RehearsalPlayer({
       }
     };
   }, [
+    countInClickEngine,
     transport.loop,
     transport.phase,
     transport.playbackRate,
