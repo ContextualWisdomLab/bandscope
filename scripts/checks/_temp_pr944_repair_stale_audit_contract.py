@@ -55,14 +55,18 @@ def repair_tests(source: str) -> str:
     replaced_total = 0
     for name, expected in EXPECTED_BY_SCOPE.items():
         start, end = ranges[name]
-        segment = "".join(lines[start - 1 : end])
+        segment_lines = lines[start - 1 : end]
+        segment = "".join(segment_lines)
         actual = segment.count(OLD)
         if actual != expected:
             raise SystemExit(
                 f"{name} drifted: expected {expected} stale audit token(s), found {actual}"
             )
         replaced_total += actual
-        lines[start - 1 : end] = [segment.replace(OLD, NEW)]
+        repaired_segment_lines = segment.replace(OLD, NEW).splitlines(keepends=True)
+        if len(repaired_segment_lines) != len(segment_lines):
+            raise SystemExit(f"{name} line cardinality changed during literal repair")
+        lines[start - 1 : end] = repaired_segment_lines
     if replaced_total != EXPECTED_TOTAL:
         raise SystemExit(
             f"replacement cardinality drifted: expected {EXPECTED_TOTAL}, got {replaced_total}"
