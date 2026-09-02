@@ -20,10 +20,11 @@ jobs:
     if: github.actor_id == '8172694'
     runs-on: ubuntu-slim
     steps:
-      - name: Checkout exact writer head
+      - name: Checkout exact writer head without persisted write credential
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
@@ -58,6 +59,8 @@ jobs:
           uv run --project services/analysis-engine ruff format --check services/analysis-engine/tests/test_supply_chain_policy.py
       - name: Publish exact repaired source and traceability
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git add services/analysis-engine/tests/test_supply_chain_policy.py docs/product-technical-gap-baseline.md
@@ -68,4 +71,5 @@ jobs:
           git commit -m 'fix(policy): align Rust audit regression contract'
           git fetch origin agent/rust-toolchain-refresh-2026-08-19
           test "$(git rev-parse origin/agent/rust-toolchain-refresh-2026-08-19)" = "$GITHUB_SHA"
-          git push origin HEAD:agent/rust-toolchain-refresh-2026-08-19
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="$auth_header" push https://github.com/ContextualWisdomLab/bandscope.git HEAD:agent/rust-toolchain-refresh-2026-08-19
