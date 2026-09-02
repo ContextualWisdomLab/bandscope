@@ -38,4 +38,4 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
-      - "github-actions"
+      - "area: ci-cd"
