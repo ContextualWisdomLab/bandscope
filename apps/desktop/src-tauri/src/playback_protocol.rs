@@ -187,6 +187,12 @@ fn serve_authorized_source(
             .expect("static playback range response should build");
     }
 
+    // Tauri custom-protocol bodies are buffered. Keep tiny compatibility GETs,
+    // but require large media clients to use the bounded Range path above.
+    if len > MAX_RANGE_BYTES {
+        return range_not_satisfiable(len);
+    }
+
     let mut body = Vec::new();
     if file.read_to_end(&mut body).is_err() || body.len() as u64 != len {
         return empty_response(StatusCode::GONE);
