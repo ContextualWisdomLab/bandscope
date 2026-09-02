@@ -109,6 +109,20 @@ function loopSelectionKey(loop: RehearsalLoopWindow): string {
   return loop.selectionKey;
 }
 
+/** Return whether a selected loop is fully covered by admitted local media. */
+function loopFitsAdmittedMedia(
+  loop: RehearsalLoopWindow,
+  mediaDurationSeconds: number | null,
+): boolean {
+  return (
+    mediaDurationSeconds !== null &&
+    Number.isFinite(mediaDurationSeconds) &&
+    mediaDurationSeconds > 0 &&
+    loop.startSeconds < mediaDurationSeconds &&
+    loop.endSeconds <= mediaDurationSeconds
+  );
+}
+
 /** Render tonight's first section loop with a count-in and a named next action. */
 export function RehearsalPlayer({
   song,
@@ -215,6 +229,9 @@ export function RehearsalPlayer({
       audioSourceUrl === null,
   );
   const [playbackError, setPlaybackError] = useState(false);
+  const [mediaDurationSeconds, setMediaDurationSeconds] = useState<number | null>(
+    null,
+  );
 
   useEffect(
     () => () => {
@@ -288,6 +305,7 @@ export function RehearsalPlayer({
       return undefined;
     }
     playbackIntentRef.current = "inactive";
+    setMediaDurationSeconds(null);
     if (!audio.paused) {
       audio.pause();
     }
@@ -306,6 +324,14 @@ export function RehearsalPlayer({
       }
     };
   }, [audioSourceUrl, hasNativeAudioConversionError]);
+
+  /** Admit only a finite positive duration from the currently loaded local source. */
+  const handleLoadedMetadata = useCallback(() => {
+    const duration = audioRef.current?.duration ?? Number.NaN;
+    setMediaDurationSeconds(
+      Number.isFinite(duration) && duration > 0 ? duration : null,
+    );
+  }, []);
 
   useEffect(() => {
     setTransport((current) => {
@@ -349,14 +375,16 @@ export function RehearsalPlayer({
     if (startNonce <= lastHandledStartNonce.current) {
       return;
     }
-    lastHandledStartNonce.current = startNonce;
-    if (!hasPlayableAudio) {
+    if (
+      !hasPlayableAudio ||
+      !selectedLoop ||
+      !loopFitsAdmittedMedia(selectedLoop, mediaDurationSeconds)
+    ) {
       return;
     }
-    if (selectedLoop) {
-      setPlaybackError(false);
-      startAudio(selectedLoop, false);
-    }
+    lastHandledStartNonce.current = startNonce;
+    setPlaybackError(false);
+    startAudio(selectedLoop, false);
     setTransport((current) => {
       const armed = reduceRehearsalTransport(current, {
         type: "arm",
@@ -368,11 +396,15 @@ export function RehearsalPlayer({
     startAudio,
     startNonce,
     hasPlayableAudio,
+    mediaDurationSeconds,
     selectedLoop,
   ]);
 
   useEffect(() => {
-    if (hasPlayableAudio) {
+    const transportLoopCovered =
+      transport.loop === null ||
+      loopFitsAdmittedMedia(transport.loop, mediaDurationSeconds);
+    if (hasPlayableAudio && transportLoopCovered) {
       return;
     }
     playbackIntentRef.current = "inactive";
@@ -382,7 +414,7 @@ export function RehearsalPlayer({
       }
       return reduceRehearsalTransport(current, { type: "stop" });
     });
-  }, [hasPlayableAudio]);
+  }, [hasPlayableAudio, mediaDurationSeconds, transport.loop]);
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
@@ -621,6 +653,7 @@ export function RehearsalPlayer({
   const canStart =
     transport.loop !== null &&
     hasPlayableAudio &&
+    loopFitsAdmittedMedia(transport.loop, mediaDurationSeconds) &&
     (transport.phase === "armed" || transport.phase === "paused");
   const canPause =
     transport.phase === "counting-in" || transport.phase === "looping";
@@ -636,11 +669,18 @@ export function RehearsalPlayer({
       }
       const rawValue = event.currentTarget.value.trim();
       const value = Number(rawValue);
+      const withinLoadedMedia =
+        !hasPlayableAudio ||
+        (mediaDurationSeconds !== null &&
+          (boundary === "start"
+            ? value < mediaDurationSeconds
+            : value <= mediaDurationSeconds));
       const valid =
         rawValue !== "" &&
         Number.isSafeInteger(value) &&
         value >= 0 &&
         value <= MAX_SECTION_TIME_SECONDS &&
+        withinLoadedMedia &&
         (boundary === "start"
           ? value < selectedLoop.endSeconds
           : value > selectedLoop.startSeconds);
@@ -710,11 +750,18 @@ export function RehearsalPlayer({
       setSelectedLoopKey(loopSelectionKey(nextLoop));
       onSongUpdate(nextSong);
     },
-    [onSongUpdate, selectedLoop, song],
+    [
+      hasPlayableAudio,
+      mediaDurationSeconds,
+      onSongUpdate,
+      selectedLoop,
+      song,
+    ],
   );
   const canSeek =
     transport.loop !== null &&
     hasPlayableAudio &&
+    loopFitsAdmittedMedia(transport.loop, mediaDurationSeconds) &&
     (transport.phase === "looping" ||
       (transport.phase === "paused" && transport.countInRemainingBeats === 0));
   const handleSeek = useCallback(
@@ -928,7 +975,11 @@ export function RehearsalPlayer({
                 aria-invalid={boundaryError}
                 className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                 id="rehearsal-loop-boundary-start"
-                max={MAX_SECTION_TIME_SECONDS}
+                max={
+                  hasPlayableAudio && mediaDurationSeconds !== null
+                    ? mediaDurationSeconds
+                    : MAX_SECTION_TIME_SECONDS
+                }
                 min={0}
                 onBlur={(event) => handleBoundaryBlur("start", event)}
                 onChange={(event) => {
@@ -947,7 +998,11 @@ export function RehearsalPlayer({
                 aria-invalid={boundaryError}
                 className="min-h-11 rounded-lg border border-white/10 bg-slate-950 px-3 text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                 id="rehearsal-loop-boundary-end"
-                max={MAX_SECTION_TIME_SECONDS}
+                max={
+                  hasPlayableAudio && mediaDurationSeconds !== null
+                    ? mediaDurationSeconds
+                    : MAX_SECTION_TIME_SECONDS
+                }
                 min={0}
                 onBlur={(event) => handleBoundaryBlur("end", event)}
                 onChange={(event) => {
@@ -1084,6 +1139,8 @@ export function RehearsalPlayer({
         data-testid="rehearsal-loop-audio"
         preload="metadata"
         aria-hidden="true"
+        onDurationChange={handleLoadedMetadata}
+        onLoadedMetadata={handleLoadedMetadata}
         tabIndex={-1}
       />
     </section>
