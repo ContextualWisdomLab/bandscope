@@ -6,14 +6,26 @@ import {
 } from "@bandscope/shared-types";
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
+const SECTION_FORM_LABELS = new Set<RehearsalSection["label"]>([
+  "intro",
+  "verse",
+  "pre-chorus",
+  "chorus",
+  "bridge",
+  "outro",
+  "tag",
+  "pickup",
+  "stop",
+  "handoff"
+]);
 
 /** Tonight's first stop: the earliest labeled cut, its holder, and adjacent form context. */
 export type FirstStopHandoff = {
   section: RehearsalSection;
   holdingRole: RehearsalRole | null;
   atSeconds: number;
-  previousSectionLabel: string | null;
-  nextSectionLabel: string | null;
+  previousSectionLabel: RehearsalSection["label"] | null;
+  nextSectionLabel: RehearsalSection["label"] | null;
 };
 
 /** Format a non-negative stop time as m:ss for rehearsal copy. */
@@ -153,13 +165,16 @@ function uniqueRuntimeSections(song: RehearsalSong): RehearsalSection[] | null {
   return sections;
 }
 
-/** Return a buyer-safe form label or null rather than echoing malformed runtime data. */
-function safeSectionLabel(section: RehearsalSection | undefined): string | null {
-  if (!section || typeof section.label !== "string") {
+/** Return a supported buyer-safe form label or null rather than echoing malformed runtime data. */
+function safeSectionLabel(section: RehearsalSection | undefined): RehearsalSection["label"] | null {
+  if (!section) {
     return null;
   }
-  const label = section.label.trim();
-  return label.length > 0 ? label : null;
+  const label: unknown = section.label;
+  if (typeof label !== "string" || !SECTION_FORM_LABELS.has(label as RehearsalSection["label"])) {
+    return null;
+  }
+  return label as RehearsalSection["label"];
 }
 
 /** Return the first labeled stop, or null when no safe cut remains. */
