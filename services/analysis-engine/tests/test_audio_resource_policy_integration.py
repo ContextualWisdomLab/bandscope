@@ -75,7 +75,7 @@ def test_temporal_decoder_probes_one_sample_past_duration_limit_and_fails_closed
     source = tmp_path / "overlong.wav"
     source.write_bytes(b"bounded")
     monkeypatch.setattr(
-        "bandscope_analysis.temporal.analyzer.preflight_audio_metadata",
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
         lambda *_args, **_kwargs: None,
     )
     captured: dict[str, object] = {}
@@ -149,7 +149,7 @@ def test_stem_decoder_probes_one_sample_past_duration_limit_and_fails_closed(
     source = tmp_path / "overlong.wav"
     source.write_bytes(b"bounded")
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
         lambda *_args, **_kwargs: None,
     )
     captured: dict[str, object] = {}
@@ -217,7 +217,7 @@ def test_stem_decoder_rejects_nonfinite_decoded_output_before_model(
     source = tmp_path / "nonfinite.wav"
     source.write_bytes(b"bounded")
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
