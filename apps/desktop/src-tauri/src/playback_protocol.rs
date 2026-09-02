@@ -1,0 +1,388 @@
+//! Revocable native media authority for the mounted rehearsal player.
+//!
+//! The WebView receives only an app-minted project id. Native source paths stay
+//! behind this protocol boundary and every request is checked against the one
+//! currently active project before BandScope opens any file.
+
+use bandscope_desktop_core::{is_valid_project_id, LocalAudioSourcePayload};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::PathBuf,
+    sync::Mutex,
+};
+use tauri::http::{
+    header::{ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE, RANGE},
+    Method, Request, Response, StatusCode,
+};
+
+/// Custom scheme used only for current-project audio playback.
+pub const PLAYBACK_SCHEME: &str = "bandscope-playback";
+
+/// Match Tauri's bounded single-range chunk size so media seeks do not allocate
+/// an arbitrarily large buffer from an untrusted Range header.
+const MAX_RANGE_BYTES: u64 = 1_000 * 1024;
+
+#[derive(Clone, Debug)]
+struct PlaybackSourceAuthority {
+    project_id: String,
+    source_path: PathBuf,
+    extension: String,
+    expected_size: u64,
+}
+
+/// Process-local authority for the one audio source currently admitted to the
+/// rehearsal player. Replacing it revokes every previously selected source.
+#[derive(Default)]
+pub struct PlaybackAuthority {
+    current: Mutex<Option<PlaybackSourceAuthority>>,
+}
+
+impl PlaybackAuthority {
+    /// Replace the current playback source with an already validated native
+    /// source. The project id is app-minted and never derived from a path.
+    pub fn activate(&self, project_id: &str, source: &LocalAudioSourcePayload) -> Result<(), String> {
+        if !is_valid_project_id(project_id) {
+            return Err("Could not prepare the selected audio for playback.".to_string());
+        }
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
+        *current = Some(PlaybackSourceAuthority {
+            project_id: project_id.to_string(),
+            source_path: PathBuf::from(&source.source_path),
+            extension: source.extension.clone(),
+            expected_size: source.file_size_bytes,
+        });
+        Ok(())
+    }
+
+    /// Serve GET/HEAD media requests only when their opaque project id still
+    /// names the current authority. Stale project ids fail closed immediately.
+    pub fn respond(&self, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
+        let Some(project_id) = project_id_from_path(request.uri().path()) else {
+            return empty_response(StatusCode::NOT_FOUND);
+        };
+        let Some(authority) = self.current_authority(project_id) else {
+            return empty_response(StatusCode::NOT_FOUND);
+        };
+        if request.method() != Method::GET && request.method() != Method::HEAD {
+            return empty_response(StatusCode::METHOD_NOT_ALLOWED);
+        }
+        serve_authorized_source(&authority, &request)
+    }
+
+    fn current_authority(&self, project_id: &str) -> Option<PlaybackSourceAuthority> {
+        if !is_valid_project_id(project_id) {
+            return None;
+        }
+        self.current
+            .lock()
+            .ok()
+            .and_then(|current| current.as_ref().filter(|entry| entry.project_id == project_id).cloned())
+    }
+}
+
+fn project_id_from_path(path: &str) -> Option<&str> {
+    let project_id = path.strip_prefix('/')?;
+    if project_id.is_empty() || project_id.contains('/') || project_id.contains('%') {
+        return None;
+    }
+    is_valid_project_id(project_id).then_some(project_id)
+}
+
+fn content_type(extension: &str) -> Option<&'static str> {
+    match extension {
+        "wav" => Some("audio/wav"),
+        "mp3" => Some("audio/mpeg"),
+        "flac" => Some("audio/flac"),
+        "m4a" => Some("audio/mp4"),
+        _ => None,
+    }
+}
+
+fn validated_file(authority: &PlaybackSourceAuthority) -> Result<(File, u64), StatusCode> {
+    let link_metadata = std::fs::symlink_metadata(&authority.source_path)
+        .map_err(|_| StatusCode::GONE)?;
+    if link_metadata.file_type().is_symlink()
+        || !link_metadata.is_file()
+        || link_metadata.len() != authority.expected_size
+    {
+        return Err(StatusCode::GONE);
+    }
+    let canonical = authority
+        .source_path
+        .canonicalize()
+        .map_err(|_| StatusCode::GONE)?;
+    if canonical != authority.source_path {
+        return Err(StatusCode::GONE);
+    }
+    let file = File::open(&canonical).map_err(|_| StatusCode::GONE)?;
+    let metadata = file.metadata().map_err(|_| StatusCode::GONE)?;
+    if !metadata.is_file() || metadata.len() != authority.expected_size || metadata.len() == 0 {
+        return Err(StatusCode::GONE);
+    }
+    Ok((file, metadata.len()))
+}
+
+fn serve_authorized_source(
+    authority: &PlaybackSourceAuthority,
+    request: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
+    let Some(media_type) = content_type(&authority.extension) else {
+        return empty_response(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    };
+    let (mut file, len) = match validated_file(authority) {
+        Ok(value) => value,
+        Err(status) => return empty_response(status),
+    };
+
+    if request.method() == Method::HEAD {
+        return Response::builder()
+            .status(StatusCode::OK)
+            .header(ACCEPT_RANGES, "bytes")
+            .header(CONTENT_TYPE, media_type)
+            .header(CONTENT_LENGTH, len)
+            .body(Vec::new())
+            .expect("static playback HEAD response should build");
+    }
+
+    let range_header = request.headers().get(RANGE).and_then(|value| value.to_str().ok());
+    if let Some(range_header) = range_header {
+        let (start, end) = match parse_single_range(range_header, len) {
+            Ok(range) => range,
+            Err(()) => return range_not_satisfiable(len),
+        };
+        let byte_count = end + 1 - start;
+        let Ok(capacity) = usize::try_from(byte_count) else {
+            return range_not_satisfiable(len);
+        };
+        if file.seek(SeekFrom::Start(start)).is_err() {
+            return empty_response(StatusCode::GONE);
+        }
+        let mut body = Vec::with_capacity(capacity);
+        if file.take(byte_count).read_to_end(&mut body).is_err() || body.len() != capacity {
+            return empty_response(StatusCode::GONE);
+        }
+        return Response::builder()
+            .status(StatusCode::PARTIAL_CONTENT)
+            .header(ACCEPT_RANGES, "bytes")
+            .header(CONTENT_TYPE, media_type)
+            .header(CONTENT_RANGE, format!("bytes {start}-{end}/{len}"))
+            .header(CONTENT_LENGTH, byte_count)
+            .body(body)
+            .expect("static playback range response should build");
+    }
+
+    let mut body = Vec::new();
+    if file.read_to_end(&mut body).is_err() || body.len() as u64 != len {
+        return empty_response(StatusCode::GONE);
+    }
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(ACCEPT_RANGES, "bytes")
+        .header(CONTENT_TYPE, media_type)
+        .header(CONTENT_LENGTH, len)
+        .body(body)
+        .expect("static playback response should build")
+}
+
+fn parse_single_range(header: &str, len: u64) -> Result<(u64, u64), ()> {
+    if len == 0 {
+        return Err(());
+    }
+    let value = header.strip_prefix("bytes=").ok_or(())?.trim();
+    if value.is_empty() || value.contains(',') {
+        return Err(());
+    }
+
+    if let Some(suffix) = value.strip_prefix('-') {
+        let suffix_len = suffix.parse::<u64>().map_err(|_| ())?;
+        if suffix_len == 0 {
+            return Err(());
+        }
+        let bounded_suffix = suffix_len.min(len).min(MAX_RANGE_BYTES);
+        return Ok((len - bounded_suffix, len - 1));
+    }
+
+    let (start, end) = value.split_once('-').ok_or(())?;
+    let start = start.parse::<u64>().map_err(|_| ())?;
+    if start >= len {
+        return Err(());
+    }
+    let requested_end = if end.is_empty() {
+        len - 1
+    } else {
+        end.parse::<u64>().map_err(|_| ())?.min(len - 1)
+    };
+    if requested_end < start {
+        return Err(());
+    }
+    let end = requested_end.min(start.saturating_add(MAX_RANGE_BYTES - 1));
+    Ok((start, end))
+}
+
+fn range_not_satisfiable(len: u64) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(StatusCode::RANGE_NOT_SATISFIABLE)
+        .header(ACCEPT_RANGES, "bytes")
+        .header(CONTENT_RANGE, format!("bytes */{len}"))
+        .body(Vec::new())
+        .expect("static playback range error should build")
+}
+
+fn empty_response(status: StatusCode) -> Response<Vec<u8>> {
+    Response::builder()
+        .status(status)
+        .body(Vec::new())
+        .expect("static playback error response should build")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn test_source(label: &str, bytes: &[u8]) -> (PathBuf, LocalAudioSourcePayload) {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("test clock should be after the Unix epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "bandscope-playback-{}-{label}-{unique}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).expect("test playback root should be created");
+        let path = root.join("source.wav");
+        std::fs::write(&path, bytes).expect("test playback source should be written");
+        let canonical = path.canonicalize().expect("test source should canonicalize");
+        let source = LocalAudioSourcePayload {
+            source_path: canonical.to_string_lossy().into_owned(),
+            file_name: "source.wav".to_string(),
+            extension: "wav".to_string(),
+            file_size_bytes: bytes.len() as u64,
+        };
+        (root, source)
+    }
+
+    fn request(project_id: &str) -> Request<Vec<u8>> {
+        Request::builder()
+            .uri(format!("{PLAYBACK_SCHEME}://localhost/{project_id}"))
+            .body(Vec::new())
+            .expect("test request should build")
+    }
+
+    #[test]
+    fn rotating_authority_revokes_the_previous_project_immediately() {
+        let (first_root, first_source) = test_source("first", b"first-audio");
+        let (second_root, second_source) = test_source("second", b"second-audio");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-100-1", &first_source)
+            .expect("first source should activate");
+        assert_eq!(
+            authority.respond(request("project-100-1")).status(),
+            StatusCode::OK
+        );
+
+        authority
+            .activate("project-101-2", &second_source)
+            .expect("second source should activate");
+
+        assert_eq!(
+            authority.respond(request("project-100-1")).status(),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(
+            authority.respond(request("project-101-2")).body(),
+            b"second-audio"
+        );
+        let _ = std::fs::remove_dir_all(first_root);
+        let _ = std::fs::remove_dir_all(second_root);
+    }
+
+    #[test]
+    fn current_authority_rejects_path_shaped_or_unknown_tokens() {
+        let (root, source) = test_source("token", b"audio");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-200-3", &source)
+            .expect("source should activate");
+
+        assert_eq!(
+            authority.respond(request("project-999-9")).status(),
+            StatusCode::NOT_FOUND
+        );
+        let traversal = Request::builder()
+            .uri(format!("{PLAYBACK_SCHEME}://localhost/project-200-3/../../private.wav"))
+            .body(Vec::new())
+            .expect("test traversal request should build");
+        assert_eq!(authority.respond(traversal).status(), StatusCode::NOT_FOUND);
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn single_range_is_bounded_and_reports_partial_content() {
+        let bytes = vec![b'x'; (MAX_RANGE_BYTES + 32) as usize];
+        let (root, source) = test_source("range", &bytes);
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-300-4", &source)
+            .expect("source should activate");
+        let request = Request::builder()
+            .uri(format!("{PLAYBACK_SCHEME}://localhost/project-300-4"))
+            .header(RANGE, "bytes=0-")
+            .body(Vec::new())
+            .expect("range request should build");
+
+        let response = authority.respond(request);
+
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.body().len() as u64, MAX_RANGE_BYTES);
+        assert_eq!(
+            response.headers().get(CONTENT_RANGE).and_then(|value| value.to_str().ok()),
+            Some(&*format!("bytes 0-{}/{ }", MAX_RANGE_BYTES - 1, bytes.len()).replace("/ ", "/"))
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn multiple_or_unsatisfiable_ranges_fail_closed() {
+        let (root, source) = test_source("invalid-range", b"0123456789");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-400-5", &source)
+            .expect("source should activate");
+        for value in ["bytes=0-1,3-4", "bytes=99-", "items=0-1", "bytes=-0"] {
+            let request = Request::builder()
+                .uri(format!("{PLAYBACK_SCHEME}://localhost/project-400-5"))
+                .header(RANGE, value)
+                .body(Vec::new())
+                .expect("invalid range request should build");
+            assert_eq!(
+                authority.respond(request).status(),
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                "range {value} must fail closed"
+            );
+        }
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn source_replacement_after_admission_is_not_served() {
+        let (root, source) = test_source("mutation", b"original-audio");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-500-6", &source)
+            .expect("source should activate");
+        std::fs::write(&source.source_path, b"changed-size")
+            .expect("test should replace source contents");
+
+        assert_eq!(
+            authority.respond(request("project-500-6")).status(),
+            StatusCode::GONE
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+}
