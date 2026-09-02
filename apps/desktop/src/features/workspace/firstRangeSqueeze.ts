@@ -2,6 +2,7 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 
 /** Tonight's first named playable span on the rehearsal map. */
 export type FirstRangeSqueeze = {
+  roleId: string;
   sectionLabel: string;
   roleName: string;
   lowestNote: string;
@@ -143,6 +144,7 @@ export function firstRangeSqueeze(
       }
 
       const candidate: FirstRangeSqueeze = {
+        roleId,
         sectionLabel,
         roleName,
         ...range,
@@ -160,6 +162,30 @@ export function firstRangeSqueeze(
   }
 
   return fallback;
+}
+
+/**
+ * Offer the named first-range part only when the map is not already on it.
+ *
+ * Fail closed when the squeeze is missing, the role id is unknown to the
+ * current switcher, or that part is already selected. The instrument-check
+ * sentence remains the next action once the part is open.
+ */
+export function firstRangeOpenPart(
+  squeeze: FirstRangeSqueeze | null,
+  activeRole: string | null,
+  roles: ReadonlyArray<{ id: string }>
+): FirstRangeSqueeze | null {
+  if (!squeeze || !Array.isArray(roles)) {
+    return null;
+  }
+  if (activeRole === squeeze.roleId) {
+    return null;
+  }
+  if (!roles.some((role) => role.id === squeeze.roleId)) {
+    return null;
+  }
+  return squeeze;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
