@@ -138,6 +138,17 @@ describe("firstRangeSqueeze", () => {
     expect(firstRangeSqueeze(blankRoleRange(createDemoRehearsalSong()))).toBeNull();
     expect(firstRangeSqueeze(createDemoRehearsalSong(), "missing-role")).toBeNull();
   });
+
+  it("does not normalize section or role identity before navigation", () => {
+    const spacedSection = createDemoRehearsalSong();
+    spacedSection.sections[0]!.id = " verse-1 ";
+    expect(firstRangeTimeline(spacedSection, firstRangeSqueeze(spacedSection))).toBeNull();
+    expect(firstRangeRoadmap(spacedSection, firstRangeSqueeze(spacedSection))).toBeNull();
+
+    const spacedRole = createDemoRehearsalSong();
+    spacedRole.sections[0]!.roles[0]!.id = " bass-guitar ";
+    expect(firstRangeRoadmap(spacedRole, firstRangeSqueeze(spacedRole))).toBeNull();
+  });
 });
 
 describe("formatRangeClock", () => {
@@ -189,10 +200,12 @@ describe("firstRangeTimeline", () => {
     expect(firstRangeTimeline(duplicateId, firstRangeSqueeze(song))).toBeNull();
   });
 
-  it("fails closed on malformed, inverted, or non-finite section times", () => {
+  it("fails closed on malformed, zero-duration, inverted, or non-finite section times", () => {
     const song = createDemoRehearsalSong();
     const squeeze = firstRangeSqueeze(song);
     song.sections[0]!.timeRange = { start: Number.NaN, end: 30 };
+    expect(firstRangeTimeline(song, squeeze)).toBeNull();
+    song.sections[0]!.timeRange = { start: 10, end: 10 };
     expect(firstRangeTimeline(song, squeeze)).toBeNull();
     song.sections[0]!.timeRange = { start: 30, end: 10 };
     expect(firstRangeTimeline(song, squeeze)).toBeNull();
