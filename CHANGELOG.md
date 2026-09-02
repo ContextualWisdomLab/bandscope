@@ -5,7 +5,7 @@
 ### Added
 
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
-- Name tonight's first attached score on the ready rehearsal map and tell the player to open it in Score, or add a score and check the first range by ear.
+- Name tonight's first validated attached score on the ready rehearsal map only while a live Score workspace is available; reopened metadata-only projects or untrusted score metadata fall back to adding a score or checking the first range by ear.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
