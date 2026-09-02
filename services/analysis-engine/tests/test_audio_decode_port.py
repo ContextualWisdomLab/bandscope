@@ -8,6 +8,7 @@ import pytest
 from bandscope_analysis import audio_decode
 from bandscope_analysis.audio_resource_policy import (
     DEFAULT_AUDIO_RESOURCE_POLICY,
+    AudioResourcePolicy,
     AudioResourcePolicyError,
 )
 
@@ -33,8 +34,9 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
         }
         return decoder_output, DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
 
-    def validate(decoded: object, sample_rate: object) -> np.ndarray:
+    def validate(self: AudioResourcePolicy, decoded: object, sample_rate: object) -> np.ndarray:
         calls.append(("validate", decoded))
+        assert self is DEFAULT_AUDIO_RESOURCE_POLICY
         assert isinstance(decoded, np.ndarray)
         assert decoded.dtype == np.float32
         assert decoded.shape == (2,)
@@ -43,7 +45,7 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
 
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", preflight)
     monkeypatch.setattr(audio_decode.librosa, "load", load)
-    monkeypatch.setattr(DEFAULT_AUDIO_RESOURCE_POLICY, "validate_decoded_audio", validate)
+    monkeypatch.setattr(AudioResourcePolicy, "validate_decoded_audio", validate)
 
     decoded, sample_rate = audio_decode.decode_mono_audio(
         source,
@@ -126,11 +128,13 @@ def test_decode_mono_audio_preserves_decoded_policy_rejection(
             DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate,
         ),
     )
-    monkeypatch.setattr(
-        DEFAULT_AUDIO_RESOURCE_POLICY,
-        "validate_decoded_audio",
-        lambda *_args: (_ for _ in ()).throw(rejection),
-    )
+
+    def reject_decoded(
+        _self: AudioResourcePolicy, _decoded: object, _sample_rate: object
+    ) -> np.ndarray:
+        raise rejection
+
+    monkeypatch.setattr(AudioResourcePolicy, "validate_decoded_audio", reject_decoded)
 
     with pytest.raises(AudioResourcePolicyError) as caught:
         audio_decode.decode_mono_audio(io.BytesIO(b"container"))
