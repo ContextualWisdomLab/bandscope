@@ -225,6 +225,24 @@ describe("Workspace", () => {
     );
   });
 
+  it("does not call malformed selected progress a completed practice mark", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[2] = {
+      ...song.sections[0]!.roles[2]!,
+      practiceProgress: 150 as unknown as number
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const callout = screen.getByTestId("first-unlogged-practice");
+    expect(callout).toHaveTextContent(
+      "Practice progress is inconsistent or invalid for this part. Check its practice mark before treating it as logged."
+    );
+    expect(callout).not.toHaveTextContent("already has a practice mark");
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
