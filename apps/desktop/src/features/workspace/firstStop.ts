@@ -10,10 +10,11 @@ export type FirstStop = {
 };
 
 const STOP_LABEL = "stop";
+const UNNAMED_SECTION_LABEL = "none";
 
 /** Return whether an untrusted runtime value is a plain object record. */
-function isRuntimeObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function isRuntimeObject(runtimeValue: unknown): runtimeValue is Record<string, unknown> {
+  return typeof runtimeValue === "object" && runtimeValue !== null && !Array.isArray(runtimeValue);
 }
 
 /**
@@ -24,8 +25,8 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
  * Only the canonical form label `stop` becomes rehearsal-map authority;
  * groove text and cue wording never invent a stop.
  */
-export function firstStop(song: RehearsalSong): FirstStop | null {
-  const runtimeSong: unknown = song;
+export function firstStop(rehearsalSong: RehearsalSong): FirstStop | null {
+  const runtimeSong: unknown = rehearsalSong;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
@@ -56,30 +57,30 @@ export function firstStop(song: RehearsalSong): FirstStop | null {
       return null;
     }
     const sectionId = meaningfulRangeText(sectionValue.id);
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    const runtimeSectionLabel = meaningfulRangeText(sectionValue.label);
     if (!sectionId) {
       return null;
     }
     namedSections.push({
       sectionId,
-      sectionLabel: sectionLabel ?? ""
+      sectionLabel: runtimeSectionLabel === UNNAMED_SECTION_LABEL ? "" : runtimeSectionLabel ?? ""
     });
   }
 
-  for (let index = 0; index < namedSections.length; index += 1) {
-    const current = namedSections[index];
-    if (!current || current.sectionLabel !== STOP_LABEL) {
+  for (let sectionIndex = 0; sectionIndex < namedSections.length; sectionIndex += 1) {
+    const currentSection = namedSections[sectionIndex];
+    if (!currentSection || currentSection.sectionLabel !== STOP_LABEL) {
       continue;
     }
 
-    const previousLabel = namedSections[index - 1]?.sectionLabel;
-    const nextLabel = namedSections[index + 1]?.sectionLabel;
+    const previousSectionLabel = namedSections[sectionIndex - 1]?.sectionLabel;
+    const nextSectionLabel = namedSections[sectionIndex + 1]?.sectionLabel;
 
     return {
-      sectionId: current.sectionId,
-      sectionLabel: current.sectionLabel,
-      previousSectionLabel: previousLabel ? previousLabel : undefined,
-      nextSectionLabel: nextLabel ? nextLabel : undefined
+      sectionId: currentSection.sectionId,
+      sectionLabel: currentSection.sectionLabel,
+      previousSectionLabel: previousSectionLabel || undefined,
+      nextSectionLabel: nextSectionLabel || undefined
     };
   }
 
@@ -87,21 +88,21 @@ export function firstStop(song: RehearsalSong): FirstStop | null {
 }
 
 /** Fill trusted `{token}` placeholders for stop rehearsal copy. */
-export function fillStopCopy(template: string, values: Record<string, string>): string {
-  return fillRangeCopy(template, values);
+export function fillStopCopy(copyTemplate: string, copyValues: Record<string, string>): string {
+  return fillRangeCopy(copyTemplate, copyValues);
 }
 
 /** True when this stable section identity owns tonight's first-stop action. */
-export function isStopTarget(stop: FirstStop, sectionId: string): boolean {
-  const identity = meaningfulRangeText(sectionId);
-  return Boolean(identity) && identity === stop.sectionId;
+export function isStopTarget(firstStopResult: FirstStop, sectionId: string): boolean {
+  const normalizedSectionId = meaningfulRangeText(sectionId);
+  return Boolean(normalizedSectionId) && normalizedSectionId === firstStopResult.sectionId;
 }
 
 /** Tokens for the buyer-visible stop callout and roadmap next action. */
-export function stopCopyValues(stop: FirstStop): Record<string, string> {
+export function stopCopyValues(firstStopResult: FirstStop): Record<string, string> {
   return {
-    sectionLabel: stop.sectionLabel,
-    previousSectionLabel: stop.previousSectionLabel ?? "",
-    nextSectionLabel: stop.nextSectionLabel ?? ""
+    sectionLabel: firstStopResult.sectionLabel,
+    previousSectionLabel: firstStopResult.previousSectionLabel ?? "",
+    nextSectionLabel: firstStopResult.nextSectionLabel ?? ""
   };
 }
