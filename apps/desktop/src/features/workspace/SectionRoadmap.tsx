@@ -29,26 +29,34 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
       .replace("{chord}", role.harmony.chord);
   };
 
-  /** Documented. */
-  const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
+  /** Edit exactly one renderer-selected occurrence without treating analysis IDs as unique UI authority. */
+  const handleChordEdit = (
+    sectionIndex: number,
+    roleIndex: number,
+    sectionSnapshot: RehearsalSong["sections"][number],
+    roleSnapshot: RehearsalRole
+  ) => {
     if (!onSongUpdate) return;
-    const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
+
+    const currentSection = song.sections[sectionIndex];
+    const currentRole = currentSection?.roles[roleIndex];
+    if (currentSection !== sectionSnapshot || currentRole !== roleSnapshot) return;
+
+    const newChord = window.prompt(t("chordEditPrompt"), roleSnapshot.harmony.chord);
     if (newChord === null) return;
 
     const trimmedChord = newChord.trim();
-    if (trimmedChord === "" || trimmedChord === role.harmony.chord) return;
+    if (trimmedChord === "" || trimmedChord === roleSnapshot.harmony.chord) return;
 
-    let changed = false;
     const updatedSong = {
       ...song,
-      sections: song.sections.map((section) => {
-        if (section.id !== sectionId) return section;
+      sections: song.sections.map((section, candidateSectionIndex) => {
+        if (candidateSectionIndex !== sectionIndex) return section;
 
         return {
           ...section,
-          roles: section.roles.map((targetRole) => {
-            if (targetRole.id !== role.id) return targetRole;
-            changed = true;
+          roles: section.roles.map((targetRole, candidateRoleIndex) => {
+            if (candidateRoleIndex !== roleIndex) return targetRole;
 
             const harmony = {
               ...targetRole.harmony,
@@ -73,7 +81,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
       })
     };
 
-    if (changed) onSongUpdate(updatedSong);
+    onSongUpdate(updatedSong);
   };
   /** Documented. */
   const getPriorityColor = (priority: string) => {
@@ -130,13 +138,13 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
-              {section.roles
-                .filter(role => !activeRole || role.id === activeRole)
-                .map(role => {
-                  const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
-                  return (
+              {section.roles.map((role, roleIndex) => {
+                if (activeRole && role.id !== activeRole) return null;
+
+                const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
+                return (
                   <div
-                    key={role.id}
+                    key={`${role.id}-${roleIndex}`}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
                   >
                     <div className="mb-3 flex items-start justify-between">
@@ -171,7 +179,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
                               ? "bg-indigo-300/15 text-indigo-200"
                               : "text-cyan-100"
                           }`}
-                          onClick={() => handleChordEdit(section.id, role)}
+                          onClick={() => handleChordEdit(sectionIndex, roleIndex, section, role)}
                           title={onSongUpdate ? t("chordEditTitle") : undefined}
                           disabled={!onSongUpdate}
                         >
@@ -231,8 +239,8 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
                       </div>
                     </div>
                   </div>
-                  );
-                })}
+                );
+              })}
             </CardContent>
           </Card>
         ))}
