@@ -47,20 +47,7 @@ function practiceMark(roleValue: Record<string, unknown>): PracticeMark {
 
 /** Return whether every section copy agrees that the named part is still unlogged. */
 function isConsistentlyUnlogged(marks: PracticeMark[]): boolean {
-  if (marks.length === 0 || marks.some((mark) => mark.kind === "invalid")) {
-    return false;
-  }
-
-  const logged = marks.filter((mark): mark is Extract<PracticeMark, { kind: "logged" }> => mark.kind === "logged");
-  if (logged.length === 0) {
-    return true;
-  }
-  if (logged.length !== marks.length) {
-    return false;
-  }
-
-  const expected = logged[0]!.value;
-  return logged.every((mark) => mark.value === expected) ? false : false;
+  return marks.length > 0 && marks.every((mark) => mark.kind === "unlogged");
 }
 
 /**
