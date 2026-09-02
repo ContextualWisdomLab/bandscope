@@ -31,6 +31,7 @@ from typing import Any, cast
 import librosa
 import numpy as np
 
+from bandscope_analysis.audio_decode import KNOWN_LIBROSA_NUMBA_WARNING_FILTERS
 from bandscope_analysis.audio_metadata import preflight_audio_metadata
 from bandscope_analysis.audio_resource_policy import (
     MAX_DURATION_SECONDS,
@@ -40,7 +41,6 @@ from bandscope_analysis.audio_resource_policy import (
     policy_rejection_message,
     validate_decoded_audio,
 )
-from bandscope_analysis.temporal.analyzer import KNOWN_LIBROSA_NUMBA_WARNING_FILTERS
 
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
