@@ -74,9 +74,9 @@ def _mapping_list_values(
             return _list_values(workflow_lines, mapping_header, mapping_indent)
         if scalar_value.startswith("[") and scalar_value.endswith("]"):
             return {
-                item.strip().strip("'\"")
+                normalized_item
                 for item in scalar_value[1:-1].split(",")
-                if item.strip().strip("'\"")
+                if (normalized_item := _yaml_scalar(item.strip()))
             }
         return {scalar_value}
     return set()
@@ -113,12 +113,69 @@ def _step_action(workflow_step: list[str]) -> str | None:
     return None
 
 
+def _decode_yaml_double_quoted_scalar(quoted_scalar: str) -> str | None:
+    """Decode a one-line YAML double-quoted scalar without external dependencies."""
+    yaml_simple_escapes = {
+        "0": "\0",
+        "a": "\a",
+        "b": "\b",
+        "t": "\t",
+        "n": "\n",
+        "v": "\v",
+        "f": "\f",
+        "r": "\r",
+        "e": "\x1b",
+        " ": " ",
+        '"': '"',
+        "/": "/",
+        "\\": "\\",
+        "N": "\u0085",
+        "_": "\u00a0",
+        "L": "\u2028",
+        "P": "\u2029",
+    }
+    decoded_characters: list[str] = []
+    scalar_index = 1
+    scalar_end = len(quoted_scalar) - 1
+    while scalar_index < scalar_end:
+        scalar_character = quoted_scalar[scalar_index]
+        if scalar_character != "\\":
+            decoded_characters.append(scalar_character)
+            scalar_index += 1
+            continue
+        scalar_index += 1
+        if scalar_index >= scalar_end:
+            return None
+        escape_character = quoted_scalar[scalar_index]
+        if escape_character in yaml_simple_escapes:
+            decoded_characters.append(yaml_simple_escapes[escape_character])
+            scalar_index += 1
+            continue
+        hexadecimal_lengths = {"x": 2, "u": 4, "U": 8}
+        hexadecimal_length = hexadecimal_lengths.get(escape_character)
+        if hexadecimal_length is None:
+            return None
+        hexadecimal_start = scalar_index + 1
+        hexadecimal_end = hexadecimal_start + hexadecimal_length
+        hexadecimal_text = quoted_scalar[hexadecimal_start:hexadecimal_end]
+        if len(hexadecimal_text) != hexadecimal_length:
+            return None
+        try:
+            decoded_characters.append(chr(int(hexadecimal_text, 16)))
+        except (ValueError, OverflowError):
+            return None
+        scalar_index = hexadecimal_end
+    return "".join(decoded_characters)
+
+
 def _yaml_scalar(scalar_text: str) -> str | None:
-    """Normalize the simple YAML scalars used by workflow ``with`` mappings.
+    """Normalize the simple YAML scalars used by workflow mappings and lists.
 
     A ``#`` starts an inline YAML comment only when it is outside quotes and is
     separated from the scalar by whitespace. Hash characters inside quoted
     values, or inside an unquoted value such as ``result#1.sarif``, are data.
+    YAML double-quoted escapes are decoded so semantically equivalent protected
+    branch and activity names cannot be rejected merely because they are escaped.
     """
     quote_delimiter: str | None = None
     escape_pending = False
@@ -160,7 +217,9 @@ def _yaml_scalar(scalar_text: str) -> str | None:
         and normalized_scalar[0] == normalized_scalar[-1]
         and normalized_scalar[0] in {"'", '"'}
     ):
-        return normalized_scalar[1:-1]
+        if normalized_scalar[0] == '"':
+            return _decode_yaml_double_quoted_scalar(normalized_scalar)
+        return normalized_scalar[1:-1].replace("''", "'")
     return normalized_scalar
 
 
