@@ -151,6 +151,7 @@ describe("Workspace", () => {
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
     );
+    expect(screen.getByRole("button", { name: "Open Bass Guitar on the map" })).toBeTruthy();
   });
 
   it("asks for an ear check when the selected part has no named span", () => {
@@ -167,6 +168,7 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section."
     );
+    expect(screen.queryByRole("button", { name: /Open .+ on the map/ })).toBeNull();
   });
 
   it("limits the range callout to the selected role", () => {
@@ -179,6 +181,7 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Lead Vocal sits G#3–C#5 in verse. Hear that clash on your instrument before the verse."
     );
+    expect(screen.queryByRole("button", { name: "Open Lead Vocal on the map" })).toBeNull();
   });
 
   it("asks the player to check a named span when no clash is present", () => {
@@ -194,6 +197,28 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Check that span on your instrument before the verse."
     );
+  });
+
+  it("opens the named first-range part from the range card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Bass Guitar on the map" }));
+
+    expect(screen.getByText("Stem Player")).toBeTruthy();
+    expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open Bass Guitar on the map" })).toBeNull();
+  });
+
+  it("localizes the first-range open-part action", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByRole("button", { name: "지도에서 Bass Guitar 열기" })).toBeTruthy();
   });
 
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {

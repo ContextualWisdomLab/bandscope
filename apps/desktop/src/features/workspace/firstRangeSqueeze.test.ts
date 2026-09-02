@@ -1,6 +1,12 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
-import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
+import {
+  fillRangeCopy,
+  firstRangeOpenPart,
+  firstRangeSqueeze,
+  meaningfulRangeText,
+  playableRange
+} from "./firstRangeSqueeze";
 
 function blankRoleRange(song: RehearsalSong): RehearsalSong {
   return {
@@ -51,6 +57,7 @@ describe("firstRangeSqueeze", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong());
 
     expect(squeeze).toEqual({
+      roleId: "bass-guitar",
       sectionLabel: "verse",
       roleName: "Bass Guitar",
       lowestNote: "C#2",
@@ -67,6 +74,7 @@ describe("firstRangeSqueeze", () => {
     }));
 
     expect(firstRangeSqueeze(song)).toEqual({
+      roleId: "bass-guitar",
       sectionLabel: "verse",
       roleName: "Bass Guitar",
       lowestNote: "C#2",
@@ -114,6 +122,7 @@ describe("firstRangeSqueeze", () => {
     expect(
       firstRangeSqueeze({ ...song, sections: [malformedSection] } as unknown as RehearsalSong)
     ).toEqual({
+      roleId: "bass-guitar",
       sectionLabel: "verse",
       roleName: "Bass Guitar",
       lowestNote: "C#2",
@@ -126,6 +135,7 @@ describe("firstRangeSqueeze", () => {
     const squeeze = firstRangeSqueeze(createDemoRehearsalSong(), "lead-vocal");
 
     expect(squeeze).toEqual({
+      roleId: "lead-vocal",
       sectionLabel: "verse",
       roleName: "Lead Vocal",
       lowestNote: "G#3",
@@ -137,6 +147,28 @@ describe("firstRangeSqueeze", () => {
   it("returns null when no selected role has both notes", () => {
     expect(firstRangeSqueeze(blankRoleRange(createDemoRehearsalSong()))).toBeNull();
     expect(firstRangeSqueeze(createDemoRehearsalSong(), "missing-role")).toBeNull();
+  });
+});
+
+describe("firstRangeOpenPart", () => {
+  const squeeze = firstRangeSqueeze(createDemoRehearsalSong());
+  const roles = [
+    { id: "bass-guitar" },
+    { id: "lead-vocal" }
+  ];
+
+  it("offers the named part from the full-band map", () => {
+    expect(firstRangeOpenPart(squeeze, null, roles)?.roleId).toBe("bass-guitar");
+  });
+
+  it("hides the control once that part is already selected", () => {
+    expect(firstRangeOpenPart(squeeze, "bass-guitar", roles)).toBeNull();
+  });
+
+  it("fails closed when the named part is missing from the switcher", () => {
+    expect(firstRangeOpenPart(squeeze, null, [{ id: "lead-vocal" }])).toBeNull();
+    expect(firstRangeOpenPart(squeeze, null, null as unknown as { id: string }[])).toBeNull();
+    expect(firstRangeOpenPart(null, null, roles)).toBeNull();
   });
 });
 

@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeOpenPart, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstRangePart = firstRangeOpenPart(firstRange, activeRole, allRoles);
+  const firstRangeOpenCopy = firstRangePart
+    ? fillRangeCopy(t("workspaceFirstRangeOpenPart"), { roleName: firstRangePart.roleName })
+    : null;
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +312,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+            {firstRangePart && firstRangeOpenCopy ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                onClick={() => setActiveRole(firstRangePart.roleId)}
+              >
+                {firstRangeOpenCopy}
+              </Button>
+            ) : null}
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
