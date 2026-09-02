@@ -110,14 +110,15 @@ export function FirstStopCallout({
   );
   const body = formatStopCopy(t(hasRole ? "firstStopBody" : "firstStopBodyBand"), copyValues);
   const armed = formatStopCopy(t(hasRole ? "firstStopArmed" : "firstStopArmedBand"), copyValues);
-  const route =
-    stop.previousSectionLabel && stop.nextSectionLabel
+  const route = stop.hasFollowingSection
+    ? stop.previousSectionLabel && stop.nextSectionLabel
       ? formatStopCopy(t("firstStopRouteBoth"), copyValues)
       : stop.nextSectionLabel
         ? formatStopCopy(t("firstStopRouteNext"), copyValues)
         : stop.previousSectionLabel
           ? formatStopCopy(t("firstStopRoutePrevious"), copyValues)
-          : null;
+          : null
+    : null;
   const canExecuteAction = actionMode === "workspace-scroll" || typeof onHearStop === "function";
   /** Record completion only after the owning surface has executed the selected stop action. */
   const markStopActionComplete = () => {
