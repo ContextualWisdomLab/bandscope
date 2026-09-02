@@ -76,6 +76,20 @@ describe("first-range timeline interaction regressions", () => {
     expect(screen.getByTestId("song-structure-section-verse-1")).not.toHaveAttribute("aria-current");
   });
 
+  it("drops an existing focus request when a same-source song update makes the target identifier ambiguous", () => {
+    installScrollRecorder();
+    const rehearsalSong = createDemoRehearsalSong();
+    const renderedWorkspace = render(<Workspace song={rehearsalSong} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find verse at 0:10–0:30 on the timeline" }));
+    expect(screen.getByTestId("song-structure-section-verse-1")).toHaveAttribute("aria-current", "location");
+
+    const ambiguousSong = createDemoRehearsalSong();
+    ambiguousSong.sections.push({ ...ambiguousSong.sections[0]!, label: "chorus", timeRange: { start: 90, end: 110 } });
+    renderedWorkspace.rerender(<Workspace song={ambiguousSong} />);
+
+    expect(screen.getByTestId("song-structure-grid").querySelectorAll("[aria-current='location']")).toHaveLength(0);
+  });
+
   it("keeps repeated form labels navigable when IDs remain unique", () => {
     const rehearsalSong = createDemoRehearsalSong();
     rehearsalSong.sections.push({ ...rehearsalSong.sections[0]!, id: "verse-2", timeRange: { start: 90, end: 110 } });
