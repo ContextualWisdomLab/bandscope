@@ -2,14 +2,25 @@
 
 ## Scope
 
-BandScope is a local-first desktop app. Treat every file, URL, metadata field, project file, model artifact, cache entry, and export target as untrusted input.
+BandScope is a local-first desktop app. Treat every file, URL, metadata field,
+project file, model artifact, cache entry, and export target as untrusted input.
 
 ## Reporting vulnerabilities
 
-- Prefer GitHub private vulnerability reporting or a GitHub Security Advisory draft when the repository has that feature enabled.
-- For secure reporting of any vulnerability, please email `seonghobae@example.com` or open a [Private Vulnerability Report](https://github.com/seonghobae/bandscope/security/advisories/new) securely.
-- We expect vulnerability disclosure timelines to follow coordinated practices, generally providing a 90 days expectation to fix before public disclosure.
-- If private reporting is not yet enabled, treat repository bootstrap as incomplete and escalate to the repository owner to enable it before public release.
+- Prefer this repository's GitHub private vulnerability reporting or Security
+  Advisory workflow when that feature is enabled:
+  [Private security advisory](https://github.com/ContextualWisdomLab/bandscope/security/advisories/new).
+- If that private repository feature is unavailable to you, contact the
+  ContextualWisdomLab repository maintainers through an established private
+  channel. Do not substitute a public issue, pull-request comment, or discussion.
+- Never include production credentials, private project material, copyrighted
+  model artifacts, or other sensitive data in a public report.
+- We expect vulnerability disclosure timelines to follow coordinated practices,
+  generally allowing up to 90 days for remediation before public disclosure
+  unless severity or an active exploitation situation requires a different
+  coordinated plan.
+- If private reporting is not enabled, treat repository bootstrap as incomplete
+  and resolve that owner-side reporting boundary before public release.
 
 ## Source of truth
 
@@ -18,7 +29,8 @@ BandScope is a local-first desktop app. Treat every file, URL, metadata field, p
 - Code Security rules: `docs/security/code-security.md`
 - SBOM retention rules: `docs/security/sbom-policy.md`
 - Cross-platform build rules: `docs/security/cross-platform-build-policy.md`
-- Gitflow and bootstrap rules: `docs/repository/gitflow.md`, `docs/repository/bootstrap-plan.md`, `docs/repository/governance.md`
+- Gitflow and bootstrap rules: `docs/repository/gitflow.md`,
+  `docs/repository/bootstrap-plan.md`, `docs/repository/governance.md`
 - Brand and product voice: `docs/brand-story.md`
 - Architecture and repo boundaries: `ARCHITECTURE.md`
 
@@ -29,13 +41,18 @@ BandScope is a local-first desktop app. Treat every file, URL, metadata field, p
 - do not add generic exec, read, or write surfaces
 - do not add untrusted HTML to the WebView
 - use allowlisted IPC only
-- require Security Notes for changes that touch files, URLs, subprocesses, IPC, WebView, updates, or model downloads
-- require dependency review, audit, SBOM generation, and lockfiles for supply-chain changes
-- require Windows and macOS build validation for protected-branch and release-path changes
+- require Security Notes for changes that touch files, URLs, subprocesses, IPC,
+  WebView, updates, or model downloads
+- require dependency review, audit, SBOM generation, and lockfiles for
+  supply-chain changes
+- require Windows and macOS build validation for protected-branch and release-path
+  changes
 
 ## Review triggers
 
-If a change touches any of the following, it must reference `docs/security/app-security.md` and include `Security Notes` in the plan, design, or implementation summary:
+If a change touches any of the following, it must reference
+`docs/security/app-security.md` and include `Security Notes` in the plan, design,
+or implementation summary:
 
 - file import or export
 - URL handling
