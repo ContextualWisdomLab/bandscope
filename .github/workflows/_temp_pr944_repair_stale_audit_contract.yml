@@ -46,27 +46,37 @@ jobs:
           set -euo pipefail
           python3 scripts/checks/_temp_pr944_repair_stale_audit_contract.py
           git diff --check
-          changed_paths="$({ git diff --name-only; git ls-files --others --exclude-standard; } | sort -u)"
-          test "$changed_paths" = $'docs/product-technical-gap-baseline.md\nservices/analysis-engine/tests/test_supply_chain_policy.py'
+          test "$(git diff --name-only)" = 'services/analysis-engine/tests/test_supply_chain_policy.py'
       - name: Install locked analysis-engine development dependencies
         shell: bash
         run: uv sync --project services/analysis-engine --group dev --frozen
-      - name: Verify focused stale-contract repair
+      - name: Verify seven stale-contract regressions
         shell: bash
         run: |
           set -euo pipefail
-          uv run --project services/analysis-engine pytest services/analysis-engine/tests/test_supply_chain_policy.py
-          uv run --project services/analysis-engine ruff check services/analysis-engine/tests/test_supply_chain_policy.py
-          uv run --project services/analysis-engine ruff format --check services/analysis-engine/tests/test_supply_chain_policy.py
-      - name: Publish exact repaired source and traceability
+          test_file='services/analysis-engine/tests/test_supply_chain_policy.py'
+          uv run --project services/analysis-engine pytest \
+            "$test_file::test_security_audit_workflow_keeps_dependency_vulnerability_scans" \
+            "$test_file::test_supply_chain_check_requires_audit_tokens_in_run_steps" \
+            "$test_file::test_supply_chain_check_accepts_nested_shell_audit_commands" \
+            "$test_file::test_supply_chain_check_rejects_noop_audit_command_spoofs" \
+            "$test_file::test_supply_chain_check_requires_blocking_audit_steps" \
+            "$test_file::test_supply_chain_check_requires_unconditional_audit_steps" \
+            "$test_file::test_supply_chain_check_accepts_explicit_false_continue_on_error_audit_steps"
+          uv run --project services/analysis-engine ruff check "$test_file"
+          uv run --project services/analysis-engine ruff format --check "$test_file"
+      - name: Publish repaired test contract and remove transition machinery
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git add services/analysis-engine/tests/test_supply_chain_policy.py docs/product-technical-gap-baseline.md
+          git add services/analysis-engine/tests/test_supply_chain_policy.py
+          git rm \
+            .github/workflows/_temp_pr944_repair_stale_audit_contract.yml \
+            scripts/checks/_temp_pr944_repair_stale_audit_contract.py
           git diff --cached --check
-          test "$(git diff --cached --name-only | sort)" = $'docs/product-technical-gap-baseline.md\nservices/analysis-engine/tests/test_supply_chain_policy.py'
+          test "$(git diff --cached --name-only | sort)" = $'.github/workflows/_temp_pr944_repair_stale_audit_contract.yml\nscripts/checks/_temp_pr944_repair_stale_audit_contract.py\nservices/analysis-engine/tests/test_supply_chain_policy.py'
           git config user.name 'ContextualWisdomLab repair bot'
           git config user.email 'actions@users.noreply.github.com'
           git commit -m 'fix(policy): align Rust audit regression contract'
