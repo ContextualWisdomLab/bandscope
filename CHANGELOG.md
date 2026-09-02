@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- Preserve the licensed demo's buyer-facing `Late Night Set` title in ready-state analysis progress after native local-source validation.
 - Fail the legacy `job_runner` analysis mutation bridge closed outside Tauri instead of synthesizing browser-only success, while preserving its read-only placeholder workspace and native IPC wire contract.
 - Serialized local, demo, and YouTube source selection behind one synchronous authority so replacement intake cannot analyze a stale prior song or race another source; failed replacement preserves the prior valid selection.
 - Added checksum-bound supplemental inventory coverage for every packaged licensed-demo asset, including the WAV, license, annotations, and provenance manifest.
