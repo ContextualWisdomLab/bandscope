@@ -95,6 +95,21 @@ describe("first-range roadmap interaction regressions", () => {
     expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).not.toHaveAttribute("aria-current");
   });
 
+  it("drops an existing roadmap request when a same-source song update makes the target role ambiguous", () => {
+    installScrollRecorder();
+    const rehearsalSong = createDemoRehearsalSong();
+    const renderedWorkspace = render(<Workspace song={rehearsalSong} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" }));
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "location");
+
+    const ambiguousSong = createDemoRehearsalSong();
+    ambiguousSong.sections[0]!.roles.push({ ...ambiguousSong.sections[0]!.roles[0]!, name: "Bass Guitar Double" });
+    renderedWorkspace.rerender(<Workspace song={ambiguousSong} />);
+
+    expect(screen.getByTestId("section-roadmap-section-verse-1")).not.toHaveAttribute("aria-current");
+    expect(screen.getAllByTestId("section-roadmap-role-verse-1-bass-guitar").every((roleCard) => !roleCard.hasAttribute("aria-current"))).toBe(true);
+  });
+
   it("keeps repeated labels and display names navigable when IDs remain unique", () => {
     const rehearsalSong = createDemoRehearsalSong();
     rehearsalSong.sections.push({ ...rehearsalSong.sections[0]!, id: "verse-2" });
