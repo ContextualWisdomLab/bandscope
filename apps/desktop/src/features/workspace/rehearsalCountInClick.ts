@@ -18,6 +18,7 @@ export type RehearsalCountInGain = {
 };
 
 export type RehearsalCountInAudioContext = {
+  close: () => Promise<void>;
   createGain: () => RehearsalCountInGain;
   createOscillator: () => RehearsalCountInOscillator;
   currentTime: number;
@@ -31,6 +32,7 @@ export type RehearsalCountInContextFactory = () => RehearsalCountInAudioContext;
 export type RehearsalCountInClickEngine = {
   available: boolean;
   click: (accent: boolean) => Promise<void>;
+  dispose: () => Promise<void>;
   stop: () => void;
 };
 
@@ -64,6 +66,7 @@ export function createRehearsalCountInClickEngine(
     defaultRehearsalCountInContextFactory(),
 ): RehearsalCountInClickEngine {
   let context: RehearsalCountInAudioContext | null = null;
+  let disposed = false;
   let playbackGeneration = 0;
   const liveNodes = new Set<LiveClickNode>();
 
@@ -113,28 +116,47 @@ export function createRehearsalCountInClickEngine(
     }
   };
 
+  /** Permanently release the mounted player's Web Audio authority. */
+  const dispose = async (): Promise<void> => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    stop();
+    const closingContext = context;
+    context = null;
+    if (!closingContext) {
+      return;
+    }
+    try {
+      await closingContext.close();
+    } catch {
+      // Browser teardown failures must not keep an unmounted player alive.
+    }
+  };
+
   return {
-    available: contextFactory !== null,
+    get available(): boolean {
+      return contextFactory !== null && !disposed;
+    },
     /** Sound exactly one admitted transport beat, accented only at count-in start. */
     async click(accent: boolean): Promise<void> {
-      if (!contextFactory) {
+      if (!contextFactory || disposed) {
         throw new Error("Rehearsal count-in click is unavailable.");
       }
       const generation = playbackGeneration;
-      if (!context) {
-        context = contextFactory();
+      const activeContext = context ?? (context = contextFactory());
+      if (activeContext.state === "suspended") {
+        await activeContext.resume();
       }
-      if (context.state === "suspended") {
-        await context.resume();
-      }
-      if (generation !== playbackGeneration) {
+      if (generation !== playbackGeneration || disposed) {
         return;
       }
 
-      const oscillator = context.createOscillator();
+      const oscillator = activeContext.createOscillator();
       let gain: RehearsalCountInGain;
       try {
-        gain = context.createGain();
+        gain = activeContext.createGain();
       } catch (error) {
         releasePartialOscillator(oscillator);
         throw error;
@@ -143,7 +165,7 @@ export function createRehearsalCountInClickEngine(
       const node = { gain, oscillator };
       liveNodes.add(node);
       try {
-        const when = context.currentTime + CLICK_LEAD_SECONDS;
+        const when = activeContext.currentTime + CLICK_LEAD_SECONDS;
         oscillator.type = "square";
         oscillator.frequency.value = accent
           ? ACCENT_FREQUENCY_HZ
@@ -152,7 +174,7 @@ export function createRehearsalCountInClickEngine(
         gain.gain.exponentialRampToValueAtTime(0.12, when + 0.002);
         gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_SECONDS);
         oscillator.connect(gain);
-        gain.connect(context.destination);
+        gain.connect(activeContext.destination);
         oscillator.onended = () => releaseNode(node, false);
         oscillator.start(when);
         oscillator.stop(when + CLICK_SECONDS + 0.01);
@@ -161,6 +183,7 @@ export function createRehearsalCountInClickEngine(
         throw error;
       }
     },
+    dispose,
     stop,
   };
 }
