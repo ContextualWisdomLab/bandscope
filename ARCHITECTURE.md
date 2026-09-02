@@ -82,7 +82,7 @@ Last updated: 2026-03-11
   - likely harmony by section and by role
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
-  - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span, the next instrument check, and the first attached score to open in Score
+  - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span, the next instrument check, and the first validated attached score to open in Score only while a live Score workspace is available; reopened projects without live workspace authority or untrusted score metadata fall back to adding a score or checking the range by ear
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
