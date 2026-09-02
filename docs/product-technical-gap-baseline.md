@@ -44,13 +44,13 @@ The near-term product order remains: merge-train convergence; trusted distributi
 
 ## 2. Live delivery authority
 
-A fresh accessible-repository sweep queried all **74** repositories currently visible under `ContextualWisdomLab` individually. The sequential per-repository counts summed to **2,865 open pull requests**. An organization-wide aggregate captured immediately after that sweep returned **2,866 open pull requests** with `incomplete_results=false`. The one-request delta is retained as non-simultaneous live queue movement rather than normalized away or treated as an omitted repository.
+A fresh accessible-repository sweep begun at **2026-09-02 15:31 KST** queried all **74** repositories currently visible under `ContextualWisdomLab` individually. The sequential per-repository counts summed to **2,889 open pull requests**. An organization-wide aggregate captured immediately after that sweep also returned **2,889 open pull requests** with `incomplete_results=false`. Equality between these non-atomic captures is evidence for this capture only; concurrent creations and closures can still occur while a sequential census is running.
 
-At this census `ContextualWisdomLab/bandscope` had **196 open pull requests** and remains the selected delivery boundary. Fresh high-backlog peers were `ContextualWisdomLab/naruon` (143), `ContextualWisdomLab/OriginWeave` (141), `ContextualWisdomLab/newsdom-api` (137), `ContextualWisdomLab/pg-erd-cloud` (135), `ContextualWisdomLab/html4tree` (127), and `ContextualWisdomLab/TEPP` (127). BandScope is selected not by name alone but because it combines the largest observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
+At this census `ContextualWisdomLab/bandscope` had **196 open pull requests** and remains the selected delivery boundary. Fresh high-backlog peers were `ContextualWisdomLab/naruon` (145), `ContextualWisdomLab/OriginWeave` (141), `ContextualWisdomLab/newsdom-api` (137), `ContextualWisdomLab/pg-erd-cloud` (135), `ContextualWisdomLab/TEPP` (128), `ContextualWisdomLab/html4tree` (127), `ContextualWisdomLab/Orgmetra` (117), and `ContextualWisdomLab/.github` (117). BandScope is selected not by name alone but because it combines the largest observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
 
-Because PR creation and closure can occur during a sequential organization census, the organization-wide search is an aggregate capture while the per-repository sweep establishes which repositories were enumerated at that time. Volatile deltas are recorded explicitly rather than normalized away or misrepresented as simultaneous permanent truth.
+The exact 74-repository set for this same capture is enumerated verbatim in `docs/doctoring/product-gap-baseline-2026-09-01.md`; capitalization there is the GitHub repository identity and is not normalized. Because PR creation and closure can occur during a sequential organization census, later counts are historical observations unless a new complete sweep is performed.
 
-Protected `develop` currently requires these 16 contexts before normal integration: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`.
+Protected `develop` was previously recorded with these 16 required contexts: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`. A fresh branch-protection read in this run returned GitHub 403 `Resource not accessible by integration`, so this inventory is not represented as newly revalidated protection truth; merge decisions must refetch through an authorized surface.
 
 Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change invalidates predecessor review/check receipts. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
 
@@ -73,13 +73,13 @@ Active work is not shipped truth until it is normally integrated into protected 
 | Boundary | Canonical live owner / evidence | Current status |
 |---|---|---|
 | Merge-train control plane | Issue #966 with executable queue lane PR #968 | #968 remains Draft; its unique queue machinery must survive every restack and its exact current head is non-passing until hosted/current-head evidence exists |
-| Canonical baseline | PR #1116, this file | Open; a prior census-only edit accidentally truncated sections 7.5–13, and this exact branch now restores that lost source while refreshing current evidence |
-| Workspace role naming | PR #1130 | `RehearsalRoleOption` uses `roleId`/`roleName` with primary `roleOptions`; the previous `roles: { id, name }[]` projection exists only as a deprecated component compatibility input translated immediately at the boundary |
-| Score attachment naming | PR #1092 | Persisted project-format `scoreAttachments` retains compatibility keys `id`/`fileName`, while `trustedScoreAttachment` translates them immediately to workspace-owned `scoreId`/`scoreFileName`; current exact head at this capture is `8099e3b2525723474aca09db4d669167035263b3`; no database or persisted-wire migration is introduced |
+| Canonical baseline | PR #1116, this file | Open; prior truncation is repaired and current census/contract corrections remain active until this branch normally integrates |
+| Workspace role naming | PR #1130 | The **active owner branch** uses `RehearsalRoleOption.roleId`/`roleName` with primary `roleOptions`; the previous `{ id, name }[]` projection exists only as a deprecated component compatibility input there. Protected `develop` is not claimed to contain this projection before integration |
+| Score attachment naming | PR #1092 | Persisted project-format `scoreAttachments` retains compatibility keys `id`/`fileName`, while `trustedScoreAttachment` translates them immediately to workspace-owned `scoreId`/`scoreFileName`; current exact head at the recorded capture is `8099e3b2525723474aca09db4d669167035263b3`; no database or persisted-wire migration is introduced |
 | Repository-local Trivy PR-head contract | PR #1119 | Quoted/commented YAML activity-list normalization is repaired on its canonical branch; current-head workflows remain non-passing until fresh terminal evidence exists |
 | Trusted distribution | Issue #960; active release-identity lane PR #1126 | Semantic release-identity naming is active work; Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, and complete version-identity parity remain incomplete as one integrated protected-head receipt |
 | Active rehearsal player | Issue #961; implementation lane #971 | Real authorized local audio playback/seek/stop/loop/rate/cue transport is active work; count-in and any source-backed stem control must converge into one transport state machine |
-| Crash-safe project | Issue #962; implementation lane #970 | Atomic publication, versioned format, recovery, migration, autosave, rollback/export and persisted transport state remain active work, not protected truth |
+| Crash-safe project | Issue #962; implementation lane #970 | Atomic publication, explicit format versioning, recovery, migration, autosave, rollback/export and persisted transport state remain active work, not protected truth |
 | Real-audio science | Issue #770 and active benchmark lanes | Rights-safe decoded-audio MIR acceptance, recognized metrics, uncertainty and reproducible evidence remain incomplete |
 | Resource admission/decode | Issue #781 plus commercial dependency defect #1129 | No synthetic/mock success may substitute for production-path resource/cancellation evidence; the commercially supported decode path must remove the libsndfile-backed LGPL runtime boundary with equivalent real-audio behavior and cross-platform/SBOM proof |
 | Diagnostics/supportability | Issue #963 | Typed redacted crash/hang evidence and user-previewable offline support bundle remain incomplete |
@@ -93,9 +93,11 @@ The product boundary, tests, contracts, and unique behavior decide succession—
 
 Backlog convergence is the primary engineering risk because micro-PR fan-out creates duplicate writers, stale evidence, dependency ambiguity, competing local state, and review/check churn.
 
-PR #968 owns the unique executable queue machinery needed by #966: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, reviewed dependency/succession metadata, network-independent validation, deterministic human projection, and symlink-safe atomic publication. It must not be discarded as stale documentation.
+PR #968 owns the unique executable queue machinery needed by #966: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, reviewed dependency/succession metadata, network-independent validation, deterministic human projection/parity, and symlink-safe atomic publication. It must not be discarded as stale documentation.
 
-The latest independently resolved evidence before this baseline repair placed #968 at `docs/bandscope-product-readiness-baseline@bfdc3888de2736753ed93fcf0018459882bfa0e2` and its then-current #1116 target at `docs/gap-baseline-2026-08-31@adbd9df394957ee1a2c68893b8a6025cdcf058c9`. #1116 has advanced again in ordinary history, so that predecessor target identity and all checks/reviews attached to it do not transfer. #968 must be re-resolved/restacked normally against the new canonical baseline head before integration.
+Current identities are deliberately separated rather than conflated. At the pre-write #1116 audit, canonical baseline PR #1116 was `docs/gap-baseline-2026-08-31@99b490db2ab7e083497d53c566fc9eec99246d00`, base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`; the baseline blob inherited from its immediately preceding source commit was `cd4729d5580286783c9604e8e36bbd91bab610f2`. A later GitHub read of PR #968 reported queue head `docs/bandscope-product-readiness-baseline@ab89d16a9fbd6f47ca4747147f60d130a1ed8588` but still recorded base SHA `39232f8bfecc2e0ea950cca597fd89354cee710a` for base branch `docs/gap-baseline-2026-08-31`. That is predecessor stack evidence, not #1116's current head. Because #1116 advanced, #968 must reconcile/restack against the new baseline identity through ordinary history before its checks/reviews can qualify.
+
+PR #1117 is a separate lane: `refactor/temporal-features-api@b98f266d2356d56be624fb617580b5252e85baaa`, base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Its visible review threads are independently resolved; that review evidence belongs to #1117 and never substitutes for #1116 or #968 evidence. #1117 does not own `docs/product-technical-gap-baseline.md`, so no canonical baseline document blob is attributed to its exact ref.
 
 PR #1007 is the canonical first-part-handoff lane only to the extent that its live semantic diff still preserves mounted selected-role wiring and the scientific prohibition against manufacturing handoffs from heuristic fallback. Any succession decision is rechecked against the independently resolved live head rather than a remembered PR-body SHA.
 
@@ -188,7 +190,7 @@ Protected `develop` is a local desktop architecture with these principal impleme
 - `services/analysis-engine`: Python orchestration/compatibility plus still-mixed analysis code during migration;
 - `services/analysis-engine/rust`: `bandscope_numeric` Rust/PyO3 numerical kernels.
 
-Typed Tauri IPC and bounded local process/stdin-stdout boundaries are the intended orchestration ports. Codec libraries, source-separation/model runtimes, filesystem/platform APIs, accelerators, update services, and external handoff contracts are adapters behind owning-context ports. Ordinary rehearsal analysis must not require an unaudited loopback/public HTTP service.
+Typed allowlisted Tauri IPC and bounded local process/stdin-stdout boundaries are the intended orchestration ports. If an owning adapter requires loopback transport it is limited to `127.0.0.1`; public HTTP and other network-dependent paths are not ordinary local-analysis authority. Codec libraries, source-separation/model runtimes, filesystem/platform APIs, accelerators, update services, and external handoff contracts are adapters behind owning-context ports.
 
 ### 7.2 End-to-end rehearsal sequence
 
@@ -225,19 +227,24 @@ stateDiagram-v2
     Playing --> Paused: pause
     Paused --> Playing: resume
     Playing --> Looping: precise loop active
+    Looping --> LoopPaused: pause (loop retained)
+    LoopPaused --> Looping: resume
     Looping --> Playing: loop cleared
+    LoopPaused --> Paused: loop cleared
     Playing --> Ready: stop
     Paused --> Ready: stop
+    Looping --> Ready: stop
+    LoopPaused --> Ready: stop
     Ready --> Recovering: project recovery requested
     Recovering --> Ready: last-known-good restored
     Recovering --> RecoveryFailed: no valid recoverable snapshot
 ```
 
-The production player owns one transport state machine. UI components, cue cards, map cursors, and persisted project data project from that authority; they do not each own independent writable transport state. Project publication is atomic and crash-safe rather than implied by the diagram's UI state.
+The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. UI components, cue cards, map cursors, and persisted project data project from that authority; they do not each own independent writable transport state. Project publication is atomic and crash-safe rather than implied by the diagram's UI state.
 
 ### 7.4 Persistence and contract versioning
 
-Project persistence uses explicit `project_format_version`, deterministic/idempotent migrations, atomic replacement only after a complete durable candidate exists, and a last-known-good backup/recovery path. Fault injection must prove that partial/truncated writes, disk-full conditions, interrupted migration, and failed replacement do not destroy the previous valid project. Portable export is versioned independently from in-memory implementation types.
+Protected `.bscope` documentation currently validates loaded JSON against the `RehearsalSong` contract and states that a format-version field **may be introduced** when future structural changes require one; it does not yet establish `project_format_version` as shipped persisted behavior. The target persistence contract therefore requires introducing explicit `project_format_version` before a breaking structural migration, plus deterministic/idempotent migration, atomic replacement only after a complete durable candidate exists, and a last-known-good backup/recovery path. Fault injection must prove that partial/truncated writes, disk-full conditions, interrupted migration, and failed replacement do not destroy the previous valid project. Portable export is versioned independently from in-memory implementation types.
 
 Tauri IPC, shared types, project files, handoff schemas, updater manifests, and externally released event/contracts are versioned boundaries. A rename or ownership cleanup is never permission for an in-place breaking wire-format change.
 
@@ -247,7 +254,7 @@ The organization naming policy applies prospectively to new or materially change
 
 When an existing bare field is already part of a persisted or cross-boundary contract, a semantic rename follows the owning contract's compatibility mechanism:
 
-- project files: introduce a renamed persisted field only behind an explicit `project_format_version` migration; readers accept supported prior representations, migration is deterministic/idempotent, and writers emit one canonical current representation after migration;
+- project files: first introduce an explicit format-version field (target name `project_format_version`) through the canonical persistence evolution path, then introduce any renamed persisted field behind that versioned migration; readers accept supported prior representations, migration is deterministic/idempotent, and writers emit one canonical current representation after migration;
 - Tauri IPC/shared API: use an additive/versioned request or response contract or a bounded compatibility alias; do not remove the previous key until supported callers have migrated and contract tests prove interoperability;
 - database-owned schemas: use explicit schema migration with backward-compatible read/write sequencing, foreign-key/index/constraint/ORM/query updates, rollback evidence, normalized ownership, UPSERT-path validation, and locking/hot-partition review rather than an uncoordinated column rename;
 - released handoff/events/context contracts: retain mandated released spelling until the owning contract publishes a compatible version; anti-corruption layers translate at the boundary;
@@ -255,7 +262,7 @@ When an existing bare field is already part of a persisted or cross-boundary con
 
 Every compatibility-changing rename requires fixtures from the previous supported version, round-trip/no-data-loss tests, deterministic repeated migration, rollback/recovery evidence where persistence is involved, and removal criteria for any temporary alias. There is never dual writable truth after migration.
 
-Current examples demonstrate the intended direction without breaking compatibility. PR #1130 makes `roleId`, `roleName`, and `roleOptions` the switcher-owned vocabulary while accepting the old component projection only at one deprecated adapter input. PR #1092 keeps the established persisted score attachment keys `id` and `fileName` unchanged but makes `trustedScoreAttachment` an explicit anti-corruption boundary that validates those keys and returns `scoreId` and `scoreFileName` for workspace logic. Its focused RED contract was commit `35dc521f03711d749771751ecf39b904f193057d`; the production semantic translation was commit `8cd6756ef242d99fc323181b21b58f96fe24c731`; subsequent documentation commits aligned `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, and `CLAUDE.md` with the same live-workspace/fallback invariant. No database object or persisted project wire key changed in that repair.
+Current examples demonstrate the intended direction without breaking compatibility. PR #1130's active owner branch makes `roleId`, `roleName`, and `roleOptions` the switcher-owned vocabulary while accepting the old component projection only at one deprecated adapter input; protected `develop` is not claimed to contain that projection before normal integration. PR #1092 keeps the established persisted score attachment keys `id` and `fileName` unchanged but makes `trustedScoreAttachment` an explicit anti-corruption boundary that validates those keys and returns `scoreId` and `scoreFileName` for workspace logic. Its focused RED contract was commit `35dc521f03711d749771751ecf39b904f193057d`; the production semantic translation was commit `8cd6756ef242d99fc323181b21b58f96fe24c731`; subsequent documentation commits aligned `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, and `CLAUDE.md` with the same live-workspace/fallback invariant. No database object or persisted project wire key changed in that repair.
 
 ### 7.6 Rust compute ownership
 
@@ -296,6 +303,15 @@ Local files, URLs, MIME/codec claims, decoder outputs, model artifacts, project 
 Owning contexts must fail closed on path/symlink/reparse traversal, oversized/decompression/resource exhaustion, unsafe subprocess authority, credential/secret propagation and prompt-injection crossings. Valid source-backed GHAS/CodeQL/Semgrep/Strix/AppGuardrail findings are deduplicated by root cause and repaired in the canonical product lane. Scanner/control-plane defects remain with their owning repository; BandScope does not blanket-mask findings or weaken gates.
 
 Ordinary logs/support bundles must not contain raw audio/project payloads, credentials or absolute local paths. Authorization is purpose-bound and least-privilege with field minimization, retention and access/export audit where relevant.
+
+### Security Notes
+
+- **IPC/network boundary:** ordinary local analysis uses allowlisted Tauri IPC, bounded stdin/stdout, or an explicitly required loopback adapter limited to `127.0.0.1`. Public HTTP and other network-dependent paths are not local-analysis authority.
+- **Input admission:** project/media/codec/model/update/subprocess inputs are untrusted and require strict schema/type/size/path validation before domain use.
+- **Subprocess authority:** use argument arrays with non-shell execution (`shell=False`-equivalent); do not interpolate untrusted input into shell commands.
+- **Privacy:** diagnostics and support exports redact credentials, raw audio/project payloads and absolute local paths by default, with user-previewable bounded export.
+- **Artifact trust:** installers/updaters require owning-boundary signature, checksum, SBOM and provenance verification; staged rollout and rollback evidence remain part of release acceptance.
+- **Verification status:** queued, pending, neutral, skipped-required, cancelled, stale, predecessor or inaccessible-protection evidence is non-passing and cannot be promoted into security assurance.
 
 The latest protected central control-plane evidence recorded by this baseline is `ContextualWisdomLab/.github@669505bdf267d92989298857c740a59807bbd735`. Issue `.github#712` remains the organization-wide Actions queue-health/runner-admission causal owner. Earlier protected `.github#1658`, `.github#1656`, `.github#1665`, and `.github#1645` reduce avoidable load/review-routing ambiguity but do not convert a queued current-head check into success. Repository-local BandScope #1119 remains the Trivy PR-head contract owner until normally integrated or superseded.
 
