@@ -19,7 +19,7 @@ interface WorkspaceProps {
 
 /** Request identity for a user-initiated section-roadmap focus action. */
 type RoadmapFocusRequest = {
-  rehearsalSongId: string;
+  rehearsalSourceIdentity: string;
   sectionId: string;
   roleId: string;
   requestSequence: number;
@@ -131,6 +131,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [roadmapFocusRequest, setRoadmapFocusRequest] = useState<RoadmapFocusRequest | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const parsedSourceBootstrap = useMemo(
+    () => safeProjectBootstrapSummary(sourceBootstrap),
+    [sourceBootstrap]
+  );
+  const rehearsalSourceIdentity = parsedSourceBootstrap?.projectId ?? song.id;
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -180,11 +185,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       })
     : null;
   const focusedSectionId =
-    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.sectionId : null;
+    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
+      ? roadmapFocusRequest.sectionId
+      : null;
   const focusedRoleId =
-    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.roleId : null;
+    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
+      ? roadmapFocusRequest.roleId
+      : null;
   const focusRequestSequence =
-    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.requestSequence : 0;
+    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
+      ? roadmapFocusRequest.requestSequence
+      : 0;
 
   /** Request the first-range roadmap cell on every activation, even when it is already highlighted. */
   const handleFindFirstRangeRoadmap = () => {
@@ -192,11 +203,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       return;
     }
     setRoadmapFocusRequest((previousFocusRequest) => ({
-      rehearsalSongId: song.id,
+      rehearsalSourceIdentity,
       sectionId: firstRangeBoard.sectionId,
       roleId: firstRangeBoard.roleId,
       requestSequence:
-        previousFocusRequest?.rehearsalSongId === song.id
+        previousFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
           ? previousFocusRequest.requestSequence + 1
           : 1
     }));
@@ -278,7 +289,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportHandoff = () => {
-    const parsedSourceBootstrap = safeProjectBootstrapSummary(sourceBootstrap);
     const json = generateMetadataHandoffJson(song, {
       sourceBootstrap: parsedSourceBootstrap,
       workspaceId: song.id,
