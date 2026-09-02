@@ -15,6 +15,7 @@ function createFakeContext(): {
   const gains: RehearsalCountInGain[] = [];
   const oscillators: RehearsalCountInOscillator[] = [];
   const context: RehearsalCountInAudioContext = {
+    close: vi.fn(async () => undefined),
     createGain: () => {
       const gain: RehearsalCountInGain = {
         connect: () => gain,
@@ -161,6 +162,35 @@ describe("createRehearsalCountInClickEngine", () => {
     await clickPromise;
 
     expect(oscillators).toHaveLength(0);
+  });
+
+  it("closes the context and invalidates pending resume work during disposal", async () => {
+    const { context, oscillators } = createFakeContext();
+    context.state = "suspended";
+    let finishResume: (() => void) | undefined;
+    context.resume = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishResume = resolve;
+        }),
+    );
+    const engine = createRehearsalCountInClickEngine(() => context);
+
+    const clickPromise = engine.click(true);
+    await Promise.resolve();
+    expect(context.resume).toHaveBeenCalledTimes(1);
+
+    await engine.dispose();
+    expect(context.close).toHaveBeenCalledTimes(1);
+    expect(engine.available).toBe(false);
+
+    finishResume?.();
+    await clickPromise;
+    expect(oscillators).toHaveLength(0);
+
+    await engine.dispose();
+    expect(context.close).toHaveBeenCalledTimes(1);
+    await expect(engine.click(false)).rejects.toThrow(/unavailable/i);
   });
 
   it("contains graph-construction failure and releases acquired nodes", async () => {
