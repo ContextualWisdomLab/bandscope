@@ -158,7 +158,7 @@ def _condition_preserves_pull_request_eligibility(condition_text: str | None) ->
     if condition_text is None:
         return True
     normalized_condition = condition_text.strip()
-    if normalized_condition.startswith("${{") and normalized_condition.endswith("}}"): 
+    if normalized_condition.startswith("${{") and normalized_condition.endswith("}}"):
         normalized_condition = normalized_condition[3:-2].strip()
     compact_condition = "".join(normalized_condition.split())
     if compact_condition.lower() == "true":
@@ -173,12 +173,56 @@ def _condition_preserves_pull_request_eligibility(condition_text: str | None) ->
     }
 
 
+def _job_preserves_pull_request_eligibility(
+    jobs_block: list[str],
+    job_name: str,
+    visiting_job_names: set[str] | None = None,
+) -> bool:
+    """Require a job and its complete ``needs`` chain to remain PR-eligible.
+
+    ``needs`` participates in GitHub's admission semantics: a Trivy job can
+    have a harmless-looking condition yet still be skipped when a prerequisite
+    is push-only. Resolve scalar, inline-list, and block-list dependencies
+    recursively. Missing jobs, cycles, or conditions whose pull-request
+    eligibility cannot be established fail closed.
+    """
+    active_job_names = set(visiting_job_names or set())
+    if job_name in active_job_names:
+        return False
+    active_job_names.add(job_name)
+    job_block = _indented_block(jobs_block, job_name, 2)
+    if not job_block:
+        return False
+    job_condition = _direct_mapping_value(job_block, "if", 4)
+    if not _condition_preserves_pull_request_eligibility(job_condition):
+        return False
+    dependency_names = _mapping_list_sequence(job_block, "needs", 4)
+    return all(
+        _job_preserves_pull_request_eligibility(jobs_block, dependency_name, active_job_names)
+        for dependency_name in dependency_names
+    )
+
+
 def _decode_yaml_double_quoted_scalar(quoted_scalar: str) -> str | None:
     """Decode a one-line YAML double-quoted scalar without external dependencies."""
     yaml_simple_escapes = {
-        "0": "\0", "a": "\a", "b": "\b", "t": "\t", "n": "\n", "v": "\v",
-        "f": "\f", "r": "\r", "e": "\x1b", " ": " ", '"': '"', "/": "/",
-        "\\": "\\", "N": "\u0085", "_": "\u00a0", "L": "\u2028", "P": "\u2029",
+        "0": "\0",
+        "a": "\a",
+        "b": "\b",
+        "t": "\t",
+        "n": "\n",
+        "v": "\v",
+        "f": "\f",
+        "r": "\r",
+        "e": "\x1b",
+        " ": " ",
+        '"': '"',
+        "/": "/",
+        "\\": "\\",
+        "N": "\u0085",
+        "_": "\u00a0",
+        "L": "\u2028",
+        "P": "\u2029",
     }
     decoded_characters: list[str] = []
     scalar_index = 1
@@ -243,7 +287,11 @@ def _yaml_scalar(scalar_text: str) -> str | None:
     normalized_scalar = scalar_text[:comment_index].strip() if comment_index is not None else scalar_text.strip()
     if not normalized_scalar:
         return None
-    if len(normalized_scalar) >= 2 and normalized_scalar[0] == normalized_scalar[-1] and normalized_scalar[0] in {"'", '"'}:
+    if (
+        len(normalized_scalar) >= 2
+        and normalized_scalar[0] == normalized_scalar[-1]
+        and normalized_scalar[0] in {"'", '"'}
+    ):
         if normalized_scalar[0] == '"':
             return _decode_yaml_double_quoted_scalar(normalized_scalar)
         return normalized_scalar[1:-1].replace("''", "'")
@@ -280,8 +328,10 @@ def main() -> int:
     jobs_block = _indented_block(workflow_lines, "jobs", 0)
     trivy_job = _indented_block(jobs_block, "trivy-fs-scan", 2)
     workflow_steps = _list_item_blocks(trivy_job, "steps", 4)
-    trivy_job_condition = _direct_mapping_value(trivy_job, "if", 4)
-    trivy_job_pull_request_eligible = _condition_preserves_pull_request_eligibility(trivy_job_condition)
+    trivy_job_pull_request_eligible = _job_preserves_pull_request_eligibility(
+        jobs_block,
+        "trivy-fs-scan",
+    )
 
     trivy_action_steps = [
         workflow_step
@@ -304,17 +354,24 @@ def main() -> int:
         if _condition_preserves_pull_request_eligibility(_step_mapping_value(workflow_step, "if"))
     ]
 
-    trivy_output_paths = {
-        output_path
-        for workflow_step in eligible_trivy_steps
+    trivy_sarif_outputs = [
+        (step_index, output_path)
+        for step_index, workflow_step in enumerate(workflow_steps)
+        if workflow_step in eligible_trivy_steps
         if _mapping_value(workflow_step, "with", "format") == "sarif"
         if (output_path := _mapping_value(workflow_step, "with", "output"))
-    }
-    uploaded_sarif_paths = {
-        sarif_file_path
-        for workflow_step in eligible_upload_steps
+    ]
+    uploaded_sarif_paths = [
+        (step_index, sarif_file_path)
+        for step_index, workflow_step in enumerate(workflow_steps)
+        if workflow_step in eligible_upload_steps
         if (sarif_file_path := _mapping_value(workflow_step, "with", "sarif_file"))
-    }
+    ]
+    ordered_matching_sarif_pair = any(
+        producer_path == upload_path and producer_index < upload_index
+        for producer_index, producer_path in trivy_sarif_outputs
+        for upload_index, upload_path in uploaded_sarif_paths
+    )
 
     missing_contract_items: list[str] = []
     if not _has_mapping_key(workflow_lines, "pull_request", 2):
@@ -331,17 +388,17 @@ def main() -> int:
     if not trivy_job:
         missing_contract_items.append("jobs.trivy-fs-scan")
     elif not trivy_job_pull_request_eligible:
-        missing_contract_items.append("trivy-fs-scan job eligible on pull_request")
+        missing_contract_items.append("trivy-fs-scan job and needs chain eligible on pull_request")
     if trivy_action_steps and not eligible_trivy_steps:
         missing_contract_items.append("Trivy action step eligible on pull_request")
     if upload_action_steps and not eligible_upload_steps:
         missing_contract_items.append("CodeQL SARIF upload step eligible on pull_request")
-    if not trivy_output_paths:
+    if not trivy_sarif_outputs:
         missing_contract_items.append("Trivy SARIF-producing action step with an output file")
     if not uploaded_sarif_paths:
         missing_contract_items.append("CodeQL SARIF upload step with sarif_file")
-    if trivy_output_paths and uploaded_sarif_paths and trivy_output_paths.isdisjoint(uploaded_sarif_paths):
-        missing_contract_items.append("matching Trivy output and CodeQL sarif_file")
+    if trivy_sarif_outputs and uploaded_sarif_paths and not ordered_matching_sarif_pair:
+        missing_contract_items.append("matching ordered Trivy output and CodeQL sarif_file")
 
     if missing_contract_items:
         print("Trivy PR code-scanning contract is incomplete:")
