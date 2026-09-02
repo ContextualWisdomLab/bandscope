@@ -2,7 +2,9 @@ import type { RehearsalSong } from "@bandscope/shared-types";
 
 /** Tonight's first named playable span on the rehearsal map. */
 export type FirstRangeSqueeze = {
+  sectionId?: string;
   sectionLabel: string;
+  roleId: string;
   roleName: string;
   lowestNote: string;
   highestNote: string;
@@ -116,6 +118,7 @@ export function firstRangeSqueeze(
     if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
       continue;
     }
+    const sectionId = meaningfulRangeText(sectionValue.id);
     const sectionLabel = meaningfulRangeText(sectionValue.label);
     if (!sectionLabel) {
       continue;
@@ -151,7 +154,9 @@ export function firstRangeSqueeze(
       }
 
       const candidate: FirstRangeSqueeze = {
+        sectionId,
         sectionLabel,
+        roleId,
         roleName,
         ...range,
         overlapWarning
@@ -171,12 +176,13 @@ export function firstRangeSqueeze(
 }
 
 /**
- * Offer the named first-range section and part only when both identities are unique and trusted.
+ * Offer the originating first-range section and part only when their IDs remain unique and trusted.
  *
- * Fail closed when the squeeze is missing, the section label is not unique on
- * the current map, the matching cell has no uniquely owned identity, or the
- * named part is not unique on that section. Does not start playback; #961 owns
- * the rehearsal player. Does not mix with #1143 timeline find.
+ * The first-range selection carries the section/role identifiers that owned
+ * the range evidence. Display labels and names may legitimately repeat in a
+ * song, so they are presentation data rather than navigation authority. Fail
+ * closed when either identifier is absent/duplicated or the referenced runtime
+ * cell is malformed. Does not start playback; #961 owns the rehearsal player.
  */
 export function firstRangeRoadmap(
   rehearsalSong: RehearsalSong,
@@ -186,104 +192,61 @@ export function firstRangeRoadmap(
     return null;
   }
 
+  const targetSectionId = meaningfulRangeText(rangeSqueeze.sectionId);
+  const targetRoleId = meaningfulRangeText(rangeSqueeze.roleId);
+  if (!targetSectionId || !targetRoleId) {
+    return null;
+  }
+
   const runtimeSong: unknown = rehearsalSong;
   if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
     return null;
   }
 
-  const sectionIdOccurrences = new Map<string, number>();
-  const sectionLabelOccurrences = new Map<string, number>();
+  let sectionIdOccurrences = 0;
+  let targetSection: Record<string, unknown> | null = null;
   for (const sectionValue of runtimeSong.sections) {
     if (!isRuntimeObject(sectionValue)) {
       continue;
     }
-    const sectionId = meaningfulRangeText(sectionValue.id);
-    if (sectionId) {
-      sectionIdOccurrences.set(sectionId, (sectionIdOccurrences.get(sectionId) ?? 0) + 1);
-    }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (sectionLabel) {
-      sectionLabelOccurrences.set(
-        sectionLabel,
-        (sectionLabelOccurrences.get(sectionLabel) ?? 0) + 1
-      );
+    if (meaningfulRangeText(sectionValue.id) === targetSectionId) {
+      sectionIdOccurrences += 1;
+      targetSection = sectionValue;
     }
   }
 
-  if (sectionLabelOccurrences.get(rangeSqueeze.sectionLabel) !== 1) {
+  if (sectionIdOccurrences !== 1 || !targetSection || !Array.isArray(targetSection.roles)) {
     return null;
   }
 
-  let roadmapMatch: FirstRangeRoadmap | null = null;
-
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+  let roleIdOccurrences = 0;
+  let targetRole: Record<string, unknown> | null = null;
+  for (const roleValue of targetSection.roles) {
+    if (!isRuntimeObject(roleValue)) {
       continue;
     }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
-    if (sectionLabel !== rangeSqueeze.sectionLabel) {
-      continue;
+    if (meaningfulRangeText(roleValue.id) === targetRoleId) {
+      roleIdOccurrences += 1;
+      targetRole = roleValue;
     }
-
-    const sectionId = meaningfulRangeText(sectionValue.id);
-    if (!sectionId || sectionIdOccurrences.get(sectionId) !== 1) {
-      return null;
-    }
-
-    const roleIdOccurrences = new Map<string, number>();
-    const roleNameOccurrences = new Map<string, number>();
-    for (const roleValue of sectionValue.roles) {
-      if (!isRuntimeObject(roleValue)) {
-        continue;
-      }
-      const roleId = meaningfulRangeText(roleValue.id);
-      if (roleId) {
-        roleIdOccurrences.set(roleId, (roleIdOccurrences.get(roleId) ?? 0) + 1);
-      }
-      const roleName = meaningfulRangeText(roleValue.name);
-      if (roleName) {
-        roleNameOccurrences.set(roleName, (roleNameOccurrences.get(roleName) ?? 0) + 1);
-      }
-    }
-
-    if (roleNameOccurrences.get(rangeSqueeze.roleName) !== 1) {
-      return null;
-    }
-
-    let matchingRole: FirstRangeRoadmap | null = null;
-    for (const roleValue of sectionValue.roles) {
-      if (!isRuntimeObject(roleValue)) {
-        continue;
-      }
-      const roleName = meaningfulRangeText(roleValue.name);
-      if (roleName !== rangeSqueeze.roleName) {
-        continue;
-      }
-      const roleId = meaningfulRangeText(roleValue.id);
-      if (!roleId || roleIdOccurrences.get(roleId) !== 1) {
-        return null;
-      }
-      if (matchingRole) {
-        return null;
-      }
-      matchingRole = {
-        sectionId,
-        roleId,
-        sectionLabel,
-        roleName
-      };
-    }
-
-    if (!matchingRole) {
-      return null;
-    }
-    if (roadmapMatch) {
-      return null;
-    }
-    roadmapMatch = matchingRole;
   }
 
-  return roadmapMatch;
+  if (roleIdOccurrences !== 1 || !targetRole) {
+    return null;
+  }
+
+  const sectionLabel = meaningfulRangeText(targetSection.label);
+  const roleName = meaningfulRangeText(targetRole.name);
+  if (!sectionLabel || !roleName) {
+    return null;
+  }
+
+  return {
+    sectionId: targetSectionId,
+    roleId: targetRoleId,
+    sectionLabel,
+    roleName
+  };
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */
