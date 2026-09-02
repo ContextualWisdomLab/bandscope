@@ -9,6 +9,14 @@ export type FirstRangeSqueeze = {
   overlapWarning?: string;
 };
 
+/** Clocked structure cell for tonight's first playable span. */
+export type FirstRangeTimeline = {
+  sectionId: string;
+  sectionLabel: string;
+  startClock: string;
+  endClock: string;
+};
+
 const NATURAL_PITCH_CLASS = {
   C: 0,
   D: 2,
@@ -32,6 +40,14 @@ const NOTE_PATTERN = /^([A-Ga-g])([#b♯♭]?)(-?\d{1,2})$/u;
 /** Return whether an untrusted runtime value is a plain object record. */
 function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Return a finite non-negative duration in seconds, or fail closed. */
+function finiteNonNegativeSeconds(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return value;
 }
 
 /** Return trimmed copy that is not a blank or `none` sentinel. */
@@ -82,6 +98,24 @@ export function playableRange(
   }
 
   return { lowestNote, highestNote };
+}
+
+/**
+ * Format a rehearsal clock as `m:ss`, or fail closed on unusable values.
+ *
+ * Unlike the structure-grid fallback that renders `0:00` for NaN times, the
+ * first-range find control must not invent a clock the player cannot trust.
+ */
+export function formatRangeClock(value: unknown): string | null {
+  const safeSeconds = finiteNonNegativeSeconds(value);
+  if (safeSeconds === null) {
+    return null;
+  }
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = Math.floor(safeSeconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${minutes}:${seconds}`;
 }
 
 /**
@@ -160,6 +194,72 @@ export function firstRangeSqueeze(
   }
 
   return fallback;
+}
+
+/**
+ * Offer the named first-range section only when its clock is unique and trusted.
+ *
+ * Fail closed when the squeeze is missing, the section label is not unique on
+ * the current map, the matching cell has no usable identity, or start/end
+ * cannot be formatted as a rehearsal clock. Does not start playback; #961
+ * owns the rehearsal player.
+ */
+export function firstRangeTimeline(
+  song: RehearsalSong,
+  squeeze: FirstRangeSqueeze | null
+): FirstRangeTimeline | null {
+  if (!squeeze) {
+    return null;
+  }
+
+  const runtimeSong: unknown = song;
+  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+    return null;
+  }
+
+  let match: FirstRangeTimeline | null = null;
+
+  for (const sectionValue of runtimeSong.sections) {
+    if (!isRuntimeObject(sectionValue)) {
+      continue;
+    }
+    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    if (sectionLabel !== squeeze.sectionLabel) {
+      continue;
+    }
+
+    const sectionId = meaningfulRangeText(sectionValue.id);
+    if (!sectionId || !isRuntimeObject(sectionValue.timeRange)) {
+      return null;
+    }
+
+    const startSeconds = finiteNonNegativeSeconds(sectionValue.timeRange.start);
+    const endSeconds = finiteNonNegativeSeconds(sectionValue.timeRange.end);
+    const startClock = formatRangeClock(startSeconds);
+    const endClock = formatRangeClock(endSeconds);
+    if (
+      startSeconds === null ||
+      endSeconds === null ||
+      startClock === null ||
+      endClock === null ||
+      endSeconds < startSeconds
+    ) {
+      return null;
+    }
+
+    if (match) {
+      return null;
+    }
+
+    match = {
+      sectionId,
+      sectionLabel,
+      startClock,
+      endClock
+    };
+  }
+
+  return match;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */

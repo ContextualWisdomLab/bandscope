@@ -1,6 +1,6 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
-import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueeze, firstRangeTimeline, formatRangeClock, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
 
 function blankRoleRange(song: RehearsalSong): RehearsalSong {
   return {
@@ -137,6 +137,60 @@ describe("firstRangeSqueeze", () => {
   it("returns null when no selected role has both notes", () => {
     expect(firstRangeSqueeze(blankRoleRange(createDemoRehearsalSong()))).toBeNull();
     expect(firstRangeSqueeze(createDemoRehearsalSong(), "missing-role")).toBeNull();
+  });
+});
+
+describe("formatRangeClock", () => {
+  it("formats finite non-negative seconds as m:ss", () => {
+    expect(formatRangeClock(0)).toBe("0:00");
+    expect(formatRangeClock(10)).toBe("0:10");
+    expect(formatRangeClock(30)).toBe("0:30");
+    expect(formatRangeClock(75)).toBe("1:15");
+  });
+
+  it("fails closed on unusable clocks", () => {
+    expect(formatRangeClock(Number.NaN)).toBeNull();
+    expect(formatRangeClock(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(formatRangeClock(-1)).toBeNull();
+    expect(formatRangeClock("10")).toBeNull();
+  });
+});
+
+describe("firstRangeTimeline", () => {
+  it("names the unique first-range section clock", () => {
+    const song = createDemoRehearsalSong();
+    expect(firstRangeTimeline(song, firstRangeSqueeze(song))).toEqual({
+      sectionId: "verse-1",
+      sectionLabel: "verse",
+      startClock: "0:10",
+      endClock: "0:30"
+    });
+  });
+
+  it("fails closed when the squeeze is missing or the label is not unique", () => {
+    const song = createDemoRehearsalSong();
+    const duplicate = {
+      ...song,
+      sections: [song.sections[0]!, { ...song.sections[0]!, id: "verse-2" }]
+    };
+
+    expect(firstRangeTimeline(song, null)).toBeNull();
+    expect(firstRangeTimeline(duplicate, firstRangeSqueeze(song))).toBeNull();
+  });
+
+  it("fails closed on malformed, inverted, or non-finite section times", () => {
+    const song = createDemoRehearsalSong();
+    const squeeze = firstRangeSqueeze(song);
+
+    song.sections[0]!.timeRange = { start: Number.NaN, end: 30 };
+    expect(firstRangeTimeline(song, squeeze)).toBeNull();
+
+    song.sections[0]!.timeRange = { start: 30, end: 10 };
+    expect(firstRangeTimeline(song, squeeze)).toBeNull();
+
+    song.sections[0]!.id = "   ";
+    song.sections[0]!.timeRange = { start: 10, end: 30 };
+    expect(firstRangeTimeline(song, squeeze)).toBeNull();
   });
 });
 

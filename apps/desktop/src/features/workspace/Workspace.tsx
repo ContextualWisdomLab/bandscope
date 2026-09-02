@@ -1,10 +1,10 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useEffect, useRef, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueeze, firstRangeTimeline } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -72,7 +72,31 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  focusSectionId
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  focusSectionId: string | null;
+}) {
+  const cellRefs = useRef(new Map<string, HTMLDivElement>());
+
+  useEffect(() => {
+    if (!focusSectionId) {
+      return;
+    }
+    const cell = cellRefs.current.get(focusSectionId);
+    if (cell && typeof cell.scrollIntoView === "function") {
+      cell.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest"
+      });
+    }
+  }, [focusSectionId]);
+
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -91,14 +115,33 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
-              <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
-              </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
-            </div>
-          ))}
+          {sections.map((section) => {
+            const focused = focusSectionId === section.id;
+            return (
+              <div
+                key={section.id}
+                ref={(node) => {
+                  if (node) {
+                    cellRefs.current.set(section.id, node);
+                  } else {
+                    cellRefs.current.delete(section.id);
+                  }
+                }}
+                data-testid={`song-structure-section-${section.id}`}
+                aria-current={focused ? "location" : undefined}
+                className={
+                  focused
+                    ? "border-r border-fuchsia-300/40 bg-fuchsia-300/15 px-3 py-3 last:border-r-0 ring-2 ring-inset ring-fuchsia-300"
+                    : "border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
+                }
+              >
+                <p className="text-sm font-black text-white">
+                  {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+              </div>
+            );
+          })}
         </div>
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
@@ -121,6 +164,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [focusSectionId, setFocusSectionId] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -163,6 +207,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstRangeClock = firstRangeTimeline(song, firstRange);
+  const firstRangeFindCopy = firstRangeClock
+    ? fillRangeCopy(t("workspaceFirstRangeFindSection"), {
+        sectionLabel: firstRangeClock.sectionLabel,
+        startClock: firstRangeClock.startClock,
+        endClock: firstRangeClock.endClock
+      })
+    : null;
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +360,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+            {firstRangeClock && firstRangeFindCopy ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                onClick={() => setFocusSectionId(firstRangeClock.sectionId)}
+              >
+                {firstRangeFindCopy}
+              </Button>
+            ) : null}
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -353,7 +416,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure sections={song.sections} t={t} focusSectionId={focusSectionId} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
