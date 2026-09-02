@@ -81,7 +81,7 @@ def _branch_patterns_allow(branch_patterns: list[str], protected_branch: str) ->
 
     GitHub evaluates ``branches`` patterns in order: a matching ``!`` pattern
     excludes a previously included ref, while a later positive pattern can
-    re-include it.  Preserve that ordering so a contract checker cannot be
+    re-include it. Preserve that ordering so a contract checker cannot be
     fooled by merely seeing ``develop``/``main`` somewhere in the list.
     ``fnmatchcase`` covers the ordinary glob forms relevant to these literal
     protected branch names; patterns that do not match simply leave the prior
@@ -125,6 +125,52 @@ def _step_action(workflow_step: list[str]) -> str | None:
         if line_text.startswith("uses:"):
             return line_text.removeprefix("uses:").strip()
     return None
+
+
+def _step_mapping_value(workflow_step: list[str], mapping_key: str) -> str | None:
+    """Return a direct scalar mapping value from one workflow step."""
+    for workflow_line in workflow_step:
+        line_text = workflow_line.strip()
+        for mapping_prefix in (f"- {mapping_key}:", f"{mapping_key}:"):
+            if line_text.startswith(mapping_prefix):
+                return _yaml_scalar(line_text[len(mapping_prefix) :].strip())
+    return None
+
+
+def _direct_mapping_value(workflow_lines: list[str], mapping_key: str, mapping_indent: int) -> str | None:
+    """Return a scalar value from a mapping key at one exact indentation."""
+    mapping_prefix = f"{' ' * mapping_indent}{mapping_key}:"
+    for workflow_line in workflow_lines:
+        if workflow_line.startswith(mapping_prefix):
+            return _yaml_scalar(workflow_line[len(mapping_prefix) :].strip())
+    return None
+
+
+def _condition_preserves_pull_request_eligibility(condition_text: str | None) -> bool:
+    """Accept only conditions proven not to exclude ordinary pull-request runs.
+
+    Missing conditions inherit GitHub's normal job/step eligibility. Explicit
+    conditions are intentionally fail-closed: only unconditional forms and a
+    direct equality that is guaranteed true for ``pull_request`` events are
+    accepted. More complex expressions must be made structurally auditable
+    before this admission checker can rely on them.
+    """
+    if condition_text is None:
+        return True
+    normalized_condition = condition_text.strip()
+    if normalized_condition.startswith("${{") and normalized_condition.endswith("}}"): 
+        normalized_condition = normalized_condition[3:-2].strip()
+    compact_condition = "".join(normalized_condition.split())
+    if compact_condition.lower() == "true":
+        return True
+    if compact_condition in {"always()", "success()"}:
+        return True
+    return compact_condition in {
+        "github.event_name=='pull_request'",
+        'github.event_name=="pull_request"',
+        "'pull_request'==github.event_name",
+        '"pull_request"==github.event_name',
+    }
 
 
 def _decode_yaml_double_quoted_scalar(quoted_scalar: str) -> str | None:
@@ -234,18 +280,39 @@ def main() -> int:
     jobs_block = _indented_block(workflow_lines, "jobs", 0)
     trivy_job = _indented_block(jobs_block, "trivy-fs-scan", 2)
     workflow_steps = _list_item_blocks(trivy_job, "steps", 4)
+    trivy_job_condition = _direct_mapping_value(trivy_job, "if", 4)
+    trivy_job_pull_request_eligible = _condition_preserves_pull_request_eligibility(trivy_job_condition)
+
+    trivy_action_steps = [
+        workflow_step
+        for workflow_step in workflow_steps
+        if (_step_action(workflow_step) or "").startswith("aquasecurity/trivy-action@")
+    ]
+    eligible_trivy_steps = [
+        workflow_step
+        for workflow_step in trivy_action_steps
+        if _condition_preserves_pull_request_eligibility(_step_mapping_value(workflow_step, "if"))
+    ]
+    upload_action_steps = [
+        workflow_step
+        for workflow_step in workflow_steps
+        if (_step_action(workflow_step) or "").startswith("github/codeql-action/upload-sarif@")
+    ]
+    eligible_upload_steps = [
+        workflow_step
+        for workflow_step in upload_action_steps
+        if _condition_preserves_pull_request_eligibility(_step_mapping_value(workflow_step, "if"))
+    ]
 
     trivy_output_paths = {
         output_path
-        for workflow_step in workflow_steps
-        if (_step_action(workflow_step) or "").startswith("aquasecurity/trivy-action@")
-        and _mapping_value(workflow_step, "with", "format") == "sarif"
+        for workflow_step in eligible_trivy_steps
+        if _mapping_value(workflow_step, "with", "format") == "sarif"
         if (output_path := _mapping_value(workflow_step, "with", "output"))
     }
     uploaded_sarif_paths = {
         sarif_file_path
-        for workflow_step in workflow_steps
-        if (_step_action(workflow_step) or "").startswith("github/codeql-action/upload-sarif@")
+        for workflow_step in eligible_upload_steps
         if (sarif_file_path := _mapping_value(workflow_step, "with", "sarif_file"))
     }
 
@@ -263,6 +330,12 @@ def main() -> int:
                 missing_contract_items.append(f"pull_request activity {required_activity!r}")
     if not trivy_job:
         missing_contract_items.append("jobs.trivy-fs-scan")
+    elif not trivy_job_pull_request_eligible:
+        missing_contract_items.append("trivy-fs-scan job eligible on pull_request")
+    if trivy_action_steps and not eligible_trivy_steps:
+        missing_contract_items.append("Trivy action step eligible on pull_request")
+    if upload_action_steps and not eligible_upload_steps:
+        missing_contract_items.append("CodeQL SARIF upload step eligible on pull_request")
     if not trivy_output_paths:
         missing_contract_items.append("Trivy SARIF-producing action step with an output file")
     if not uploaded_sarif_paths:
