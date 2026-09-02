@@ -143,6 +143,68 @@ def test_pipeline_without_detected_sections_falls_back() -> None:
     assert song["id"] == "demo-song"
 
 
+def test_pipeline_maps_detected_stop_time_to_section_before_reentry() -> None:
+    """Ensure an analyzed all-stem cutoff reaches the stable section consumed by the workspace."""
+    audio_stems = _make_realistic_stems(sr=22050, duration=20.0)
+    detected_sections = [
+        {
+            "id": "verse-1",
+            "form_label": "verse",
+            "sequence_index": 0,
+            "groove": "driving",
+            "confidence_level": "high",
+            "confidence_source": "model",
+            "confidence_notes": "Synthetic verse",
+            "cue_anchor": {"strategy": "count", "value": "Enter on beat 1"},
+        },
+        {
+            "id": "chorus-1",
+            "form_label": "chorus",
+            "sequence_index": 1,
+            "groove": "open",
+            "confidence_level": "high",
+            "confidence_source": "model",
+            "confidence_notes": "Synthetic chorus",
+            "cue_anchor": {"strategy": "count", "value": "Enter on beat 1"},
+        },
+    ]
+    section_boundaries = [(0.0, 10.0), (10.0, 20.0)]
+
+    with (
+        patch(
+            "bandscope_analysis.api.segment_with_boundaries",
+            return_value=(detected_sections, section_boundaries),
+        ),
+        patch(
+            "bandscope_analysis.api.detect_stop_time",
+            return_value=[{"start_time": 9.4, "end_time": 10.0}],
+        ),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        rehearsal_song = build_demo_rehearsal_song(
+            {
+                "stems": audio_stems,
+                "sr": 22050,
+                "separation": {
+                    "duration_seconds": 20.0,
+                    "chunk_count": 1,
+                    "notes": "Synthetic stop-time",
+                },
+            }
+        )
+
+    assert [section_payload["label"] for section_payload in rehearsal_song["sections"]] == [
+        "stop",
+        "chorus",
+    ]
+    assert rehearsal_song["sections"][0]["id"] == "verse-1"
+    assert rehearsal_song["sections"][1]["id"] == "chorus-1"
+
+
 def test_pipeline_missing_boundary_uses_full_duration_range() -> None:
     """Ensure boundary count mismatches fail closed to the full duration."""
     stems = _make_realistic_stems(sr=22050, duration=30.0)
