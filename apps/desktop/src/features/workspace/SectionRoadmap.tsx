@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
@@ -12,13 +12,41 @@ interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
   onSongUpdate?: (song: RehearsalSong) => void;
+  focusSectionId?: string | null;
+  focusRoleId?: string | null;
+  focusRequestSequence?: number;
 }
 
 /** Documented. */
-export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
+export function SectionRoadmap({
+  song,
+  activeRole,
+  onSongUpdate,
+  focusSectionId = null,
+  focusRoleId = null,
+  focusRequestSequence = 0
+}: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const sectionCardRefs = useRef(new Map<string, HTMLDivElement>());
+
+  useEffect(() => {
+    if (!focusSectionId || focusRequestSequence < 1) {
+      return;
+    }
+    const sectionCard = sectionCardRefs.current.get(focusSectionId);
+    if (sectionCard && typeof sectionCard.scrollIntoView === "function") {
+      const reducedMotionPreferred =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      sectionCard.scrollIntoView({
+        behavior: reducedMotionPreferred ? "auto" : "smooth",
+        inline: "center",
+        block: "nearest"
+      });
+    }
+  }, [focusRequestSequence, focusSectionId]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -104,11 +132,29 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
       >
-        {song.sections.map((section) => (
-          <Card
+        {song.sections.map((section) => {
+          const sectionFocused = focusSectionId === section.id;
+          return (
+          <div
             key={section.id}
-            className={`w-80 flex-none shrink-0 snap-start overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
-              section.confidence.level === "low" ? "border-rose-300/30 bg-rose-950/30" : "border-white/10 bg-slate-950/80"
+            ref={(sectionNode) => {
+              if (sectionNode) {
+                sectionCardRefs.current.set(section.id, sectionNode);
+              } else {
+                sectionCardRefs.current.delete(section.id);
+              }
+            }}
+            data-testid={`section-roadmap-section-${section.id}`}
+            aria-current={sectionFocused ? "location" : undefined}
+            className="w-80 flex-none shrink-0 snap-start"
+          >
+          <Card
+            className={`overflow-hidden shadow-[0_18px_60px_rgba(0,0,0,0.22)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(0,0,0,0.32)] ${
+              sectionFocused
+                ? "border-fuchsia-300/40 bg-fuchsia-950/40 ring-2 ring-inset ring-fuchsia-300"
+                : section.confidence.level === "low"
+                  ? "border-rose-300/30 bg-rose-950/30"
+                  : "border-white/10 bg-slate-950/80"
             }`}
           >
             <CardHeader className="border-b border-white/10 bg-white/[0.04] p-5 pb-4">
@@ -127,10 +173,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 .filter(role => !activeRole || role.id === activeRole)
                 .map(role => {
                   const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
+                  const roleFocused = sectionFocused && focusRoleId === role.id;
                   return (
                   <div
                     key={role.id}
-                    className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
+                    data-testid={`section-roadmap-role-${section.id}-${role.id}`}
+                    aria-current={roleFocused ? "true" : undefined}
+                    className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}${
+                      roleFocused ? " ring-2 ring-fuchsia-300" : ""
+                    }`}
                   >
                     <div className="mb-3 flex items-start justify-between">
                       <div className="flex flex-col gap-1">
@@ -228,7 +279,9 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 })}
             </CardContent>
           </Card>
-        ))}
+          </div>
+          );
+        })}
       </div>
     </div>
   );
