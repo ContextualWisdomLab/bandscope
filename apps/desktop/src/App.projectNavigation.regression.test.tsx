@@ -40,7 +40,7 @@ describe("loaded-project rehearsal navigation identity", () => {
     fireEvent.click(screen.getByRole("button", { name: /Find verse at 0:10–0:30 on the timeline/i }));
     fireEvent.click(screen.getByRole("button", { name: /Find verse for Bass Guitar on the roadmap/i }));
     expect(screen.getByTestId("song-structure-section-verse-1")).toHaveAttribute("aria-current", "location");
-    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "location");
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "true");
 
     fireEvent.click(screen.getByRole("button", { name: /open project/i }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Second saved analysis" })).toBeInTheDocument());
