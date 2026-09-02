@@ -60,8 +60,10 @@ REQUIRED_REFERENCES = {
         "docs/workflow/github-bootstrap-execution-policy.md",
     ],
     Path("docs/product-technical-gap-baseline.md"): [
-        "Recovering --> RecoveryFailed: no valid recoverable snapshot",
-        "RecoveryFailed --> NoSource: recovery failure acknowledged",
+        "NoSource --> RecoveringWithoutSource: project recovery requested",
+        "Ready --> RecoveringWithSource: project recovery requested",
+        "RecoveryFailedWithoutSource --> NoSource: recovery failure acknowledged",
+        "RecoveryFailedWithSource --> Ready: recovery failure acknowledged / keep prior source",
     ],
 }
 
