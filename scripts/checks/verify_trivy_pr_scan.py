@@ -45,14 +45,19 @@ def _has_mapping_key(
 def _list_values(
     workflow_lines: list[str], mapping_header: str, mapping_indent: int
 ) -> set[str]:
-    """Return literal scalar list items nested under the requested mapping key."""
+    """Return normalized YAML scalar list items under the requested mapping key."""
     nested_block = _indented_block(workflow_lines, mapping_header, mapping_indent)
     item_prefix = " " * (mapping_indent + 2) + "- "
-    return {
+    raw_list_items = {
         workflow_line[len(item_prefix) :].strip()
         for workflow_line in nested_block
         if workflow_line.startswith(item_prefix)
         and workflow_line[len(item_prefix) :].strip()
+    }
+    return {
+        normalized_list_value
+        for raw_list_item in raw_list_items
+        if (normalized_list_value := _yaml_scalar(raw_list_item))
     }
 
 
