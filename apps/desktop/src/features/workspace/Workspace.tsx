@@ -165,12 +165,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
       )
     : t("workspaceFirstRangeMissing");
   const firstUnlogged = useMemo(() => firstUnloggedPractice(song, activeRole), [activeRole, song]);
-  const firstUnloggedCopy = firstUnlogged
-    ? fillUnloggedPracticeCopy(t("workspaceFirstUnloggedPracticeCheck"), {
-        roleName: firstUnlogged.roleName,
-        sectionLabel: firstUnlogged.sectionLabel
-      })
-    : t(activeRole ? "workspaceFirstUnloggedPracticeSelectedReady" : "workspaceFirstUnloggedPracticeMissing");
+  const firstUnloggedCopy =
+    firstUnlogged.kind === "unlogged"
+      ? fillUnloggedPracticeCopy(t("workspaceFirstUnloggedPracticeCheck"), {
+          roleName: firstUnlogged.roleName,
+          sectionLabel: firstUnlogged.sectionLabel
+        })
+      : firstUnlogged.kind === "selected-logged"
+        ? t("workspaceFirstUnloggedPracticeSelectedReady")
+        : firstUnlogged.kind === "all-logged"
+          ? t("workspaceFirstUnloggedPracticeMissing")
+          : t("workspaceFirstUnloggedPracticeUnavailable");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
