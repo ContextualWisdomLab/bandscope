@@ -1,5 +1,6 @@
 """Bounded container-metadata preflight regressions."""
 
+import inspect
 import io
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -10,9 +11,18 @@ from bandscope_analysis.audio_metadata import preflight_audio_metadata
 from bandscope_analysis.audio_resource_policy import AudioResourcePolicyError
 
 
-def _info(*, frames: int = 44_100, samplerate: int = 44_100, channels: int = 2) -> SimpleNamespace:
+def _audio_metadata_fixture(
+    *, frames: int = 44_100, samplerate: int = 44_100, channels: int = 2
+) -> SimpleNamespace:
     """Build the metadata subset consumed by the preflight boundary."""
     return SimpleNamespace(frames=frames, samplerate=samplerate, channels=channels)
+
+
+def test_preflight_audio_metadata_uses_semantic_public_parameter_names() -> None:
+    """The organization-owned metadata port should expose bounded-context names."""
+    parameter_names = tuple(inspect.signature(preflight_audio_metadata).parameters)
+
+    assert parameter_names == ("audio_source", "audio_resource_policy")
 
 
 @patch("bandscope_analysis.audio_metadata.soundfile.info")
@@ -20,41 +30,41 @@ def test_preflight_accepts_metadata_without_decoding_and_rewinds(
     mock_info: object,
 ) -> None:
     """Metadata validation must preserve the caller-owned handle for the decoder."""
-    source = io.BytesIO(b"header-bytes")
+    audio_source = io.BytesIO(b"header-bytes")
 
-    def inspect(handle: io.BytesIO) -> SimpleNamespace:
-        handle.read(3)
-        return _info()
+    def inspect_audio_handle(audio_handle: io.BytesIO) -> SimpleNamespace:
+        audio_handle.read(3)
+        return _audio_metadata_fixture()
 
-    mock_info.side_effect = inspect  # type: ignore[attr-defined]
+    mock_info.side_effect = inspect_audio_handle  # type: ignore[attr-defined]
 
-    preflight_audio_metadata(source)
+    preflight_audio_metadata(audio_source)
 
-    assert source.tell() == 0
+    assert audio_source.tell() == 0
 
 
 @pytest.mark.parametrize(
-    ("info", "reason"),
+    ("audio_metadata", "policy_reason"),
     [
-        (_info(frames=44_100 * 901), "duration_exceeded"),
-        (_info(channels=3), "channel_count_unsupported"),
-        (_info(samplerate=7_999), "sampling_rate_unsupported"),
-        (_info(frames=0), "duration_too_short"),
+        (_audio_metadata_fixture(frames=44_100 * 901), "duration_exceeded"),
+        (_audio_metadata_fixture(channels=3), "channel_count_unsupported"),
+        (_audio_metadata_fixture(samplerate=7_999), "sampling_rate_unsupported"),
+        (_audio_metadata_fixture(frames=0), "duration_too_short"),
     ],
 )
 @patch("bandscope_analysis.audio_metadata.soundfile.info")
 def test_preflight_rejects_untrusted_container_metadata(
     mock_info: object,
-    info: SimpleNamespace,
-    reason: str,
+    audio_metadata: SimpleNamespace,
+    policy_reason: str,
 ) -> None:
     """Source metadata must fail closed before resampling, downmixing, or truncation."""
-    mock_info.return_value = info  # type: ignore[attr-defined]
+    mock_info.return_value = audio_metadata  # type: ignore[attr-defined]
 
-    with pytest.raises(AudioResourcePolicyError) as error:
+    with pytest.raises(AudioResourcePolicyError) as caught_error:
         preflight_audio_metadata(io.BytesIO(b"header"))
 
-    assert error.value.reason == reason
+    assert caught_error.value.reason == policy_reason
 
 
 @patch(
@@ -63,11 +73,11 @@ def test_preflight_rejects_untrusted_container_metadata(
 )
 def test_preflight_maps_probe_failures_to_payload_free_policy_error(_mock_info: object) -> None:
     """Container parser failures must not leak decoder detail or bypass policy errors."""
-    with pytest.raises(AudioResourcePolicyError) as error:
+    with pytest.raises(AudioResourcePolicyError) as caught_error:
         preflight_audio_metadata(io.BytesIO(b"bad-header"))
 
-    assert error.value.reason == "malformed_header"
-    assert "decoder detail" not in error.value.message
+    assert caught_error.value.reason == "malformed_header"
+    assert "decoder detail" not in caught_error.value.message
 
 
 @patch("bandscope_analysis.audio_metadata.soundfile.info")
@@ -89,22 +99,22 @@ def test_preflight_maps_rewind_failures_to_payload_free_policy_error(mock_info: 
                 raise OSError("rewind failed")
             return super().seek(*args, **kwargs)
 
-    mock_info.return_value = _info()  # type: ignore[attr-defined]
+    mock_info.return_value = _audio_metadata_fixture()  # type: ignore[attr-defined]
 
-    with pytest.raises(AudioResourcePolicyError) as error:
+    with pytest.raises(AudioResourcePolicyError) as caught_error:
         preflight_audio_metadata(SeekFailsAfterProbe())
 
-    assert error.value.reason == "malformed_header"
-    assert "rewind failed" not in error.value.message
+    assert caught_error.value.reason == "malformed_header"
+    assert "rewind failed" not in caught_error.value.message
 
 
 def test_path_preflight_uses_local_decoder_metadata_for_compressed_containers(
     tmp_path,
 ) -> None:
     """Path-backed M4A metadata should use the existing local decoder fallback."""
-    source = tmp_path / "rehearsal.m4a"
-    source.write_bytes(b"container")
-    descriptor = SimpleNamespace(duration=1.0, samplerate=44_100, channels=2)
+    audio_source = tmp_path / "rehearsal.m4a"
+    audio_source.write_bytes(b"container")
+    decoder_descriptor = SimpleNamespace(duration=1.0, samplerate=44_100, channels=2)
 
     with (
         patch(
@@ -113,16 +123,16 @@ def test_path_preflight_uses_local_decoder_metadata_for_compressed_containers(
         ),
         patch("bandscope_analysis.audio_metadata.audioread.audio_open") as audio_open,
     ):
-        audio_open.return_value.__enter__.return_value = descriptor
-        preflight_audio_metadata(source)
+        audio_open.return_value.__enter__.return_value = decoder_descriptor
+        preflight_audio_metadata(audio_source)
 
-    audio_open.assert_called_once_with(str(source))
+    audio_open.assert_called_once_with(str(audio_source))
 
 
 def test_path_preflight_rejects_when_compressed_metadata_fallback_fails(tmp_path) -> None:
     """Unavailable compressed-container metadata must fail closed without decoder detail."""
-    source = tmp_path / "unreadable.m4a"
-    source.write_bytes(b"container")
+    audio_source = tmp_path / "unreadable.m4a"
+    audio_source.write_bytes(b"container")
 
     with (
         patch(
@@ -134,36 +144,36 @@ def test_path_preflight_rejects_when_compressed_metadata_fallback_fails(tmp_path
             side_effect=RuntimeError("decoder detail"),
         ),
     ):
-        with pytest.raises(AudioResourcePolicyError) as error:
-            preflight_audio_metadata(source)
+        with pytest.raises(AudioResourcePolicyError) as caught_error:
+            preflight_audio_metadata(audio_source)
 
-    assert error.value.reason == "malformed_header"
-    assert "decoder detail" not in error.value.message
+    assert caught_error.value.reason == "malformed_header"
+    assert "decoder detail" not in caught_error.value.message
 
 
 def test_path_preflight_uses_libsndfile_metadata_when_available(tmp_path) -> None:
     """Supported path containers should retain the bounded libsndfile probe."""
-    source = tmp_path / "rehearsal.wav"
-    source.write_bytes(b"container")
+    audio_source = tmp_path / "rehearsal.wav"
+    audio_source.write_bytes(b"container")
 
     with (
         patch(
             "bandscope_analysis.audio_metadata.soundfile.info",
-            return_value=_info(),
+            return_value=_audio_metadata_fixture(),
         ) as soundfile_info,
         patch("bandscope_analysis.audio_metadata.audioread.audio_open") as audio_open,
     ):
-        preflight_audio_metadata(source)
+        preflight_audio_metadata(audio_source)
 
-    soundfile_info.assert_called_once_with(source)
+    soundfile_info.assert_called_once_with(audio_source)
     audio_open.assert_not_called()
 
 
 def test_path_preflight_preserves_policy_errors_from_decoder_metadata(tmp_path) -> None:
     """Compressed metadata that violates policy must keep its stable reason code."""
-    source = tmp_path / "surround.m4a"
-    source.write_bytes(b"container")
-    descriptor = SimpleNamespace(duration=1.0, samplerate=44_100, channels=3)
+    audio_source = tmp_path / "surround.m4a"
+    audio_source.write_bytes(b"container")
+    decoder_descriptor = SimpleNamespace(duration=1.0, samplerate=44_100, channels=3)
 
     with (
         patch(
@@ -172,8 +182,8 @@ def test_path_preflight_preserves_policy_errors_from_decoder_metadata(tmp_path) 
         ),
         patch("bandscope_analysis.audio_metadata.audioread.audio_open") as audio_open,
     ):
-        audio_open.return_value.__enter__.return_value = descriptor
-        with pytest.raises(AudioResourcePolicyError) as error:
-            preflight_audio_metadata(source)
+        audio_open.return_value.__enter__.return_value = decoder_descriptor
+        with pytest.raises(AudioResourcePolicyError) as caught_error:
+            preflight_audio_metadata(audio_source)
 
-    assert error.value.reason == "channel_count_unsupported"
+    assert caught_error.value.reason == "channel_count_unsupported"
