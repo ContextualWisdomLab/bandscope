@@ -155,14 +155,20 @@ export function FirstStopCallout({
               return;
             }
             const structureGrid = document.querySelector('[data-testid="song-structure-grid"]');
-            const sectionTarget =
-              stopSectionIndex >= 0
-                ? Array.from(structureGrid?.children ?? []).find(
-                    (gridChild) =>
-                      gridChild instanceof HTMLElement &&
-                      gridChild.dataset.sectionPosition === String(stopSectionIndex)
-                  )
+            const sectionChildren = Array.from(structureGrid?.children ?? []);
+            const explicitlyPositionedTarget = sectionChildren.find(
+              (gridChild) =>
+                gridChild instanceof HTMLElement &&
+                gridChild.dataset.sectionPosition === String(stopSectionIndex)
+            );
+            const exactOrderFallback =
+              !explicitlyPositionedTarget &&
+              stopSectionIndex >= 0 &&
+              Array.isArray(runtimeSong?.sections) &&
+              sectionChildren.length === runtimeSong.sections.length
+                ? sectionChildren[stopSectionIndex]
                 : undefined;
+            const sectionTarget = explicitlyPositionedTarget ?? exactOrderFallback;
             if (typeof sectionTarget?.scrollIntoView !== "function") {
               return;
             }
