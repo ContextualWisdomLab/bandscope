@@ -64,7 +64,7 @@ def test_preflight_rejects_untrusted_container_metadata(
     with pytest.raises(AudioResourcePolicyError) as caught_error:
         preflight_audio_metadata(io.BytesIO(b"header"))
 
-    assert caught_error.value.reason == policy_reason
+    assert caught_error.value.rejection_reason == policy_reason
 
 
 @patch(
@@ -76,8 +76,8 @@ def test_preflight_maps_probe_failures_to_payload_free_policy_error(_mock_info: 
     with pytest.raises(AudioResourcePolicyError) as caught_error:
         preflight_audio_metadata(io.BytesIO(b"bad-header"))
 
-    assert caught_error.value.reason == "malformed_header"
-    assert "decoder detail" not in caught_error.value.message
+    assert caught_error.value.rejection_reason == "malformed_header"
+    assert "decoder detail" not in caught_error.value.safe_message
 
 
 @patch("bandscope_analysis.audio_metadata.soundfile.info")
@@ -104,8 +104,8 @@ def test_preflight_maps_rewind_failures_to_payload_free_policy_error(mock_info: 
     with pytest.raises(AudioResourcePolicyError) as caught_error:
         preflight_audio_metadata(SeekFailsAfterProbe())
 
-    assert caught_error.value.reason == "malformed_header"
-    assert "rewind failed" not in caught_error.value.message
+    assert caught_error.value.rejection_reason == "malformed_header"
+    assert "rewind failed" not in caught_error.value.safe_message
 
 
 def test_path_preflight_uses_local_decoder_metadata_for_compressed_containers(
@@ -147,8 +147,8 @@ def test_path_preflight_rejects_when_compressed_metadata_fallback_fails(tmp_path
         with pytest.raises(AudioResourcePolicyError) as caught_error:
             preflight_audio_metadata(audio_source)
 
-    assert caught_error.value.reason == "malformed_header"
-    assert "decoder detail" not in caught_error.value.message
+    assert caught_error.value.rejection_reason == "malformed_header"
+    assert "decoder detail" not in caught_error.value.safe_message
 
 
 def test_path_preflight_uses_libsndfile_metadata_when_available(tmp_path) -> None:
@@ -186,4 +186,4 @@ def test_path_preflight_preserves_policy_errors_from_decoder_metadata(tmp_path) 
         with pytest.raises(AudioResourcePolicyError) as caught_error:
             preflight_audio_metadata(audio_source)
 
-    assert caught_error.value.reason == "channel_count_unsupported"
+    assert caught_error.value.rejection_reason == "channel_count_unsupported"
