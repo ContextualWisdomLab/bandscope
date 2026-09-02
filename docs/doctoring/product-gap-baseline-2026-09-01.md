@@ -77,3 +77,30 @@ Historical queue observations remain useful only as dated evidence. On 2026-09-0
 Review findings previously validated on #1116 included stale PR evidence, a false repository-wide Mermaid-absence claim, stale product-owner issue numbers, and prose-inherited live Noema/PR claims. In this cycle a fresh reviewer also reported that the documentation gate lacked four project-recovery transitions. Exact-head revalidation showed the finding had already become stale: `scripts/checks/verify_docs.py` requires the four origin-preserving transitions and the canonical baseline contains all four exactly. The stale thread was answered with exact-head evidence and resolved without weakening the checker or churning correct source.
 
 A historical review-gate example remains instructive. PR #956 once had a predecessor exact-head Strix failure unrelated to its articulation privacy code. The central workflow exhausted the NVIDIA primary, encountered an EOL NVIDIA fallback, then used GPT-5.4 through `/v1/chat/completions` with function tools plus non-none reasoning effort; the provider rejected that contract. `ContextualWisdomLab/.github#1350` repaired the GPT-5.4 tool/reasoning contract in commit `f655a901f7ccdfef0d62694c818ad2896a2f5da1`. At that historical capture, `.github/main@1186a9f4e5eda7683b23ae63d2c806831743432a` contained that fix. PR #956 was then advanced through ordinary history to `e46a7aa3121c902ebcf9ea9d256a199659a482df` using the identical tree so fresh workflows could be created. This evidence remains historical and must be re-fetched before any current action.
+
+PR #1117 similarly demonstrated that the queue cannot be truthfully summarized as “all code checks fail”: at its historical capture, exact head `b98f266d2356d56be624fb617580b5252e85baaa` had successful repository CI/release/security/SBOM workflows while `opencode-review` remained in progress. Pending was still non-passing, but it had a different cause from older blanket claims.
+
+## Research / standards review
+
+The baseline uses current authoritative standards/research as acceptance anchors rather than decorative citations:
+
+- ISO/IEC 25010:2023 defines the current SQuaRE product-quality model and supports requirements, design objectives, testing objectives, acceptance criteria, and product-quality evaluation.
+- NIST SP 800-218 SSDF v1.1 emphasizes tracked security requirements/design decisions, provenance, and root-cause-oriented secure development.
+- WCAG 2.2 is a W3C Recommendation covering focus visibility, dragging alternatives, target size, consistent help, redundant entry, accessible authentication, and the broader accessibility baseline required by the product.
+- MIREX real-recording evaluation practice supports rights-safe production-path MIR evidence rather than synthetic-only accuracy claims.
+
+### APA 7th references
+
+International Organization for Standardization, & International Electrotechnical Commission. (2023). *ISO/IEC 25010:2023 Systems and software engineering—Systems and software Quality Requirements and Evaluation (SQuaRE)—Product quality model* (2nd ed.). ISO.
+
+Music Information Retrieval Evaluation eXchange. (2025). *Audio beat tracking*. MIREX Wiki. https://music-ir.org/mirex/wiki/2025:Audio_Beat_Tracking
+
+Souppaya, M., Scarfone, K., & Dodson, D. (2022). *Secure Software Development Framework (SSDF) Version 1.1: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-218
+
+World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*. https://www.w3.org/TR/WCAG22/
+
+## Decision
+
+PR #1116 remains the canonical baseline owner. Its source contains the complete recovered PRD/TRD/DDD/naming/Rust/science/security/UI/quality/release/traceability contract plus current delivery evidence. PR #1025 is an older competing owner of the same path; it may only be closed as superseded when every unique semantic requirement remains executable or represented in the canonical source and its discussion history is preserved.
+
+Future loops should refresh live counts and exact-head evidence when they materially change prioritization or causal ownership. They must not rewrite stable product/architecture sections merely to chase a volatile PR number, and they must never repeat the predecessor truncation failure by replacing a complete canonical document with a partial census fragment.
