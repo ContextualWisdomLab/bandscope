@@ -198,7 +198,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     () => safeProjectBootstrapSummary(sourceBootstrap),
     [sourceBootstrap]
   );
-  const rehearsalSourceIdentity = parsedSourceBootstrap?.projectId ?? song.id;
+  const rehearsalSourceIdentity = parsedSourceBootstrap
+    ? `project:${parsedSourceBootstrap.projectId}`
+    : `song:${song.id}`;
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
