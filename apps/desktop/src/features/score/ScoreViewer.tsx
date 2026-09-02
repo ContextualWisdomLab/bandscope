@@ -70,7 +70,7 @@ export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreVi
       return;
     }
 
-    let cancelled = false;
+    let pdfLoadCancelled = false;
     setViewerStatus("LOADING");
     setErrorMessage(null);
     setPdfDocument(null);
@@ -78,7 +78,7 @@ export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreVi
     const loadingTask = loadScorePdf(scorePdfBytes);
     loadingTask.promise
       .then((loadedDocument) => {
-        if (cancelled) {
+        if (pdfLoadCancelled) {
           return;
         }
         setPdfDocument(loadedDocument);
@@ -87,7 +87,7 @@ export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreVi
         setViewerStatus("READY");
       })
       .catch((error: unknown) => {
-        if (cancelled) {
+        if (pdfLoadCancelled) {
           return;
         }
         setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -95,7 +95,7 @@ export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreVi
       });
 
     return () => {
-      cancelled = true;
+      pdfLoadCancelled = true;
       void loadingTask.destroy().catch(() => undefined);
     };
   }, [scorePdfBytes, retryToken]);
@@ -125,13 +125,13 @@ export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreVi
       return;
     }
 
-    let cancelled = false;
+    let pageRenderCancelled = false;
     let renderTask: RenderTask | null = null;
 
     pdfDocument
       .getPage(pageNumber)
       .then((pdfPage) => {
-        if (cancelled) {
+        if (pageRenderCancelled) {
           return;
         }
         const baseViewport = pdfPage.getViewport({ scale: 1 });
@@ -150,7 +150,7 @@ export function ScoreViewer({ scorePdfBytes, fileName, onStatusChange }: ScoreVi
       });
 
     return () => {
-      cancelled = true;
+      pageRenderCancelled = true;
       renderTask?.cancel();
     };
   }, [viewerStatus, pdfDocument, pageNumber, zoomScale, fitWidth, containerWidth]);
