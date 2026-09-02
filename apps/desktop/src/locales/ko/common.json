@@ -156,6 +156,9 @@
   "firstStopOpenActionBand": "{at} 첫 스톱 위치 열기",
   "firstStopBody": "{at} {section}에서 {role} 파트가 컷합니다.",
   "firstStopBodyBand": "밴드가 {at} {section}에서 컷합니다.",
+  "firstStopRouteBoth": "{previousSection} 다음에 여기서 함께 끊고, {nextSection}에서 다시 들어옵니다.",
+  "firstStopRouteNext": "여기서 함께 끊고, {nextSection}에서 다시 들어옵니다.",
+  "firstStopRoutePrevious": "{previousSection} 다음에 여기서 함께 끊고, 다음 다운비트에서 다시 들어옵니다.",
   "firstStopArmed": "{at}에서 {role} 컷을 지키세요. 그대로 밀고 가지 마세요.",
   "firstStopArmedBand": "{at}에서 컷을 지키세요. 그대로 밀고 가지 마세요.",
   "firstStopUnavailable": "아직 스톱이 없습니다. 컷이 표시될 때까지 오늘 지도에 머무르세요.",
@@ -165,5 +168,7 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "sectionStopNextAction": "여기서 함께 끊고, {nextSectionLabel}에서 다시 들어옵니다.",
+  "sectionStopNextActionBare": "여기서 함께 끊고, 다음 다운비트에서 다시 들어옵니다."
 }

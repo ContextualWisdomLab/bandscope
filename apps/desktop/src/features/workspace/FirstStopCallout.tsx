@@ -15,7 +15,9 @@ export interface FirstStopCalloutProps {
   onHearStop?: (atSeconds: number) => void;
 }
 
-type StopCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
+type StopCopyValues = Readonly<
+  Record<"role" | "section" | "at" | "previousSection" | "nextSection", string>
+>;
 
 type HeardStop = Readonly<{
   songId: string;
@@ -27,7 +29,7 @@ type HeardStop = Readonly<{
 
 /** Interpolate stop placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatStopCopy(template: string, values: StopCopyValues): string {
-  return template.replace(/\{(role|section|at)\}/g, (placeholder) => {
+  return template.replace(/\{(role|section|at|previousSection|nextSection)\}/g, (placeholder) => {
     const key = placeholder.slice(1, -1) as keyof StopCopyValues;
     return values[key] ?? placeholder;
   });
@@ -85,7 +87,13 @@ export function FirstStopCallout({
   const copyValues: StopCopyValues = {
     role: stop.holdingRole?.name ?? "",
     section: translateSectionFormLabel(locale, stop.section.label),
-    at
+    at,
+    previousSection: stop.previousSectionLabel
+      ? translateSectionFormLabel(locale, stop.previousSectionLabel)
+      : "",
+    nextSection: stop.nextSectionLabel
+      ? translateSectionFormLabel(locale, stop.nextSectionLabel)
+      : ""
   };
   const hasRole = stop.holdingRole !== null;
   const actionLabel = formatStopCopy(
@@ -102,6 +110,14 @@ export function FirstStopCallout({
   );
   const body = formatStopCopy(t(hasRole ? "firstStopBody" : "firstStopBodyBand"), copyValues);
   const armed = formatStopCopy(t(hasRole ? "firstStopArmed" : "firstStopArmedBand"), copyValues);
+  const route =
+    stop.previousSectionLabel && stop.nextSectionLabel
+      ? formatStopCopy(t("firstStopRouteBoth"), copyValues)
+      : stop.nextSectionLabel
+        ? formatStopCopy(t("firstStopRouteNext"), copyValues)
+        : stop.previousSectionLabel
+          ? formatStopCopy(t("firstStopRoutePrevious"), copyValues)
+          : null;
   const canExecuteAction = actionMode === "workspace-scroll" || typeof onHearStop === "function";
   /** Record completion only after the owning surface has executed the selected stop action. */
   const markStopActionComplete = () => {
@@ -122,6 +138,11 @@ export function FirstStopCallout({
     >
       <p className="text-xs font-black uppercase tracking-[0.24em] text-rose-200">{t("firstStopLabel")}</p>
       <p className="mt-2 text-sm leading-6 text-slate-300">{heard ? armed : body}</p>
+      {route ? (
+        <p className="mt-1 text-sm leading-6 text-slate-200" data-testid="first-stop-route">
+          {route}
+        </p>
+      ) : null}
       {canExecuteAction ? (
         <Button
           type="button"

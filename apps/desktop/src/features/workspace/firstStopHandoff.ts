@@ -7,11 +7,13 @@ import {
 
 const PRIORITY_RANK = { high: 0, medium: 1, low: 2 } as const;
 
-/** Tonight's first stop: the earliest labeled cut and the part that holds it. */
+/** Tonight's first stop: the earliest labeled cut, its holder, and adjacent form context. */
 export type FirstStopHandoff = {
   section: RehearsalSection;
   holdingRole: RehearsalRole | null;
   atSeconds: number;
+  previousSectionLabel: string | null;
+  nextSectionLabel: string | null;
 };
 
 /** Format a non-negative stop time as m:ss for rehearsal copy. */
@@ -129,29 +131,62 @@ function rankedActiveRoles(section: RehearsalSection): RehearsalRole[] {
   );
 }
 
+/** Validate section identities once so a duplicate cannot redirect a map action. */
+function uniqueRuntimeSections(song: RehearsalSong): RehearsalSection[] | null {
+  const sections: RehearsalSection[] = [];
+  const seenSectionIds = new Set<string>();
+  for (const sectionValue of song.sections as unknown[]) {
+    if (!isRuntimeObject(sectionValue)) {
+      return null;
+    }
+    const section = sectionValue as RehearsalSection;
+    if (typeof section.id !== "string" || section.id.trim().length === 0) {
+      return null;
+    }
+    const sectionId = section.id.trim();
+    if (seenSectionIds.has(sectionId)) {
+      return null;
+    }
+    seenSectionIds.add(sectionId);
+    sections.push(section);
+  }
+  return sections;
+}
+
+/** Return a buyer-safe form label or null rather than echoing malformed runtime data. */
+function safeSectionLabel(section: RehearsalSection | undefined): string | null {
+  if (!section || typeof section.label !== "string") {
+    return null;
+  }
+  const label = section.label.trim();
+  return label.length > 0 ? label : null;
+}
+
 /** Return the first labeled stop, or null when no safe cut remains. */
 export function resolveFirstStopHandoff(song: RehearsalSong): FirstStopHandoff | null {
   if (!isRuntimeObject(song) || !Array.isArray(song.sections)) {
     return null;
   }
 
-  const stopSections = song.sections
-    .filter(
-      (section) =>
-        isRuntimeObject(section) &&
-        section.label === "stop" &&
-        typeof section.id === "string" &&
-        section.id.trim().length > 0 &&
-        hasBoundedTimeRange(section)
-    )
+  const uniqueSections = uniqueRuntimeSections(song);
+  if (!uniqueSections) {
+    return null;
+  }
+
+  const timelineSections = uniqueSections
+    .filter((section) => hasBoundedTimeRange(section))
     .sort((left, right) => {
       if (left.timeRange.start !== right.timeRange.start) {
         return left.timeRange.start - right.timeRange.start;
       }
       return left.id.localeCompare(right.id);
     });
+  const stopIndex = timelineSections.findIndex((section) => section.label === "stop");
+  if (stopIndex < 0) {
+    return null;
+  }
 
-  const section = stopSections[0];
+  const section = timelineSections[stopIndex];
   if (!section) {
     return null;
   }
@@ -159,6 +194,8 @@ export function resolveFirstStopHandoff(song: RehearsalSong): FirstStopHandoff |
   return {
     section,
     holdingRole: pickHighestPriorityRole(rankedActiveRoles(section)),
-    atSeconds: section.timeRange.start
+    atSeconds: section.timeRange.start,
+    previousSectionLabel: safeSectionLabel(timelineSections[stopIndex - 1]),
+    nextSectionLabel: safeSectionLabel(timelineSections[stopIndex + 1])
   };
 }
