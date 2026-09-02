@@ -24,8 +24,14 @@ type FakeOscillator = {
   type: OscillatorType;
 };
 
-function installPlayableAudioMocks(): FakeOscillator[] {
+type PlayableAudioMocks = {
+  closeAudioContext: ReturnType<typeof vi.fn>;
+  oscillators: FakeOscillator[];
+};
+
+function installPlayableAudioMocks(): PlayableAudioMocks {
   const oscillators: FakeOscillator[] = [];
+  const closeAudioContext = vi.fn(async () => undefined);
   Object.defineProperty(navigator, "language", {
     configurable: true,
     value: "en-US",
@@ -45,6 +51,7 @@ function installPlayableAudioMocks(): FakeOscillator[] {
     destination = {};
     state: AudioContextState = "running";
 
+    close = closeAudioContext;
     resume = vi.fn(async () => undefined);
 
     createGain() {
@@ -79,7 +86,7 @@ function installPlayableAudioMocks(): FakeOscillator[] {
     writable: true,
     value: FakeAudioContext,
   });
-  return oscillators;
+  return { closeAudioContext, oscillators };
 }
 
 afterEach(() => {
@@ -104,7 +111,7 @@ afterEach(() => {
 
 it("sounds the transport count-in without replaying a beat when playback rate changes", () => {
   vi.useFakeTimers();
-  const oscillators = installPlayableAudioMocks();
+  const { oscillators } = installPlayableAudioMocks();
   const song = createDemoRehearsalSong();
 
   render(
@@ -143,4 +150,23 @@ it("sounds the transport count-in without replaying a beat when playback rate ch
 
   fireEvent.click(screen.getByRole("button", { name: /Pause/i }));
   expect(oscillators[1]?.stop).toHaveBeenCalledTimes(2);
+});
+
+it("closes the count-in audio context when the mounted player unmounts", () => {
+  const { closeAudioContext, oscillators } = installPlayableAudioMocks();
+  const song = createDemoRehearsalSong();
+  const { unmount } = render(
+    <RehearsalPlayer
+      song={song}
+      hasLocalAudio={true}
+      audioSourcePath={audioSourcePath}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
+  expect(oscillators).toHaveLength(1);
+
+  unmount();
+
+  expect(closeAudioContext).toHaveBeenCalledTimes(1);
 });
