@@ -145,7 +145,13 @@ def test_pipeline_without_detected_sections_falls_back() -> None:
 
 def test_pipeline_maps_detected_stop_time_to_section_before_reentry() -> None:
     """Ensure an analyzed all-stem cutoff reaches the stable section consumed by the workspace."""
-    audio_stems = _make_realistic_stems(sr=22050, duration=20.0)
+    sample_rate = 22050
+    audio_stems = _make_realistic_stems(sr=sample_rate, duration=20.0)
+    stop_start_sample = int(sample_rate * 9.4)
+    stop_end_sample = int(sample_rate * 10.0)
+    for stem_audio in audio_stems.values():
+        stem_audio[stop_start_sample:stop_end_sample] = 0.0
+
     detected_sections = [
         {
             "id": "verse-1",
@@ -175,10 +181,6 @@ def test_pipeline_maps_detected_stop_time_to_section_before_reentry() -> None:
             "bandscope_analysis.api.segment_with_boundaries",
             return_value=(detected_sections, section_boundaries),
         ),
-        patch(
-            "bandscope_analysis.api.detect_stop_time",
-            return_value=[{"start_time": 9.4, "end_time": 10.0}],
-        ),
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
@@ -188,7 +190,7 @@ def test_pipeline_maps_detected_stop_time_to_section_before_reentry() -> None:
         rehearsal_song = build_demo_rehearsal_song(
             {
                 "stems": audio_stems,
-                "sr": 22050,
+                "sr": sample_rate,
                 "separation": {
                     "duration_seconds": 20.0,
                     "chunk_count": 1,
