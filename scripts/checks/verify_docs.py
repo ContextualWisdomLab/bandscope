@@ -1,7 +1,7 @@
 """Verify that required repository documentation files and references exist."""
 
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 REQUIRED_PATHS = [
     Path("README.md"),
@@ -106,13 +106,43 @@ def mermaid_state_diagrams(content: str) -> list[str]:
     return diagrams
 
 
+def mermaid_transition_statements(diagram: str) -> set[str]:
+    """Return normalized executable transition statements from one state diagram."""
+    transitions: set[str] = set()
+
+    for raw_line in diagram.splitlines():
+        line = raw_line.strip()
+        if not line or line == "stateDiagram-v2" or line.startswith("%%"):
+            continue
+        if "%%" in line:
+            line = line.split("%%", maxsplit=1)[0].rstrip()
+        if "-->" not in line or ":" not in line:
+            continue
+
+        transition_path, transition_label = line.split(":", maxsplit=1)
+        source_state, target_state = transition_path.split("-->", maxsplit=1)
+        source_state = " ".join(source_state.split())
+        target_state = " ".join(target_state.split())
+        transition_label = " ".join(transition_label.split())
+        if not source_state or not target_state or not transition_label:
+            continue
+
+        transitions.add(f"{source_state} --> {target_state}: {transition_label}")
+
+    return transitions
+
+
 def missing_state_diagram_references(
     content: str,
     required_texts: Sequence[str],
 ) -> list[str]:
-    """Require related transitions to coexist in one Mermaid state diagram."""
+    """Require exact related transitions to coexist in one Mermaid state diagram."""
     diagrams = mermaid_state_diagrams(content)
-    if any(all(required_text in diagram for required_text in required_texts) for diagram in diagrams):
+    required_transitions = set(required_texts)
+    if any(
+        required_transitions.issubset(mermaid_transition_statements(diagram))
+        for diagram in diagrams
+    ):
         return []
     return list(required_texts)
 
