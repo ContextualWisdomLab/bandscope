@@ -67,6 +67,8 @@ def test_runtime_demo_audio_size_matches_packaged_artifact() -> None:
 
     assert runtime_size_match is not None
     runtime_demo_audio_bytes = int(runtime_size_match.group("demo_audio_bytes"))
-    packaged_demo_audio_bytes = (DEMO_RESOURCE_ROOT / "late-night-set.wav").stat().st_size
+    packaged_demo_audio_bytes = (
+        DEMO_RESOURCE_ROOT / "late-night-set.wav"
+    ).stat().st_size
 
     assert runtime_demo_audio_bytes == packaged_demo_audio_bytes
