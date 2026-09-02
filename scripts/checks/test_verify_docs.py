@@ -33,6 +33,44 @@ class StateDiagramReferenceTests(unittest.TestCase):
 
         self.assertEqual(missing, list(RECOVERY_TRANSITIONS))
 
+    def test_rejects_required_transition_that_only_exists_in_mermaid_comment(self) -> None:
+        """Commented-out transitions must not satisfy the executable diagram gate."""
+        diagram = "\n".join(
+            (
+                "```mermaid",
+                "stateDiagram-v2",
+                *(f"    {transition}" for transition in RECOVERY_TRANSITIONS[:-1]),
+                f"    %% {RECOVERY_TRANSITIONS[-1]}",
+                "```",
+            )
+        )
+
+        missing = VERIFY_DOCS.missing_state_diagram_references(
+            diagram,
+            RECOVERY_TRANSITIONS,
+        )
+
+        self.assertEqual(missing, list(RECOVERY_TRANSITIONS))
+
+    def test_rejects_required_transition_embedded_in_another_statement(self) -> None:
+        """A required transition must be a complete statement, not label text."""
+        diagram = "\n".join(
+            (
+                "```mermaid",
+                "stateDiagram-v2",
+                *(f"    {transition}" for transition in RECOVERY_TRANSITIONS[:-1]),
+                f"    OtherState --> Ready: notes {RECOVERY_TRANSITIONS[-1]}",
+                "```",
+            )
+        )
+
+        missing = VERIFY_DOCS.missing_state_diagram_references(
+            diagram,
+            RECOVERY_TRANSITIONS,
+        )
+
+        self.assertEqual(missing, list(RECOVERY_TRANSITIONS))
+
     def test_accepts_transitions_in_state_diagram(self) -> None:
         """A Mermaid stateDiagram-v2 containing every transition satisfies the gate."""
         diagram = "\n".join(
