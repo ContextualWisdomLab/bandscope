@@ -16,9 +16,9 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: data: blob:; style-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost; media-src 'self' asset: http://asset.localhost data: blob:; font-src 'self' data:",
+      "csp": "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost; media-src 'self' bandscope-playback: http://bandscope-playback.localhost data: blob:; font-src 'self' data:",
       "assetProtocol": {
-        "enable": true,
+        "enable": false,
         "scope": []
       },
       "capabilities": ["main-capability"]
