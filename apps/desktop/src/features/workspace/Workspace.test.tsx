@@ -140,6 +140,40 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
+  it("finds tonight's first range on the section roadmap", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" }));
+
+    expect(screen.getByTestId("section-roadmap-section-verse-1")).toHaveAttribute("aria-current", "location");
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).toHaveAttribute("aria-current", "true");
+  });
+
+  it("hides the roadmap find control when the named section identity is duplicated", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections.push({
+      ...song.sections[0]!,
+      id: "verse-2",
+      label: "verse"
+    });
+
+    render(<Workspace song={song} />);
+
+    expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
+  });
+
+  it("localizes the first-range roadmap find control", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByRole("button", { name: "로드맵에서 Bass Guitar verse 찾기" })).toBeTruthy();
+  });
+
   it("names tonight's first playable range and the next instrument check", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -151,6 +185,7 @@ describe("Workspace", () => {
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
     );
+    expect(screen.getByRole("button", { name: "Find verse for Bass Guitar on the roadmap" })).toBeTruthy();
   });
 
   it("asks for an ear check when the selected part has no named span", () => {
@@ -167,6 +202,7 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section."
     );
+    expect(screen.queryByRole("button", { name: /Find .+ on the roadmap/ })).toBeNull();
   });
 
   it("limits the range callout to the selected role", () => {

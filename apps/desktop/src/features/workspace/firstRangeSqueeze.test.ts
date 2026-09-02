@@ -1,6 +1,6 @@
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { describe, expect, it } from "vitest";
-import { fillRangeCopy, firstRangeSqueeze, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
+import { firstRangeRoadmap, fillRangeCopy, firstRangeSqueeze, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
 
 function blankRoleRange(song: RehearsalSong): RehearsalSong {
   return {
@@ -137,6 +137,81 @@ describe("firstRangeSqueeze", () => {
   it("returns null when no selected role has both notes", () => {
     expect(firstRangeSqueeze(blankRoleRange(createDemoRehearsalSong()))).toBeNull();
     expect(firstRangeSqueeze(createDemoRehearsalSong(), "missing-role")).toBeNull();
+  });
+});
+
+describe("firstRangeRoadmap", () => {
+  it("returns the unique section and part for tonight's first named span", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toEqual({
+      sectionId: "verse-1",
+      roleId: "bass-guitar",
+      sectionLabel: "verse",
+      roleName: "Bass Guitar"
+    });
+  });
+
+  it("limits the roadmap target to the selected role", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong, "lead-vocal"))).toEqual({
+      sectionId: "verse-1",
+      roleId: "lead-vocal",
+      sectionLabel: "verse",
+      roleName: "Lead Vocal"
+    });
+  });
+
+  it("fails closed when the named section label is duplicated", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections.push({
+      ...rehearsalSong.sections[0]!,
+      id: "verse-2",
+      label: "verse"
+    });
+
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+  });
+
+  it("fails closed when the matching section identifier is duplicated", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections.push({
+      ...rehearsalSong.sections[0]!,
+      id: "verse-1",
+      label: "chorus"
+    });
+
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+  });
+
+  it("fails closed when the named part is duplicated on the matching section", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections[0]!.roles.push({
+      ...rehearsalSong.sections[0]!.roles[0]!,
+      id: "bass-guitar-double"
+    });
+
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+  });
+
+  it("fails closed when the matching role identifier is duplicated", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    rehearsalSong.sections[0]!.roles[1] = {
+      ...rehearsalSong.sections[0]!.roles[1]!,
+      id: "bass-guitar"
+    };
+
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+  });
+
+  it("fails closed on missing squeeze, blank identifiers, and malformed roots", () => {
+    const rehearsalSong = createDemoRehearsalSong();
+    expect(firstRangeRoadmap(rehearsalSong, null)).toBeNull();
+    expect(firstRangeRoadmap({} as RehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+
+    rehearsalSong.sections[0]!.id = " ";
+    expect(firstRangeRoadmap(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
   });
 });
 

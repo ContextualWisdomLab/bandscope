@@ -11,7 +11,7 @@ It is technically defined as a rehearsal-analysis product, not a single-output c
 - likely harmony by section and by role
 - section roadmap with entries, dropouts, pickups, stops, and handoffs
 - groove and timing cues
-- role ranges, overlap warnings, and simplification guidance
+- role ranges, overlap warnings, and simplification guidance, with the ready workspace naming tonight's first span and offering a control that finds that part on the section roadmap
 - transposition, capo, tuning, or setup cues where relevant
 - role-specific confidence and rehearsal priority
 

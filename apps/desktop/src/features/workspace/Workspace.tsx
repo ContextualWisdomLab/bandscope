@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeRoadmap, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,14 @@ interface WorkspaceProps {
   sourceBootstrap?: ProjectBootstrapSummary | null;
   onSongUpdate?: (song: RehearsalSong) => void;
 }
+
+/** Request identity for a user-initiated section-roadmap focus action. */
+type RoadmapFocusRequest = {
+  rehearsalSongId: string;
+  sectionId: string;
+  roleId: string;
+  requestSequence: number;
+};
 
 /** Documented. */
 function formatTimelineTime(totalSeconds: number): string {
@@ -121,6 +129,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [roadmapFocusRequest, setRoadmapFocusRequest] = useState<RoadmapFocusRequest | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -163,6 +172,35 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstRangeBoard = firstRangeRoadmap(song, firstRange);
+  const firstRangeFindCopy = firstRangeBoard
+    ? fillRangeCopy(t("workspaceFirstRangeFindRoadmap"), {
+        sectionLabel: firstRangeBoard.sectionLabel,
+        roleName: firstRangeBoard.roleName
+      })
+    : null;
+  const focusedSectionId =
+    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.sectionId : null;
+  const focusedRoleId =
+    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.roleId : null;
+  const focusRequestSequence =
+    roadmapFocusRequest?.rehearsalSongId === song.id ? roadmapFocusRequest.requestSequence : 0;
+
+  /** Request the first-range roadmap cell on every activation, even when it is already highlighted. */
+  const handleFindFirstRangeRoadmap = () => {
+    if (!firstRangeBoard) {
+      return;
+    }
+    setRoadmapFocusRequest((previousFocusRequest) => ({
+      rehearsalSongId: song.id,
+      sectionId: firstRangeBoard.sectionId,
+      roleId: firstRangeBoard.roleId,
+      requestSequence:
+        previousFocusRequest?.rehearsalSongId === song.id
+          ? previousFocusRequest.requestSequence + 1
+          : 1
+    }));
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +346,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+            {firstRangeBoard && firstRangeFindCopy ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                onClick={handleFindFirstRangeRoadmap}
+              >
+                {firstRangeFindCopy}
+              </Button>
+            ) : null}
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -506,6 +555,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             activeRole={activeRole}
             onSongUpdate={onSongUpdate}
+            focusSectionId={focusedSectionId}
+            focusRoleId={focusedRoleId}
+            focusRequestSequence={focusRequestSequence}
           />
           </section>
         </CardContent>
