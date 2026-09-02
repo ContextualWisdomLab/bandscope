@@ -54,6 +54,7 @@ import {
   InPageNavList,
 } from "./in-page-nav"
 import { Toaster, toast } from "./sonner"
+import { Textarea } from "./textarea"
 
 describe("added ui primitives (runtime render)", () => {
   it("Table renders header, row and cell", () => {
@@ -244,5 +245,11 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Textarea mounts and accepts text", () => {
+    const { container } = render(<Textarea placeholder="test textarea" />)
+    expect(container.querySelector('[data-slot="textarea"]')).toBeTruthy()
+    expect(screen.getByPlaceholderText("test textarea")).toBeTruthy()
   })
 })
