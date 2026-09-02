@@ -141,6 +141,8 @@ def test_refresh_preserves_reviewed_overlap_and_defaults_new_prs_to_unowned() ->
             "title": f"PR {number}",
             "html_url": f"https://github.com/ContextualWisdomLab/bandscope/pull/{number}",
             "state": "open",
+            "draft": False,
+            "updated_at": "2026-09-01T00:00:00Z",
             "base": {"ref": "develop", "sha": "d" * 40},
             "head": {"sha": head_sha},
         }
