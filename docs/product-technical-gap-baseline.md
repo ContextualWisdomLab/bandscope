@@ -229,7 +229,7 @@ If decode, analysis, persistence, or playback fails, the error remains typed and
 stateDiagram-v2
     [*] --> NoSource
     NoSource --> InitialSourceSelecting: choose source
-    NoSource --> Recovering: project recovery requested
+    NoSource --> RecoveringWithoutSource: project recovery requested
     InitialSourceSelecting --> Ready: source admitted
     InitialSourceSelecting --> NoSource: cancelled/failed initial selection
     Ready --> ReplacementSourceSelecting: replace source
@@ -252,13 +252,16 @@ stateDiagram-v2
     Looping --> ReplacementSourceSelecting: replace source requested / stop transport
     LoopPaused --> ReplacementSourceSelecting: replace source requested
     Ready --> NoSource: clear source
-    Ready --> Recovering: project recovery requested
-    Recovering --> Ready: last-known-good restored
-    Recovering --> RecoveryFailed: no valid recoverable snapshot
-    RecoveryFailed --> NoSource: recovery failure acknowledged
+    Ready --> RecoveringWithSource: project recovery requested
+    RecoveringWithoutSource --> Ready: last-known-good restored
+    RecoveringWithoutSource --> RecoveryFailedWithoutSource: no valid recoverable snapshot
+    RecoveryFailedWithoutSource --> NoSource: recovery failure acknowledged
+    RecoveringWithSource --> Ready: last-known-good restored
+    RecoveringWithSource --> RecoveryFailedWithSource: no valid recoverable snapshot
+    RecoveryFailedWithSource --> Ready: recovery failure acknowledged / keep prior source
 ```
 
-The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. Initial admission and replacement use distinct selection-intent states so cancellation has one unambiguous outcome: a cancelled or failed initial selection returns to no source, while a cancelled or failed replacement returns to the prior admitted source. Source replacement is transactional: a pending replacement must not erase the prior admitted source; conflicting source/import/analysis actions remain unavailable until selection resolves. Acknowledging a failed project recovery clears the failed recovery attempt and returns to `NoSource`, where the user can select a source or explicitly request recovery again; it never manufactures a successful recovered state. UI components, cue cards, map cursors, and persisted project data project from the owning authority rather than creating competing writable state. Project publication **must become** atomic and crash-safe; that is a target persistence contract, not a shipped guarantee, and this state diagram does not prove it.
+The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. Initial admission and replacement use distinct selection-intent states so cancellation has one unambiguous outcome: a cancelled or failed initial selection returns to no source, while a cancelled or failed replacement returns to the prior admitted source. Source replacement is transactional: a pending replacement must not erase the prior admitted source; conflicting source/import/analysis actions remain unavailable until selection resolves. Recovery likewise preserves its origin: acknowledging a failed recovery requested from `NoSource` returns to `NoSource`, while a failed recovery requested from `Ready` returns to `Ready` with the prior admitted source unchanged. Either state can explicitly request recovery again, and failure never manufactures a successful recovered state. UI components, cue cards, map cursors, and persisted project data project from the owning authority rather than creating competing writable state. Project publication **must become** atomic and crash-safe; that is a target persistence contract, not a shipped guarantee, and this state diagram does not prove it.
 
 ### 7.4 Persistence and contract versioning
 
