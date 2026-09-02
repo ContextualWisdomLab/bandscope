@@ -40,6 +40,12 @@ function songWithRouteContext() {
   return song;
 }
 
+function songWithTerminalStop() {
+  const terminalSong = songWithRouteContext();
+  terminalSong.sections = terminalSong.sections.slice(0, 2);
+  return terminalSong;
+}
+
 describe("first-stop route context succession", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -50,6 +56,15 @@ describe("first-stop route context succession", () => {
 
     expect(result?.previousSectionLabel).toBe("verse");
     expect(result?.nextSectionLabel).toBe("chorus");
+    expect(result?.hasFollowingSection).toBe(true);
+  });
+
+  it("distinguishes a terminal stop from an unnamed following section", () => {
+    const result = resolveFirstStopHandoff(songWithTerminalStop());
+
+    expect(result?.previousSectionLabel).toBe("verse");
+    expect(result?.nextSectionLabel).toBeNull();
+    expect(result?.hasFollowingSection).toBe(false);
   });
 
   it("names the re-entry in the existing actionable stop callout without adding a second static card", () => {
@@ -59,6 +74,14 @@ describe("first-stop route context succession", () => {
 
     expect(screen.getByText("After verse, cut together here. Come back in on chorus.")).toBeTruthy();
     expect(screen.getAllByLabelText("Tonight's first stop")).toHaveLength(1);
+  });
+
+  it("omits invented re-entry copy when the validated stop ends the song", () => {
+    vi.stubGlobal("navigator", { language: "en-US" });
+
+    render(<FirstStopCallout song={songWithTerminalStop()} />);
+
+    expect(screen.queryByTestId("first-stop-route")).toBeNull();
   });
 
   it("puts the re-entry action only on the validated stop roadmap card", () => {
@@ -71,5 +94,13 @@ describe("first-stop route context succession", () => {
     );
     expect(screen.queryByTestId("first-stop-action-verse-1")).toBeNull();
     expect(screen.queryByTestId("first-stop-action-chorus-1")).toBeNull();
+  });
+
+  it("omits a roadmap re-entry action when the validated stop is terminal", () => {
+    vi.stubGlobal("navigator", { language: "en-US" });
+
+    render(<SectionRoadmap song={songWithTerminalStop()} activeRole={null} />);
+
+    expect(screen.queryByTestId("first-stop-action-stop-1")).toBeNull();
   });
 });
