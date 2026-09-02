@@ -166,10 +166,31 @@ export function firstUnloggedPractice(
         roleName: evidence.roleName
       };
     }
-    if (isConsistentlyLogged(evidence.marks)) {
-      return { kind: "selected-logged" };
+    if (!isConsistentlyLogged(evidence.marks)) {
+      return { kind: "unavailable" };
     }
-    return { kind: "unavailable" };
+
+    for (const roleId of roleOrder) {
+      if (roleId === activeRole || invalidRoleIds.has(roleId)) {
+        continue;
+      }
+      const nextEvidence = evidenceByRole.get(roleId);
+      if (!nextEvidence) {
+        hasInvalidEvidence = true;
+        continue;
+      }
+      if (isConsistentlyUnlogged(nextEvidence.marks)) {
+        return { kind: "selected-logged" };
+      }
+      if (!isConsistentlyLogged(nextEvidence.marks)) {
+        hasInvalidEvidence = true;
+      }
+    }
+
+    if (roleOrder.length === 0 || invalidRoleIds.size > 0 || hasInvalidEvidence) {
+      return { kind: "unavailable" };
+    }
+    return { kind: "all-logged" };
   }
 
   for (const roleId of roleOrder) {

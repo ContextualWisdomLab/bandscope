@@ -50,7 +50,7 @@ describe("firstUnloggedPractice", () => {
     });
   });
 
-  it("distinguishes a selected part with a trustworthy practice mark", () => {
+  it("distinguishes a selected part with a trustworthy practice mark while another unlogged part remains", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[2] = {
       ...song.sections[0]!.roles[2]!,
@@ -58,6 +58,26 @@ describe("firstUnloggedPractice", () => {
     };
 
     expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({ kind: "selected-logged" });
+  });
+
+  it("reports all logged when the selected part is logged and no trustworthy unlogged part remains", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role, index) => ({
+      ...role,
+      practiceProgress: index * 40
+    }));
+
+    expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({ kind: "all-logged" });
+  });
+
+  it("does not claim all logged when selected-mode remainder evidence is malformed", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role, index) => ({
+      ...role,
+      practiceProgress: index === 1 ? (150 as unknown as number) : index * 40
+    }));
+
+    expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({ kind: "unavailable" });
   });
 
   it("skips malformed marks and duplicate role ids inside one section", () => {
