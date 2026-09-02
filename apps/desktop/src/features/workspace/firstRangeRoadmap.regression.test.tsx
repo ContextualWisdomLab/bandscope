@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { createDemoRehearsalSong, type ProjectBootstrapSummary } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 import { firstRangeRoadmap, firstRangeSqueeze } from "./firstRangeSqueeze";
@@ -23,6 +23,23 @@ function setReducedMotionPreference(reducedMotionPreferred: boolean) {
     configurable: true,
     value: vi.fn().mockReturnValue({ matches: reducedMotionPreferred })
   });
+}
+
+/** Create a valid local-audio project identity without exposing a real local path. */
+function projectBootstrap(projectId: string): ProjectBootstrapSummary {
+  return {
+    projectId,
+    sourceMode: "reference",
+    projectRoot: `/tmp/bandscope/projects/${projectId}`,
+    cacheRoot: `/tmp/bandscope/projects/${projectId}/cache`,
+    tempRoot: `/tmp/bandscope/projects/${projectId}/tmp`,
+    source: {
+      sourcePath: `/tmp/bandscope/projects/${projectId}/source.wav`,
+      fileName: "source.wav",
+      extension: "wav",
+      fileSizeBytes: 1024
+    }
+  };
 }
 
 describe("first-range roadmap interaction regressions", () => {
@@ -78,6 +95,42 @@ describe("first-range roadmap interaction regressions", () => {
     );
 
     renderedWorkspace.rerender(<Workspace song={replacementSong} />);
+
+    expect(screen.getByTestId("section-roadmap-section-verse-1")).not.toHaveAttribute(
+      "aria-current"
+    );
+    expect(screen.getByTestId("section-roadmap-role-verse-1-bass-guitar")).not.toHaveAttribute(
+      "aria-current"
+    );
+  });
+
+  it("does not carry focus across local projects that reuse the analyzed-song identity", () => {
+    installScrollRecorder();
+    const analyzedSong = {
+      ...createDemoRehearsalSong(),
+      id: "analyzed-song"
+    };
+    const replacementAnalysis = {
+      ...createDemoRehearsalSong(),
+      id: "analyzed-song"
+    };
+
+    const renderedWorkspace = render(
+      <Workspace song={analyzedSong} sourceBootstrap={projectBootstrap("project-one")} />
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Find verse for Bass Guitar on the roadmap"
+      })
+    );
+    expect(screen.getByTestId("section-roadmap-section-verse-1")).toHaveAttribute(
+      "aria-current",
+      "location"
+    );
+
+    renderedWorkspace.rerender(
+      <Workspace song={replacementAnalysis} sourceBootstrap={projectBootstrap("project-two")} />
+    );
 
     expect(screen.getByTestId("section-roadmap-section-verse-1")).not.toHaveAttribute(
       "aria-current"
