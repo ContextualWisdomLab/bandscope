@@ -13,6 +13,7 @@ python3 scripts/checks/test_verify_trivy_pr_scan.py
 python3 scripts/checks/test_verify_trivy_pr_scan_yaml_scalars.py
 python3 scripts/checks/test_verify_trivy_pr_scan_branch_patterns.py
 python3 scripts/checks/test_verify_trivy_pr_scan_commented_needs.py
+python3 scripts/checks/test_verify_trivy_pr_scan_upload_guards.py
 python3 scripts/checks/verify_trivy_pr_scan.py
 npm run lint
 npm run typecheck
