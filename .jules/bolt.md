@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2026-09-02 - List deduplication performance
+**Learning:** O(N^2) list membership checks (e.g., `if item not in lst: lst.append(item)`) inside loops are a significant bottleneck and should be replaced with O(1) dictionary key lookups. Note that dictionaries should not replace sets, as sets already provide O(1) lookups and are more memory efficient.
+**Action:** Replace list-based deduplication with `dict[item] = None` followed by `list(dict.keys())` in critical loops to achieve O(1) lookups while maintaining insertion order.
