@@ -158,7 +158,7 @@
   "firstStopBodyBand": "The band cuts the {section} at {at}.",
   "firstStopRouteBoth": "After {previousSection}, cut together here. Come back in on {nextSection}.",
   "firstStopRouteNext": "Cut together here. Come back in on {nextSection}.",
-  "firstStopRoutePrevious": "After {previousSection}, cut together here. Re-enter on the next downbeat.",
+  "firstStopRoutePrevious": "After {previousSection}, cut together here. Hold the cut.",
   "firstStopArmed": "Hold {role}'s cut at {at}. Do not play through it.",
   "firstStopArmedBand": "Hold the cut at {at}. Do not play through it.",
   "firstStopUnavailable": "No stop yet. Stay on tonight's map until a cut is marked.",
@@ -170,5 +170,5 @@
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}.",
   "sectionStopNextAction": "Cut together here, then come back in on {nextSectionLabel}.",
-  "sectionStopNextActionBare": "Cut together here, then come back in on the next downbeat."
+  "sectionStopNextActionBare": "Cut together here. Hold the cut."
 }
