@@ -122,7 +122,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
                 {section.groove}
               </div>
-              {tonightStop?.section === section ? (
+              {tonightStop?.section === section && tonightStop.hasFollowingSection ? (
                 <p
                   className="mt-2 text-xs font-medium leading-5 text-orange-100"
                   data-testid={`first-stop-action-${section.id}`}
