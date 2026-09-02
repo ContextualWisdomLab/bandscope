@@ -18,7 +18,7 @@ function installPlayableAudioMocks() {
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
-  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  return vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
 }
 
 function admitDuration(audio: HTMLAudioElement, duration: number) {
@@ -113,5 +113,32 @@ describe("RehearsalPlayer admitted media duration", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
     expect(startInput.value).toBe("10");
     expect(startInput.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("does not replay a rejected start request after selecting a covered loop", () => {
+    const play = installPlayableAudioMocks();
+    const song = createDemoRehearsalSong();
+    const coveredSection = structuredClone(song.sections[0]!);
+    coveredSection.id = "intro-covered";
+    coveredSection.label = "intro";
+    coveredSection.timeRange = { start: 0, end: 20 };
+    song.sections.push(coveredSection);
+
+    render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio
+        audioSourcePath={audioSourcePath}
+        startNonce={1}
+      />,
+    );
+
+    const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
+    admitDuration(audio, 25);
+    expect(play).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /intro/i }));
+
+    expect(play).not.toHaveBeenCalled();
   });
 });
