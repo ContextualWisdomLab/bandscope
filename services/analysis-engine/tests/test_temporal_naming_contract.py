@@ -55,19 +55,19 @@ REQUIRED_SEMANTIC_IDENTIFIERS = frozenset(
 def _module_identifiers(source_text: str) -> set[str]:
     """Return organization-owned Python identifiers declared or referenced by the module."""
     syntax_tree = ast.parse(source_text)
-    identifiers = {
+    module_identifiers = {
         node.id for node in ast.walk(syntax_tree) if isinstance(node, ast.Name)
     }
-    identifiers.update(
+    module_identifiers.update(
         node.arg for node in ast.walk(syntax_tree) if isinstance(node, ast.arg)
     )
-    return identifiers
+    return module_identifiers
 
 
 def test_temporal_stability_internal_identifiers_are_semantically_specific() -> None:
     """Require bounded-context names instead of generic one-word temporal identifiers."""
     source_text = TEMPORAL_STABILITY_MODULE.read_text(encoding="utf-8")
-    identifiers = _module_identifiers(source_text)
+    module_identifiers = _module_identifiers(source_text)
 
-    assert not LEGACY_UNDERSPECIFIED_IDENTIFIERS.intersection(identifiers)
-    assert REQUIRED_SEMANTIC_IDENTIFIERS.issubset(identifiers)
+    assert not LEGACY_UNDERSPECIFIED_IDENTIFIERS.intersection(module_identifiers)
+    assert REQUIRED_SEMANTIC_IDENTIFIERS.issubset(module_identifiers)
