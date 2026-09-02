@@ -1,5 +1,5 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
-import { meaningfulRangeText } from "./firstRangeSqueeze";
+import { firstRangeSqueeze, meaningfulRangeText } from "./firstRangeSqueeze";
 
 /** Tonight's next practice step after a named part is selected. */
 export type PracticeProgressNextAction = {
@@ -127,19 +127,25 @@ function consistentRoleProgress(
   return seen ? admitted : 0;
 }
 
+/** Return whether a named part has at least one admitted playable range. */
+function hasPlayableRange(song: RehearsalSong, roleId: string): boolean {
+  return firstRangeSqueeze(song, roleId) !== null;
+}
+
 /**
  * Pick tonight's next practice step after a named part is selected.
  *
  * A part that has not been marked started is told to check its first range
- * and then mark the part started. A part still below 100% is told to keep
- * practicing until it is ready for the room. A part marked ready names the
- * next named part that is not ready and tells the player to switch and check
- * that part's range. When every named part is ready, the next action is to
+ * only when a playable range is actually admitted. A part still below 100%
+ * is told to keep practicing until it is ready for the room. A part marked
+ * ready names the next named part that is not ready only when that part also
+ * has a playable range. When every named part is ready, the next action is to
  * download tonight's cue sheet and send it to the group. This is not a
  * leftover, come-in, tacet, or MIR product.
  *
  * Inherited or out-of-range progress, unnamed roles, conflicting section
- * copies, and malformed roots fail closed.
+ * copies, malformed roots, and actions that depend on unavailable ranges fail
+ * closed instead of presenting an impossible rehearsal instruction.
  */
 export function practiceProgressNextAction(
   song: RehearsalSong | unknown,
@@ -165,6 +171,9 @@ export function practiceProgressNextAction(
   }
 
   if (progress < 100) {
+    if (progress <= 0 && !hasPlayableRange(song as RehearsalSong, activeRole)) {
+      return null;
+    }
     return {
       kind: progress <= 0 ? "start" : "continue",
       roleId: activeRole,
@@ -182,6 +191,9 @@ export function practiceProgressNextAction(
       return null;
     }
     if (nextProgress < 100) {
+      if (!hasPlayableRange(song as RehearsalSong, roleId)) {
+        return null;
+      }
       return {
         kind: "ready-next",
         roleId: activeRole,
