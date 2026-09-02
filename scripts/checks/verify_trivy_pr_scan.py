@@ -11,7 +11,17 @@ def _indented_block(workflow_lines: list[str], mapping_header: str, mapping_inde
     indent_prefix = " " * mapping_indent
     mapping_target = f"{indent_prefix}{mapping_header}:"
     for line_index, workflow_line in enumerate(workflow_lines):
-        if workflow_line != mapping_target and not workflow_line.startswith(f"{mapping_target} #"):
+        mapping_suffix = (
+            workflow_line[len(mapping_target) :]
+            if workflow_line.startswith(mapping_target)
+            else ""
+        )
+        has_inline_comment = (
+            bool(mapping_suffix)
+            and mapping_suffix[0].isspace()
+            and mapping_suffix.lstrip().startswith("#")
+        )
+        if workflow_line != mapping_target and not has_inline_comment:
             continue
         nested_block: list[str] = []
         for candidate_line in workflow_lines[line_index + 1 :]:
@@ -146,6 +156,16 @@ def _direct_mapping_value(workflow_lines: list[str], mapping_key: str, mapping_i
     return None
 
 
+def _normalized_condition(condition_text: str | None) -> str | None:
+    """Return a whitespace-free GitHub condition expression, if one exists."""
+    if condition_text is None:
+        return None
+    normalized_condition = condition_text.strip()
+    if normalized_condition.startswith("${{") and normalized_condition.endswith("}}"):
+        normalized_condition = normalized_condition[3:-2].strip()
+    return "".join(normalized_condition.split())
+
+
 def _condition_preserves_pull_request_eligibility(condition_text: str | None) -> bool:
     """Accept only conditions proven not to exclude ordinary pull-request runs.
 
@@ -155,12 +175,9 @@ def _condition_preserves_pull_request_eligibility(condition_text: str | None) ->
     accepted. More complex expressions must be made structurally auditable
     before this admission checker can rely on them.
     """
-    if condition_text is None:
+    compact_condition = _normalized_condition(condition_text)
+    if compact_condition is None:
         return True
-    normalized_condition = condition_text.strip()
-    if normalized_condition.startswith("${{") and normalized_condition.endswith("}}"):
-        normalized_condition = normalized_condition[3:-2].strip()
-    compact_condition = "".join(normalized_condition.split())
     if compact_condition.lower() == "true":
         return True
     if compact_condition in {"always()", "success()"}:
@@ -170,6 +187,26 @@ def _condition_preserves_pull_request_eligibility(condition_text: str | None) ->
         'github.event_name=="pull_request"',
         "'pull_request'==github.event_name",
         '"pull_request"==github.event_name',
+    }
+
+
+def _condition_runs_after_prior_failure(condition_text: str | None) -> bool:
+    """Require an upload condition that survives a preceding Trivy exit code 1.
+
+    GitHub implicitly applies ``success()`` to a step without a status-check
+    function, so an absent condition, ``true``, or explicit ``success()`` is
+    insufficient after Trivy deliberately exits non-zero for findings. Keep
+    this fail-closed and accept only ``always()`` or a direct PR gate conjoined
+    with ``always()`` until a broader expression parser is justified.
+    """
+    compact_condition = _normalized_condition(condition_text)
+    if compact_condition == "always()":
+        return True
+    return compact_condition in {
+        "always()&&github.event_name=='pull_request'",
+        'always()&&github.event_name=="pull_request"',
+        "github.event_name=='pull_request'&&always()",
+        'github.event_name=="pull_request"&&always()',
     }
 
 
@@ -355,22 +392,35 @@ def main() -> int:
     ]
 
     trivy_sarif_outputs = [
-        (step_index, output_path)
+        (
+            step_index,
+            output_path,
+            _mapping_value(workflow_step, "with", "exit-code") not in {None, "0"},
+        )
         for step_index, workflow_step in enumerate(workflow_steps)
         if workflow_step in eligible_trivy_steps
         if _mapping_value(workflow_step, "with", "format") == "sarif"
         if (output_path := _mapping_value(workflow_step, "with", "output"))
     ]
     uploaded_sarif_paths = [
-        (step_index, sarif_file_path)
+        (
+            step_index,
+            sarif_file_path,
+            _step_mapping_value(workflow_step, "if"),
+        )
         for step_index, workflow_step in enumerate(workflow_steps)
         if workflow_step in eligible_upload_steps
         if (sarif_file_path := _mapping_value(workflow_step, "with", "sarif_file"))
     ]
     ordered_matching_sarif_pair = any(
-        producer_path == upload_path and producer_index < upload_index
-        for producer_index, producer_path in trivy_sarif_outputs
-        for upload_index, upload_path in uploaded_sarif_paths
+        producer_path == upload_path
+        and producer_index < upload_index
+        and (
+            not producer_may_fail
+            or _condition_runs_after_prior_failure(upload_condition)
+        )
+        for producer_index, producer_path, producer_may_fail in trivy_sarif_outputs
+        for upload_index, upload_path, upload_condition in uploaded_sarif_paths
     )
 
     missing_contract_items: list[str] = []
@@ -398,7 +448,9 @@ def main() -> int:
     if not uploaded_sarif_paths:
         missing_contract_items.append("CodeQL SARIF upload step with sarif_file")
     if trivy_sarif_outputs and uploaded_sarif_paths and not ordered_matching_sarif_pair:
-        missing_contract_items.append("matching ordered Trivy output and CodeQL sarif_file")
+        missing_contract_items.append(
+            "matching ordered Trivy output and CodeQL sarif_file that uploads after findings"
+        )
 
     if missing_contract_items:
         print("Trivy PR code-scanning contract is incomplete:")
