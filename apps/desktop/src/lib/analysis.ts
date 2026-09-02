@@ -4,7 +4,6 @@ import {
   createDemoAnalysisJobRequest,
   createDemoRehearsalSong,
   createProjectBootstrapSummary,
-  parseAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
   parseRehearsalSong,
@@ -15,7 +14,11 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
-import { parseRehearsalSongWithTimingEvidence } from "./rehearsalTimingEvidence";
+import {
+  assertMeasuredSectionTimingForPersistence,
+  parseAnalysisJobStatusWithTimingEvidence,
+  parseRehearsalSongWithTimingEvidence
+} from "./rehearsalTimingEvidence";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -265,7 +268,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
     request: parsedRequest
   });
   try {
-    return parseAnalysisJobStatus(response);
+    return parseAnalysisJobStatusWithTimingEvidence(response);
   } catch {
     throw new Error("Invalid analysis job status response");
   }
@@ -275,7 +278,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
   try {
-    return parseAnalysisJobStatus(response);
+    return parseAnalysisJobStatusWithTimingEvidence(response);
   } catch {
     throw new Error("Invalid analysis job status response");
   }
@@ -297,7 +300,7 @@ export async function subscribeToAnalysisJobUpdates(
   try {
     const unlisten = await listen<unknown>("analysis-job-updated", (event) => {
       try {
-        const status = parseAnalysisJobStatus(event.payload);
+        const status = parseAnalysisJobStatusWithTimingEvidence(event.payload);
         if (status.jobId === jobId) {
           onUpdate(status);
         }
@@ -345,6 +348,7 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
 
 /** Documented. */
 export async function saveProject(song: RehearsalSong): Promise<void> {
+  assertMeasuredSectionTimingForPersistence(song);
   const parsedSong = parseRehearsalSong(song);
   await invokeAnalysis("save_project", { payload: parsedSong });
 }
