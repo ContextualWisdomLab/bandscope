@@ -1,6 +1,6 @@
 """Role extraction and part graph models."""
 
-from .extractor import RoleExtractor
+from .coordinated_extractor import CoordinatedRoleExtractor
 from .model import (
     CueAnchorKind,
     PartGraphNode,
@@ -12,8 +12,13 @@ from .model import (
 )
 from .tuning import get_setup_note
 
+# Preserve the established package-level import while routing the analysis
+# pipeline through the cross-role temporal coordination boundary.
+RoleExtractor = CoordinatedRoleExtractor
+
 __all__ = [
     "RoleExtractor",
+    "CoordinatedRoleExtractor",
     "CueAnchorKind",
     "PartGraphNode",
     "RehearsalPriority",
