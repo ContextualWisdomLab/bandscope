@@ -22,6 +22,7 @@ describe("hasLoggedPracticeProgress", () => {
 describe("firstUnloggedPractice", () => {
   it("names the first demo part that still has no practice mark", () => {
     expect(firstUnloggedPractice(createDemoRehearsalSong())).toEqual({
+      kind: "unlogged",
       sectionLabel: "verse",
       roleName: "Bass Guitar"
     });
@@ -35,6 +36,7 @@ describe("firstUnloggedPractice", () => {
     };
 
     expect(firstUnloggedPractice(song)).toEqual({
+      kind: "unlogged",
       sectionLabel: "verse",
       roleName: "Keyboard 1 Right Hand"
     });
@@ -42,19 +44,20 @@ describe("firstUnloggedPractice", () => {
 
   it("limits the callout to the selected unlogged part", () => {
     expect(firstUnloggedPractice(createDemoRehearsalSong(), "lead-vocal")).toEqual({
+      kind: "unlogged",
       sectionLabel: "verse",
       roleName: "Lead Vocal"
     });
   });
 
-  it("returns null when the selected part already has a mark", () => {
+  it("distinguishes a selected part with a trustworthy practice mark", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[2] = {
       ...song.sections[0]!.roles[2]!,
       practiceProgress: 0
     };
 
-    expect(firstUnloggedPractice(song, "lead-vocal")).toBeNull();
+    expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({ kind: "selected-logged" });
   });
 
   it("skips malformed marks and duplicate role ids inside one section", () => {
@@ -68,7 +71,11 @@ describe("firstUnloggedPractice", () => {
       id: "bass-guitar"
     };
 
-    expect(firstUnloggedPractice(song)?.roleName).toBe("Lead Vocal");
+    expect(firstUnloggedPractice(song)).toEqual({
+      kind: "unlogged",
+      sectionLabel: "verse",
+      roleName: "Lead Vocal"
+    });
   });
 
   it("treats the same named role across sections as one part", () => {
@@ -82,12 +89,13 @@ describe("firstUnloggedPractice", () => {
     });
 
     expect(firstUnloggedPractice(song)).toEqual({
+      kind: "unlogged",
       sectionLabel: "verse",
       roleName: "Bass Guitar"
     });
   });
 
-  it("fails closed when repeated section copies disagree about practice state", () => {
+  it("reports unavailable when repeated section copies disagree about selected practice state", () => {
     const song = createDemoRehearsalSong();
     const verse = song.sections[0]!;
     const chorus = structuredClone(verse);
@@ -100,7 +108,37 @@ describe("firstUnloggedPractice", () => {
     };
     song.sections.push(chorus);
 
-    expect(firstUnloggedPractice(song, "bass-guitar")).toBeNull();
+    expect(firstUnloggedPractice(song, "bass-guitar")).toEqual({ kind: "unavailable" });
+  });
+
+  it("reports unavailable for a selected malformed practice mark instead of claiming it is logged", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[2] = {
+      ...song.sections[0]!.roles[2]!,
+      practiceProgress: 150 as unknown as number
+    };
+
+    expect(firstUnloggedPractice(song, "lead-vocal")).toEqual({ kind: "unavailable" });
+  });
+
+  it("returns all-logged only when every named role has trustworthy consistent marks", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role, index) => ({
+      ...role,
+      practiceProgress: index * 40
+    }));
+
+    expect(firstUnloggedPractice(song)).toEqual({ kind: "all-logged" });
+  });
+
+  it("reports unavailable rather than all-logged when the remaining evidence is malformed", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role, index) => ({
+      ...role,
+      practiceProgress: index === 2 ? (150 as unknown as number) : index * 40
+    }));
+
+    expect(firstUnloggedPractice(song)).toEqual({ kind: "unavailable" });
   });
 
   it("rejects inherited identity and practice evidence", () => {
@@ -118,12 +156,12 @@ describe("firstUnloggedPractice", () => {
       ]
     } as unknown as RehearsalSong;
 
-    expect(firstUnloggedPractice(song)).toBeNull();
+    expect(firstUnloggedPractice(song)).toEqual({ kind: "unavailable" });
   });
 
   it("fails closed on malformed runtime roots and collections", () => {
     for (const malformed of [null, {}, { sections: null }, { sections: [null] }]) {
-      expect(firstUnloggedPractice(malformed as unknown as RehearsalSong)).toBeNull();
+      expect(firstUnloggedPractice(malformed as unknown as RehearsalSong)).toEqual({ kind: "unavailable" });
     }
   });
 });
