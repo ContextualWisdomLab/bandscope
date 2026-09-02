@@ -371,8 +371,11 @@ def derive_review_state(
         author = review.get("author")
         if author is None:
             continue
-        login = _text(_record(author, f"review[{index}].author").get("login"), f"review[{index}].author.login")
-        if login == pr_author:
+        login = _text(
+            _record(author, f"review[{index}].author").get("login"),
+            f"review[{index}].author.login",
+        )
+        if login.casefold() == pr_author.casefold():
             continue
         commit = review.get("commit")
         if commit is None:
@@ -415,17 +418,41 @@ def unresolved_actionable_thread_count(pr_node: dict[str, Any]) -> int:
 
 
 def _decision_metadata(queue_entry: dict[str, Any], trains: dict[str, Any]) -> dict[str, object]:
-    train_name = _text(queue_entry.get("initial_train"), "initial_train")
-    train = _record(trains.get(train_name), f"trains.{train_name}")
-    owner_issue = _positive_int(train.get("issue"), f"trains.{train_name}.issue")
-    rationale = _text(queue_entry.get("initial_disposition"), "initial_disposition")
-    # The queue seed did not historically record a reviewed decision timestamp. Do not
-    # manufacture one from PR updated_at or snapshot_date; keep the receipt non-passing.
+    """Bind a reviewed merge-train decision to the queue entry without synthesizing authority."""
+    if "disposition" not in queue_entry:
+        train_name = _text(queue_entry.get("initial_train"), "initial_train")
+        train = _record(trains.get(train_name), f"trains.{train_name}")
+        owner_issue = _positive_int(train.get("issue"), f"trains.{train_name}.issue")
+        rationale = _text(queue_entry.get("initial_disposition"), "initial_disposition")
+        return {
+            "disposition": "refresh_required",
+            "decision_owner": f"issue:#{owner_issue}",
+            "decision_rationale": rationale,
+            "decision_timestamp": None,
+            "decision_metadata_state": "timestamp_required",
+        }
+
+    disposition = _text(queue_entry.get("disposition"), "disposition")
+    if disposition == "refresh_required":
+        return {
+            "disposition": disposition,
+            "decision_owner": None,
+            "decision_rationale": None,
+            "decision_timestamp": None,
+            "decision_metadata_state": "refresh_required",
+        }
+
+    decision_timestamp = _text(queue_entry.get("decision_timestamp"), "decision_timestamp")
+    try:
+        datetime.strptime(decision_timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise ReadinessError("decision_timestamp must use YYYY-MM-DDTHH:MM:SSZ") from exc
     return {
-        "decision_owner": f"issue:#{owner_issue}",
-        "decision_rationale": rationale,
-        "decision_timestamp": None,
-        "decision_metadata_state": "timestamp_required",
+        "disposition": disposition,
+        "decision_owner": _text(queue_entry.get("decision_owner"), "decision_owner"),
+        "decision_rationale": _text(queue_entry.get("decision_rationale"), "decision_rationale"),
+        "decision_timestamp": decision_timestamp,
+        "decision_metadata_state": "complete",
     }
 
 
@@ -461,6 +488,7 @@ def build_receipt(
         and review_decision == "approved"
         and thread_count == 0
         and decision["decision_metadata_state"] == "complete"
+        and decision["disposition"] == "canonical_active"
     )
     return {
         "number": number,
@@ -518,7 +546,9 @@ def validate_readiness_document(document: object) -> None:
         thread_count = receipt.get("unresolved_actionable_thread_count")
         if isinstance(thread_count, bool) or not isinstance(thread_count, int) or thread_count < 0:
             _fail(f"readiness.receipts[{index}].unresolved_actionable_thread_count must be non-negative")
-        if receipt.get("decision_metadata_state") not in {"complete", "timestamp_required"}:
+        if receipt.get("decision_metadata_state") not in {
+            "complete", "timestamp_required", "refresh_required"
+        }:
             _fail(f"readiness.receipts[{index}].decision_metadata_state is unsupported")
         if receipt.get("receipt_state") == "passing":
             if (
@@ -526,6 +556,7 @@ def validate_readiness_document(document: object) -> None:
                 or receipt.get("review_decision") != "approved"
                 or thread_count != 0
                 or receipt.get("decision_metadata_state") != "complete"
+                or receipt.get("disposition") != "canonical_active"
                 or receipt.get("draft") is not False
             ):
                 _fail(f"readiness receipt {number} is a false-green")
@@ -554,7 +585,10 @@ def build_document(manifest: object, token: str) -> dict[str, object]:
             _fail(f"queue contains inconsistent live target tips for {base_ref}")
 
     by_number: dict[int, dict[str, Any]] = {}
-    numbers = [_positive_int(_record(item, "queue entry").get("number"), "queue entry number") for item in entries]
+    numbers = [
+        _positive_int(_record(item, "queue entry").get("number"), "queue entry number")
+        for item in entries
+    ]
     for start in range(0, len(numbers), GRAPHQL_BATCH_SIZE):
         batch = numbers[start : start + GRAPHQL_BATCH_SIZE]
         by_number.update(fetch_pr_batch(batch, token))
