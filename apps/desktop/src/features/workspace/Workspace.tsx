@@ -17,6 +17,13 @@ interface WorkspaceProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
+/** Request identity for a user-initiated structure-timeline focus action. */
+type TimelineFocusRequest = {
+  rehearsalSongId: string;
+  sectionId: string;
+  requestSequence: number;
+};
+
 /** Documented. */
 function formatTimelineTime(totalSeconds: number): string {
   const safeSeconds = Number.isFinite(totalSeconds) && totalSeconds >= 0 ? totalSeconds : 0;
@@ -75,27 +82,32 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 const SongStructure = memo(function SongStructure({
   sections,
   t,
-  focusSectionId
+  focusSectionId,
+  focusRequestSequence
 }: {
   sections: RehearsalSong["sections"];
   t: Translator;
   focusSectionId: string | null;
+  focusRequestSequence: number;
 }) {
   const cellRefs = useRef(new Map<string, HTMLDivElement>());
 
   useEffect(() => {
-    if (!focusSectionId) {
+    if (!focusSectionId || focusRequestSequence < 1) {
       return;
     }
-    const cell = cellRefs.current.get(focusSectionId);
-    if (cell && typeof cell.scrollIntoView === "function") {
-      cell.scrollIntoView({
-        behavior: "smooth",
+    const sectionCell = cellRefs.current.get(focusSectionId);
+    if (sectionCell && typeof sectionCell.scrollIntoView === "function") {
+      const reducedMotionPreferred =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      sectionCell.scrollIntoView({
+        behavior: reducedMotionPreferred ? "auto" : "smooth",
         inline: "center",
         block: "nearest"
       });
     }
-  }, [focusSectionId]);
+  }, [focusRequestSequence, focusSectionId]);
 
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
@@ -116,21 +128,21 @@ const SongStructure = memo(function SongStructure({
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
           {sections.map((section) => {
-            const focused = focusSectionId === section.id;
+            const sectionFocused = focusSectionId === section.id;
             return (
               <div
                 key={section.id}
-                ref={(node) => {
-                  if (node) {
-                    cellRefs.current.set(section.id, node);
+                ref={(sectionNode) => {
+                  if (sectionNode) {
+                    cellRefs.current.set(section.id, sectionNode);
                   } else {
                     cellRefs.current.delete(section.id);
                   }
                 }}
                 data-testid={`song-structure-section-${section.id}`}
-                aria-current={focused ? "location" : undefined}
+                aria-current={sectionFocused ? "location" : undefined}
                 className={
-                  focused
+                  sectionFocused
                     ? "border-r border-fuchsia-300/40 bg-fuchsia-300/15 px-3 py-3 last:border-r-0 ring-2 ring-inset ring-fuchsia-300"
                     : "border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
                 }
@@ -164,7 +176,7 @@ const SongStructure = memo(function SongStructure({
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
-  const [focusSectionId, setFocusSectionId] = useState<string | null>(null);
+  const [timelineFocusRequest, setTimelineFocusRequest] = useState<TimelineFocusRequest | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -215,6 +227,29 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         endClock: firstRangeClock.endClock
       })
     : null;
+  const focusedSectionId =
+    timelineFocusRequest?.rehearsalSongId === song.id
+      ? timelineFocusRequest.sectionId
+      : null;
+  const focusRequestSequence =
+    timelineFocusRequest?.rehearsalSongId === song.id
+      ? timelineFocusRequest.requestSequence
+      : 0;
+
+  /** Request the first-range section on every activation, even when it is already highlighted. */
+  const handleFindFirstRangeSection = () => {
+    if (!firstRangeClock) {
+      return;
+    }
+    setTimelineFocusRequest((previousFocusRequest) => ({
+      rehearsalSongId: song.id,
+      sectionId: firstRangeClock.sectionId,
+      requestSequence:
+        previousFocusRequest?.rehearsalSongId === song.id
+          ? previousFocusRequest.requestSequence + 1
+          : 1
+    }));
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -366,7 +401,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 variant="outline"
                 size="sm"
                 className="mt-3 min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
-                onClick={() => setFocusSectionId(firstRangeClock.sectionId)}
+                onClick={handleFindFirstRangeSection}
               >
                 {firstRangeFindCopy}
               </Button>
@@ -416,7 +451,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} focusSectionId={focusSectionId} />
+          <SongStructure
+            sections={song.sections}
+            t={t}
+            focusSectionId={focusedSectionId}
+            focusRequestSequence={focusRequestSequence}
+          />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
