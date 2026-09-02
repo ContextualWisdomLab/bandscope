@@ -11,7 +11,7 @@ def _indented_block(workflow_lines: list[str], mapping_header: str, mapping_inde
     indent_prefix = " " * mapping_indent
     mapping_target = f"{indent_prefix}{mapping_header}:"
     for line_index, workflow_line in enumerate(workflow_lines):
-        if workflow_line != mapping_target:
+        if workflow_line != mapping_target and not workflow_line.startswith(f"{mapping_target} #"):
             continue
         nested_block: list[str] = []
         for candidate_line in workflow_lines[line_index + 1 :]:
