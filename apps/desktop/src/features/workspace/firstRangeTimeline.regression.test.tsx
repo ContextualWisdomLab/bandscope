@@ -91,6 +91,14 @@ describe("first-range timeline interaction regressions", () => {
     };
 
     expect(firstRangeTimeline(rehearsalSong, firstRangeSqueeze(rehearsalSong))).toBeNull();
+
+    render(<Workspace song={rehearsalSong} />);
+    expect(
+      screen.queryByRole("button", { name: /Find .+ on the timeline/ })
+    ).toBeNull();
+    expect(
+      screen.getByTestId("song-structure-grid").querySelectorAll("[aria-current='location']")
+    ).toHaveLength(0);
   });
 
   it("avoids smooth scrolling when reduced motion is preferred", () => {
