@@ -558,6 +558,24 @@ mod tests {
     }
 
     #[test]
+    fn same_size_in_place_mutation_after_admission_is_not_served() {
+        let (root, source) = test_source("same-size-mutation", b"trusted-audio");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-575-6", &source)
+            .expect("source should activate");
+
+        std::fs::write(&source.source_path, b"hostile-audio")
+            .expect("test should mutate the admitted source in place");
+
+        assert_eq!(
+            authority.respond(request("project-575-6")).status(),
+            StatusCode::GONE
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn head_is_metadata_only_and_other_methods_fail_closed() {
         let (root, source) = test_source("head", b"audio-bytes");
         let authority = PlaybackAuthority::default();
