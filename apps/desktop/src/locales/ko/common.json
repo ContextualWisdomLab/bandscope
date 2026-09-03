@@ -158,6 +158,9 @@
   "workspaceSelectedEntranceCueCount": "{sectionLabel}에서 이 카운트를 센 다음 {roleName} 파트로 들어오세요: {value}",
   "workspaceSelectedEntranceCueTransition": "{sectionLabel}에서 이 전환을 잡고 {roleName} 파트로 들어오세요: {value}",
   "workspaceSelectedEntranceCueUnavailable": "이 파트의 입장 큐를 아직 믿을 수 없습니다. 가사·카운트·전환을 확인한 다음 들어오세요.",
+  "workspaceSelectedFirstPassTitle": "오늘 이 파트의 첫 간소화",
+  "workspaceSelectedFirstPassReady": "{sectionLabel}에서 {roleName} 파트의 첫 패스: {value} 나머지를 더하기 전에 그 간소화된 버전으로 연습하세요.",
+  "workspaceSelectedFirstPassUnavailable": "이 파트에는 아직 신뢰할 수 있는 첫 패스 간소화가 없습니다. 첫 연습 전에 더 단순한 버전을 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
