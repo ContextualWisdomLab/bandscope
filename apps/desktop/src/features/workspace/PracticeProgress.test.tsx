@@ -14,9 +14,9 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress onChange={handleChange} />);
 
     expect(screen.getByText("0%")).toBeTruthy();
-    const decreaseBtn = screen.getByRole("button", { name: "practiceProgressAtMin" }) as HTMLButtonElement;
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressAtMin" }) as HTMLButtonElement;
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
-    expect(decreaseBtn).toHaveAttribute("title", "practiceProgressAtMin");
+    expect(decreaseBtn).toHaveAttribute("title", "decreasePracticeProgressAtMin");
 
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
@@ -117,9 +117,9 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={100} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "practiceProgressAtMax" }) as HTMLButtonElement;
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressAtMax" }) as HTMLButtonElement;
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
-    expect(increaseBtn).toHaveAttribute("title", "practiceProgressAtMax");
+    expect(increaseBtn).toHaveAttribute("title", "increasePracticeProgressAtMax");
 
     const clickEvent = createEvent.click(increaseBtn);
     fireEvent(increaseBtn, clickEvent);
