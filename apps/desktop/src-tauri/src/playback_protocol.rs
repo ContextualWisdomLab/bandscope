@@ -8,7 +8,7 @@ use bandscope_desktop_core::{is_valid_project_id, LocalAudioSourcePayload};
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Mutex,
 };
 use tauri::http::{
@@ -27,12 +27,100 @@ pub const PLAYBACK_AUTHORITY_PREFIX: &str = "bandscope-project://";
 /// an arbitrarily large buffer from an untrusted Range header.
 const MAX_RANGE_BYTES: u64 = 1_000 * 1024;
 
+#[cfg(unix)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PlaybackFileIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsFileTime {
+    low_date_time: u32,
+    high_date_time: u32,
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsByHandleFileInformation {
+    file_attributes: u32,
+    creation_time: WindowsFileTime,
+    last_access_time: WindowsFileTime,
+    last_write_time: WindowsFileTime,
+    volume_serial_number: u32,
+    file_size_high: u32,
+    file_size_low: u32,
+    number_of_links: u32,
+    file_index_high: u32,
+    file_index_low: u32,
+}
+
+#[cfg(windows)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PlaybackFileIdentity {
+    volume_serial_number: u32,
+    file_index: u64,
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct PlaybackFileIdentity;
+
+#[cfg(unix)]
+fn playback_file_identity(file: &File) -> std::io::Result<PlaybackFileIdentity> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = file.metadata()?;
+    Ok(PlaybackFileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+fn playback_file_identity(file: &File) -> std::io::Result<PlaybackFileIdentity> {
+    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle};
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        #[link_name = "GetFileInformationByHandle"]
+        fn get_file_information_by_handle(
+            file: std::os::windows::io::RawHandle,
+            information: *mut WindowsByHandleFileInformation,
+        ) -> i32;
+    }
+
+    let mut information = MaybeUninit::<WindowsByHandleFileInformation>::uninit();
+    let result = unsafe {
+        get_file_information_by_handle(file.as_raw_handle(), information.as_mut_ptr())
+    };
+    if result == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    let information = unsafe { information.assume_init() };
+    Ok(PlaybackFileIdentity {
+        volume_serial_number: information.volume_serial_number,
+        file_index: ((information.file_index_high as u64) << 32)
+            | information.file_index_low as u64,
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
+fn playback_file_identity(_file: &File) -> std::io::Result<PlaybackFileIdentity> {
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "native playback file identity is unsupported on this platform",
+    ))
+}
+
 #[derive(Clone, Debug)]
 struct PlaybackSourceAuthority {
     project_id: String,
     source_path: PathBuf,
     extension: String,
     expected_size: u64,
+    source_identity: PlaybackFileIdentity,
 }
 
 /// Process-local authority for the one audio source currently admitted to the
@@ -57,15 +145,21 @@ impl PlaybackAuthority {
         if !is_valid_project_id(project_id) {
             return Err("Could not prepare the selected audio for playback.".to_string());
         }
+        let source_path = PathBuf::from(&source.source_path);
+        let (file, _) = open_validated_source(&source_path, source.file_size_bytes)
+            .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
+        let source_identity = playback_file_identity(&file)
+            .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
         let mut current = self
             .current
             .lock()
             .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
         *current = Some(PlaybackSourceAuthority {
             project_id: project_id.to_string(),
-            source_path: PathBuf::from(&source.source_path),
+            source_path,
             extension: source.extension.clone(),
             expected_size: source.file_size_bytes,
+            source_identity,
         });
         Ok(())
     }
@@ -114,28 +208,33 @@ fn content_type(extension: &str) -> Option<&'static str> {
     }
 }
 
-fn validated_file(authority: &PlaybackSourceAuthority) -> Result<(File, u64), StatusCode> {
-    let link_metadata = std::fs::symlink_metadata(&authority.source_path)
-        .map_err(|_| StatusCode::GONE)?;
+fn open_validated_source(source_path: &Path, expected_size: u64) -> Result<(File, u64), StatusCode> {
+    let link_metadata = std::fs::symlink_metadata(source_path).map_err(|_| StatusCode::GONE)?;
     if link_metadata.file_type().is_symlink()
         || !link_metadata.is_file()
-        || link_metadata.len() != authority.expected_size
+        || link_metadata.len() != expected_size
     {
         return Err(StatusCode::GONE);
     }
-    let canonical = authority
-        .source_path
-        .canonicalize()
-        .map_err(|_| StatusCode::GONE)?;
-    if canonical != authority.source_path {
+    let canonical = source_path.canonicalize().map_err(|_| StatusCode::GONE)?;
+    if canonical != source_path {
         return Err(StatusCode::GONE);
     }
     let file = File::open(&canonical).map_err(|_| StatusCode::GONE)?;
     let metadata = file.metadata().map_err(|_| StatusCode::GONE)?;
-    if !metadata.is_file() || metadata.len() != authority.expected_size || metadata.len() == 0 {
+    if !metadata.is_file() || metadata.len() != expected_size || metadata.len() == 0 {
         return Err(StatusCode::GONE);
     }
     Ok((file, metadata.len()))
+}
+
+fn validated_file(authority: &PlaybackSourceAuthority) -> Result<(File, u64), StatusCode> {
+    let (file, len) = open_validated_source(&authority.source_path, authority.expected_size)?;
+    let current_identity = playback_file_identity(&file).map_err(|_| StatusCode::GONE)?;
+    if current_identity != authority.source_identity {
+        return Err(StatusCode::GONE);
+    }
+    Ok((file, len))
 }
 
 fn serve_authorized_source(
