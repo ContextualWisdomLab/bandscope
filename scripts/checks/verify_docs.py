@@ -116,10 +116,12 @@ def mermaid_transition_statements(diagram: str) -> set[str]:
             continue
         if "%%" in line:
             line = line.split("%%", maxsplit=1)[0].rstrip()
-        if "-->" not in line or ":" not in line:
+        if ":" not in line:
             continue
 
         transition_path, transition_label = line.split(":", maxsplit=1)
+        if "-->" not in transition_path:
+            continue
         source_state, target_state = transition_path.split("-->", maxsplit=1)
         source_state = " ".join(source_state.split())
         target_state = " ".join(target_state.split())
