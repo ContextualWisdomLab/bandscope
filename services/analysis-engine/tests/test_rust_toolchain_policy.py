@@ -84,6 +84,7 @@ def _complete_workflow_contract(version: str) -> str:
             install,
             f"cargo +{version} check",
             f"cargo +{version} test",
+            f"cargo +{version} test --manifest-path apps/desktop/core/Cargo.toml --locked",
         )
         + "\n"
     )
