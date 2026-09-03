@@ -106,4 +106,42 @@ describe("Workspace loop roadmap synchronization", () => {
       inline: "center",
     });
   });
+
+  it("keeps focus in the section picker across consecutive arrow-key selections", () => {
+    const song = createDemoRehearsalSong();
+    const verse = structuredClone(song.sections[0]!);
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    const bridge = structuredClone(song.sections[0]!);
+    bridge.id = "bridge-1";
+    bridge.label = "bridge";
+    bridge.timeRange = { start: 64, end: 88 };
+    song.sections = [verse, chorus, bridge];
+
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    render(<Workspace song={song} />);
+
+    const sectionButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        'button[id^="rehearsal-loop-section-"]',
+      ),
+    );
+
+    expect(sectionButtons).toHaveLength(3);
+    sectionButtons[0]!.focus();
+
+    fireEvent.keyDown(sectionButtons[0]!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(sectionButtons[1]);
+
+    fireEvent.keyDown(sectionButtons[1]!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(sectionButtons[2]);
+    expect(scrollIntoView).toHaveBeenCalledTimes(2);
+  });
 });
