@@ -37,6 +37,7 @@
   "workspaceTempoLabel": "템포",
   "workspaceSongStructureLabel": "곡 구조",
   "workspaceRehearsalTimelineLabel": "합주 타임라인",
+  "workspaceSongStructureTimelineRegionAria": "스크롤 가능한 곡 구조 타임라인",
   "workspaceSongTimelineLabel": "곡 타임라인",
   "workspaceCollaborationLabel": "협업",
   "workspaceCollaborationEmpty": "담당, 코멘트, 승인 내역이 정리되면 이곳에 표시됩니다.",

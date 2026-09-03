@@ -72,8 +72,18 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
-/** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+/** Render renderer-position section actions without creating a second transport store. */
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  selectedSectionIndex,
+  onSelectSection,
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  selectedSectionIndex: number | null;
+  onSelectSection: (sectionIndex: number) => void;
+}) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -85,21 +95,37 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
         role="region"
         tabIndex={0}
         className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-        aria-label="Scrollable song structure timeline"
+        aria-label={t("workspaceSongStructureTimelineRegionAria")}
       >
         <div
           className="grid min-w-[720px]"
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
-              <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
-              </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
-            </div>
-          ))}
+          {sections.map((section, sectionIndex) => {
+            const selected = selectedSectionIndex === sectionIndex;
+            return (
+              <div
+                key={`${section.id}-${sectionIndex}`}
+                className={`border-r border-white/10 px-3 py-3 last:border-r-0 ${
+                  selected ? "bg-cyan-300/15" : "bg-cyan-300/[0.05]"
+                }`}
+              >
+                <button
+                  type="button"
+                  data-song-structure-section-index={sectionIndex}
+                  aria-pressed={selected}
+                  onClick={() => onSelectSection(sectionIndex)}
+                  className="min-h-11 w-full rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <p className="text-sm font-black text-white">
+                    {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
@@ -124,6 +150,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const [loopStartNonce, setLoopStartNonce] = useState(0);
   const [loopedSectionIndex, setLoopedSectionIndex] = useState<number | null>(null);
+  const [sectionSelectionRequest, setSectionSelectionRequest] = useState<{
+    sectionIndex: number;
+    requestId: number;
+  } | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const parsedSourceBootstrap = useMemo(
     () => safeProjectBootstrapSummary(sourceBootstrap),
@@ -244,6 +274,21 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+
+  /** Route one timeline occurrence through the canonical player selection state. */
+  const requestSectionSelection = (sectionIndex: number): void => {
+    if (
+      !Number.isSafeInteger(sectionIndex) ||
+      sectionIndex < 0 ||
+      sectionIndex >= song.sections.length
+    ) {
+      return;
+    }
+    setSectionSelectionRequest((current) => ({
+      sectionIndex,
+      requestId: (current?.requestId ?? 0) + 1,
+    }));
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -372,12 +417,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure
+            sections={song.sections}
+            t={t}
+            selectedSectionIndex={loopedSectionIndex}
+            onSelectSection={requestSectionSelection}
+          />
 
           <RehearsalPlayer
             song={song}
             onSongUpdate={onSongUpdate}
             onSelectedSectionIndexChange={setLoopedSectionIndex}
+            sectionSelectionRequest={sectionSelectionRequest}
             hasLocalAudio={hasLocalAudio}
             audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
             activeRole={resolvedActiveRole}

@@ -43,6 +43,10 @@ interface RehearsalPlayerProps {
   song: RehearsalSong;
   onSongUpdate?: (song: RehearsalSong) => void;
   onSelectedSectionIndexChange?: (sectionIndex: number | null) => void;
+  sectionSelectionRequest?: {
+    sectionIndex: number;
+    requestId: number;
+  } | null;
   hasLocalAudio?: boolean;
   audioSourcePath?: string | null;
   activeRole?: string | null;
@@ -135,6 +139,7 @@ export function RehearsalPlayer({
   song,
   onSongUpdate,
   onSelectedSectionIndexChange,
+  sectionSelectionRequest = null,
   hasLocalAudio = false,
   audioSourcePath = null,
   activeRole = null,
@@ -147,6 +152,7 @@ export function RehearsalPlayer({
     [activeRole, song],
   );
   const [selectedLoopKey, setSelectedLoopKey] = useState<string | null>(null);
+  const lastHandledSectionSelectionRequestId = useRef(0);
   const [boundaryError, setBoundaryError] = useState(false);
   const selectedLoop =
     playableLoops.find((loop) => loopSelectionKey(loop) === selectedLoopKey) ??
@@ -155,6 +161,33 @@ export function RehearsalPlayer({
   useEffect(() => {
     onSelectedSectionIndexChange?.(selectedLoop?.sourceIndex ?? null);
   }, [onSelectedSectionIndexChange, selectedLoop?.sourceIndex]);
+  useEffect(() => {
+    if (!sectionSelectionRequest) {
+      return;
+    }
+    const { requestId, sectionIndex } = sectionSelectionRequest;
+    if (
+      !Number.isSafeInteger(requestId) ||
+      requestId <= lastHandledSectionSelectionRequestId.current
+    ) {
+      return;
+    }
+    lastHandledSectionSelectionRequestId.current = requestId;
+    if (
+      !Number.isSafeInteger(sectionIndex) ||
+      sectionIndex < 0 ||
+      sectionIndex >= song.sections.length
+    ) {
+      return;
+    }
+    const requestedLoop = playableLoops.find(
+      (loop) => loop.sourceIndex === sectionIndex,
+    );
+    if (!requestedLoop) {
+      return;
+    }
+    setSelectedLoopKey(loopSelectionKey(requestedLoop));
+  }, [playableLoops, sectionSelectionRequest, song.sections.length]);
   const selectedBoundaryKey = selectedLoop ? loopSelectionKey(selectedLoop) : null;
   const [boundaryDraft, setBoundaryDraft] = useState(() => ({
     end: selectedLoop ? String(selectedLoop.endSeconds) : "",
