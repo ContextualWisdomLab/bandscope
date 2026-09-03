@@ -154,7 +154,7 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "workspaceConfirmedChordTitle": "오늘 방이 확인한 코드",
-  "workspaceConfirmedChordLock": "{sectionLabel}의 {roleName} 파트는 방이 확인한 {chord}를 씁니다. {sectionLabel} 전에 그 코드를 고정하세요.",
+  "workspaceConfirmedChordLock": "{sectionLabel}의 {roleName} 파트는 방이 확인한 {chord} 코드로 맞춥니다. {sectionLabel} 전에 그 코드를 고정하세요.",
   "workspaceSelectedEntranceCueTitle": "오늘 이 파트의 첫 입장 큐",
   "workspaceSelectedEntranceCueLyric": "{sectionLabel}에서 \"{value}\"를 듣고 {roleName} 파트로 들어오세요.",
   "workspaceSelectedEntranceCueCount": "{sectionLabel}에서 이 카운트를 센 다음 {roleName} 파트로 들어오세요: {value}",
