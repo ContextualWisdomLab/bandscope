@@ -40,14 +40,14 @@ describe("Workspace selected-part confirmed chord", () => {
     );
   });
 
-  it("keeps Korean copy particle-safe for Latin role names", () => {
+  it("keeps Korean copy particle-safe for arbitrary chord symbols", () => {
     setNavigatorLanguage("ko-KR");
     render(<Workspace song={createDemoRehearsalSong()} />);
 
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
 
     expect(screen.getByTestId("selected-part-confirmed-chord")).toHaveTextContent(
-      "verse의 Lead Vocal 파트는 방이 확인한 C#m11를 씁니다. verse 전에 그 코드를 고정하세요."
+      "verse의 Lead Vocal 파트는 방이 확인한 C#m11 코드로 맞춥니다. verse 전에 그 코드를 고정하세요."
     );
   });
 });
