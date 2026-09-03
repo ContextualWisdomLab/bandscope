@@ -32,9 +32,12 @@ const MAX_RANGE_BYTES: u64 = 1_000 * 1024;
 struct PlaybackFileIdentity {
     device: u64,
     inode: u64,
+    change_time_seconds: i64,
+    change_time_nanoseconds: i64,
 }
 
 #[cfg(windows)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(C)]
 struct WindowsFileTime {
     low_date_time: u32,
@@ -61,6 +64,7 @@ struct WindowsByHandleFileInformation {
 struct PlaybackFileIdentity {
     volume_serial_number: u32,
     file_index: u64,
+    last_write_time: WindowsFileTime,
 }
 
 #[cfg(not(any(unix, windows)))]
@@ -75,6 +79,8 @@ fn playback_file_identity(file: &File) -> std::io::Result<PlaybackFileIdentity> 
     Ok(PlaybackFileIdentity {
         device: metadata.dev(),
         inode: metadata.ino(),
+        change_time_seconds: metadata.ctime(),
+        change_time_nanoseconds: metadata.ctime_nsec(),
     })
 }
 
@@ -103,6 +109,7 @@ fn playback_file_identity(file: &File) -> std::io::Result<PlaybackFileIdentity> 
         volume_serial_number: information.volume_serial_number,
         file_index: ((information.file_index_high as u64) << 32)
             | information.file_index_low as u64,
+        last_write_time: information.last_write_time,
     })
 }
 
