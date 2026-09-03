@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users } from "lucide-react";
@@ -39,6 +40,12 @@ export function tabValueToRoleId(value: string, roles: RehearsalRoleOption[]): s
 /** Documented. */
 export function RoleSwitcher({ roles, activeRole, onRoleChange }: RoleSwitcherProps) {
   const t = createTranslator(detectPreferredLocale());
+
+  useEffect(() => {
+    if (activeRole !== null && !roles.some((role) => role.id === activeRole)) {
+      onRoleChange(null);
+    }
+  }, [activeRole, onRoleChange, roles]);
 
   return (
     <div className="flex flex-col gap-4 py-2 sm:flex-row sm:items-center">
