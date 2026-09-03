@@ -4,7 +4,7 @@
 - **Date:** 2026-08-20
 - **Decision owners:** BandScope maintainers
 - **Program issue:** [#958](https://github.com/ContextualWisdomLab/bandscope/issues/958)
-- **Figma file ID:** `BP30foevuRtufwRpTknZUw`
+- **Figma file ID:** `zthWmqfNKUgJBECvv002Qk`
 
 ## Context
 
@@ -96,7 +96,7 @@ Queued, skipped-required, failed inherited-base, predecessor-head, protected-bas
 - Runtime behavior, semantics, localization keys, and version identity originate in the repository.
 - Design tokens are versioned in code and synchronized to Figma variables.
 - Storybook is the executable component/state inventory.
-- Figma file `BP30foevuRtufwRpTknZUw` is the reviewed visual/interaction specification.
+- Figma file `zthWmqfNKUgJBECvv002Qk` is the reviewed visual/interaction specification.
 - The shipped Tauri application is the final acceptance target.
 - A Figma or Storybook state that is not implemented must be marked proposed rather than complete.
 
