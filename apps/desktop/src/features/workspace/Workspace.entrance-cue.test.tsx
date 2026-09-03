@@ -75,4 +75,25 @@ describe("Workspace selected-part entrance cue", () => {
       "This part still needs a trusted entrance cue. Confirm the lyric, count, or transition before the first entrance."
     );
   });
+
+  it("clears selected-part guidance when the next project no longer contains the selected role", () => {
+    setNavigatorLanguage("en-US");
+    const firstSong = createDemoRehearsalSong();
+    const { rerender } = render(<Workspace song={firstSong} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("selected-part-entrance-cue")).toBeInTheDocument();
+
+    const nextSong = createDemoRehearsalSong();
+    nextSong.id = "replacement-project";
+    nextSong.sections = nextSong.sections.map((section) => ({
+      ...section,
+      roles: section.roles.filter((role) => role.id !== "bass-guitar")
+    }));
+
+    rerender(<Workspace song={nextSong} />);
+
+    expect(screen.queryByTestId("selected-part-entrance-cue")).toBeNull();
+    expect(screen.queryByTestId("selected-part-first-pass")).toBeNull();
+  });
 });
