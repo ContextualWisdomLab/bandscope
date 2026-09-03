@@ -12,6 +12,12 @@ When the selected part has no trusted cue, the callout still names the next acti
 
 This is not Active Player ownership (`#961`) and not MIR ownership (`#828` / `#770`).
 
+## Ordering and selection invariants
+
+The project contract treats `sections` array order as timeline order. `firstEntranceCue` therefore scans in array order rather than independently sorting by `timeRange.start`; ingestion/migration code that reorders sections must preserve chronological array order. If that invariant changes, the domain contract and tests must change together rather than silently choosing a different entrance.
+
+The selected role is also project-scoped. When a replacement project no longer contains the previously selected role id, `RoleSwitcher` clears the selection through the current role allowlist so entrance, first-pass, and related selected-part guidance do not survive as stale UI state.
+
 ## Own-property admission
 
 `cue.kind` and `cue.value` are untrusted project fields. Workspace copy may only name an entrance from own-property evidence:
@@ -40,13 +46,15 @@ Admission is lexical and own-property only. The helper reads in-memory song obje
 - `meaningfulRangeText` rejects blank and `none` sentinel values.
 - Unknown kinds and non-canonical section labels never become buyer-visible localization authority.
 - Conflicting section copies of the same named part return `unavailable`; Workspace still tells the player to confirm the entrance instead of guessing.
+- A malformed role anywhere in the admitted section list causes the selector to fail closed. Parsed production projects exclude malformed roles, so this is a defensive integrity boundary rather than a normal user-visible fallback.
 - Locale templates keep `{roleName}` / `{sectionLabel}` / `{value}` placeholders; `fillRangeCopy` uses own-property token lookup so inherited members such as `toString` cannot render function source.
 - Korean copy uses `{roleName} 파트` so a Latin role label cannot produce `Bass Guitar으로`.
 
 ### Test points
 
 - Helper: lyric/count/transition; missing selection; blank/`none`/unknown kind; inherited cue and kind; duplicate ids; conflicting names; non-canonical labels; first untrusted canonical copy is not skipped.
-- Workspace: hidden until a part is selected; bass transition copy; vocal lyric copy; Korean particle-safe Latin role; unavailable copy when the cue is `none`.
+- Workspace: hidden until a part is selected; bass transition copy; vocal lyric copy; Korean particle-safe Latin role; unavailable copy when the cue is `none`; replacement project clears a selected role that is absent from the new project.
+- Role switcher: a stale active role outside the current rendered role allowlist is cleared to the all-roles state.
 
 ### Realistic threats
 
@@ -62,6 +70,7 @@ Run:
 
 ```bash
 npm --workspace @bandscope/desktop exec vitest run \
+  src/features/workspace/RoleSwitcher.test.tsx \
   src/features/workspace/firstEntranceCue.test.ts \
   src/features/workspace/Workspace.entrance-cue.test.tsx \
   src/features/workspace/Workspace.test.tsx
