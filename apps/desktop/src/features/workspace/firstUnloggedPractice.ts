@@ -8,7 +8,6 @@ export type FirstUnloggedPractice =
       sectionLabel: string;
       roleName: string;
     }
-  | { kind: "selected-logged" }
   | { kind: "all-logged" }
   | { kind: "unavailable" };
 
