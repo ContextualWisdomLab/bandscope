@@ -177,13 +177,22 @@ impl PlaybackAuthority {
         let Some(project_id) = project_id_from_path(request.uri().path()) else {
             return empty_response(StatusCode::NOT_FOUND);
         };
-        let Some(authority) = self.current_authority(project_id) else {
-            return empty_response(StatusCode::NOT_FOUND);
-        };
-        if request.method() != Method::GET && request.method() != Method::HEAD {
-            return empty_response(StatusCode::METHOD_NOT_ALLOWED);
-        }
-        serve_authorized_source(&authority, &request)
+        self.with_current_authority(project_id, |authority| {
+            if request.method() != Method::GET && request.method() != Method::HEAD {
+                return empty_response(StatusCode::METHOD_NOT_ALLOWED);
+            }
+            serve_authorized_source(authority, &request)
+        })
+        .unwrap_or_else(|| empty_response(StatusCode::NOT_FOUND))
+    }
+
+    fn with_current_authority<R>(
+        &self,
+        project_id: &str,
+        use_authority: impl FnOnce(&PlaybackSourceAuthority) -> R,
+    ) -> Option<R> {
+        let authority = self.current_authority(project_id)?;
+        Some(use_authority(&authority))
     }
 
     fn current_authority(&self, project_id: &str) -> Option<PlaybackSourceAuthority> {
@@ -433,6 +442,26 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(first_root);
         let _ = std::fs::remove_dir_all(second_root);
+    }
+
+    #[test]
+    fn authorized_response_keeps_revocation_authority_until_use_finishes() {
+        let (root, source) = test_source("linearizable-revocation", b"audio");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-150-2", &source)
+            .expect("source should activate");
+
+        let lock_was_held = authority.with_current_authority("project-150-2", |_| {
+            authority.current.try_lock().is_err()
+        });
+
+        assert_eq!(
+            lock_was_held,
+            Some(true),
+            "an authorized response must retain revocation authority until serving finishes"
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
