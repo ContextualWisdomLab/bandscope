@@ -72,4 +72,27 @@ describe("RoleSwitcher", () => {
     expect(tabValueToRoleId("role:unknown-role", roles)).toBeNull();
     expect(tabValueToRoleId("raw-unknown-role", roles)).toBeNull();
   });
+
+  it("clears an active role that is absent from the current song role allowlist", () => {
+    const onRoleChange = vi.fn();
+    const { rerender } = render(
+      <RoleSwitcher
+        roles={[{ id: "bass-guitar", name: "Bass Guitar" }]}
+        activeRole="bass-guitar"
+        onRoleChange={onRoleChange}
+      />
+    );
+
+    expect(onRoleChange).not.toHaveBeenCalled();
+
+    rerender(
+      <RoleSwitcher
+        roles={[{ id: "lead-vocal", name: "Lead Vocal" }]}
+        activeRole="bass-guitar"
+        onRoleChange={onRoleChange}
+      />
+    );
+
+    expect(onRoleChange).toHaveBeenCalledWith(null);
+  });
 });
