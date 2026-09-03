@@ -219,7 +219,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!resolvedActiveRole) return undefined;
     return roleMap.get(resolvedActiveRole);
   }, [resolvedActiveRole, roleMap]);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
   const firstRange = useMemo(() => firstRangeSqueeze(song, resolvedActiveRole), [resolvedActiveRole, song]);
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
@@ -533,27 +532,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   >
                     Solo / mute others
                   </Button>
-                  {canTranscribeBass ? (
-                    <Button
-                      type="button"
-                      title="Transcribe part"
-                      variant="outline"
-                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
-                      onClick={preventUnavailableAction}
-                      variant="outline"
-                      className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    aria-disabled={true}
+                    title={`${activeRoleDetails?.name ?? "This role"} transcription is not available yet.`}
+                    onClick={preventUnavailableAction}
+                    variant="outline"
+                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
+                  >
+                    Transcribe Bass
+                  </Button>
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
