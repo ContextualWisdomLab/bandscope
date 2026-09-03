@@ -79,7 +79,7 @@ Last updated: 2026-03-11
 ## Rehearsal outputs
 
 - Core rehearsal artifacts should include:
-  - likely harmony by section and by role
+  - likely harmony by section and by role, with a selected part naming a room-confirmed override chord as the next lock-in
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check

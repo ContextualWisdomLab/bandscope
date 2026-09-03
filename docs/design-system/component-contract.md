@@ -35,6 +35,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Source Control Stack | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-655 | `apps/desktop/src/App.tsx` | Feature-local source controls for local audio, YouTube URL import, project actions, and Start Analysis; keep before metrics at 375px. |
 | Export Action Group | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-731 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local export buttons call `handleExportCueSheet`, `handleExportChart`, and `handleExportHandoff`. |
 | Workspace State Matrix | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=99-560 | `apps/desktop/src/features/workspace/WorkspaceStates.tsx`, `apps/desktop/src/App.tsx` | Whole-workspace empty, loading, error, and ready state routing; use before changing `renderWorkspaceState()`. |
+| Selected-part confirmed chord | Ready workspace callout; Figma page `31 Component Contract Catalog` / Status Pill `19-283` for tone | `apps/desktop/src/features/workspace/Workspace.tsx`, `apps/desktop/src/features/workspace/selectedPartConfirmedChord.ts` | Hidden until a named part is selected. Names the first trusted user harmony override and the next lock-in. |
 
 ## Prop And State Mapping
 
