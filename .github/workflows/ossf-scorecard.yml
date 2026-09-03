@@ -1,5 +1,8 @@
 name: ossf-scorecard
 
+# Organization ruleset 18156473 now requires ContextualWisdomLab/.github's
+# central required Scorecard PR workflow. Keep this repository-owned workflow
+# on trusted branch/scheduled execution so PR evidence has one control-plane owner.
 on:
   workflow_dispatch:
   schedule:
@@ -79,6 +82,6 @@ jobs:
           python3 trusted-scorecard-scripts/scripts/checks/normalize_scorecard_sarif.py
           scorecard-sarif/results.sarif
           normalized-scorecard-results.sarif
-      - uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0 peeled commit; SHA pinning retained as supply-chain attack mitigation.
+      - uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9; immutable SHA pinning retained as supply-chain attack mitigation.
         with:
           sarif_file: normalized-scorecard-results.sarif
