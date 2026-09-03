@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { isPlayableAudioSource, RehearsalPlayer } from "./RehearsalPlayer";
+import { resolveLoopWindows } from "./rehearsalTransport";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -303,11 +304,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     ) {
       return;
     }
-    const requestedSection = song.sections[sectionIndex];
+    const requestedLoopIsAdmitted = resolveLoopWindows(song).some(
+      (loop) => loop.sourceIndex === sectionIndex,
+    );
+    const requestedLoopIsInActiveRole = resolvedActiveRole
+      ? resolveLoopWindows(song, resolvedActiveRole).some(
+          (loop) => loop.sourceIndex === sectionIndex,
+        )
+      : true;
     if (
       resolvedActiveRole &&
-      requestedSection &&
-      !requestedSection.roles.some((role) => role.id === resolvedActiveRole)
+      requestedLoopIsAdmitted &&
+      !requestedLoopIsInActiveRole
     ) {
       setActiveRole(null);
     }
