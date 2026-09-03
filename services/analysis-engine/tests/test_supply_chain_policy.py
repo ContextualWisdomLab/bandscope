@@ -612,7 +612,7 @@ def test_security_audit_workflow_keeps_dependency_vulnerability_scans() -> None:
 
     assert "npm audit --workspaces --audit-level=high" in workflow
     assert "pip-audit --local --strict" in workflow
-    assert "cargo +stable audit" in workflow
+    assert "cargo +1.97.1 audit" in workflow
 
 
 def test_supply_chain_check_requires_audit_tokens_in_run_steps(
@@ -642,7 +642,7 @@ jobs:
         run: |
           true # npm audit --workspaces --audit-level=high
           # pip-audit --local --strict
-          printf '%s\n' "cargo +stable audit"
+          printf '%s\n' "cargo +1.97.1 audit"
 """.strip(),
         encoding="utf-8",
     )
@@ -659,7 +659,7 @@ jobs:
         "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
     ) in violations
     assert (
-        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+        "security audit workflow missing vulnerability audit token: cargo +1.97.1 audit"
     ) in violations
 
 
@@ -689,7 +689,7 @@ jobs:
       - name: Nested Python audit
         run: sh -ec 'pip-audit --local --strict'
       - name: Nested Rust audit
-        run: /bin/bash -c 'cargo +stable audit'
+        run: /bin/bash -c 'cargo +1.97.1 audit'
 """.strip(),
         encoding="utf-8",
     )
@@ -727,7 +727,7 @@ jobs:
       - name: Spoof Python audit
         run: : pip-audit --local --strict
       - name: Spoof Rust audit
-        run: : cargo +stable audit
+        run: : cargo +1.97.1 audit
 """.strip(),
         encoding="utf-8",
     )
@@ -744,7 +744,7 @@ jobs:
         "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
     ) in violations
     assert (
-        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+        "security audit workflow missing vulnerability audit token: cargo +1.97.1 audit"
     ) in violations
 
 
@@ -777,7 +777,7 @@ jobs:
         run: pip-audit --local --strict
       - name: Non-blocking Rust audit
         continue-on-error: true
-        run: cargo +stable audit
+        run: cargo +1.97.1 audit
 """.strip(),
         encoding="utf-8",
     )
@@ -794,7 +794,7 @@ jobs:
         "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
     ) in violations
     assert (
-        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+        "security audit workflow missing vulnerability audit token: cargo +1.97.1 audit"
     ) in violations
 
 
@@ -827,7 +827,7 @@ jobs:
         run: pip-audit --local --strict
       - name: Skipped Rust audit
         if: github.ref == 'refs/heads/not-used'
-        run: cargo +stable audit
+        run: cargo +1.97.1 audit
 """.strip(),
         encoding="utf-8",
     )
@@ -844,7 +844,7 @@ jobs:
         "security audit workflow missing vulnerability audit token: pip-audit --local --strict"
     ) in violations
     assert (
-        "security audit workflow missing vulnerability audit token: cargo +stable audit"
+        "security audit workflow missing vulnerability audit token: cargo +1.97.1 audit"
     ) in violations
 
 
@@ -877,7 +877,7 @@ jobs:
         run: pip-audit --local --strict
       - name: Blocking Rust audit
         continue-on-error: ${{ false }}
-        run: cargo +stable audit
+        run: cargo +1.97.1 audit
 """.strip(),
         encoding="utf-8",
     )

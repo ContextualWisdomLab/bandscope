@@ -42,8 +42,8 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Activate and verify pinned npm runtime
         run: |
           corepack enable npm
