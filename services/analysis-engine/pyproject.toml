@@ -37,7 +37,6 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-branch = true
 source = ["src/bandscope_analysis"]
 
 [tool.mypy]
