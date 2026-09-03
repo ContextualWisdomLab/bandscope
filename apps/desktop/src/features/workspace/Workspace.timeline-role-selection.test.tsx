@@ -55,6 +55,48 @@ describe("Workspace timeline role selection", () => {
     });
   });
 
+  it("retains the role and selected loop when a timeline section is not admissible", async () => {
+    const song = createDemoRehearsalSong();
+    const malformed = structuredClone(song.sections[0]!);
+    malformed.id = "malformed-chorus";
+    malformed.label = "malformed chorus";
+    malformed.timeRange = {
+      start: Number.NaN,
+      end: Number.POSITIVE_INFINITY,
+    };
+    malformed.roles = malformed.roles.filter(
+      (role) => role.id !== "lead-vocal",
+    );
+    song.sections.push(malformed);
+
+    const { container } = render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const roleFilteredSections = screen.getByRole("group", {
+      name: "Playable sections for Lead Vocal",
+    });
+    const verseButton = within(roleFilteredSections).getByRole("button", {
+      name: /verse/i,
+    });
+    expect(verseButton.getAttribute("aria-pressed")).toBe("true");
+
+    const malformedTimelineButton = container.querySelector<HTMLButtonElement>(
+      '[data-song-structure-section-index="1"]',
+    );
+    expect(malformedTimelineButton).not.toBeNull();
+    fireEvent.click(malformedTimelineButton!);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("tab", { name: "Lead Vocal", selected: true }),
+      ).toBeTruthy();
+      expect(screen.getByTestId("rehearsal-loop-role-filter")).toHaveTextContent(
+        "Showing sections that include Lead Vocal.",
+      );
+      expect(verseButton.getAttribute("aria-pressed")).toBe("true");
+    });
+  });
+
   it("focuses an explicitly reselected first occurrence with reduced-motion scrolling", async () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
