@@ -80,6 +80,16 @@ describe("practiceProgressNextAction", () => {
     });
   });
 
+  it("does not turn inherited selected-part progress into a rehearsal action", () => {
+    const song = createDemoRehearsalSong();
+    const bassRole = song.sections[0]!.roles[0]!;
+    const inheritedProgressRole = Object.create({ practiceProgress: 40 }) as typeof bassRole;
+    Object.assign(inheritedProgressRole, bassRole);
+    song.sections[0]!.roles[0] = inheritedProgressRole;
+
+    expect(practiceProgressNextAction(song, "bass-guitar")).toBeNull();
+  });
+
   it("names the continue step while the selected part is still below ready", () => {
     const song = withProgress(createDemoRehearsalSong(), { "bass-guitar": 50 });
 
