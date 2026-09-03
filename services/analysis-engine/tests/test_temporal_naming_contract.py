@@ -1,7 +1,5 @@
 """Naming-contract regression tests for temporal stability internals."""
 
-from __future__ import annotations
-
 import ast
 from pathlib import Path
 
