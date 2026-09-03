@@ -3,6 +3,10 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
 
+const originalLanguageDescriptor = Object.getOwnPropertyDescriptor(
+  window.navigator,
+  "language",
+);
 const originalMatchMediaDescriptor = Object.getOwnPropertyDescriptor(window, "matchMedia");
 const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
@@ -10,6 +14,10 @@ const originalScrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
 );
 
 afterEach(() => {
+  if (originalLanguageDescriptor) {
+    Object.defineProperty(window.navigator, "language", originalLanguageDescriptor);
+  }
+
   if (originalMatchMediaDescriptor) {
     Object.defineProperty(window, "matchMedia", originalMatchMediaDescriptor);
   } else {
@@ -57,6 +65,49 @@ describe("Workspace loop roadmap synchronization", () => {
 
     expect(verseCard?.className).not.toContain("ring-cyan-300/70");
     expect(chorusCard?.className).toContain("ring-cyan-300/70");
+  });
+
+  it("selects the same player and roadmap occurrence from the song-structure timeline", () => {
+    const song = createDemoRehearsalSong();
+    const verse = structuredClone(song.sections[0]!);
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [verse, chorus];
+
+    render(<Workspace song={song} />);
+
+    const timelineChorus = document.querySelector<HTMLButtonElement>(
+      'button[data-song-structure-section-index="1"]',
+    );
+    const playerButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        'button[id^="rehearsal-loop-section-"]',
+      ),
+    );
+    const chorusCard = document.getElementById("workspace-section-card-1");
+
+    expect(timelineChorus).not.toBeNull();
+    expect(playerButtons).toHaveLength(2);
+    fireEvent.click(timelineChorus!);
+
+    expect(timelineChorus?.getAttribute("aria-pressed")).toBe("true");
+    expect(playerButtons[1]?.getAttribute("aria-pressed")).toBe("true");
+    expect(chorusCard?.className).toContain("ring-cyan-300/70");
+  });
+
+  it("localizes the song-structure timeline region for Korean assistive technology", () => {
+    Object.defineProperty(window.navigator, "language", {
+      configurable: true,
+      value: "ko-KR",
+    });
+
+    const view = render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(
+      view.getByRole("region", { name: "스크롤 가능한 곡 구조 타임라인" }),
+    ).toBeTruthy();
   });
 
   it("focuses the selected roadmap occurrence without motion when reduced motion is requested", () => {
