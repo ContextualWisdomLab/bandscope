@@ -189,11 +189,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           roleName: firstUnlogged.roleName,
           sectionLabel: firstUnlogged.sectionLabel
         })
-      : firstUnlogged.kind === "selected-logged"
-        ? t("workspaceFirstUnloggedPracticeSelectedReady")
-        : firstUnlogged.kind === "all-logged"
-          ? t("workspaceFirstUnloggedPracticeMissing")
-          : t("workspaceFirstUnloggedPracticeUnavailable");
+      : firstUnlogged.kind === "all-logged"
+        ? t("workspaceFirstUnloggedPracticeMissing")
+        : t("workspaceFirstUnloggedPracticeUnavailable");
   const practiceNext = useMemo(
     () => practiceProgressNextAction(song, activeRole),
     [activeRole, song]
