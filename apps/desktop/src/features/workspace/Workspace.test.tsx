@@ -32,7 +32,7 @@ function createLocalSourceBootstrap(): ProjectBootstrapSummary {
     cacheRoot: "/tmp/bandscope/cache/project-1",
     tempRoot: "/tmp/bandscope/temp/project-1",
     source: {
-      sourcePath: "/Users/test/Music/late-night-set.wav",
+      sourcePath: "bandscope-project://project-1-1",
       fileName: "late-night-set.wav",
       extension: "wav",
       fileSizeBytes: 1_024_000,
