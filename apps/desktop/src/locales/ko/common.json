@@ -153,6 +153,9 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceSelectedFirstPassTitle": "오늘 이 파트의 첫 간소화",
+  "workspaceSelectedFirstPassReady": "{sectionLabel}에서 {roleName} 파트의 첫 패스: {value} 나머지를 더하기 전에 그 간소화된 버전으로 연습하세요.",
+  "workspaceSelectedFirstPassUnavailable": "이 파트에는 아직 신뢰할 수 있는 첫 패스 간소화가 없습니다. 첫 연습 전에 더 단순한 버전을 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }

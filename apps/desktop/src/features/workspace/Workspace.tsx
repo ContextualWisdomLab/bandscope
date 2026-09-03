@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillFirstPassCopy, firstPassSimplification } from "./firstPassSimplification";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const selectedFirstPass = useMemo(
+    () => (activeRole ? firstPassSimplification(song, activeRole) : null),
+    [activeRole, song]
+  );
+  const selectedFirstPassCopy =
+    selectedFirstPass?.status === "ready"
+      ? fillFirstPassCopy(t("workspaceSelectedFirstPassReady"), {
+          roleName: selectedFirstPass.roleName,
+          sectionLabel: selectedFirstPass.sectionLabel,
+          value: selectedFirstPass.value
+        })
+      : t("workspaceSelectedFirstPassUnavailable");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -372,6 +385,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <section
+                  className="mt-3 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3"
+                  data-testid="selected-part-first-pass"
+                  aria-label={t("workspaceSelectedFirstPassTitle")}
+                >
+                  <p className="text-[0.7rem] font-black uppercase tracking-[0.22em] text-indigo-100">
+                    {t("workspaceSelectedFirstPassTitle")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-100">{selectedFirstPassCopy}</p>
+                </section>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
