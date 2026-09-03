@@ -42,13 +42,14 @@ function denseArray(value: unknown): unknown[] | null {
   return value;
 }
 
-/** Pull the first trusted user harmony chord from own override records. */
-function ownHarmonyOverrideChord(roleValue: object): string | undefined {
+/** Pull one unambiguous trusted user harmony chord from own override records. */
+function ownHarmonyOverrideChord(roleValue: object): string | null | undefined {
   const overrides = denseArray(ownValue(roleValue, "manualOverrides"));
   if (!overrides) {
     return undefined;
   }
 
+  let foundChord: string | undefined;
   for (const item of overrides) {
     if (!isRuntimeObject(item)) {
       continue;
@@ -66,12 +67,16 @@ function ownHarmonyOverrideChord(roleValue: object): string | undefined {
     }
 
     const chord = meaningfulRangeText(ownValue(overrideValue, "chord"));
-    if (chord) {
-      return chord;
+    if (!chord) {
+      continue;
     }
+    if (foundChord && foundChord !== chord) {
+      return null;
+    }
+    foundChord = chord;
   }
 
-  return undefined;
+  return foundChord;
 }
 
 /**
@@ -136,6 +141,9 @@ export function selectedPartConfirmedChord(
       seenName = roleName;
 
       const chord = ownHarmonyOverrideChord(roleValue);
+      if (chord === null) {
+        return null;
+      }
       if (!chord) {
         continue;
       }
