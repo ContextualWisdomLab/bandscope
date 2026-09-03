@@ -1,4 +1,4 @@
-import type { RehearsalSong } from "@bandscope/shared-types";
+import { SECTION_FORM_LABELS, type RehearsalSong } from "@bandscope/shared-types";
 import { fillRangeCopy, meaningfulRangeText } from "./firstRangeSqueeze";
 
 /** Room-confirmed chord a selected part should lock before the section. */
@@ -8,18 +8,7 @@ export type SelectedPartConfirmedChord = {
   chord: string;
 };
 
-const CANONICAL_SECTION_LABELS = new Set([
-  "intro",
-  "verse",
-  "pre-chorus",
-  "chorus",
-  "bridge",
-  "outro",
-  "tag",
-  "pickup",
-  "stop",
-  "handoff"
-]);
+const CANONICAL_SECTION_LABELS = new Set<string>(SECTION_FORM_LABELS);
 
 /** Return whether an untrusted runtime value is a plain object record. */
 function isRuntimeObject(value: unknown): value is Record<string, unknown> {
