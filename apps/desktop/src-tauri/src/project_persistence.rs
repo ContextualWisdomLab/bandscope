@@ -1146,7 +1146,11 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// matches. For a destination that was absent at the snapshot, a hard link is attempted first; Linux
 /// then uses `renameat2(RENAME_NOREPLACE)`, macOS uses `renamex_np(RENAME_EXCL)`, and Windows uses
 /// `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so a concurrently appearing destination is not
-/// clobbered. Filesystems without the required native primitive fail closed. These checks do not claim
+/// clobbered. A newly created final directory entry is part of the success contract: Unix fsyncs its
+/// parent before first-save success is acknowledged, while Windows keeps the existing native
+/// write-through publication semantics. If that durability step fails after the complete target is
+/// visible, the target is not deleted or truncated and the caller receives the safe publication error.
+/// Filesystems without the required native primitive fail closed. These checks do not claim
 /// descriptor-bound protection for a parent-chain swap or authority before the first post-dialog
 /// identity snapshot. A durable adjacent journal repairs an interrupted mismatch rollback the next
 /// time the same target is selected; global startup scanning and backup rotation remain #962 work.
@@ -1163,6 +1167,24 @@ pub(crate) fn publish_new_project_file_with_linker<F>(
 ) -> Result<(), String>
 where
     F: FnOnce(&Path, &Path) -> std::io::Result<()>,
+{
+    publish_new_project_file_with_linker_and_directory_sync(
+        target,
+        content,
+        link,
+        sync_parent_directory,
+    )
+}
+
+pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
+    target: &Path,
+    content: &[u8],
+    link: F,
+    mut sync_parent: S,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
+    S: FnMut(&Path) -> std::io::Result<()>,
 {
     if content.is_empty() {
         return Err(PROJECT_STAGE_ERROR.to_string());
@@ -1227,7 +1249,10 @@ where
         }
 
         match rename_noreplace(&stage, target) {
-            Ok(()) => return Ok(()),
+            Ok(()) => {
+                sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+                return Ok(());
+            }
             Err(publish_error) if publish_error.kind() == std::io::ErrorKind::AlreadyExists => {
                 remove_stage(&stage);
                 return Err(PROJECT_EXISTS_ERROR.to_string());
@@ -1239,8 +1264,10 @@ where
         }
     }
 
-    // Both names reference the already-synced inode at this point. Cleanup failure does not make the
-    // published target partial, so do not report a false save failure after publication succeeded.
+    // The final hard-link directory entry must be durable before staging cleanup can be acknowledged.
+    // A failed sync leaves both complete names intact and reports a publication failure; it never
+    // deletes the buyer-visible target or pretends that crash-safe first-save durability was achieved.
+    sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
     remove_stage(&stage);
     Ok(())
 }
@@ -1640,7 +1667,7 @@ mod tests {
         );
         assert!(!stage.exists(), "the candidate should be cleaned");
         assert!(!journal.exists(), "the recovery journal should be cleaned");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
