@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
@@ -20,6 +20,45 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const lastLoopedSectionIndex = useRef<number | null>(loopedSectionIndex);
+  const observedInitialSelection = useRef(loopedSectionIndex !== null);
+
+  useEffect(() => {
+    if (loopedSectionIndex === null) {
+      lastLoopedSectionIndex.current = null;
+      return;
+    }
+
+    if (!observedInitialSelection.current) {
+      observedInitialSelection.current = true;
+      lastLoopedSectionIndex.current = loopedSectionIndex;
+      return;
+    }
+
+    if (lastLoopedSectionIndex.current === loopedSectionIndex) {
+      return;
+    }
+    lastLoopedSectionIndex.current = loopedSectionIndex;
+
+    const selectedCard = document.getElementById(
+      `workspace-section-card-${loopedSectionIndex}`,
+    );
+    if (!(selectedCard instanceof HTMLElement)) {
+      return;
+    }
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (typeof selectedCard.scrollIntoView === "function") {
+      selectedCard.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+    selectedCard.focus();
+  }, [loopedSectionIndex]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
