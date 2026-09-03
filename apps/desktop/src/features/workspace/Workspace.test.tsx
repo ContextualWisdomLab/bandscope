@@ -277,7 +277,7 @@ describe("Workspace", () => {
     );
   });
 
-  it("enables bass transcription from selected role metadata rather than role id text", () => {
+  it("keeps bass transcription unavailable when role metadata names bass but no action exists", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
@@ -290,9 +290,11 @@ describe("Workspace", () => {
 
     const transcribeButton = screen.getByRole("button", {
       name: "Transcribe Bass",
-    }) as HTMLButtonElement;
-    expect(transcribeButton.disabled).toBe(false);
-    expect(transcribeButton.title).toBe("Transcribe part");
+    });
+    expect(transcribeButton.getAttribute("aria-disabled")).toBe("true");
+    expect(transcribeButton.getAttribute("title")).toBe(
+      "Bass Guitar transcription is not available yet.",
+    );
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
