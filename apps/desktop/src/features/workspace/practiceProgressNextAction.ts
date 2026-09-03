@@ -78,83 +78,85 @@ function namedSongRoles(songValue: Record<string, unknown>): NamedRoleCatalog | 
       }
       sectionRoleIds.add(roleId);
 
-      const existingName = namedRoles.get(roleId);
-      if (existingName && existingName !== roleName) {
+      const knownName = namedRoles.get(roleId);
+      if (knownName && knownName !== roleName) {
         return null;
       }
       namedRoles.set(roleId, roleName);
     }
   }
 
-  return namedRoles;
+  return namedRoles.size > 0 ? namedRoles : null;
 }
 
-type RoleProgress = {
-  roleId: string;
-  roleName: string;
-  progress: number;
-};
-
-/** Return trustworthy role-wide progress evidence for each named part. */
-function roleProgressCatalog(
+/**
+ * Return one consistent progress value for a named part, or fail closed.
+ *
+ * Workspace writes the same percentage onto every section copy of a role.
+ * Conflicting copies are not rehearsal authority.
+ */
+function consistentRoleProgress(
   songValue: Record<string, unknown>,
-  namedRoles: NamedRoleCatalog
-): Map<string, RoleProgress> | null {
+  roleId: string
+): number | null {
   if (!Array.isArray(songValue.sections)) {
     return null;
   }
 
-  const catalog = new Map<string, RoleProgress>();
-  for (const [roleId, roleName] of namedRoles) {
-    let roleProgress: number | undefined;
-    let sawRole = false;
+  let admitted: number | null = null;
+  let seen = false;
 
-    for (const sectionValue of songValue.sections) {
-      if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
-        return null;
-      }
-      for (const roleValue of sectionValue.roles) {
-        if (!isRuntimeObject(roleValue) || roleValue.id !== roleId) {
-          continue;
-        }
-        sawRole = true;
-        const progress = admitPracticeProgress(roleValue);
-        if (progress === null) {
-          return null;
-        }
-        if (roleProgress === undefined) {
-          roleProgress = progress;
-          continue;
-        }
-        if (roleProgress !== progress) {
-          return null;
-        }
-      }
-    }
-
-    if (!sawRole || roleProgress === undefined) {
+  for (const sectionValue of songValue.sections) {
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
       return null;
     }
-    catalog.set(roleId, { roleId, roleName, progress: roleProgress });
+    for (const roleValue of sectionValue.roles) {
+      if (!isRuntimeObject(roleValue) || !Object.prototype.hasOwnProperty.call(roleValue, "id")) {
+        return null;
+      }
+      if (meaningfulRangeText(roleValue.id) !== roleId) {
+        continue;
+      }
+      const progress = admitPracticeProgress(roleValue);
+      if (progress === null) {
+        return null;
+      }
+      if (!seen) {
+        admitted = progress;
+        seen = true;
+        continue;
+      }
+      if (admitted !== progress) {
+        return null;
+      }
+    }
   }
 
-  return catalog;
+  return seen ? admitted : 0;
 }
 
-/** Return whether a named part has at least one trustworthy playable range. */
+/** Return whether a named part has at least one admitted playable range. */
 function hasPlayableRange(song: RehearsalSong, roleId: string): boolean {
-  return firstRangeSqueeze(song, roleId)?.roleId === roleId;
+  return firstRangeSqueeze(song, roleId) !== null;
 }
 
 /**
- * Resolve the next concrete rehearsal action from current named-part progress.
+ * Pick tonight's next practice step after a named part is selected.
  *
- * Action copy only references a playable range when that range is available.
- * Corrupt, ambiguous, inherited, or contradictory project evidence returns
- * `null` instead of manufacturing a rehearsal instruction.
+ * A part that has not been marked started is told to check its first range
+ * only when a playable range is actually admitted. A part still below 100%
+ * is told to keep practicing until it is ready for the room. A part marked
+ * ready names the next named part that is not ready only when that part also
+ * has a playable range. When every named part is ready, the next action is to
+ * download tonight's cue sheet and send it to the group. This is not a
+ * leftover, come-in, tacet, or MIR product.
+ *
+ * Inherited or out-of-range progress, unnamed roles, conflicting section
+ * copies, malformed roots, and actions that depend on unavailable ranges fail
+ * closed instead of presenting an impossible rehearsal instruction.
  */
 export function practiceProgressNextAction(
-  song: unknown,
+  song: RehearsalSong | unknown,
   activeRole: string | null
 ): PracticeProgressNextAction | null {
   if (!activeRole || !isRuntimeObject(song)) {
@@ -165,56 +167,56 @@ export function practiceProgressNextAction(
   if (!namedRoles || !namedRoles.has(activeRole)) {
     return null;
   }
-  const progressCatalog = roleProgressCatalog(song, namedRoles);
-  if (!progressCatalog) {
+
+  const progress = consistentRoleProgress(song, activeRole);
+  if (progress === null) {
     return null;
   }
 
-  const selected = progressCatalog.get(activeRole);
-  if (!selected) {
+  const roleName = namedRoles.get(activeRole);
+  if (!roleName) {
     return null;
   }
-  if (selected.progress === 0) {
-    if (!hasPlayableRange(song as RehearsalSong, activeRole)) {
+
+  if (progress < 100) {
+    if (progress <= 0 && !hasPlayableRange(song as RehearsalSong, activeRole)) {
       return null;
     }
     return {
-      kind: "start",
-      roleId: selected.roleId,
-      roleName: selected.roleName,
-      progress: selected.progress
-    };
-  }
-  if (selected.progress < 100) {
-    return {
-      kind: "continue",
-      roleId: selected.roleId,
-      roleName: selected.roleName,
-      progress: selected.progress
+      kind: progress <= 0 ? "start" : "continue",
+      roleId: activeRole,
+      roleName,
+      progress
     };
   }
 
-  for (const nextRole of progressCatalog.values()) {
-    if (nextRole.roleId === activeRole || nextRole.progress >= 100) {
+  for (const [roleId, nextRoleName] of namedRoles) {
+    if (roleId === activeRole) {
       continue;
     }
-    if (!hasPlayableRange(song as RehearsalSong, nextRole.roleId)) {
+    const nextProgress = consistentRoleProgress(song, roleId);
+    if (nextProgress === null) {
       return null;
     }
-    return {
-      kind: "ready-next",
-      roleId: selected.roleId,
-      roleName: selected.roleName,
-      progress: selected.progress,
-      nextRoleId: nextRole.roleId,
-      nextRoleName: nextRole.roleName
-    };
+    if (nextProgress < 100) {
+      if (!hasPlayableRange(song as RehearsalSong, roleId)) {
+        return null;
+      }
+      return {
+        kind: "ready-next",
+        roleId: activeRole,
+        roleName,
+        progress,
+        nextRoleId: roleId,
+        nextRoleName
+      };
+    }
   }
 
   return {
     kind: "ready-done",
-    roleId: selected.roleId,
-    roleName: selected.roleName,
-    progress: selected.progress
+    roleId: activeRole,
+    roleName,
+    progress
   };
 }
