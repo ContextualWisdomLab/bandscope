@@ -32,9 +32,17 @@ describe("admitPracticeProgress", () => {
     expect(admitPracticeProgress({ practiceProgress: 100 })).toBe(100);
   });
 
-  it("fails closed on inherited, non-finite, or out-of-range progress", () => {
+  it("fails closed on inherited, trapped, non-finite, or out-of-range progress", () => {
     const inherited = Object.create({ practiceProgress: 40 }) as Record<string, unknown>;
-    expect(admitPracticeProgress(inherited)).toBe(0);
+    expect(admitPracticeProgress(inherited)).toBeNull();
+
+    const trapped = new Proxy<Record<string, unknown>>({}, {
+      has() {
+        throw new Error("untrusted has trap");
+      }
+    });
+    expect(admitPracticeProgress(trapped)).toBeNull();
+
     expect(admitPracticeProgress({ practiceProgress: Number.NaN })).toBeNull();
     expect(admitPracticeProgress({ practiceProgress: Number.POSITIVE_INFINITY })).toBeNull();
     expect(admitPracticeProgress({ practiceProgress: -1 })).toBeNull();
