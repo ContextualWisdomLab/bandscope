@@ -191,18 +191,14 @@ impl PlaybackAuthority {
         project_id: &str,
         use_authority: impl FnOnce(&PlaybackSourceAuthority) -> R,
     ) -> Option<R> {
-        let authority = self.current_authority(project_id)?;
-        Some(use_authority(&authority))
-    }
-
-    fn current_authority(&self, project_id: &str) -> Option<PlaybackSourceAuthority> {
         if !is_valid_project_id(project_id) {
             return None;
         }
-        self.current
-            .lock()
-            .ok()
-            .and_then(|current| current.as_ref().filter(|entry| entry.project_id == project_id).cloned())
+        let current = self.current.lock().ok()?;
+        let authority = current
+            .as_ref()
+            .filter(|entry| entry.project_id == project_id)?;
+        Some(use_authority(authority))
     }
 }
 
