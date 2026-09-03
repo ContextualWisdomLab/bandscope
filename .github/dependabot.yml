@@ -9,6 +9,14 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-development-nonmajor:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/services/analysis-engine"
