@@ -9,6 +9,12 @@ python3 scripts/checks/verify_security_notes.py
 python3 scripts/checks/security_gates.py
 python3 scripts/checks/verify_supply_chain.py
 python3 scripts/checks/verify_github_bootstrap_policy.py
+python3 scripts/checks/test_verify_trivy_pr_scan.py
+python3 scripts/checks/test_verify_trivy_pr_scan_yaml_scalars.py
+python3 scripts/checks/test_verify_trivy_pr_scan_branch_patterns.py
+python3 scripts/checks/test_verify_trivy_pr_scan_commented_needs.py
+python3 scripts/checks/test_verify_trivy_pr_scan_upload_guards.py
+python3 scripts/checks/verify_trivy_pr_scan.py
 npm run lint
 npm run typecheck
 npm run test

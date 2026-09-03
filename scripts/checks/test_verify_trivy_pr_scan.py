@@ -1,0 +1,594 @@
+"""Regression checks for the Trivy pull-request workflow contract."""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TRIVY_CONTRACT_CHECKER = REPO_ROOT / "scripts" / "checks" / "verify_trivy_pr_scan.py"
+
+MISSING_PR_TARGETS = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    types: [opened]
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+RESTRICTED_PR_ACTIVITY = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+    types: [opened]
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+TARGET_ONLY = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request_target:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+MIXED_PR_TARGET = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+  pull_request_target:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+COMMENTED_MIXED_PR_TARGET = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+  pull_request_target: # privileged event must not be hidden by a comment
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+WRONG_PR_TARGETS = """name: trivy
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - release
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+DISCONNECTED_SARIF = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Unrelated formatter
+        run: echo harmless
+        with:
+          format: sarif
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: table
+          output: trivy-results.txt
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: unrelated.sarif
+"""
+
+MISMATCHED_SARIF = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: different-results.sarif
+"""
+
+UPLOAD_BEFORE_PRODUCER = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+"""
+
+JOB_PUSH_ONLY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    if: github.event_name == 'push'
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+TRIVY_STEP_PUSH_ONLY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        if: github.event_name == 'push'
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+UPLOAD_STEP_PUSH_ONLY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        if: github.event_name == 'push'
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PUSH_ONLY_NEEDS_SCALAR = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  prepare-scan:
+    if: github.event_name == 'push'
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs: prepare-scan
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PUSH_ONLY_NEEDS_INLINE = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  prepare-scan:
+    if: github.event_name == 'push'
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs: [prepare-scan]
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PUSH_ONLY_NEEDS_BLOCK = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  prepare-scan:
+    if: github.event_name == 'push'
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs:
+      - prepare-scan
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+INLINE_COMMENTED_SARIF = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif # GitHub code scanning format
+          output: trivy-results.sarif # produced by Trivy
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif # upload the same result
+"""
+
+QUOTED_HASH_SARIF = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: "sarif" # GitHub code scanning format
+          output: "trivy#results.sarif" # # inside quotes is data
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: 'trivy#results.sarif' # same path, different YAML quoting
+"""
+
+EXPLICIT_COMPLETE_PR_ACTIVITY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+QUOTED_BLOCK_PR_ACTIVITY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - "develop" # protected development branch
+      - 'main'
+    types:
+      - "opened" # newly opened pull request
+      - 'synchronize' # updated pull-request head
+      - reopened # restored pull request
+
+jobs:
+  trivy-fs-scan:
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+EXPLICIT_PR_ELIGIBILITY = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  trivy-fs-scan:
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Run Trivy filesystem scan
+        if: github.event_name == 'pull_request'
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+PR_ELIGIBLE_NEEDS_CHAIN = """name: trivy
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+jobs:
+  establish-context:
+    if: github.event_name == 'pull_request'
+    steps:
+      - run: echo context
+  prepare-scan:
+    needs: [establish-context]
+    steps:
+      - run: echo prepare
+  trivy-fs-scan:
+    needs:
+      - prepare-scan
+    steps:
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0123456789abcdef
+        with:
+          format: sarif
+          output: trivy-results.sarif
+      - uses: github/codeql-action/upload-sarif@fedcba9876543210
+        with:
+          sarif_file: trivy-results.sarif
+"""
+
+INVALID_CASES = {
+    "missing protected PR targets": MISSING_PR_TARGETS,
+    "activity filter drops synchronized PR heads": RESTRICTED_PR_ACTIVITY,
+    "target-only privileged PR event": TARGET_ONLY,
+    "mixed pull_request and pull_request_target events": MIXED_PR_TARGET,
+    "commented privileged PR event": COMMENTED_MIXED_PR_TARGET,
+    "wrong pull_request branch set": WRONG_PR_TARGETS,
+    "SARIF format detached from the Trivy action": DISCONNECTED_SARIF,
+    "Trivy output and upload paths disagree": MISMATCHED_SARIF,
+    "SARIF upload precedes its producer": UPLOAD_BEFORE_PRODUCER,
+    "push-only Trivy job condition": JOB_PUSH_ONLY,
+    "push-only Trivy action condition": TRIVY_STEP_PUSH_ONLY,
+    "push-only SARIF upload condition": UPLOAD_STEP_PUSH_ONLY,
+    "scalar push-only prerequisite": PUSH_ONLY_NEEDS_SCALAR,
+    "inline-list push-only prerequisite": PUSH_ONLY_NEEDS_INLINE,
+    "block-list push-only prerequisite": PUSH_ONLY_NEEDS_BLOCK,
+}
+
+VALID_CASES = {
+    "equivalent SARIF paths with inline comments": INLINE_COMMENTED_SARIF,
+    "quoted SARIF path containing a literal hash": QUOTED_HASH_SARIF,
+    "explicit complete PR-head activity filter": EXPLICIT_COMPLETE_PR_ACTIVITY,
+    "quoted block PR-head activity filter": QUOTED_BLOCK_PR_ACTIVITY,
+    "explicit pull-request eligibility conditions": EXPLICIT_PR_ELIGIBILITY,
+    "recursive PR-eligible needs chain": PR_ELIGIBLE_NEEDS_CHAIN,
+}
+
+
+def _run_checker(workflow_text: str) -> subprocess.CompletedProcess[str]:
+    """Run the production checker against one isolated workflow fixture."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        workflow_path = Path(temp_dir) / ".github" / "workflows" / "trivy.yml"
+        workflow_path.parent.mkdir(parents=True)
+        workflow_path.write_text(workflow_text, encoding="utf-8")
+        return subprocess.run(
+            [sys.executable, str(TRIVY_CONTRACT_CHECKER)],
+            cwd=temp_dir,
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+
+
+def main() -> int:
+    """Reject unsafe wiring without rejecting valid YAML scalar comments."""
+    accepted_invalid_case_names = [
+        case_name
+        for case_name, workflow_text in INVALID_CASES.items()
+        if _run_checker(workflow_text).returncode == 0
+    ]
+    rejected_valid_case_names = [
+        case_name
+        for case_name, workflow_text in VALID_CASES.items()
+        if _run_checker(workflow_text).returncode != 0
+    ]
+
+    if accepted_invalid_case_names or rejected_valid_case_names:
+        print("Trivy PR contract regression:")
+        for case_name in accepted_invalid_case_names:
+            print(f"- accepted malformed workflow: {case_name}")
+        for case_name in rejected_valid_case_names:
+            print(f"- rejected valid workflow: {case_name}")
+        return 1
+    print("Trivy PR contract regressions passed")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
