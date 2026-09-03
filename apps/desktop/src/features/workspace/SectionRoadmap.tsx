@@ -57,7 +57,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate, loopedSectionIn
         inline: "center",
       });
     }
-    selectedCard.focus();
+
+    const activeElement = document.activeElement;
+    const sectionPickerOwnsFocus =
+      activeElement instanceof HTMLButtonElement &&
+      activeElement.id.startsWith("rehearsal-loop-section-");
+    if (!sectionPickerOwnsFocus) {
+      selectedCard.focus();
+    }
   }, [loopedSectionIndex]);
 
   /** Documented. */
