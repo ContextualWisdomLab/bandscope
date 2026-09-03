@@ -17,7 +17,8 @@
 
 - direct push blocked
 - PR required
-- passing `CodeRabbit` gate required
+- review-equivalent policy required; use the current authority in
+  `docs/security/github-required-checks.md`
 - conversation resolution required
 - force push blocked
 - branch deletion blocked
@@ -28,11 +29,11 @@
 
 After workflows exist, require these stable checks on `main` and `develop`:
 
-- `CodeRabbit`
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
 - `CodeQL`
+- `trivy-fs-scan`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
@@ -48,7 +49,11 @@ After bootstrap creates `develop`, the repository default branch is `develop`. `
 
 ## Review substitution rule
 
-For this harness baseline, a passing `CodeRabbit` check replaces GitHub's built-in approving-review gate. Protected branches still require PRs, conversation resolution, and all required checks.
+The original bootstrap assumed a hosted `CodeRabbit` status could replace GitHub's approving-review
+gate. Current policy supersedes that assumption: request CodeRabbit, address current actionable
+findings, and use the stable checks plus review-equivalent policy in
+`docs/security/github-required-checks.md`. A stale, rate-limited, or status-only context is not a
+completed review. Protected branches still require PRs and conversation resolution.
 
 ## Path note
 

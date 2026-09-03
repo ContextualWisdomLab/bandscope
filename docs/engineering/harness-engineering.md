@@ -19,14 +19,19 @@ Quickcheck aggregates lint/type/test/build and repository policy checks intended
 
 ## Supply-chain and workflow policy checks
 
-- `python3 scripts/checks/verify_supply_chain.py`
-- `python3 scripts/checks/security_gates.py`
-- `python3 scripts/checks/verify_github_bootstrap_policy.py`
+- `node scripts/checks/run_python.mjs scripts/checks/verify_supply_chain.py`
+- `node scripts/checks/run_python.mjs scripts/checks/security_gates.py`
+- `node scripts/checks/run_python.mjs scripts/checks/verify_github_bootstrap_policy.py`
+
+The Node wrapper selects `py -3`, `python3`, or `python` in a deterministic platform-specific
+order. Once a candidate starts, its exit status is authoritative; a failing check never falls
+through to another interpreter.
 
 ## Python analysis engine notes
 
 - Dependency sync: `uv sync --project services/analysis-engine --group dev`
 - Tests: `uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100`
+- Real YouTube known-stem validation: `docs/engineering/youtube-known-stem-validation.md`
 
 ## CI parity expectation
 

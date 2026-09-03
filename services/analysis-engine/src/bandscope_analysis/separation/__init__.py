@@ -1,6 +1,6 @@
 """Source separation module for audio stems and role stem groups."""
 
-from .audio_separator import AudioSeparationConfig, AudioStemSeparator
+from .audio_separator import AudioSeparationConfig, AudioStemSeparator, ModelArtifactError
 from .model import (
     AudioSeparationResult,
     AudioStemArray,
@@ -21,6 +21,7 @@ __all__ = [
     "AudioStemPayload",
     "StemRoleTypeMap",
     "AudioStemSeparator",
+    "ModelArtifactError",
     "StemSeparator",
     "StemCategory",
     "StemDescriptor",

@@ -33,6 +33,10 @@ npm run test        # JS workspace vitest suites + pytest with 100% coverage gat
 npm run build       # vite builds per workspace
 ```
 
+The canonical documentation graph starts at `docs/README.md`; product requirements, technical
+requirements, decision records, diagrams, and sufficiency are not replaceable by a PR body or old
+plan.
+
 Per-workspace and single-test:
 
 ```bash
@@ -53,7 +57,13 @@ Three layers, decoupled through shared contracts:
 
 - `apps/desktop` — Tauri 2 + Vite + React 19 shell (Tailwind 4, Base UI, Storybook). Feature screens live in `src/features/` (home, workspace, chords, ranges, player, settings). The ready workspace names tonight's first playable range and the next instrument check. `src/lib/analysis.ts` and `src/lib/job_runner.ts` call typed Tauri IPC commands, with a browser fallback that serves demo data when not running inside Tauri.
 - `apps/desktop/src-tauri/src/main.rs` — the Rust orchestration boundary. Tauri commands (`start_analysis_job`, `get_analysis_job_status`, `select_local_audio_source`, `import_youtube_url`) validate untrusted input (project IDs, file paths, URLs) and spawn the Python engine as a subprocess. There is no loopback HTTP listener and no network path for local analysis.
-- `services/analysis-engine` — Python package `bandscope_analysis` (librosa/numpy). Entry point `cli.py` reads a JSON job request on stdin and prints a structured job-status JSON envelope on stdout (`--progress-jsonl` streams progress lines). `api.py` orchestrates the pipeline across the `separation`, `sections`, `roles`, `chords`, `ranges`, `temporal`, `transcription`, and `youtube` modules.
+- `services/analysis-engine` — Python package `bandscope_analysis` (librosa/numpy). Entry point `cli.py` reads a JSON job request on stdin and prints a structured job-status JSON envelope on stdout (`--progress-jsonl` streams progress lines). `api.py` orchestrates the pipeline across the `separation`, `sections`, `roles`, `chords`, `ranges`, `temporal`, `transcription`, and `youtube` modules. Metric admission (#828 owns #770) uses Le Roux SI-SDR, Odekerken/MIREX WCSR, Chiu ±70 ms F-measure, and Schreiber/Urbano/Müller Acc1+Acc2; Acc2 alone is forbidden and Raffel 2014 is not an Acc1/Acc2 source.
+- Production source separation uses `htdemucs` on supported platforms. The exact runtime model
+  artifact is inventoried but not bundled; operators must provision it locally, and production
+  verifies its byte size and full SHA-256 before passing those same in-memory bytes through a
+  serialized `weights_only=True` loader with an exact reviewed global allowlist and strict model
+  construction. The active known-stem test crosses the production YouTube and separator boundaries;
+  see `docs/TRD.md` and the operator guide.
 
 Data flow: React UI → Tauri IPC command → Rust validation + Python subprocess over stdin/stdout → job status and progress events emitted back to the UI.
 
@@ -66,7 +76,7 @@ Supporting packages:
 ## Key conventions
 
 - Coverage is a hard gate: the Python engine requires 100% test coverage and 100% docstring coverage (Ruff `D100`–`D107` across `src`, `tests`, and repo scripts). Exported TypeScript declarations in `packages/shared-types` and `apps/desktop/src` require JSDoc with a description; `no-console` is an error.
-- Gitflow: `develop` is the default branch; `feature/*` targets `develop`, `main` is the protected release branch. Direct pushes to protected branches are not allowed, and every merge needs the required checks plus a passing CodeRabbit review (see `CONTRIBUTING.md` and `docs/repository/gitflow.md`).
+- Gitflow: `develop` is the default branch; `feature/*` targets `develop`, `main` is the protected release branch. Direct pushes to protected branches are not allowed, and every merge needs the stable checks and review-equivalent policy in `docs/security/github-required-checks.md`. CodeRabbit is requested by default and actionable findings must be addressed, but a stale or rate-limited hosted status is not review evidence.
 - The PR template (`.github/PULL_REQUEST_TEMPLATE.md`) requires a quickcheck confirmation, `Security Notes` (attack surface, trust boundary, mitigations, test points), a dependency/supply-chain checklist, and i18n impact.
 - i18n: the UI ships Korean and English locales (`apps/desktop/src/locales/ko`, `en`). Any user-visible string change must update both.
 - Documents under `docs/plans/` must include `Security Notes`; `scripts/checks/verify_security_notes.py` enforces this mechanically.

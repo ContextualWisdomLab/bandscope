@@ -19,8 +19,10 @@ BandScope generates machine-readable SBOMs in GitHub Actions as a bootstrap cont
 
 ## Supplemental inventory
 
-Track package-manager-external supply-chain assets in `supply-chain/supplemental-component-inventory.json`, including:
+Track runtime supply-chain identities that need evidence beyond generated ecosystem SBOM entries in
+`supply-chain/supplemental-component-inventory.json`, including:
 
-- bundled binaries such as `ffmpeg` and `yt-dlp`
+- lock-managed auxiliary tools such as yt-dlp, cross-checked to `uv.lock`
+- operator-provided, non-bundled executables such as ffmpeg and ffprobe
 - model files, weights, and sidecar assets
 - checksums or integrity metadata when available

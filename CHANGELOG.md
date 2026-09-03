@@ -4,17 +4,74 @@
 
 ### Added
 
+- Added an opt-in real-YouTube/Demucs benchmark that verifies vocal separation against a
+  creator-published, SHA-256-pinned known stem without adding media files to the repository.
+- Added an independently pinned creator master for YouTube asset identity, full extracted-member
+  hashing, composed global offsets, calibrated provisional sentinels, and deterministic Demucs
+  inference (`shifts=0`).
+- Added canonical PRD, TRD, ADR, architecture/UML/logical-artifact diagrams, traceability, and
+  machine-checked documentation coverage for the known-stem quality boundary.
+- Replaced the retired FFT-era bandsplit model inventory with the exact htdemucs runtime artifact,
+  full SHA-256, byte size, delivery status, verified ffmpeg/ffprobe prerequisites, and release
+  blockers.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
 ### Changed
 
+- Lock rehearsal metric authority: Le Roux SI-SDR primary, Odekerken/MIREX WCSR, Chiu 2025 ±70 ms beat F-measure, Schreiber/Urbano/Müller Acc1+Acc2 with Acc2-alone forbidden, and Raffel 2014 not cited as an Acc1/Acc2 source. Tempo has no single primary metric; beat/onset admits F-measure only inside the 70 ms window.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
 
+- Rejected POSIX and Windows parent-directory segments at the YouTube download-output boundary
+  before the path reaches yt-dlp, returning a stable redacted failure without downloader execution.
+- Kept YouTube TLS verification enabled, using populated OS-managed CA roots when available and
+  retaining yt-dlp's maintained CA-bundle fallback when the system trust store is empty or fails.
+- Made htdemucs loading offline and fail-closed: the runtime accepts only the inventoried filename,
+  byte size, and full SHA-256, rejects filesystem identity races, and deserializes the verified
+  bytes with PyTorch's restricted `weights_only` loader, an exact reviewed global allowlist, strict
+  model construction, and serialized one-time caching rather than downloading a missing checkpoint.
+  Pre-open `lstat` and `open` failures stay redacted and close every obtained descriptor without a
+  None-check fallthrough, so a raced-away cache entry cannot skip the close or leak a path.
+- Verified exact platform-native sibling ffmpeg/ffprobe executable names and identities before any
+  live fixture access or yt-dlp invocation.
+- Isolated Numba's native-code cache for repository analysis commands so a stale or concurrently
+  compiled virtualenv cache cannot crash deterministic verification.
+- Reconciled stale CodeRabbit-gate wording with the canonical stable-check and review-equivalent
+  policy; qualifying evidence is now defined against the exact current head, and a rate-limited,
+  status-only, author, or predecessor review is not treated as completed review evidence.
+- Routed root npm/quickcheck Python entry points through a shared Node launcher that selects
+  `py -3`, `python3`, or `python` in a deterministic platform-specific order without masking
+  interpreter failures.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
+
+### Security Notes
+
+- Attack surface and trust boundary: YouTube URLs, response metadata, downloaded media, creator
+  fixtures, ffmpeg/ffprobe executables, and htdemucs checkpoint bytes remain untrusted until their
+  owning host, shape, size, filesystem identity, and full-hash allowlists pass.
+- Mitigations and failure behavior: TLS verification stays enabled; parent-directory segments are
+  rejected before the output template reaches yt-dlp; the complete ffmpeg/ffprobe path-and-hash
+  pair is verified before network fixture access; model loading is offline, same-byte, restricted
+  to `weights_only=True` plus the exact reviewed globals, and fails closed without an unrestricted
+  fallback.
+- Developer tooling: the cross-platform check launcher is repository-only, invokes only the fixed
+  `py`, `python3`, or `python` candidates with argument arrays and no shell, and propagates the first
+  available interpreter's failure instead of retrying past it.
+- Logging and privacy: raw media, model bytes, separated stems, credentials, and full local paths
+  are not retained in release evidence or emitted in bounded operator errors.
+- Test points: each candidate head must pass quickcheck, hosted SAST/Bandit/secret/security scans,
+  mutation tests for loader and allowlist bypasses, executable-identity rejection tests,
+  supply-chain verification, and the exact provisioned-model smoke test before merge.
+- Dependency and supply chain: no production dependency is added by this benchmark slice;
+  documentation policy checks pin `markdown-it-py 4.0.0` as a direct development dependency so
+  rendered Markdown—not lexical lookalikes—defines headings and tables. Canonical #783 is now
+  protected `develop` shipped truth; this branch inherits that JavaScript baseline rather than
+  duplicating or suppressing it. The supplemental inventory separately binds yt-dlp, ffmpeg/ffprobe,
+  and htdemucs to their declared delivery and integrity contracts.
+
 
 ## [0.1.3] - 2026-04-29
 

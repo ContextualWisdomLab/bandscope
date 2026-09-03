@@ -1,15 +1,32 @@
-"""
-YouTube import capabilities for BandScope.
+"""YouTube import capabilities for BandScope.
 
 This module provides a safe wrapper around yt-dlp to download audio from YouTube.
+
+Security Notes:
+- Accepts only bounded, standard HTTPS YouTube watch URLs and disables playlists,
+  geographic bypass, credentials, and interactive authentication.
+- Resolves each local output directory under an explicit caller-owned root, or the
+  operating-system temporary root by default, before the path reaches yt-dlp.
+- Keeps certificate verification enabled. It uses the operating-system trust
+  store when roots are present and otherwise retains yt-dlp's CA fallback.
+- Optionally accepts sibling absolute ffmpeg/ffprobe paths only with both full
+  SHA-256 identities, verifies both regular executables before handoff, and
+  returns redacted failures.
+- Rejects metadata over 15 minutes and completed files over 50 MiB, returns
+  sanitized public errors, and never logs the requested URL or downloaded audio.
 """
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import re
+import ssl
 import sys
+import tempfile
 import urllib.parse
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
@@ -21,6 +38,9 @@ YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
     "Failed to download audio from YouTube. Please use a local audio file instead."
 )
 YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Please use a local audio file instead."
+RUNTIME_DEPENDENCY_INVALID_MESSAGE = "The configured media runtime failed identity verification."
+OUTPUT_DIRECTORY_INVALID_MESSAGE = "The local download directory failed safety validation."
+SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 def validate_url(url: str) -> bool:
@@ -41,7 +61,13 @@ def validate_url(url: str) -> bool:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https":
             return False
-        host = parsed.netloc.lower().split(":")[0]
+        if (
+            parsed.username is not None
+            or parsed.password is not None
+            or parsed.port not in (None, 443)
+        ):
+            return False
+        host = parsed.hostname
 
         if host == "youtu.be":
             path = parsed.path.strip("/")
@@ -57,6 +83,91 @@ def validate_url(url: str) -> bool:
         return False
     except ValueError:
         return False
+
+
+def _contains_parent_path_segment(path: str) -> bool:
+    """Return whether a path contains an explicit parent-directory segment.
+
+    Both POSIX and Windows separators are normalized so a path prepared on one
+    platform cannot smuggle ``..`` through checks performed on another.
+    """
+    return ".." in path.replace("\\", "/").split("/")
+
+
+def _has_unsafe_windows_path_shape(path: str) -> bool:
+    """Reject foreign or drive-relative Windows paths before native resolution."""
+    windows_path = PureWindowsPath(path)
+    if windows_path.drive and not windows_path.is_absolute():
+        return True
+    return os.name != "nt" and windows_path.is_absolute()
+
+
+def _resolve_output_directory(
+    out_dir: str,
+    allowed_output_root: Optional[str],
+) -> Optional[Path]:
+    """Resolve ``out_dir`` only when it stays inside the allowed output root.
+
+    Relative paths are interpreted below the allowed root. When callers do not
+    provide a root, BandScope uses the operating-system temporary directory. The
+    root must already exist; the output directory itself may be created later by
+    the caller or downloader. Existing direct symlinks are rejected, and parent
+    symlinks are canonicalized before the containment check.
+    """
+    if not isinstance(out_dir, str) or not out_dir.strip():
+        return None
+    if _contains_parent_path_segment(out_dir) or _has_unsafe_windows_path_shape(out_dir):
+        return None
+
+    root_value = tempfile.gettempdir() if allowed_output_root is None else allowed_output_root
+    if not isinstance(root_value, str) or not root_value.strip():
+        return None
+    if _contains_parent_path_segment(root_value) or _has_unsafe_windows_path_shape(root_value):
+        return None
+
+    root_candidate = Path(root_value).expanduser()
+    output_candidate = Path(out_dir).expanduser()
+    if not root_candidate.is_absolute():
+        return None
+    if output_candidate.is_symlink():
+        return None
+    if not output_candidate.is_absolute():
+        output_candidate = root_candidate / output_candidate
+
+    try:
+        resolved_root = root_candidate.resolve(strict=True)
+        resolved_output = output_candidate.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return None
+    if not resolved_root.is_dir():
+        return None
+
+    try:
+        resolved_output.relative_to(resolved_root)
+    except ValueError:
+        return None
+    return resolved_output
+
+
+def _path_is_within_directory(path: str, directory: Path) -> bool:
+    """Return whether a downloader-produced path resolves inside ``directory``."""
+    try:
+        candidate = Path(path).resolve(strict=False)
+        candidate.relative_to(directory)
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
+
+
+def _invalid_output_directory_response() -> Dict[str, Any]:
+    """Return the stable redacted response for an unsafe output directory."""
+    return {
+        "ok": False,
+        "error": {
+            "code": "invalid_output_directory",
+            "message": OUTPUT_DIRECTORY_INVALID_MESSAGE,
+        },
+    }
 
 
 def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
@@ -101,13 +212,126 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
     }
 
 
-def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
+def _system_ca_available() -> bool:
+    """Return whether the operating-system TLS context contains trusted CA roots.
+
+    Any probe failure is treated as an empty system store so yt-dlp keeps its
+    default CA behavior. Certificate verification is never disabled.
+    """
+    try:
+        context = ssl.create_default_context()
+        return bool(context.get_ca_certs(binary_form=True))
+    except Exception:
+        return False
+
+
+def _has_execute_permission(path: Path) -> bool:
+    """Return whether the current process may execute ``path``."""
+    return os.access(path, os.X_OK)
+
+
+def _verify_executable_artifact(
+    executable_path: Optional[str], executable_sha256: Optional[str]
+) -> Optional[str]:
+    """Authenticate one executable and return its resolved absolute path.
+
+    The executable must be an absolute, non-symlinked regular file with execute
+    permission, and the digest must be a canonical full lowercase SHA-256.
+    """
+    if not isinstance(executable_path, str) or not isinstance(executable_sha256, str):
+        return None
+    if not SHA256_PATTERN.fullmatch(executable_sha256):
+        return None
+
+    candidate = Path(executable_path)
+    if not candidate.is_absolute() or candidate.is_symlink():
+        return None
+
+    try:
+        resolved = candidate.resolve(strict=True)
+        if not resolved.is_file() or not _has_execute_permission(resolved):
+            return None
+
+        digest = hashlib.sha256()
+        with resolved.open("rb") as artifact:
+            for chunk in iter(lambda: artifact.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except (OSError, RuntimeError):
+        return None
+
+    if not hmac.compare_digest(digest.hexdigest(), executable_sha256):
+        return None
+    return str(resolved)
+
+
+def _verify_media_runtime(
+    ffmpeg_path: Optional[str],
+    ffmpeg_sha256: Optional[str],
+    ffprobe_path: Optional[str],
+    ffprobe_sha256: Optional[str],
+) -> tuple[bool, Optional[str]]:
+    """Authenticate the complete executable set yt-dlp may invoke.
+
+    An omitted four-part identity retains ordinary yt-dlp PATH behavior. Once
+    any field is configured, all four are mandatory. ffmpeg and ffprobe must be
+    exact sibling program names because yt-dlp derives its probe path from the
+    configured ffmpeg location.
+    """
+    identity = (ffmpeg_path, ffmpeg_sha256, ffprobe_path, ffprobe_sha256)
+    if all(value is None for value in identity):
+        return True, None
+    if any(not isinstance(value, str) for value in identity):
+        return False, None
+
+    verified_ffmpeg = _verify_executable_artifact(ffmpeg_path, ffmpeg_sha256)
+    verified_ffprobe = _verify_executable_artifact(ffprobe_path, ffprobe_sha256)
+    if verified_ffmpeg is None or verified_ffprobe is None:
+        return False, None
+
+    ffmpeg = Path(verified_ffmpeg)
+    ffprobe = Path(verified_ffprobe)
+    executable_suffix = {"nt": ".exe"}.get(os.name, "")
+    if ffmpeg.name != f"ffmpeg{executable_suffix}":
+        return False, None
+    if ffprobe.name != f"ffprobe{executable_suffix}" or ffprobe.parent != ffmpeg.parent:
+        return False, None
+    return True, verified_ffmpeg
+
+
+def _runtime_dependency_invalid() -> Dict[str, Any]:
+    """Return the stable redacted response for an untrusted media runtime."""
+    return {
+        "ok": False,
+        "error": {
+            "code": "runtime_dependency_invalid",
+            "message": RUNTIME_DEPENDENCY_INVALID_MESSAGE,
+        },
+    }
+
+
+def download_youtube_audio(
+    url: str,
+    out_dir: str,
+    *,
+    allowed_output_root: Optional[str] = None,
+    ffmpeg_path: Optional[str] = None,
+    ffmpeg_sha256: Optional[str] = None,
+    ffprobe_path: Optional[str] = None,
+    ffprobe_sha256: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Download audio from a YouTube URL to the specified directory.
 
     Args:
         url: The YouTube URL to download.
-        out_dir: The directory to save the audio file.
+        out_dir: The directory to save the audio file. The resolved path must
+            remain within ``allowed_output_root``.
+        allowed_output_root: Absolute caller-owned output root. When omitted,
+            the operating-system temporary directory is used.
+        ffmpeg_path: Optional absolute path to a provisioned ffmpeg executable.
+        ffmpeg_sha256: Full lowercase SHA-256 identity for ``ffmpeg_path``.
+        ffprobe_path: Optional sibling path to the provisioned ffprobe executable.
+        ffprobe_sha256: Full lowercase SHA-256 identity for ``ffprobe_path``.
 
     Returns:
         A dictionary containing the result of the download.
@@ -121,9 +345,22 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             },
         }
 
+    resolved_out_dir = _resolve_output_directory(out_dir, allowed_output_root)
+    if resolved_out_dir is None:
+        return _invalid_output_directory_response()
+
+    runtime_is_valid, verified_ffmpeg_path = _verify_media_runtime(
+        ffmpeg_path,
+        ffmpeg_sha256,
+        ffprobe_path,
+        ffprobe_sha256,
+    )
+    if not runtime_is_valid:
+        return _runtime_dependency_invalid()
+
     ydl_opts: Dict[str, Any] = {
         "format": "bestaudio/best",
-        "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
+        "outtmpl": str(resolved_out_dir / "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
         "noprogress": True,
@@ -131,6 +368,12 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
         "postprocessors": [{"key": "FFmpegExtractAudio"}],
         "geo_bypass": False,
     }
+    if _system_ca_available():
+        # Use managed desktop trust roots only after confirming that the store
+        # is populated. Otherwise yt-dlp retains its built-in CA fallback.
+        ydl_opts["compat_opts"] = {"no-certifi"}
+    if verified_ffmpeg_path is not None:
+        ydl_opts["ffmpeg_location"] = verified_ffmpeg_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -150,9 +393,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             info = ydl.extract_info(url, download=True)
             if info is None:
                 raise Exception("Failed to extract info")
-            actual_filepath = ydl.prepare_filename(info)
+            prepared_filepath = ydl.prepare_filename(info)
+            if not _path_is_within_directory(prepared_filepath, resolved_out_dir):
+                return _invalid_output_directory_response()
 
-            actual_filepath = _find_downloaded_file(actual_filepath)
+            actual_filepath = _find_downloaded_file(prepared_filepath)
 
             if actual_filepath is None:
                 return {
@@ -162,6 +407,8 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         "message": "Downloaded file could not be found.",
                     },
                 }
+            if not _path_is_within_directory(actual_filepath, resolved_out_dir):
+                return _invalid_output_directory_response()
 
             if (
                 os.path.exists(actual_filepath)
@@ -198,9 +445,22 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", required=True)
     parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--allowed-output-root")
+    parser.add_argument("--ffmpeg-path")
+    parser.add_argument("--ffmpeg-sha256")
+    parser.add_argument("--ffprobe-path")
+    parser.add_argument("--ffprobe-sha256")
     args = parser.parse_args()
 
-    result = download_youtube_audio(args.url, args.out_dir)
+    result = download_youtube_audio(
+        args.url,
+        args.out_dir,
+        allowed_output_root=args.allowed_output_root,
+        ffmpeg_path=args.ffmpeg_path,
+        ffmpeg_sha256=args.ffmpeg_sha256,
+        ffprobe_path=args.ffprobe_path,
+        ffprobe_sha256=args.ffprobe_sha256,
+    )
     print(json.dumps(result))
     sys.exit(0 if result["ok"] else 1)
 

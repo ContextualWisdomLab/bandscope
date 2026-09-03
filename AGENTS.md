@@ -3,6 +3,9 @@
 ## Project overview
 - BandScope is a local-first desktop app for rehearsal prep: a practical song view with likely harmony by section and by instrument or vocal role, form and groove cues, stems, playable ranges, simplification guidance, transposition or setup cues, part-overlap cues, visible confidence, and rehearsal priorities.
 - Authoritative delivery rules live in `ARCHITECTURE.md`, `docs/plans/`, and the root verification scripts.
+- Canonical product/technical requirements, ADRs, diagrams, and documentation sufficiency live in
+  `docs/PRD.md`, `docs/TRD.md`, `docs/adr/README.md`, `docs/architecture/diagrams.md`, and
+  `docs/documentation-coverage-matrix.md`.
 - Brand, tone, UX copy, and prioritization rules live in `docs/brand-story.md` and must be applied to PRDs, TRDs, UI copy, onboarding, empty states, and error messages.
 - App security rules live in `docs/security/app-security.md` and must be applied to file handling, URL intake, subprocesses, IPC, WebView usage, model loading, updates, logging, cache handling, and export behavior.
 - Dependency, SBOM, and supply-chain rules live in `docs/security/dependency-policy.md` and must be applied to dependency additions, GitHub Actions, releases, bundled binaries, and model artifacts.
@@ -59,9 +62,19 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Frontend tests: `npm run test --workspaces --if-present`
 - Python tests: `uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100`
 - Typecheck: `npm run typecheck --workspaces --if-present && uv run --project services/analysis-engine mypy src`
+- Known-stem offline contract: `uv run --project services/analysis-engine pytest services/analysis-engine/tests/test_youtube_stem_e2e.py -m 'not youtube_stem_e2e' -vv`
+- Known-stem live lane is explicit opt-in only; follow
+  `docs/engineering/youtube-known-stem-validation.md` and never claim a skipped or provider-failed
+  invocation passed.
 
 ## Architecture references
 - `ARCHITECTURE.md`
+- `docs/README.md`
+- `docs/PRD.md`
+- `docs/TRD.md`
+- `docs/adr/README.md`
+- `docs/architecture/diagrams.md`
+- `docs/documentation-coverage-matrix.md`
 - `docs/engineering/acceptance-criteria.md`
 - `docs/engineering/harness-engineering.md`
 - `docs/workflow/one-day-delivery-plan.md`
@@ -85,6 +98,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, playable ranges, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
+- Do not invent a parallel MIR product. #828 owns the #770 known-stem slice. Tempo Acc2 alone cannot accept rehearsal tempo; cite Schreiber, Urbano, & Müller (2020) for Acc1/Acc2, not Raffel (2014).
 
 ## Safety
 - Do not add network-dependent runtime paths for local analysis.

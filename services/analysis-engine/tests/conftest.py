@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import ModuleType
@@ -17,7 +18,15 @@ def load_module(relative_path: str, module_name: str) -> ModuleType:
     assert spec is not None
     assert spec.loader is not None
     module = module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module_directory = str(module_path.parent)
+    inserted_module_directory = module_directory not in sys.path
+    if inserted_module_directory:
+        sys.path.insert(0, module_directory)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if inserted_module_directory:
+            sys.path.remove(module_directory)
     return module
 
 

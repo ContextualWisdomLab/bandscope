@@ -8,39 +8,41 @@
 
 **Tech Stack:** npm workspaces, uv lock, Cargo lock, Dependabot, GitHub Actions, CycloneDX JSON SBOM, supplemental JSON inventory.
 
-**Security Notes:** Supply-chain workflows are part of the public attack surface. The harness must fail if lockfiles, workflow pinning, dependency review, audits, SBOM generation, or supplemental inventory drift out of policy.
+## Security Notes
 
-## Attack surface
+Supply-chain workflows are part of the public attack surface. The harness must fail if lockfiles, workflow pinning, dependency review, audits, SBOM generation, or supplemental inventory drift out of policy.
+
+### Attack surface
 
 - dependency manifests and lockfiles
 - GitHub Actions and third-party actions
 - bundled binaries and model artifacts
 - release assets and uploaded SBOMs
 
-## Trust boundary
+### Trust boundary
 
 - package-manager graphs do not fully cover binaries and model artifacts
 - GitHub workflows and release assets are externally visible supply-chain surfaces
 
-## Mitigations
+### Mitigations
 
 - commit lockfiles and pin workflow actions by SHA
 - add dependency review, audit, and SBOM workflows
 - keep supplemental component inventory in machine-readable form
 - document intended required checks for develop and main
 
-## Test points
+### Test points
 
 - local supply-chain verification script
 - quickcheck path includes supply-chain verification
 - workflows trigger on develop, main, PR, tag, and release-related events
 
-## Realistic threats
+### Realistic threats
 
 - over-broad workflow permissions can let PR-modified code affect release surfaces
 - missing bundled-binary inventory can hide shipped assets outside package-manager graphs
 
-## Remaining risk
+### Remaining risk
 
 - GitHub-native security signals still depend on repository settings and service availability outside repo control
 
@@ -70,17 +72,21 @@
 
 **Files:**
 - Create: `.github/dependabot.yml`
-- Create: `.github/workflows/dependency-review.yml`
 - Create: `.github/workflows/security-audit.yml`
 - Create: `.github/workflows/sbom.yml`
 - Modify: `.github/workflows/ci.yml`
+
+Dependency review is supplied by the organization-level required workflow recorded in
+`docs/workflow/github-bootstrap-execution-policy.md`; this repository intentionally does not
+duplicate it as `.github/workflows/dependency-review.yml`.
 
 **Security Notes**
 
 - Attack surface: third-party actions, audit tooling, release uploads, and CI permissions.
 - Trust boundary: GitHub Actions definitions become part of the supply-chain enforcement path.
 - Mitigations: pin actions by SHA, use least-privilege permissions, and generate machine-readable SBOM artifacts.
-- Test points: local checks verify workflow presence, trigger coverage, and action pinning.
+- Test points: local checks verify repository workflow presence, organization-level
+  dependency-review authority, trigger coverage, and action pinning.
 
 **Acceptance detail**
 
@@ -101,12 +107,14 @@
 
 - Attack surface: a weak local harness can let unsafe supply-chain drift land before PR review.
 - Trust boundary: quickcheck is the first enforcement line before GitHub CI.
-- Mitigations: fail fast on missing lockfiles, missing workflows, missing inventory, or unpinned actions.
+- Mitigations: fail fast on missing lockfiles, missing repository workflows, undocumented
+  organization-level dependency-review authority, missing inventory, or unpinned actions.
 - Test points: quickcheck output must include the supply-chain verification step.
 
 **Acceptance detail**
 
-- fail on missing lockfiles, missing workflows, missing supplemental inventory, or unpinned actions
+- fail on missing lockfiles, missing repository workflows, undocumented organization-level
+  dependency-review authority, missing supplemental inventory, or unpinned actions
 - fail if required branch-check names drift from documented policy
 
 ### Task 4: Attempt GitHub enforcement and record blockers honestly
@@ -126,7 +134,8 @@
 
 **Acceptance detail**
 
-- record the exact workflow paths for dependency review, audit, and SBOM generation
+- record the organization-level dependency-review authority and the exact repository workflow
+  paths for audit and SBOM generation
 - record the SBOM format and where Actions artifacts and Release assets are retained
 - record how bundled binaries and model artifacts are tracked
 - use `FAILED` for missing repo-controlled artifacts and `BLOCKED` only for missing GitHub permission or platform capability
