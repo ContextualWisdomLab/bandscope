@@ -71,6 +71,20 @@ class StateDiagramReferenceTests(unittest.TestCase):
 
         self.assertEqual(missing, list(RECOVERY_TRANSITIONS))
 
+    def test_ignores_note_text_with_colon_and_arrow(self) -> None:
+        """Mermaid notes containing arrow-like text must not crash transition parsing."""
+        diagram = "\n".join(
+            (
+                "stateDiagram-v2",
+                "    note right of Ready: keep source --> after cancel",
+                *(f"    {transition}" for transition in RECOVERY_TRANSITIONS),
+            )
+        )
+
+        transitions = VERIFY_DOCS.mermaid_transition_statements(diagram)
+
+        self.assertEqual(transitions, set(RECOVERY_TRANSITIONS))
+
     def test_accepts_transitions_in_state_diagram(self) -> None:
         """A Mermaid stateDiagram-v2 containing every transition satisfies the gate."""
         diagram = "\n".join(
