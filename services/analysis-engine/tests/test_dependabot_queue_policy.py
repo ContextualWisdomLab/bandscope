@@ -1,4 +1,4 @@
-"""Executable queue-shaping contracts for Dependabot version updates."""
+"""Executable queue-shaping contracts for Dependabot update proposals."""
 
 from pathlib import Path
 
@@ -18,13 +18,21 @@ def _ecosystem_block(name: str) -> str:
     return content[start:] if next_start == -1 else content[start:next_start]
 
 
+def _group_block(ecosystem_block: str, name: str) -> str:
+    """Return one group body, bounded before the next sibling group when present."""
+    marker = f"      {name}:"
+    if marker not in ecosystem_block:
+        raise AssertionError(f"Dependabot group is missing: {name}")
+    group = ecosystem_block.split(marker, 1)[1]
+    next_group = group.find("\n      ")
+    return group if next_group == -1 else group[:next_group]
+
+
 def test_npm_development_nonmajor_updates_are_grouped() -> None:
     """Keep routine npm tooling updates from recreating one-PR-per-package fanout."""
     block = _ecosystem_block("npm")
-    marker = "      npm-development-nonmajor:"
+    group = _group_block(block, "npm-development-nonmajor")
 
-    assert marker in block
-    group = block.split(marker, 1)[1]
     assert '        dependency-type: "development"' in group
     assert "        update-types:" in group
     assert '          - "minor"' in group
@@ -34,10 +42,21 @@ def test_npm_development_nonmajor_updates_are_grouped() -> None:
     assert '          - "*"' in group
 
 
-def test_github_actions_updates_remain_grouped() -> None:
-    """Keep action updates consolidated inside their existing ecosystem boundary."""
+def test_github_actions_version_updates_remain_grouped() -> None:
+    """Keep action version updates consolidated inside their ecosystem boundary."""
     block = _ecosystem_block("github-actions")
+    group = _group_block(block, "github-actions")
 
-    assert "      github-actions:" in block
-    assert "        patterns:" in block
-    assert '          - "*"' in block
+    assert '        applies-to: "version-updates"' in group
+    assert "        patterns:" in group
+    assert '          - "*"' in group
+
+
+def test_github_actions_security_updates_are_grouped_separately() -> None:
+    """Consolidate action security updates without mixing them with version updates."""
+    block = _ecosystem_block("github-actions")
+    group = _group_block(block, "github-actions-security")
+
+    assert '        applies-to: "security-updates"' in group
+    assert "        patterns:" in group
+    assert '          - "*"' in group
