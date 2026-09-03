@@ -398,7 +398,7 @@ def _build_from_pipeline(
 
     # 4. Build final payload sections
     payload_sections: list[RehearsalSectionPayload] = []
-    focus_sections: list[str] = []
+    focus_sections_dict: dict[str, None] = {}
 
     for i, section in enumerate(detected_sections):
         # Compute time range from boundaries
@@ -436,9 +436,9 @@ def _build_from_pipeline(
 
         # Track high-priority sections for export summary
         if section["form_label"] in ("chorus", "verse"):
-            if section["form_label"] not in focus_sections:
-                focus_sections.append(section["form_label"])
+            focus_sections_dict[section["form_label"]] = None
 
+    focus_sections = list(focus_sections_dict.keys())
     if not focus_sections and payload_sections:
         focus_sections = [payload_sections[0]["label"]]
 

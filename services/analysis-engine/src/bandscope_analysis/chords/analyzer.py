@@ -140,42 +140,34 @@ class ChordAnalyzer:
 
     def _extract_user_chords(self, section_roles: list[dict[str, Any]]) -> list[ChordLabel]:
         """Extract only user-sourced chords from role harmony data."""
-        chords: list[ChordLabel] = []
-        seen: set[str] = set()
+        chords: dict[str, ChordLabel] = {}
         for role in section_roles:
             harmony = role.get("harmony")
             if isinstance(harmony, dict) and "chord" in harmony:
                 if harmony.get("source") == "user":
                     chord_name = str(harmony["chord"])
-                    if chord_name not in seen:
-                        seen.add(chord_name)
-                        chords.append(
-                            {
-                                "chord": chord_name,
-                                "functionLabel": str(harmony.get("functionLabel", "")),
-                                "source": "user",
-                            }
-                        )
-        return chords
+                    if chord_name not in chords:
+                        chords[chord_name] = {
+                            "chord": chord_name,
+                            "functionLabel": str(harmony.get("functionLabel", "")),
+                            "source": "user",
+                        }
+        return list(chords.values())
 
     def _extract_role_chords(self, section_roles: list[dict[str, Any]]) -> list[ChordLabel]:
         """Extract model-sourced chords from role harmony data (legacy path)."""
-        chords: list[ChordLabel] = []
-        seen: set[str] = set()
+        chords: dict[str, ChordLabel] = {}
         for role in section_roles:
             harmony = role.get("harmony")
             if isinstance(harmony, dict) and "chord" in harmony:
                 chord_name = str(harmony["chord"])
-                if chord_name not in seen:
-                    seen.add(chord_name)
-                    chords.append(
-                        {
-                            "chord": chord_name,
-                            "functionLabel": str(harmony.get("functionLabel", "")),
-                            "source": "model",
-                        }
-                    )
-        return chords
+                if chord_name not in chords:
+                    chords[chord_name] = {
+                        "chord": chord_name,
+                        "functionLabel": str(harmony.get("functionLabel", "")),
+                        "source": "model",
+                    }
+        return list(chords.values())
 
     def _filter_recognized_for_section(
         self,
@@ -213,21 +205,17 @@ class ChordAnalyzer:
             ]
 
         # Deduplicate while preserving order
-        seen: set[str] = set()
-        chords: list[ChordLabel] = []
+        chords: dict[str, ChordLabel] = {}
         for chord_seg in valid_chords:
             chord_name = chord_seg["chord"]
-            if chord_name not in seen:
-                seen.add(chord_name)
-                chords.append(
-                    {
-                        "chord": chord_name,
-                        "functionLabel": "",
-                        "source": "model",
-                    }
-                )
+            if chord_name not in chords:
+                chords[chord_name] = {
+                    "chord": chord_name,
+                    "functionLabel": "",
+                    "source": "model",
+                }
 
-        return chords
+        return list(chords.values())
 
     def _compute_section_confidence(
         self,
