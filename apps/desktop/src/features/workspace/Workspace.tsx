@@ -284,6 +284,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     ) {
       return;
     }
+    const requestedSection = song.sections[sectionIndex];
+    if (
+      resolvedActiveRole &&
+      requestedSection &&
+      !requestedSection.roles.some((role) => role.id === resolvedActiveRole)
+    ) {
+      setActiveRole(null);
+    }
     setSectionSelectionRequest((current) => ({
       sectionIndex,
       requestId: (current?.requestId ?? 0) + 1,
