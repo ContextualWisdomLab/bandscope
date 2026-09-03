@@ -29,7 +29,11 @@ def _run_contract_checker(workflow_text: str) -> subprocess.CompletedProcess[str
 
 def _workflow_fixture(upload_condition: str, pull_request_comment_spacing: str = "") -> str:
     """Build the minimal fail-on-findings Trivy workflow needed by the checker."""
-    comment_suffix = f"{pull_request_comment_spacing}# ordinary PR heads" if pull_request_comment_spacing else ""
+    comment_suffix = (
+        f"{pull_request_comment_spacing}# ordinary PR heads"
+        if pull_request_comment_spacing
+        else ""
+    )
     return f"""name: trivy
 on:
   push:
