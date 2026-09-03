@@ -158,6 +158,9 @@
   "workspaceSelectedEntranceCueCount": "Count this in {sectionLabel} before {roleName} enters: {value}",
   "workspaceSelectedEntranceCueTransition": "Catch this transition in {sectionLabel} before {roleName} enters: {value}",
   "workspaceSelectedEntranceCueUnavailable": "This part still needs a trusted entrance cue. Confirm the lyric, count, or transition before the first entrance.",
+  "workspaceSelectedFirstPassTitle": "Tonight's first-pass take",
+  "workspaceSelectedFirstPassReady": "First pass for {roleName} in {sectionLabel}: {value} Play that simpler take before adding the rest.",
+  "workspaceSelectedFirstPassUnavailable": "This part still needs a trusted first-pass take. Confirm the simpler version before the first run.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
