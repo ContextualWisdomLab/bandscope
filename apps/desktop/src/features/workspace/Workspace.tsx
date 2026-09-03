@@ -6,6 +6,7 @@ import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { fillEntranceCueCopy, firstEntranceCue } from "./firstEntranceCue";
+import { fillFirstPassCopy, firstPassSimplification } from "./firstPassSimplification";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -187,6 +188,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           value: selectedEntranceCue.value
         })
       : t("workspaceSelectedEntranceCueUnavailable");
+  const selectedFirstPass = useMemo(
+    () => (activeRole ? firstPassSimplification(song, activeRole) : null),
+    [activeRole, song]
+  );
+  const selectedFirstPassCopy =
+    selectedFirstPass?.status === "ready"
+      ? fillFirstPassCopy(t("workspaceSelectedFirstPassReady"), {
+          roleName: selectedFirstPass.roleName,
+          sectionLabel: selectedFirstPass.sectionLabel,
+          value: selectedFirstPass.value
+        })
+      : t("workspaceSelectedFirstPassUnavailable");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -405,6 +418,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     {t("workspaceSelectedEntranceCueTitle")}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-100">{selectedEntranceCueCopy}</p>
+                </section>
+                <section
+                  className="mt-3 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3"
+                  data-testid="selected-part-first-pass"
+                  aria-label={t("workspaceSelectedFirstPassTitle")}
+                >
+                  <p className="text-[0.7rem] font-black uppercase tracking-[0.22em] text-indigo-100">
+                    {t("workspaceSelectedFirstPassTitle")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-100">{selectedFirstPassCopy}</p>
                 </section>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
