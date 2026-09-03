@@ -292,6 +292,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
+            title={t("scoreViewerPrevPage")}
             disabled={pageNumber <= 1}
             onClick={goToPreviousPage}
           >
@@ -305,6 +306,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
+            title={t("scoreViewerNextPage")}
             disabled={pageNumber >= pageCount}
             onClick={goToNextPage}
           >
