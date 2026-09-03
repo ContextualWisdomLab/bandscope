@@ -1,3 +1,8 @@
+"""Contract tests for the canonical local-audio decode port.
+
+These regressions keep resource admission, decoder failure redaction, and decoded-output validation behind one owned boundary.
+"""
+
 from __future__ import annotations
 
 import io
@@ -16,6 +21,10 @@ from bandscope_analysis.audio_resource_policy import (
 def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Keep preflight, one decode, and decoded validation in strict order.
+
+    The decode port must own the sequence so downstream analyzers cannot bypass or duplicate resource admission.
+    """
     source = io.BytesIO(b"container")
     calls: list[tuple[str, object]] = []
     decoder_output = np.array([[0.25, -0.5]], dtype=np.float64)
@@ -62,6 +71,10 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
 def test_decode_mono_audio_preserves_resource_policy_rejection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Propagate the canonical preflight rejection without invoking a decoder.
+
+    A rejected source must not consume additional decode resources or lose its typed policy reason.
+    """
     rejection = AudioResourcePolicyError("duration_exceeded")
 
     def reject(_source: object, _policy: object) -> None:
@@ -83,6 +96,10 @@ def test_decode_mono_audio_preserves_resource_policy_rejection(
 def test_decode_mono_audio_redacts_third_party_decoder_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Map third-party decoder details to a payload-safe policy error.
+
+    Native paths or token-shaped details may remain only in the exception cause for local debugging, never in buyer-facing error text.
+    """
     secret_detail = "/Users/alice/Music/private.m4a token=secret"
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
@@ -102,6 +119,10 @@ def test_decode_mono_audio_redacts_third_party_decoder_failure(
 def test_decode_mono_audio_redacts_malformed_decoder_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Reject decoder output that cannot be normalized into bounded PCM.
+
+    Malformed third-party values must fail at the decode boundary rather than escaping into MIR analyzers.
+    """
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
         audio_decode.librosa,
@@ -118,6 +139,10 @@ def test_decode_mono_audio_redacts_malformed_decoder_output(
 def test_decode_mono_audio_preserves_decoded_policy_rejection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Preserve rejection identity from decoded-audio resource validation.
+
+    The decode port must not collapse a precise post-decode budget failure into a generic malformed-container error.
+    """
     rejection = AudioResourcePolicyError("decoded_sample_count_exceeded")
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
