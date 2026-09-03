@@ -72,6 +72,25 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
+/** Focus one renderer-owned roadmap occurrence after an explicit timeline action. */
+function focusWorkspaceSection(sectionIndex: number): void {
+  const sectionCard = document.getElementById(`workspace-section-card-${sectionIndex}`);
+  if (!(sectionCard instanceof HTMLElement)) {
+    return;
+  }
+  const prefersReducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (typeof sectionCard.scrollIntoView === "function") {
+    sectionCard.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }
+  sectionCard.focus();
+}
+
 /** Render renderer-position section actions without creating a second transport store. */
 const SongStructure = memo(function SongStructure({
   sections,
@@ -292,6 +311,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     ) {
       setActiveRole(null);
     }
+    focusWorkspaceSection(sectionIndex);
     setSectionSelectionRequest((current) => ({
       sectionIndex,
       requestId: (current?.requestId ?? 0) + 1,
