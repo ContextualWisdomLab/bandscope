@@ -19,13 +19,18 @@ def _ecosystem_block(name: str) -> str:
 
 
 def _group_block(ecosystem_block: str, name: str) -> str:
-    """Return one group body, bounded before the next sibling group when present."""
+    """Return one group body, stopping only at the next six-space sibling key."""
     marker = f"      {name}:"
     if marker not in ecosystem_block:
         raise AssertionError(f"Dependabot group is missing: {name}")
     group = ecosystem_block.split(marker, 1)[1]
-    next_group = group.find("\n      ")
-    return group if next_group == -1 else group[:next_group]
+    lines = group.splitlines()
+    body: list[str] = []
+    for line in lines:
+        if line.startswith("      ") and not line.startswith("        "):
+            break
+        body.append(line)
+    return "\n".join(body)
 
 
 def test_npm_development_nonmajor_updates_are_grouped() -> None:
