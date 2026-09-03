@@ -7,6 +7,7 @@ import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { fillEntranceCueCopy, firstEntranceCue } from "./firstEntranceCue";
 import { fillFirstPassCopy, firstPassSimplification } from "./firstPassSimplification";
+import { fillConfirmedChordCopy, selectedPartConfirmedChord } from "./selectedPartConfirmedChord";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -176,6 +177,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const confirmedChord = useMemo(
+    () => selectedPartConfirmedChord(song, activeRole),
+    [activeRole, song]
+  );
+  const confirmedChordCopy = confirmedChord
+    ? fillConfirmedChordCopy(t("workspaceConfirmedChordLock"), {
+        roleName: confirmedChord.roleName,
+        chord: confirmedChord.chord,
+        sectionLabel: confirmedChord.sectionLabel
+      })
+    : null;
   const selectedEntranceCue = useMemo(
     () => (activeRole ? firstEntranceCue(song, activeRole) : null),
     [activeRole, song]
@@ -346,6 +358,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
+
+          {confirmedChordCopy ? (
+            <section
+              className="rounded-2xl border border-indigo-300/20 bg-indigo-300/[0.07] p-4"
+              data-testid="selected-part-confirmed-chord"
+              aria-label={t("workspaceConfirmedChordTitle")}
+            >
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-indigo-200">{t("workspaceConfirmedChordTitle")}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-100">{confirmedChordCopy}</p>
+            </section>
+          ) : null}
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
