@@ -2,14 +2,15 @@ import { memo, useCallback } from "react";
 import { Minus, Plus } from "lucide-react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 
-/** Documented. */
+/** Selected-part practice tracker with an optional named next rehearsal step. */
 interface PracticeProgressProps {
   progress?: number;
   onChange: (newProgress: number) => void;
+  nextActionCopy?: string;
 }
 
 /** Documented. */
-function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressProps) {
+function PracticeProgressComponent({ progress = 0, onChange, nextActionCopy }: PracticeProgressProps) {
   const t = createTranslator(detectPreferredLocale());
 
   const handleDecrease = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -48,14 +49,20 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
         <span className="text-sm font-semibold text-slate-200">{progress}%</span>
       </div>
 
+      {nextActionCopy ? (
+        <p className="mb-3 text-sm leading-6 text-slate-100" data-testid="practice-progress-next-action">
+          {nextActionCopy}
+        </p>
+      ) : null}
+
       <div className="flex items-center gap-4">
         <button
           type="button"
           onClick={handleDecrease}
           aria-disabled={progress <= 0 ? "true" : undefined}
           className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-          aria-label={t("decreasePracticeProgressLabel")}
-          title={t("decreasePracticeProgressLabel")}
+          aria-label={progress <= 0 ? t("decreasePracticeProgressAtMin") : t("decreasePracticeProgressLabel")}
+          title={progress <= 0 ? t("decreasePracticeProgressAtMin") : t("decreasePracticeProgressLabel")}
         >
           <Minus className="size-4" aria-hidden="true" />
         </button>
@@ -85,8 +92,8 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           onClick={handleIncrease}
           aria-disabled={progress >= 100 ? "true" : undefined}
           className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-          aria-label={t("increasePracticeProgressLabel")}
-          title={t("increasePracticeProgressLabel")}
+          aria-label={progress >= 100 ? t("increasePracticeProgressAtMax") : t("increasePracticeProgressLabel")}
+          title={progress >= 100 ? t("increasePracticeProgressAtMax") : t("increasePracticeProgressLabel")}
         >
           <Plus className="size-4" aria-hidden="true" />
         </button>

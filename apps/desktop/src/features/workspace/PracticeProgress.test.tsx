@@ -14,8 +14,9 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress onChange={handleChange} />);
 
     expect(screen.getByText("0%")).toBeTruthy();
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressAtMin" }) as HTMLButtonElement;
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
+    expect(decreaseBtn).toHaveAttribute("title", "decreasePracticeProgressAtMin");
 
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
@@ -27,6 +28,21 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     expect(screen.getByText("50%")).toBeTruthy();
+  });
+
+  it("renders the next-action copy when a practice step is named", () => {
+    const handleChange = vi.fn();
+    render(
+      <PracticeProgress
+        progress={0}
+        onChange={handleChange}
+        nextActionCopy="Check Bass Guitar's first range, then mark this part started."
+      />
+    );
+
+    expect(screen.getByTestId("practice-progress-next-action")).toHaveTextContent(
+      "Check Bass Guitar's first range, then mark this part started."
+    );
   });
 
   it("calls onChange with increased value when increase button is clicked", () => {
@@ -101,8 +117,9 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={100} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressAtMax" }) as HTMLButtonElement;
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
+    expect(increaseBtn).toHaveAttribute("title", "increasePracticeProgressAtMax");
 
     const clickEvent = createEvent.click(increaseBtn);
     fireEvent(increaseBtn, clickEvent);
