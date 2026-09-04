@@ -5,7 +5,9 @@ import type {
 } from "./rehearsalTransport";
 import {
   admitPlaybackSourceSwitchTarget,
+  beginPlaybackSourceSwitch,
   capturePlaybackSourceSwitch,
+  createPlaybackSourceSwitchSession,
 } from "./playbackSourceSwitch";
 
 const loop: RehearsalLoopWindow = {
@@ -118,10 +120,7 @@ describe("playback source switch continuity", () => {
   it.each([
     ["file:///private/source.wav", vocalsAuthority],
     [fullMixAuthority, "https://example.com/reference.wav"],
-    [
-      fullMixAuthority,
-      "bandscope-project://project-99-1/stem/vocals",
-    ],
+    [fullMixAuthority, "bandscope-project://project-99-1/stem/vocals"],
     [`${fullMixAuthority}/stem/guitar`, vocalsAuthority],
   ])(
     "rejects non-canonical or cross-project source-switch authority: %s -> %s",
@@ -169,5 +168,91 @@ describe("playback source switch continuity", () => {
     expect(
       admitPlaybackSourceSwitchTarget(currentPlan, 45, bassAuthority, 4),
     ).toEqual(currentPlan);
+  });
+
+  it("invalidates the prior media receipt as soon as a newer source switch begins", () => {
+    const first = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    const second = beginPlaybackSourceSwitch(
+      first.state,
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      bassAuthority,
+    );
+
+    expect(first.plan?.sequence).toBe(1);
+    expect(second.plan?.sequence).toBe(2);
+    expect(second.state.activePlan).toEqual(second.plan);
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        first.plan,
+        45,
+        vocalsAuthority,
+        second.state.sequence,
+      ),
+    ).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        second.plan,
+        45,
+        bassAuthority,
+        second.state.sequence,
+      ),
+    ).toEqual(second.plan);
+  });
+
+  it("burns a switch identity even when the newer attempt cannot produce a continuity plan", () => {
+    const first = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    const rejected = beginPlaybackSourceSwitch(
+      first.state,
+      transport("counting-in"),
+      37.25,
+      fullMixAuthority,
+      bassAuthority,
+    );
+
+    expect(rejected.plan).toBeNull();
+    expect(rejected.state.sequence).toBe(2);
+    expect(rejected.state.activePlan).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        first.plan,
+        45,
+        vocalsAuthority,
+        rejected.state.sequence,
+      ),
+    ).toBeNull();
+  });
+
+  it("fails closed without reusing a switch receipt after sequence exhaustion", () => {
+    const exhausted = {
+      sequence: Number.MAX_SAFE_INTEGER,
+      activePlan: capture("looping", 37.25, vocalsAuthority, Number.MAX_SAFE_INTEGER),
+    };
+    const result = beginPlaybackSourceSwitch(
+      exhausted,
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      bassAuthority,
+    );
+
+    expect(result.plan).toBeNull();
+    expect(result.state).toEqual({
+      sequence: Number.MAX_SAFE_INTEGER,
+      activePlan: null,
+    });
   });
 });
