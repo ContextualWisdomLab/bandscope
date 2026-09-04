@@ -4,6 +4,30 @@
 
 ### Added
 
+- Add Tier 1 real-audio accuracy acceptance: a decoded C major WAV must recover `C`, and a 120 BPM click WAV must pass tempo Acc1, with checksum-fail-closed reports.
+
+### Fixed
+
+- Reject click-track accuracy fixtures whose beat interval or click pulse cannot be represented by at least one sample, preventing aliased or all-zero tempo evidence from entering acceptance runs.
+- Reject click-track fixtures whose chosen pulse frequency aliases to a zero signal, so silent WAVs cannot become tempo acceptance evidence.
+- Reject fixture timings whose derived sample count overflows or quantizes below one sample, and reject finite BPM inputs whose derived beat interval becomes non-finite, before they can drive real-audio accuracy allocation or loop authority.
+- Reject malformed decoded-PCM accuracy evidence before chord recognition: the C-major acceptance buffer must be a non-empty, finite, floating-point, one-dimensional mono array and sample rates must be finite, positive, and non-Boolean.
+- Reject non-numeric accuracy timing, tempo, fixture, and sample-rate evidence at the documented ValueError boundary instead of leaking NumPy or math TypeErrors.
+- Reject accuracy-report metric integers whose conversion overflows floating-point evidence instead of letting an `OverflowError` escape the manifest validation boundary.
+- Reject Boolean fixture duration, tempo, and sample-rate inputs so Python `True`/`False` values cannot become numeric real-audio acceptance authority or a 1 Hz WAV contract.
+- Reject Boolean chord timing and tempo metric inputs so `True`/`False` cannot masquerade as numeric MIR acceptance evidence through Python's `bool`-as-`int` semantics.
+- Reject blank or edge-whitespace-padded accuracy-report case IDs, metric names, and truth labels so portable acceptance evidence preserves exact registered identities.
+- Reject empty or reversed chord-estimate intervals before duration-weighted recall so malformed timing evidence cannot be silently ignored by an accuracy acceptance score.
+- Fail closed when accuracy-report provenance cannot resolve a non-empty product `VERSION`, instead of publishing an `unknown` engine version as valid evidence.
+- Reject non-finite chord annotation and estimate timings before duration-weighted recall so NaN/Inf evidence cannot fabricate covered duration.
+- Reject non-finite tempo estimates, ground-truth BPM values, and Acc1 tolerances as invalid accuracy evidence instead of recording them as ordinary misses.
+- Select Numba 0.66.0 for ARM64 librosa beat tracking after the prior 0.62.1
+  and 0.63.1 resolutions reproducibly crashed on macOS arm64, while retaining
+  the 0.62.1 Intel resolution because the newer release has no macOS Intel wheel.
+- Union overlapping matching chord-estimate intervals before duration-weighted recall so acceptance scores cannot double-count annotated time or exceed 100%.
+- Reject malformed accuracy-report provenance, including non-hex SHA-256 text and non-finite metric values, before acceptance evidence is consumed.
+- Bound accuracy fixture byte size, channel count, sample rate, and decoded duration before checksum staging or PCM allocation.
+- Score the C major acceptance case from checksummed on-disk WAV bytes instead of the pre-write in-memory triad.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.

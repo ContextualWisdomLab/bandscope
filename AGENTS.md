@@ -63,6 +63,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 ## Architecture references
 - `ARCHITECTURE.md`
 - `docs/engineering/acceptance-criteria.md`
+- `docs/doctoring/real-audio-accuracy-acceptance.md`
 - `docs/engineering/harness-engineering.md`
 - `docs/workflow/one-day-delivery-plan.md`
 - `docs/workflow/pr-continuity.md`
@@ -85,6 +86,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, playable ranges, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
+- Do not claim harmony or tempo accuracy from mocked feature matrices. Tier 1 decoded-PCM fixtures and metrics live in `docs/doctoring/real-audio-accuracy-acceptance.md`.
 
 ## Safety
 - Do not add network-dependent runtime paths for local analysis.

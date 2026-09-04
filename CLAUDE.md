@@ -73,3 +73,4 @@ Supporting packages:
 - Lockfiles (`package-lock.json`, `uv.lock`, `Cargo.lock`) are committed and must stay in sync; GitHub Actions are SHA-pinned. Adding a direct dependency requires the admission rationale defined in `AGENTS.md` and `docs/security/dependency-policy.md`.
 - CI beyond quickcheck: `gate / ci / rust-check` (Tauri cargo check on macOS) and `build-baseline` Windows/macOS amd64+arm64 native builds are merge gates, alongside CodeQL, dependency-review, sbom, bandit, trivy, secret-scan, and security-audit workflows. Do not weaken or skip them.
 - Version metadata lives in `VERSION`, the root `package.json`, and `CHANGELOG.md`; release flow is tag-driven (see `docs/operations/deploy-runbook.md`).
+- Real-audio accuracy acceptance (decoded PCM, not mocked chroma) lives in `docs/doctoring/real-audio-accuracy-acceptance.md` and `bandscope_analysis.accuracy`.
