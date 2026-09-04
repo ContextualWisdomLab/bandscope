@@ -9,6 +9,14 @@ updates:
     labels:
       - "dependencies"
       - "javascript"
+    groups:
+      npm-development-nonmajor:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+        patterns:
+          - "*"
 
   - package-ecosystem: "pip"
     directory: "/services/analysis-engine"
@@ -38,4 +46,12 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
-      - "github-actions"
+    groups:
+      github-actions:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
