@@ -125,6 +125,28 @@ describe("playback source discovery session", () => {
     }
   });
 
+  it("never reuses a discovery request identity after the safe-integer sequence is exhausted", () => {
+    const exhausted = {
+      ...createPlaybackSourceSession(projectA),
+      requestSequence: Number.MAX_SAFE_INTEGER,
+    };
+    const next = beginPlaybackSourceDiscovery(exhausted, projectA);
+
+    expect(next.request).toBeNull();
+    expect(next.state).toEqual({
+      fullMixAuthority: projectA,
+      options: [{ kind: "full_mix", authority: projectA }],
+      pendingRequest: null,
+      requestSequence: Number.MAX_SAFE_INTEGER,
+      selectedAuthority: projectA,
+    });
+
+    const ancientRequest = { fullMixAuthority: projectA, sequence: 1 };
+    expect(
+      completePlaybackSourceDiscovery(next.state, ancientRequest, projectAOptions),
+    ).toEqual(next.state);
+  });
+
   it("admits selection only from the latest canonical option set", () => {
     const begin = beginPlaybackSourceDiscovery(
       createPlaybackSourceSession(projectA),
