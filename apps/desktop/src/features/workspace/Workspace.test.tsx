@@ -326,4 +326,48 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first verse as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+    const seed = song.sections[0]!;
+    const verse = structuredClone(seed);
+    verse.id = "verse-1";
+    verse.label = "verse";
+    verse.timeRange = { start: 10, end: 30 };
+    verse.roles = [
+      {
+        ...seed.roles[2]!,
+        id: "lead-vocal",
+        name: "Lead Vocal",
+        rehearsalPriority: "high"
+      }
+    ];
+    verse.partGraph = [
+      {
+        role_id: "lead-vocal",
+        is_active: true,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ];
+    song.sections = [verse];
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    const action = screen.getByRole("button", {
+      name: "Open Lead Vocal verse at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText(/Learn Lead Vocal's verse at 0:10. Play the first line./)).toBeTruthy();
+  });
 });
