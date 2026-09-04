@@ -1,6 +1,7 @@
+import { OverlapWarningList } from "../workspace/OverlapWarningList";
 import type { RehearsalSong } from "@bandscope/shared-types";
 
-/** Documented. */
+/** Render per-role range, overlap, and transcription summaries for the loaded rehearsal song. */
 export function RangesFeature(props: { title: string; song?: RehearsalSong | null }) {
   const { title, song } = props;
 
@@ -37,25 +38,7 @@ export function RangesFeature(props: { title: string; song?: RehearsalSong | nul
                 <div style={{ fontSize: "0.85em", color: "#333" }}>
                   🎵 {role.range.lowestNote} — {role.range.highestNote}
                 </div>
-                {role.overlapWarnings.length > 0 && (
-                  <div style={{ marginTop: "8px" }}>
-                    {role.overlapWarnings.map((warning, wIndex) => (
-                      <div
-                        key={wIndex}
-                        style={{
-                          fontSize: "0.8em",
-                          color: "#fa8c16",
-                          marginTop: "4px",
-                          padding: "4px 6px",
-                          backgroundColor: "#fff7e6",
-                          borderRadius: "4px",
-                        }}
-                      >
-                        ⚠️ {warning}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <OverlapWarningList warnings={role.overlapWarnings} surface="light" />
                 {role.transcription && role.transcription.length > 0 && (
                   <div style={{ marginTop: "8px", fontSize: "0.8em", color: "#08979c", backgroundColor: "#e6fffb", padding: "4px 6px", borderRadius: "4px" }}>
                     <strong>Transcription available:</strong> {role.transcription.length} notes

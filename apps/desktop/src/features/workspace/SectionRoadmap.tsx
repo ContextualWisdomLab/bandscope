@@ -2,6 +2,7 @@ import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { OverlapWarningList } from "./OverlapWarningList";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,21 +15,32 @@ interface SectionRoadmapProps {
   onSongUpdate?: (song: RehearsalSong) => void;
 }
 
-/** Documented. */
+type ChordEditCopyValues = Readonly<Record<"roleName" | "sectionLabel" | "chord", string>>;
+
+/** Interpolate chord-edit placeholders once so rehearsal data is never reinterpreted as template syntax. */
+function formatChordEditLabel(template: string, values: ChordEditCopyValues): string {
+  return template.replace(/\{(roleName|sectionLabel|chord)\}/g, (placeholder) => {
+    const key = placeholder.slice(1, -1) as keyof ChordEditCopyValues;
+    return values[key];
+  });
+}
+
+/** Render the section-by-section rehearsal roadmap, optionally filtered to one active role. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
-  /** Documented. */
+  /** Build the localized accessible label for editing one role's chord in a section. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
-    return t("chordEditAriaLabel")
-      .replace("{roleName}", role.name)
-      .replace("{sectionLabel}", sectionLabel)
-      .replace("{chord}", role.harmony.chord);
+    return formatChordEditLabel(t("chordEditAriaLabel"), {
+      roleName: role.name,
+      sectionLabel,
+      chord: role.harmony.chord
+    });
   };
 
-  /** Documented. */
+  /** Persist a non-empty changed chord as a user-owned harmony override for the selected role. */
   const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
     if (!onSongUpdate) return;
     const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
@@ -74,14 +86,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
     if (changed) onSongUpdate(updatedSong);
   };
-  /** Documented. */
+
+  /** Map rehearsal priority to the roadmap card's visual emphasis tokens. */
   const getPriorityColor = (priority: string) => {
     if (priority === "high") return "border-rose-400 bg-rose-400/[0.08] shadow-[0_0_30px_rgba(251,113,133,0.10)]";
     if (priority === "medium") return "border-amber-300 bg-amber-300/[0.08] shadow-[0_0_30px_rgba(252,211,77,0.08)]";
     return "border-emerald-300 bg-emerald-300/[0.08] shadow-[0_0_30px_rgba(110,231,183,0.08)]";
   };
 
-  /** Documented. */
+  /** Select the decorative status icon that corresponds to a rehearsal priority. */
   const getPriorityIcon = (priority: string) => {
     if (priority === "high") return <AlertCircle className="size-4 text-rose-300" aria-hidden="true" />;
     if (priority === "medium") return <Info className="size-4 text-amber-200" aria-hidden="true" />;
@@ -211,16 +224,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           </div>
                         )}
 
-                        {role.overlapWarnings.length > 0 && (
-                          <div className="mt-2 space-y-1.5">
-                            {role.overlapWarnings.map((warning, wIdx) => (
-                              <div key={wIdx} className="flex items-start gap-2 rounded-md border border-rose-300/20 bg-rose-300/[0.08] p-2 text-xs font-medium text-rose-100">
-                                <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                                <span className="leading-snug">{warning}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                        <OverlapWarningList warnings={role.overlapWarnings} />
                       </div>
                     </div>
                   </div>

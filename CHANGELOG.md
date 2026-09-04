@@ -4,6 +4,7 @@
 
 ### Added
 
+- Storybook stories and workspace tokens for ConfidenceBadge (Figma 19-239), PracticeProgress, RehearsalCallout, RoleSwitcher, WorkspaceStates, SectionRoadmap, and the extracted OverlapWarningList. ConfidenceBadge now exposes the Figma Compact and Default size states for every confidence level while preserving Compact for existing call sites. OverlapWarningList is the shared clash list for Roadmap and Ranges. The RehearsalCallout story keeps the first practice action enabled.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
@@ -14,6 +15,7 @@
 
 ### Fixed
 
+- Keep shared overlap warnings readable on both dark rehearsal surfaces and light Ranges cards by selecting surface-specific shared tokens and exposing both contexts in Storybook.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29

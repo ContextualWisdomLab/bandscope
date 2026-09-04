@@ -4,7 +4,7 @@ This contract connects the BandScope Figma design system to production React com
 
 Figma file: https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk
 
-The authoritative Figma view is `31 Component Contract Catalog`. This file mirrors that page for review only.
+The live design-system authority was re-verified on 2026-08-30. Page `45:86` (`31 Component Contract Catalog`) contains the current reusable `OverlapWarningItem` component set at node `254:81`, with `Surface=Dark` and `Surface=Light` variants. Contract frame `254:82` shows both variants against their intended host surfaces and records the no-warning state; live metadata confirms the older `252:19` node no longer exists and must not be used as design-gate evidence. Older component links below remain traceability unless their specific node is freshly verified.
 
 ## Canonical Components
 
@@ -26,7 +26,9 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Console Panel | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=18-632 | `apps/desktop/src/components/ui/card.tsx` | Use `Card`, `CardHeader`, `CardTitle`, and `CardContent`; `size="sm"` is the compact state. |
 | BandScope Mark | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-163 | `apps/desktop/src/App.tsx` | Feature-local `BandScopeMark()` currently has no props; Figma size variants are visual guidance only. |
 | Metric Card | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-216 | `apps/desktop/src/App.tsx` | Feature-local `MetricCard({ icon, label, value, detail, accent? })`. Metrics follow source controls on mobile. |
-| Confidence Badge | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-239 | `apps/desktop/src/features/workspace/ConfidenceBadge.tsx` | Use `level: ConfidenceLevel`; no `score` or `label` prop exists in current code. |
+| Confidence Badge | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-239 | `apps/desktop/src/features/workspace/ConfidenceBadge.tsx` | Use `level: ConfidenceLevel` plus optional `size` (`"compact"` or `"default"`); the compact size remains the backward-compatible default. No `score` or `label` prop exists. |
+| Overlap Warning List | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=254-81 | `apps/desktop/src/features/workspace/OverlapWarningList.tsx` | Current reusable `OverlapWarningItem` component set. Pass `warnings`; default dark surface is for Roadmap and `surface="light"` is required on light cards such as Ranges. |
+| Rehearsal Callout | workspace next-action pattern | `apps/desktop/src/features/workspace/RehearsalCallout.tsx` | First practice action after analysis; keep a visible button. |
 | Status Pill | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-283 | `apps/desktop/src/features/workspace/Workspace.tsx` | Design pattern only. Current code uses `formatStatusLabel(status)` inside local badge-like markup. |
 | Role Switcher | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-337 | `apps/desktop/src/features/workspace/RoleSwitcher.tsx` | Use `roles`, `activeRole`, and `onRoleChange`; `null` means all roles. |
 | Section Roadmap Card | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-402 | `apps/desktop/src/features/workspace/SectionRoadmap.tsx` | Use `song`, `activeRole`, and optional `onSongUpdate`; avoid rebuilding its internal card layout. |
@@ -57,8 +59,11 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 ### Badge And Confidence
 
 - Use `Badge` for general metadata and `ConfidenceBadge` for confidence status.
+- Historical Figma node `19:239` had six variants: `Level=Low|Medium|High` crossed with `Size=Compact|Default`; re-verify that node before using it as current evidence.
 - Use `ConfidenceBadge` with `level` from shared types only: `low`, `medium`, `high`.
-- Do not pass `score` or `label` to `ConfidenceBadge`; those props do not exist in the current runtime component.
+- Omit `size` to preserve the existing compact rendering; pass `size="default"` when the 26 px state is required. Compact and default heights are workspace tokens corresponding to the prior 22 px and 26 px Figma variants at the default root font size.
+- Do not pass `score` or `label` to `ConfidenceBadge`; those props do not exist in the runtime component.
+- Storybook must retain both size states for every confidence level so design review can compare the complete variant matrix.
 - Keep badges short enough to avoid wrapping inside dense cards.
 
 ### Tabs
@@ -73,18 +78,27 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 - Tone-specific colors belong on `ProgressIndicator` or scoped child selectors.
 - Provide adjacent live text when progress reflects an active asynchronous job.
 
+### Overlap Warnings
+
+- Current Figma authority is the `OverlapWarningItem` component set `254:81` on page `45:86`; contract frame `254:82` is the current exact-state handoff. The former `252:19`/`252:2` references are stale and are not design-gate evidence.
+- `OverlapWarningList` defaults to `surface="dark"` so Section Roadmap keeps the established dark-workspace token set.
+- Ranges cards have a white background and must pass `surface="light"` so compact warning copy uses the dedicated light-surface tokens.
+- Storybook must retain both dark and light populated states plus the empty state; do not copy the warning markup into a feature-specific implementation.
+- Figma and Storybook both show the two surface states. Runtime empty state intentionally renders no node.
+- Accessibility rationale and current exact-value mapping are recorded in `docs/doctoring/overlap-warning-surface-contrast.md`.
+
 ### Workspace States
 
-- Figma page `34 Workspace State Matrix` maps `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates.
+- Historical Figma page `34 Workspace State Matrix` mapped `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates. Re-verify that specific state authority before changing workspace routing.
 - `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
 - `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
 - `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
 - `EmptyState` must remain an actionable state card, not a blank placeholder panel.
-- If a new workspace state is added in code, update Figma page 34 and page 33 audit evidence before merging.
+- If a new workspace state is added in code, update current Figma state authority before merging.
 
 ## Pattern Backlog
 
-These Figma patterns are valid visual guidance but are not yet extracted as standalone code components. Use the existing feature markup and open a follow-up extraction task when reuse appears twice.
+Historical Figma patterns remain implementation traceability unless freshly verified. Use existing feature markup and open a follow-up extraction task when reuse appears twice.
 
 | Figma pattern | Current implementation home | Extraction trigger |
 | --- | --- | --- |
@@ -97,9 +111,9 @@ These Figma patterns are valid visual guidance but are not yet extracted as stan
 
 ## PR Review Rules
 
-- New UI should cite the matching Figma node and code path in the PR description when it implements a design-system component.
-- A new component variant must update this file, the relevant component tests, and the Figma component notes.
+- New UI should cite a current matching Figma node and code path in the PR description when it implements a design-system component; historical or missing nodes are traceability only.
+- A new component variant must update this file, the relevant component tests, Storybook, and the current Figma component notes before merge.
 - A new Figma-only pattern must enter the Pattern Backlog before being reused.
 - Any deliberate visual divergence from Figma should state whether the repo contract or accessibility requirement caused it.
-- Workspace state changes must cite page `34 Workspace State Matrix` or explain why Figma was updated first.
+- Workspace state changes must cite current Figma state authority or explain the design-authority repair before merge.
 - Do not add Code Connect, Figma token, or Figma publish requirements to CI.

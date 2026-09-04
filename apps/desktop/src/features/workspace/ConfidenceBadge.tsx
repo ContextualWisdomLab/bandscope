@@ -2,37 +2,49 @@ import type { ConfidenceLevel } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Badge } from "@/components/ui/badge";
 
+/** Supported visual sizes from the Figma confidence-badge component contract. */
+export type ConfidenceBadgeSize = "compact" | "default";
+
 interface ConfidenceBadgeProps {
   level: ConfidenceLevel;
+  size?: ConfidenceBadgeSize;
 }
 
-/** Documented. */
-export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
+/** Render a localized confidence state using the Figma-backed workspace confidence variants. */
+export function ConfidenceBadge({ level, size = "compact" }: ConfidenceBadgeProps) {
   const t = createTranslator(detectPreferredLocale());
-  
+
   let label = "";
   let colorClass = "";
-  
+
   switch (level) {
     case "low":
       label = t("confidenceLevelLow");
-      colorClass = "bg-rose-100 text-rose-700 hover:bg-rose-100 border-rose-200";
+      colorClass =
+        "border-[color:var(--bandscope-confidence-low-border)] bg-[var(--bandscope-confidence-low-bg)] text-[color:var(--bandscope-confidence-low-fg)] hover:bg-[var(--bandscope-confidence-low-bg)]";
       break;
     case "medium":
       label = t("confidenceLevelMedium");
-      colorClass = "bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200";
+      colorClass =
+        "border-[color:var(--bandscope-confidence-medium-border)] bg-[var(--bandscope-confidence-medium-bg)] text-[color:var(--bandscope-confidence-medium-fg)] hover:bg-[var(--bandscope-confidence-medium-bg)]";
       break;
     case "high":
       label = t("confidenceLevelHigh");
-      colorClass = "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200";
+      colorClass =
+        "border-[color:var(--bandscope-confidence-high-border)] bg-[var(--bandscope-confidence-high-bg)] text-[color:var(--bandscope-confidence-high-fg)] hover:bg-[var(--bandscope-confidence-high-bg)]";
       break;
   }
+
+  const heightClass =
+    size === "default"
+      ? "h-[var(--bandscope-confidence-default-height)]"
+      : "h-[var(--bandscope-confidence-compact-height)]";
 
   return (
     <Badge
       variant="outline"
-      className={`px-1.5 py-0 h-5 text-[0.65rem] font-bold uppercase tracking-wider ${colorClass}`}
-      title={`Confidence: ${level}`}
+      className={`${heightClass} px-1.5 py-0 text-[11px] font-medium leading-[16px] uppercase tracking-normal ${colorClass}`}
+      title={label}
     >
       {label}
     </Badge>

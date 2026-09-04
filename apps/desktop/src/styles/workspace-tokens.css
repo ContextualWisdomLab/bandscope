@@ -1,0 +1,39 @@
+/* Workspace tokens mapped from Figma 19-239 Confidence Badge and page 31. */
+:root {
+  --bandscope-confidence-compact-height: 1.375rem;
+  --bandscope-confidence-default-height: 1.625rem;
+
+  /* Canonical semantic status colors from the published BandScope Figma library. */
+  --bandscope-status-danger: #fda4af;
+  --bandscope-status-danger-bg: #fda4af14;
+  --bandscope-status-danger-border: #fda4af4d;
+  --bandscope-status-warning: #fcd34d;
+  --bandscope-status-warning-bg: #fcd34d12;
+  --bandscope-status-warning-border: #fcd34d33;
+  --bandscope-status-success: #6ee7b7;
+  --bandscope-status-success-bg: #6ee7b712;
+  --bandscope-status-success-border: #6ee7b733;
+
+  /* Confidence levels consume reusable status semantics instead of inventing a parallel palette. */
+  --bandscope-confidence-low-bg: var(--bandscope-status-danger-bg);
+  --bandscope-confidence-low-fg: var(--bandscope-status-danger);
+  --bandscope-confidence-low-border: var(--bandscope-status-danger-border);
+  --bandscope-confidence-medium-bg: var(--bandscope-status-warning-bg);
+  --bandscope-confidence-medium-fg: var(--bandscope-status-warning);
+  --bandscope-confidence-medium-border: var(--bandscope-status-warning-border);
+  --bandscope-confidence-high-bg: var(--bandscope-status-success-bg);
+  --bandscope-confidence-high-fg: var(--bandscope-status-success);
+  --bandscope-confidence-high-border: var(--bandscope-status-success-border);
+  --bandscope-overlap-bg: rgb(251 113 133 / 0.08);
+  --bandscope-overlap-border: rgb(253 164 175 / 0.2);
+  --bandscope-overlap-fg: rgb(255 228 230);
+  --bandscope-overlap-light-bg: #fff1f2;
+  --bandscope-overlap-light-border: #fecdd3;
+  --bandscope-overlap-light-fg: #9f1239;
+  --bandscope-callout-bg: rgb(34 211 238 / 0.08);
+  --bandscope-callout-border: rgb(34 211 238 / 0.25);
+  --bandscope-callout-fg: rgb(207 250 254);
+  --bandscope-practice-track: rgb(15 23 42 / 0.5);
+  --bandscope-practice-fill-from: rgb(99 102 241);
+  --bandscope-practice-fill-to: rgb(34 211 238);
+}

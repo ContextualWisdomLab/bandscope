@@ -6,6 +6,7 @@ Last updated: 2026-03-11
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- Workspace Storybook stories cite Figma 19-239 and `docs/design-system/component-contract.md`. OverlapWarningList is the shared clash list for Section Roadmap and Ranges.
 
 ## Security source
 
