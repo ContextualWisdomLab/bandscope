@@ -1,9 +1,6 @@
 //! Contract tests for path-free playable-stem artifact references.
 
-#[path = "../src/playable_stem_contract.rs"]
-mod playable_stem_contract;
-
-use playable_stem_contract::{
+use bandscope_desktop_core::playable_stem_contract::{
     PlayableStemArtifactSetReference, PlaybackStemKind,
     MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT, PLAYABLE_STEM_ARTIFACT_VERSION,
 };
