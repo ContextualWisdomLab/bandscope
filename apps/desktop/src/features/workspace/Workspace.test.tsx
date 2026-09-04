@@ -140,6 +140,156 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
+  it("names the next part to sit out after the band is back in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      },
+      {
+        ...verse,
+        id: "tag-1",
+        label: "tag",
+        timeRange: {
+          start: verse.timeRange.end + 60,
+          end: verse.timeRange.end + 80
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" ? { ...node, is_active: false } : node
+        )
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-leftover-last-dropout");
+    expect(callout).toHaveTextContent("Next part to sit out");
+    expect(callout).toHaveTextContent(
+      "Keyboard 1 Right Hand sits out at tag after the band is back in at outro. Count Keyboard 1 Right Hand out from the top of tag."
+    );
+  });
+
+  it("tells the selected player where to stay out", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      },
+      {
+        ...verse,
+        id: "tag-1",
+        label: "tag",
+        timeRange: {
+          start: verse.timeRange.end + 60,
+          end: verse.timeRange.end + 80
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" ? { ...node, is_active: false } : node
+        )
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Keyboard 1 Right Hand" }));
+
+    expect(screen.getByTestId("first-leftover-last-dropout")).toHaveTextContent(
+      "Keyboard 1 Right Hand sits out at tag after the band is back in at outro. Stay out from the top of tag."
+    );
+  });
+
+  it("asks the player to confirm the next sit-out when no sit-out is mapped", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-leftover-last-dropout")).toHaveTextContent(
+      "The next sit-out is not clear yet. Confirm who sits out after the band is back in before rehearsal."
+    );
+  });
+
   it("names tonight's first playable range and the next instrument check", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
