@@ -6,7 +6,7 @@
 - **Protected product source:** `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 - **Canonical Active Player owner:** PR #971 `9c1b20e6df778e303fada3e170c93418c496394b`
 - **Stem publication parent:** PR #1159 `22a9f18d960cc7df93db890b2a5aa9594428c2b4`
-- **Current native/UI child source head:** PR #1160 `d37a7b8890357e08e7691a64f8ac09c0417f2048`
+- **Current native/UI child source head before this documentation update:** PR #1160 `5770392f9b383895ed35560275ff861ef82c9e8e`
 
 ## Problem
 
@@ -34,6 +34,15 @@ Commit `d37a7b8890357e08e7691a64f8ac09c0417f2048` adds `playbackSourceSession.ts
 
 The implementation accepts only opaque `bandscope-project://...` authorities already admitted by the existing renderer projector. It does not create native authority, expose a path/hash/file identity, or change the native `PlaybackAuthority` owner.
 
+## Hostile object inspection repair
+
+The initial normalizer still had one fail-closed hole: an object with an own throwing accessor or a Proxy whose property-descriptor trap throws could make renderer completion throw instead of collapsing to full-mix-only state.
+
+- RED `cf77f570e9ea2356bbeb46f343bda4da4b8967b9` adds own-accessor and Proxy-trap cases and requires `completePlaybackSourceDiscovery` not to throw.
+- Causal fix `5770392f9b383895ed35560275ff861ef82c9e8e` bounds option normalization with a fail-closed catch. Hostile inspection now clears the pending request and leaves only the already-owned full mix; no stem authority is manufactured or retained.
+
+The catch is deliberately confined to untrusted discovery-payload normalization. It does not swallow unrelated player/media failures or weaken the canonical source projector.
+
 ## Concurrent source-switch continuity delta adopted
 
 The branch advanced concurrently before this repair. That movement was reviewed and retained rather than treated as a race:
@@ -49,8 +58,8 @@ The renderer-side authority/session contracts are not the finished selector. `Re
 
 Current locale infrastructure supports English and Korean only. JA/ZH/VI/ES/DE/FR expansion, text expansion/CJK fallback checks, pointer/touch/keyboard/screen-reader interaction, persistence/reload, stale/revocation UI behavior and rights-cleared audible macOS/Windows acceptance therefore remain open.
 
-Fresh Actions lookup for exact head `d37a7b8890357e08e7691a64f8ac09c0417f2048` returned no pull-request workflow runs. Commit statuses currently contain CodeRabbit and Devin Review success only; these are not substitutes for the 14 protected repository/central required contexts or qualifying independent unchanged-head approval. PR #1160 remains Draft.
+Fresh Actions lookup on the preceding exact source heads returned no pull-request workflow runs for this stacked branch. CodeRabbit's latest manual-review request also hit its service rate limit, so there is no new qualifying review receipt. These are not substitutes for the 14 protected repository/central required contexts or qualifying independent unchanged-head approval. PR #1160 remains Draft.
 
 ## Delivery gate
 
-**FAIL.** Stale discovery-session admission and pure source-switch continuity are represented in source, but the mounted selector, actual media-switch continuity, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and real-audio desktop acceptance are not complete.
+**FAIL.** Stale/hostile discovery-session admission and pure source-switch continuity are represented in source, but the mounted selector, actual media-switch continuity, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and real-audio desktop acceptance are not complete.
