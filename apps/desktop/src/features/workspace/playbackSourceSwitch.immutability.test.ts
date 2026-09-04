@@ -52,11 +52,11 @@ describe("playback source switch receipt immutability", () => {
     expect(started.state.sequence).toBe(1);
     expect(
       admitPlaybackSourceSwitchTarget(
+        started.state,
         started.plan,
         45,
         vocalsAuthority,
-        started.state.sequence,
       ),
-    ).toEqual(started.plan);
+    ).toBe(started.plan);
   });
 });
