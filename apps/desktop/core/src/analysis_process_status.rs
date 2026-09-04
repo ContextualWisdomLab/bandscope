@@ -44,6 +44,22 @@ impl AnalysisProcessStatus {
     }
 }
 
+/// Replace the retained native process envelope with the newest validated status.
+///
+/// Renderer delivery receives a clone containing only public status fields while
+/// native callers keep the complete envelope. Replacing the whole envelope is
+/// intentional: a later terminal status without a stem reference must revoke an
+/// earlier status's native reference instead of leaving stale metadata eligible
+/// for playback-authority binding.
+pub fn retain_latest_process_status(
+    latest_process_status: &mut Option<AnalysisProcessStatus>,
+    process_status: AnalysisProcessStatus,
+) -> AnalysisJobStatus {
+    let renderer_status = process_status.renderer_status.clone();
+    *latest_process_status = Some(process_status);
+    renderer_status
+}
+
 /// Parse one JSONL status and isolate its optional native-only artifact reference.
 pub fn parse_analysis_process_status(
     process_status_json: &str,
