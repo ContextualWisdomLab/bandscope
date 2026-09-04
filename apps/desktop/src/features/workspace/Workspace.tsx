@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillMeterCopy, firstMeterPlan } from "./firstMeter";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstMeter = useMemo(() => firstMeterPlan(song), [song]);
+  const firstMeterCopy = firstMeter
+    ? fillMeterCopy(
+        t(firstMeter.sectionLabel ? "workspaceFirstMeterReady" : "workspaceFirstMeterReadyNoSection"),
+        {
+          label: firstMeter.label,
+          beats: String(firstMeter.countInBeats),
+          sectionLabel: firstMeter.sectionLabel ?? ""
+        }
+      )
+    : t("workspaceFirstMeterMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +320,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-sky-300/20 bg-sky-300/[0.07] p-4"
+            data-testid="first-meter"
+            aria-label={t("workspaceFirstMeterTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-sky-200">{t("workspaceFirstMeterTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstMeterCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

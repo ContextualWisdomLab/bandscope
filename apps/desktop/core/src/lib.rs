@@ -122,10 +122,65 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_rehearsal_meter",
+        skip_serializing_if = "Option::is_none"
+    )]
+    meter: Option<RehearsalMeterPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RehearsalMeterPayload {
+    beats: u8,
+    beat_type: u8,
+}
+
+impl<'de> Deserialize<'de> for RehearsalMeterPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct RawRehearsalMeterPayload {
+            beats: u8,
+            beat_type: u8,
+        }
+
+        let raw = RawRehearsalMeterPayload::deserialize(deserializer)?;
+        if !(1..=16).contains(&raw.beats) {
+            return Err(serde::de::Error::custom(
+                "meter beats must be between 1 and 16",
+            ));
+        }
+        if !matches!(raw.beat_type, 1 | 2 | 4 | 8 | 16) {
+            return Err(serde::de::Error::custom(
+                "meter beatType must be one of 1, 2, 4, 8, or 16",
+            ));
+        }
+
+        Ok(Self {
+            beats: raw.beats,
+            beat_type: raw.beat_type,
+        })
+    }
+}
+
+fn deserialize_optional_rehearsal_meter<'de, D>(
+    deserializer: D,
+) -> Result<Option<RehearsalMeterPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<RehearsalMeterPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("meter must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -810,6 +865,46 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_meter() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["meter"] = json!({ "beats": 6, "beatType": 8 });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a meter should deserialize");
+        let meter = parsed
+            .meter
+            .as_ref()
+            .expect("meter should survive deserialization");
+        assert_eq!(meter.beats, 6);
+        assert_eq!(meter.beat_type, 8);
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("metered song payload should serialize back");
+        assert_eq!(serialized["meter"], json!({ "beats": 6, "beatType": 8 }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("metered payload should encode"),
+        )
+        .expect("metered project should load");
+        assert_eq!(loaded.meter.as_ref().map(|value| value.beats), Some(6));
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_meter() {
+        for meter in [
+            json!({ "beats": 0, "beatType": 4 }),
+            json!({ "beats": 17, "beatType": 4 }),
+            json!({ "beats": 4, "beatType": 3 }),
+            json!({ "beats": 4, "beatType": 4, "confidence": "high" }),
+            Value::Null,
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["meter"] = meter;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_accepts_legacy_files_without_score_attachments() {
         let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
 
@@ -817,9 +912,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.meter.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("meter").is_none());
     }
 
     #[test]
