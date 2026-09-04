@@ -325,5 +325,49 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Bass Guitar로 시작" })).toBeTruthy();
+  });
+
+  it("names the first part and opens that role board from the ready workspace", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("workspace-pick-part-callout")).toBeTruthy();
+    expect(screen.getByText(/Start as Bass Guitar to see tonight's chords/i)).toBeTruthy();
+    expect(screen.queryByText(/The bass holds the vi center/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start as Bass Guitar" }));
+
+    expect(screen.queryByTestId("workspace-pick-part-callout")).toBeNull();
+    expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Bass Guitar", selected: true })).toBeTruthy();
+  });
+
+  it("starts the first part from an empty collaboration card", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.collaboration = undefined;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText(/No assignments yet. Start as Bass Guitar/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Start the room as Bass Guitar" }));
+
+    expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
+  });
+
+  it("hides the pick-part next action when the song has no roles", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    song.collaboration = undefined;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.queryByTestId("workspace-pick-part-callout")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Start as/i })).toBeNull();
+    expect(screen.getByText(/No assignments yet. Start as your part/i)).toBeTruthy();
   });
 });
