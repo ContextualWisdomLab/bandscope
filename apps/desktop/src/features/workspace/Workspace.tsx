@@ -1,15 +1,16 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, memo, useLayoutEffect, useRef, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { copyFirstRangeAction, type FirstRangeCopyResult } from "./copyFirstRangeAction";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
-import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4 } from "lucide-react";
+import { Download, CheckCheck, ClipboardList, MessageSquareMore, CloudOff, Music4, Copy } from "lucide-react";
 
 interface WorkspaceProps {
   song: RehearsalSong;
@@ -121,6 +122,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<FirstRangeCopyResult | "idle">("idle");
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -163,6 +165,31 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const copyRequestRef = useRef({ sequence: 0, sentence: firstRangeCopy });
+
+  useLayoutEffect(() => {
+    copyRequestRef.current = {
+      sequence: copyRequestRef.current.sequence + 1,
+      sentence: firstRangeCopy
+    };
+    setCopyStatus("idle");
+  }, [firstRangeCopy]);
+
+  /** Copy tonight's first instrument check for a band chat paste. */
+  const handleCopyFirstRange = async () => {
+    const request = {
+      sequence: copyRequestRef.current.sequence + 1,
+      sentence: firstRangeCopy
+    };
+    copyRequestRef.current = request;
+    const result = await copyFirstRangeAction(request.sentence);
+    if (
+      copyRequestRef.current.sequence === request.sequence &&
+      copyRequestRef.current.sentence === request.sentence
+    ) {
+      setCopyStatus(result);
+    }
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +335,31 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void handleCopyFirstRange();
+                }}
+                className="min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 shadow-sm hover:bg-fuchsia-300/20 hover:text-white"
+              >
+                <Copy className="mr-2 size-4 text-fuchsia-200" aria-hidden="true" />
+                {t("workspaceFirstRangeCopyAction")}
+              </Button>
+              <p
+                className="text-sm leading-6 text-fuchsia-100"
+                aria-live="polite"
+                data-testid="first-range-copy-status"
+              >
+                {copyStatus === "copied"
+                  ? t("workspaceFirstRangeCopied")
+                  : copyStatus === "unavailable"
+                    ? t("workspaceFirstRangeCopyUnavailable")
+                    : ""}
+              </p>
+            </div>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
