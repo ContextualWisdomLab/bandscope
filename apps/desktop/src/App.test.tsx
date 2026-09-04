@@ -205,7 +205,7 @@ describe("App", () => {
     tauriWindow.__TAURI_INVOKE__ = tauriInvoke;
   });
 
-  it("renders the rehearsal cockpit shell before analysis starts", () => {
+  it("renders the rehearsal cockpit shell before analysis starts", async () => {
     render(<App />);
 
     expect(screen.getByRole("img", { name: /BandScope circular equalizer mark/i })).toBeTruthy();
@@ -222,25 +222,34 @@ describe("App", () => {
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
     expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
-    for (const name of ["Import", "Export"]) {
+    for (const name of ["Import"]) {
+      const navButton = within(primaryNav).getByRole("button", { name });
+      expect(navButton).not.toHaveAttribute("aria-disabled");
+      expect(navButton).toHaveAttribute("title", "Choose a local file or paste a YouTube URL");
+    }
+    for (const name of ["Export", "Sections", "Roles", "Cues", "Transpose"]) {
       const navButton = within(primaryNav).getByRole("button", { name });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
-      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).toHaveAttribute("title", "Analyze a song or open a project first");
       expect(navButton).not.toBeDisabled();
     }
+    const stemLab = within(primaryNav).getByRole("button", { name: "Stem Lab" });
+    expect(stemLab).toHaveAttribute("aria-disabled", "true");
+    expect(stemLab).toHaveAttribute("title", "Coming soon");
     fireEvent.click(within(primaryNav).getByRole("button", { name: "Import" }));
-    expect(activePrimaryNavButton).toHaveAttribute("aria-current", "page");
+    expect(within(primaryNav).getByRole("button", { name: "Import" })).toHaveAttribute("aria-current", "page");
+    await waitFor(() => {
+      expect(document.getElementById("source-controls-choose-audio")).toHaveFocus();
+    });
     const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
-    const activeCompactNavButton = within(compactNav).getByRole("button", { name: "Workspace compact view" });
+    const activeCompactNavButton = within(compactNav).getByRole("button", { name: "Import compact view" });
     expect(activeCompactNavButton).toHaveAttribute("aria-current", "page");
-    for (const name of ["Import", "Export"]) {
+    for (const name of ["Export", "Sections"]) {
       const navButton = within(compactNav).getByRole("button", { name: `${name} compact view` });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
-      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).toHaveAttribute("title", "Analyze a song or open a project first");
       expect(navButton).not.toBeDisabled();
     }
-    fireEvent.click(within(compactNav).getByRole("button", { name: "Import compact view" }));
-    expect(activeCompactNavButton).toHaveAttribute("aria-current", "page");
     expect(screen.getByText(/^Tempo$/i)).toBeTruthy();
     expect(screen.getByText(/^Key$/i)).toBeTruthy();
     expect(screen.getByText(/Local-first/i)).toBeTruthy();
@@ -302,6 +311,30 @@ describe("App", () => {
     expect(screen.getByText(/Stems/i)).toBeTruthy();
     expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
     expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
+  });
+
+  it("opens existing rehearsal surfaces from the sidebar after a song is ready", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
+    });
+
+    const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
+    const exportButton = within(primaryNav).getByRole("button", { name: "Export" });
+    expect(exportButton).not.toHaveAttribute("aria-disabled");
+    expect(exportButton).toHaveAttribute("title", "Download tonight's cue sheet or chart");
+    fireEvent.click(exportButton);
+    expect(exportButton).toHaveAttribute("aria-current", "page");
+    expect(document.getElementById("workspace-surface-export")).toHaveFocus();
+
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "Transpose" }));
+    await waitFor(() => {
+      expect(document.getElementById("workspace-surface-transpose")).toHaveFocus();
+    });
+    expect(within(primaryNav).getByRole("button", { name: "Stem Lab" })).toHaveAttribute("title", "Coming soon");
   });
 
   it("renders a rehearsal song structure timeline from real section ranges", async () => {

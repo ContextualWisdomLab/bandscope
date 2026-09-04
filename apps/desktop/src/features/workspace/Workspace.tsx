@@ -1,9 +1,10 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useEffect, useRef, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { WORKSPACE_SURFACE_IDS, type WorkspaceReadySurface } from "./workspaceNav";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -15,6 +16,8 @@ interface WorkspaceProps {
   song: RehearsalSong;
   sourceBootstrap?: ProjectBootstrapSummary | null;
   onSongUpdate?: (song: RehearsalSong) => void;
+  requestedSurface?: WorkspaceReadySurface | null;
+  requestedSurfaceRequestId?: number;
 }
 
 /** Documented. */
@@ -74,7 +77,11 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 /** Documented. */
 const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
   return (
-    <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
+    <section
+      id={WORKSPACE_SURFACE_IDS.sections}
+      tabIndex={-1}
+      className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+    >
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="text-sm font-black uppercase tracking-[0.24em] text-slate-200">{t("workspaceSongStructureLabel")}</h3>
         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{t("workspaceRehearsalTimelineLabel")}</span>
@@ -118,9 +125,16 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
   );
 });
 
-/** Documented. */
-export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
+/** Renders a song's rehearsal workspace and executes requested in-page navigation without overwriting later role choices. */
+export function Workspace({
+  song,
+  sourceBootstrap = null,
+  onSongUpdate,
+  requestedSurface = null,
+  requestedSurfaceRequestId = 0
+}: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const completedSurfaceRequestRef = useRef<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -150,6 +164,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
+
+  useEffect(() => {
+    if (activeRole && !roleMap.has(activeRole)) {
+      setActiveRole(allRoles[0]?.id ?? null);
+    }
+  }, [activeRole, allRoles, roleMap]);
+
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
   const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
   const firstRangeCopy = firstRange
@@ -249,6 +270,30 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     downloadTextFile(json, "application/json;charset=utf-8;", `${sanitizeFilename(song.title)}_handoff.json`);
   };
 
+  useEffect(() => {
+    if (!requestedSurface) {
+      return;
+    }
+    const requestKey = `${requestedSurface}:${requestedSurfaceRequestId}`;
+    if (completedSurfaceRequestRef.current === requestKey) {
+      return;
+    }
+    const firstRole = allRoles[0];
+    if (requestedSurface === "transpose" && firstRole && activeRole !== firstRole.id) {
+      setActiveRole(firstRole.id);
+      return;
+    }
+    const target = document.getElementById(WORKSPACE_SURFACE_IDS[requestedSurface]);
+    if (!target) {
+      return;
+    }
+    if (typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "start" });
+    }
+    target.focus();
+    completedSurfaceRequestRef.current = requestKey;
+  }, [activeRole, allRoles, requestedSurface, requestedSurfaceRequestId]);
+
   return (
     <div className="animate-in space-y-6 fade-in slide-in-from-bottom-4 duration-700 ease-out fill-mode-both">
       <Card className="overflow-hidden border-white/10 bg-slate-950/78 text-slate-100 shadow-[0_24px_90px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
@@ -268,12 +313,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               {song.exportSummary?.headline || t("workspaceRehearsalFallback")}
             </CardDescription>
           </div>
-          <div className="flex flex-wrap gap-3">
+          <div
+            id={WORKSPACE_SURFACE_IDS.export}
+            tabIndex={-1}
+            className="flex flex-wrap gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportCueSheet}
-                className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
+              id={WORKSPACE_SURFACE_IDS.cues}
+              className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
             >
                 <Download className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
               Export Cue Sheet (CSV)
@@ -355,7 +405,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SongStructure sections={song.sections} t={t} />
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <section
+            id={WORKSPACE_SURFACE_IDS.roles}
+            tabIndex={-1}
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+          >
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-300">{t("workspaceRolesHarmonyLabel")}</p>
@@ -368,10 +422,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 />
             </div>
 
-            {activeRole && (
+            {allRoles.length === 0 && (
+              <div
+                id={WORKSPACE_SURFACE_IDS.transpose}
+                tabIndex={-1}
+                className="mb-4 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <div className="flex items-center gap-2 text-indigo-100">
+                  <ClipboardList className="size-4" aria-hidden="true" />
+                  <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-200">{t("workspaceNoRoleTransposition")}</p>
+              </div>
+            )}
+
+            {activeRoleDetails && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails.name}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -419,7 +487,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      title={`${activeRoleDetails.name} transcription is coming soon. Bass is ready first.`}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
@@ -438,7 +506,11 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       {roleHarmonicExplanation}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
+                  <div
+                    id={WORKSPACE_SURFACE_IDS.transpose}
+                    tabIndex={-1}
+                    className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                  >
                     <div className="flex items-center gap-2 text-indigo-100">
                       <ClipboardList className="size-4" aria-hidden="true" />
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
@@ -497,8 +569,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     </div>
                   </div>
                 )}
-                <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
-                <GrooveMap notes={activeRoleDetails?.transcription} isLoading={false} />
+                <PracticeProgress progress={activeRoleDetails.practiceProgress} onChange={handlePracticeProgressChange} />
+                <GrooveMap notes={activeRoleDetails.transcription} isLoading={false} />
               </div>
             )}
 
