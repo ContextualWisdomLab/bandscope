@@ -1,5 +1,6 @@
 """Tests for sustained-versus-choppy articulation detection."""
 
+import logging
 from typing import Any
 
 import numpy as np
@@ -99,14 +100,35 @@ def test_no_active_frames_returns_safe_default(monkeypatch: pytest.MonkeyPatch) 
     assert analyze_articulation(_sine(1.0), SR) == SAFE_DEFAULT
 
 
-def test_internal_failure_returns_safe_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """No exception escapes: analysis failures return the safe default."""
+def test_internal_failure_returns_payload_safe_default(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unexpected dependency failures stay out of routine articulation logs."""
+    sensitive_detail = "/Users/Alice/private-articulation.wav token=super-secret"
 
     def _boom(**_kwargs: Any) -> NDArray[np.float32]:
-        raise RuntimeError("synthetic failure")
+        raise RuntimeError(sensitive_detail)
 
     monkeypatch.setattr(articulation.librosa.onset, "onset_strength", _boom)
+    caplog.set_level(logging.WARNING, logger=articulation.__name__)
+
     assert analyze_articulation(_sine(1.0), SR) == SAFE_DEFAULT
+    assert "Articulation analysis failed; returning safe default" in caplog.text
+    assert "/Users/Alice" not in caplog.text
+    assert "private-articulation.wav" not in caplog.text
+    assert "super-secret" not in caplog.text
+    matching_records = [
+        record
+        for record in caplog.records
+        if record.name == articulation.__name__
+        and record.getMessage().startswith("Articulation analysis failed; returning safe default")
+    ]
+    assert len(matching_records) == 1
+    assert matching_records[0].getMessage() == (
+        "Articulation analysis failed; returning safe default (RuntimeError)"
+    )
+    assert matching_records[0].exc_info is None
 
 
 def test_empty_stems_dict_returns_empty() -> None:

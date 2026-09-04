@@ -18,6 +18,9 @@ Security Notes:
 - All computations are bounded by the input array sizes.
 - Fails safe: invalid, empty, or silent audio yields a neutral "mixed"
   result with zeroed metrics, and no exceptions escape the public API.
+- Unexpected dependency failures are logged with only the BandScope-owned
+  operation and exception class; dependency messages and tracebacks are not
+  retained in routine logs.
 """
 
 from __future__ import annotations
@@ -138,8 +141,11 @@ def analyze_articulation(
             "onset_density_per_s": round(onset_density, 3),
             "duty_cycle": round(duty_cycle, 3),
         }
-    except Exception:
-        logger.warning("Articulation analysis failed; returning safe default", exc_info=True)
+    except Exception as error:
+        logger.warning(
+            "Articulation analysis failed; returning safe default (%s)",
+            type(error).__name__,
+        )
         return dict(_SAFE_DEFAULT)
 
 
