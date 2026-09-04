@@ -12,10 +12,14 @@
 
 - Consolidated Bandit, dependency audits, supplemental secret checks, and Trivy into one trusted-branch security backstop, delegated CodeQL to GitHub default setup, and removed duplicate local PR security and release-preflight runs.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
+- Vectorized chord observation construction and reduced the NumPy Viterbi parity oracle to rolling scores while preserving exact dense-oracle and Rust numerical behavior.
 
 ### Fixed
 
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
+- Corrected the HMM relative-key transition prior so major chords favor their true relative minor and minor chords favor their true relative major instead of unrelated pitch-class targets.
+- Neutralize non-finite chromagram, similarity, and RMS metadata in the chord observation path so corrupt DSP frames stay finite and do not get treated as silence.
+- Reconciled draft PR #732 with the protected dependency-security baseline merged by #783 so exact-head npm audit and Trivy evaluate the patched PDF.js, Nanoid, and Undici graph instead of the obsolete pre-#783 lock.
 
 ## [0.1.3] - 2026-04-29
 
