@@ -1264,19 +1264,14 @@ def test_workflow_concurrency_cancels_only_superseded_pr_heads() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     workflows_dir = repo_root / ".github" / "workflows"
 
-    for workflow_name in ("ci.yml", "sbom.yml"):
+    for workflow_name in ("build-baseline.yml", "ci.yml", "sbom.yml"):
         workflow = (workflows_dir / workflow_name).read_text(encoding="utf-8")
         assert "concurrency:" in workflow, workflow_name
         assert "github.workflow }}-${{ github.repository }}" in workflow, workflow_name
         assert "github.event.pull_request.number" in workflow, workflow_name
         assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow
 
-    for workflow_name in (
-        "build-baseline.yml",
-        "ossf-scorecard.yml",
-        "release.yml",
-        "security-audit.yml",
-    ):
+    for workflow_name in ("ossf-scorecard.yml", "release.yml", "security-audit.yml"):
         workflow = (workflows_dir / workflow_name).read_text(encoding="utf-8")
         assert "concurrency:" in workflow, workflow_name
         assert "cancel-in-progress: false" in workflow, workflow_name
