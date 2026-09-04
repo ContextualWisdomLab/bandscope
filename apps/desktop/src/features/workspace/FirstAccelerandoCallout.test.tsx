@@ -1,0 +1,195 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FirstAccelerandoCallout } from "./FirstAccelerandoCallout";
+
+const DEMO_ACCELERANDO_PLAN =
+  "Push this part from 80 BPM into 120 BPM; let the next downbeat arrive sooner.";
+const appendedSongStructureTargets = new Set<HTMLElement>();
+
+function songWithAccelerandoPlan() {
+  const song = createDemoRehearsalSong();
+  const verse = song.sections[0]!;
+  verse.partGraph = verse.partGraph.map((node) => ({ ...node, is_active: true }));
+  const vocal = verse.roles.find((role) => role.id === "lead-vocal")!;
+  vocal.accelerandoPlan = DEMO_ACCELERANDO_PLAN;
+  vocal.accelerandoPlanSource = "model";
+  return song;
+}
+
+function appendSongStructureTarget() {
+  const timeline = document.createElement("div");
+  timeline.setAttribute("role", "region");
+  timeline.setAttribute("aria-label", "Scrollable song structure timeline");
+  const grid = document.createElement("div");
+  grid.dataset.testid = "song-structure-grid";
+  const target = document.createElement("div");
+  target.dataset.sectionIndex = "0";
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(target, "scrollIntoView", {
+    configurable: true,
+    value: scrollIntoView
+  });
+  grid.appendChild(target);
+  timeline.appendChild(grid);
+  document.body.appendChild(timeline);
+  appendedSongStructureTargets.add(timeline);
+  return { grid: timeline, scrollIntoView };
+}
+
+describe("FirstAccelerandoCallout", () => {
+  afterEach(() => {
+    for (const timeline of appendedSongStructureTargets) {
+      timeline.remove();
+    }
+    appendedSongStructureTargets.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("contains a malformed runtime song root instead of crashing the callout", () => {
+    render(<FirstAccelerandoCallout song={null as unknown as RehearsalSong} />);
+
+    expect(
+      screen.getByText(
+        "No accelerando plan is available. Stay on tonight's map for the next rehearsal cue."
+      )
+    ).toBeTruthy();
+  });
+
+  it("contains a hostile song identity accessor instead of crashing the callout", () => {
+    const song = songWithAccelerandoPlan();
+    Object.defineProperty(song, "id", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        throw new Error("hostile song id getter");
+      }
+    });
+
+    expect(() => render(<FirstAccelerandoCallout song={song} />)).not.toThrow();
+    expect(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" })).toBeTruthy();
+  });
+
+  it("contains a hostile song identity descriptor lookup instead of crashing the callout", () => {
+    const song = new Proxy(songWithAccelerandoPlan(), {
+      getOwnPropertyDescriptor() {
+        throw new Error("hostile song id descriptor");
+      }
+    });
+
+    expect(() => render(<FirstAccelerandoCallout song={song} />)).not.toThrow();
+    expect(
+      screen.getByText(
+        "No accelerando plan is available. Stay on tonight's map for the next rehearsal cue."
+      )
+    ).toBeTruthy();
+  });
+
+  it("opens the named accel on the rendered map", () => {
+    const { scrollIntoView } = appendSongStructureTarget();
+    render(<FirstAccelerandoCallout song={songWithAccelerandoPlan()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible./)
+    ).toBeTruthy();
+    expect(screen.getByText(DEMO_ACCELERANDO_PLAN)).toBeTruthy();
+  });
+
+  it("shows armed confirmation for user-sourced plans without rewriting user copy", () => {
+    const song = songWithAccelerandoPlan();
+    const userPlan = "Push here exactly as our band agreed.";
+    const vocal = song.sections[0]!.roles.find((role) => role.id === "lead-vocal")!;
+    vocal.accelerandoPlan = userPlan;
+    vocal.accelerandoPlanSource = "user";
+    appendSongStructureTarget();
+    render(<FirstAccelerandoCallout song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+
+    expect(
+      screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible./)
+    ).toBeTruthy();
+    expect(screen.getByText(userPlan)).toBeTruthy();
+  });
+
+  it("reports when the map section cannot be opened", () => {
+    render(<FirstAccelerandoCallout song={songWithAccelerandoPlan()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+
+    expect(
+      screen.getByText("Could not open this accel on the song map. Use the map below to find the section.")
+    ).toBeTruthy();
+  });
+
+  it("uses immediate scrolling when reduced motion is requested", () => {
+    const { scrollIntoView } = appendSongStructureTarget();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    }));
+    render(<FirstAccelerandoCallout song={songWithAccelerandoPlan()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "auto" });
+  });
+
+  it("resets armed guidance when accessor-id songs change with the same accel signature", () => {
+    const firstSong = songWithAccelerandoPlan();
+    const nextSong = songWithAccelerandoPlan();
+    for (const song of [firstSong, nextSong]) {
+      Object.defineProperty(song, "id", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error("hostile song id getter");
+        }
+      });
+    }
+    appendSongStructureTarget();
+    const { rerender } = render(<FirstAccelerandoCallout song={firstSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+    expect(
+      screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible./)
+    ).toBeTruthy();
+
+    rerender(<FirstAccelerandoCallout song={nextSong} />);
+
+    expect(screen.getByText("Lead Vocal lifts the verse at 0:10.")).toBeTruthy();
+    expect(
+      screen.queryByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible./)
+    ).toBeNull();
+  });
+
+  it("resets armed guidance when the landing role name changes in the same workspace", () => {
+    const firstSong = songWithAccelerandoPlan();
+    const nextSong = structuredClone(firstSong);
+    nextSong.sections[0]!.roles.find((role) => role.id === "lead-vocal")!.name = "Lead Singer";
+    const workspaceInstanceKey = {};
+    appendSongStructureTarget();
+    const { rerender } = render(
+      <FirstAccelerandoCallout song={firstSong} workspaceInstanceKey={workspaceInstanceKey} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal accel at 0:10" }));
+    expect(
+      screen.getByText(/Lift Lead Vocal together at 0:10 so the faster landing is audible./)
+    ).toBeTruthy();
+
+    rerender(
+      <FirstAccelerandoCallout song={nextSong} workspaceInstanceKey={workspaceInstanceKey} />
+    );
+
+    expect(screen.getByText("Lead Singer lifts the verse at 0:10.")).toBeTruthy();
+    expect(
+      screen.queryByText(/Lift Lead Singer together at 0:10 so the faster landing is audible./)
+    ).toBeNull();
+  });
+});

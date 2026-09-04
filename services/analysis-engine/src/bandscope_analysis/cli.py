@@ -6,8 +6,18 @@ import json
 import logging
 import sys
 from datetime import UTC, datetime
+from typing import Any, cast
 
-from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+from bandscope_analysis.api import (
+    _analysis_cache_path,
+    _feature_cache_paths,
+    _load_cached_analysis,
+    _load_cached_temporal_features,
+    get_analysis_status,
+    run_analysis_job,
+    run_analysis_job_updates,
+    validate_analysis_job_request,
+)
 from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -74,22 +84,39 @@ def main() -> int:
         return 0
 
     request = payload.get("request")
+    validated_request = None
+    try:
+        validated_request = validate_analysis_job_request(request)
+    except ValueError as error:
+        logging.debug("Analysis request validation deferred to orchestration: %s", error)
+    if validated_request is not None:
+        request = validated_request
 
-    # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
-    # before full orchestrator integration
+    temporal_features: dict[str, Any] | None = None
     if (
-        isinstance(request, dict)
-        and request.get("sourceKind") == "local_audio"
-        and "localSource" in request
+        validated_request is not None
+        and validated_request["sourceKind"] == "local_audio"
+        and "localSource" in validated_request
     ):
-        local_source = request["localSource"]
-        audio_path = local_source.get("sourcePath")
-        file_name = local_source.get("fileName", "selected audio")
-        if audio_path:
+        cache_path = _analysis_cache_path(validated_request)
+        cached_result = _load_cached_analysis(cache_path) if cache_path is not None else None
+        feature_paths = _feature_cache_paths(validated_request)
+        cached_temporal = (
+            _load_cached_temporal_features(feature_paths[0])
+            if cached_result is None and feature_paths is not None
+            else None
+        )
+        if cached_result is None and cached_temporal is not None:
+            temporal_features = cast(dict[str, Any], cached_temporal)
+        elif cached_result is None:
+            local_source = validated_request["localSource"]
+            audio_path = local_source["sourcePath"]
+            file_name = local_source["fileName"]
             logging.info("Extracting temporal features from %s...", file_name)
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
+                temporal_features = cast(dict[str, Any], features)
                 logging.info(f"Extracted BPM: {features['bpm']}")
             except Exception:
                 logging.warning(
@@ -99,13 +126,13 @@ def main() -> int:
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:
-        for update in run_analysis_job_updates(job_id, request, requested_at):
+        for update in run_analysis_job_updates(job_id, request, requested_at, temporal_features):
             json.dump(update, sys.stdout)
             sys.stdout.write("\n")
             sys.stdout.flush()
         return 0
 
-    response = run_analysis_job(job_id, request, requested_at)
+    response = run_analysis_job(job_id, request, requested_at, temporal_features)
     json.dump(response, sys.stdout)
     return 0
 

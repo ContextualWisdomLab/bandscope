@@ -154,5 +154,12 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "firstAccelerandoPlanLabel": "오늘 첫 아첼레란도 계획",
+  "firstAccelerandoPlanOpenAction": "{at} {role} 아첼레란도 열기",
+  "firstAccelerandoPlanBody": "{at} {section}에서 {role} 파트가 아첼레란도합니다.",
+  "firstAccelerandoPlanArmed": "{at}에서 {role} 파트로 함께 당기세요. 더 빠른 착지가 들리도록 밀으세요.",
+  "firstAccelerandoPlanGeneratedGuidance": "이 파트를 {from} BPM에서 {to} BPM으로 당기세요. 다음 다운비트까지 밀어 올리세요.",
+  "firstAccelerandoPlanUnavailable": "사용 가능한 아첼레란도 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
+  "firstAccelerandoPlanNavigationFailed": "곡 맵에서 이 아첼레란도를 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요."
 }

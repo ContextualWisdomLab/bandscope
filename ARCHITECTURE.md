@@ -83,6 +83,7 @@ Last updated: 2026-03-11
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
+  - tonight's first accelerando plan on the mounted map when existing tempo-stability reports a sustained speeding (`to_bpm > from_bpm`) that is not a double-time (~1.9–2.1) or half-time (~0.5) feel flip, landing on the highest-priority active named vocal or bass in the section that contains the change. Open moves to the matching rendered map section. Heuristic-only topology stays unnamed. Distinct from first-ritardando, first-fade, first-swell, first-drop, first-breakdown, first-hit, first-stop, first-cutoff, first-pickup, and first-turnaround. This is not a new MIR product.
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form

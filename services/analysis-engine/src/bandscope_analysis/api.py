@@ -19,11 +19,12 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal.accelerando import apply_accelerando_plan, derive_beat_times
 
 logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
-ANALYSIS_CACHE_SCHEMA_VERSION = 1
+ANALYSIS_CACHE_SCHEMA_VERSION = 2
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
@@ -116,6 +117,9 @@ class RehearsalRolePayload(TypedDict):
     setupNote: str
     manualOverrides: list[ManualOverridePayload]
     overlapWarnings: list[str]
+    accelerandoPlan: NotRequired[str]
+    accelerandoPlanSource: NotRequired[Literal["model", "user"]]
+    accelerandoPlanAtSeconds: NotRequired[float]
 
 
 class PartGraphNodePayload(TypedDict):
@@ -196,6 +200,7 @@ class CachedFeaturePayload(TypedDict):
     separation: dict[str, object]
     stemKeys: list[str]
     stemRoleTypes: dict[str, str]
+    temporalFeatures: NotRequired[dict[str, object]]
 
 
 class StemSeparationTimedOut(RuntimeError):
@@ -456,6 +461,7 @@ def _build_from_pipeline(
         },
     }
     _apply_tempo(song, features)
+    _apply_accelerando(song, mix, sr, features, boundaries)
     return song
 
 
@@ -516,6 +522,72 @@ def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> 
     bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
     if bpm is not None:
         song["tempo"] = bpm
+
+
+def _coerce_beat_times(audio_features: dict[str, Any] | None) -> list[float] | None:
+    """Return finite non-negative beat times from analysis features, or None."""
+    if not audio_features:
+        return None
+    raw = audio_features.get("beat_times")
+    if not isinstance(raw, list):
+        return None
+    times: list[float] = []
+    for item in raw:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            return None
+        value = float(item)
+        if np.isnan(value) or np.isinf(value) or value < 0:
+            return None
+        times.append(value)
+    return times
+
+
+def _coerce_cached_temporal_features(value: object) -> dict[str, object] | None:
+    """Return JSON-safe temporal features for the reusable feature cache."""
+    if not isinstance(value, dict):
+        return None
+    bpm = value.get("bpm")
+    duration_seconds = value.get("duration_seconds")
+    sample_rate = value.get("sample_rate")
+    if (
+        isinstance(bpm, bool)
+        or not isinstance(bpm, (int, float))
+        or not np.isfinite(bpm)
+        or bpm <= 0
+        or isinstance(duration_seconds, bool)
+        or not isinstance(duration_seconds, (int, float))
+        or not np.isfinite(duration_seconds)
+        or duration_seconds < 0
+        or isinstance(sample_rate, bool)
+        or not isinstance(sample_rate, int)
+        or sample_rate <= 0
+    ):
+        return None
+    beat_times = _coerce_beat_times({"beat_times": value.get("beat_times")})
+    downbeat_times = _coerce_beat_times({"beat_times": value.get("downbeat_times")})
+    if beat_times is None or downbeat_times is None:
+        return None
+    return {
+        "bpm": float(bpm),
+        "beat_times": beat_times,
+        "downbeat_times": downbeat_times,
+        "duration_seconds": float(duration_seconds),
+        "sample_rate": sample_rate,
+    }
+
+
+def _apply_accelerando(
+    song: RehearsalSong,
+    mix: Any,
+    sr: int,
+    audio_features: dict[str, Any] | None,
+    section_boundaries: list[tuple[float, float]] | None = None,
+) -> None:
+    """Stamp tonight's first accelerando from existing tempo-stability changes."""
+    beat_times = _coerce_beat_times(audio_features)
+    if beat_times is None:
+        beat_times = derive_beat_times(mix, sr)
+    apply_accelerando_plan(song, beat_times, section_boundaries)
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -613,7 +685,7 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
@@ -743,6 +815,11 @@ def _load_cached_local_audio_features(
     stem_role_types = _normalize_stem_role_types(metadata_payload.get("stemRoleTypes"), stem_keys)
     if stem_role_types is None:
         return None
+    temporal_features = None
+    if "temporalFeatures" in metadata_payload:
+        temporal_features = _coerce_cached_temporal_features(metadata_payload["temporalFeatures"])
+        if temporal_features is None:
+            return None
 
     try:
         with np.load(arrays_path, allow_pickle=False) as stems_archive:
@@ -758,7 +835,7 @@ def _load_cached_local_audio_features(
     except (OSError, ValueError):
         return None
 
-    return {
+    loaded = {
         "stems": stems,
         "sr": metadata_payload["sampleRate"],
         "stem_role_types": stem_role_types,
@@ -768,6 +845,23 @@ def _load_cached_local_audio_features(
             "notes": separation.get("notes"),
         },
     }
+    if temporal_features is not None:
+        loaded.update(temporal_features)
+    return loaded
+
+
+def _load_cached_temporal_features(metadata_path: Path) -> dict[str, object] | None:
+    """Load only cached temporal metadata so the CLI can skip audio decoding."""
+    try:
+        with metadata_path.open("r", encoding="utf-8") as metadata_file:
+            metadata_payload = json.load(metadata_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(metadata_payload, dict):
+        return None
+    if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
+        return None
+    return _coerce_cached_temporal_features(metadata_payload.get("temporalFeatures"))
 
 
 def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
@@ -828,6 +922,9 @@ def _store_cached_local_audio_features(
         "stemKeys": stem_keys,
         "stemRoleTypes": stem_role_types,
     }
+    temporal_features = _coerce_cached_temporal_features(audio_features)
+    if temporal_features is not None:
+        metadata_payload["temporalFeatures"] = temporal_features
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
@@ -1043,8 +1140,13 @@ def run_analysis_job_updates(
     job_id: str,
     payload: object,
     requested_at: str,
+    temporal_features: dict[str, Any] | None = None,
 ) -> list[AnalysisJobStatus]:
-    """Return incremental orchestration status updates for an analysis job."""
+    """Return incremental orchestration status updates for an analysis job.
+
+    ``temporal_features`` contains optional features already extracted by the CLI
+    so the integrated pipeline can reuse beat tracking instead of repeating it.
+    """
     try:
         request = validate_analysis_job_request(payload)
     except ValueError as error:
@@ -1180,6 +1282,9 @@ def run_analysis_job_updates(
             )
             return updates
 
+    if temporal_features:
+        audio_features = {**(audio_features or {}), **temporal_features}
+
     updates.append(
         _build_job_status(
             job_id=job_id,
@@ -1228,6 +1333,11 @@ def run_analysis_job_updates(
     return updates
 
 
-def run_analysis_job(job_id: str, payload: object, requested_at: str) -> AnalysisJobStatus:
+def run_analysis_job(
+    job_id: str,
+    payload: object,
+    requested_at: str,
+    temporal_features: dict[str, Any] | None = None,
+) -> AnalysisJobStatus:
     """Return a structured orchestration response for a validated analysis job."""
-    return run_analysis_job_updates(job_id, payload, requested_at)[-1]
+    return run_analysis_job_updates(job_id, payload, requested_at, temporal_features)[-1]

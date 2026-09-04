@@ -1258,6 +1258,12 @@ describe("shared type helpers", () => {
         })
       },
       {
+        message: "sections[0].roles[0].accelerandoPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.accelerandoPlan = 2 as never;
+        })
+      },
+      {
         message: "sections[0].roles[0].practiceProgress",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.practiceProgress = -1 as never;
