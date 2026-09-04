@@ -133,3 +133,176 @@ def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
 
     assert result["topologies"][0]["section_id"] == "verse-1"
     assert result["topologies"][0]["part_graph"][0]["role_id"] == "bass-guitar"
+
+
+def _extract_with_activity(
+    stem_activity: list[dict[str, bool]],
+    section_ids: list[str] | None = None,
+) -> list[dict[str, dict[str, object]]]:
+    """Run RoleExtractor against a patched stem-activity map."""
+    extractor = RoleExtractor()
+    sections = [{"id": section_id} for section_id in (section_ids or ["intro", "verse-1"])]
+    audio_features = {
+        "stems": {"bass": np.ones(200, dtype=np.float32)},
+        "sr": 10,
+        "boundaries": [
+            (float(index * 10), float((index + 1) * 10)) for index in range(len(sections))
+        ],
+    }
+    with (
+        patch(
+            "bandscope_analysis.roles.extractor.detect_stem_activity",
+            return_value=stem_activity,
+        ),
+        patch.object(
+            RoleExtractor,
+            "_extract_features",
+            return_value=(
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "E1", "highestNote": "E3"},
+                "Em",
+            ),
+        ),
+    ):
+        result = extractor.extract(sections, audio_features)
+    return [
+        {role["id"]: role for role in topology["active_roles"]} for topology in result["topologies"]
+    ]
+
+
+def test_role_extractor_emits_activity_corroborated_pickup_plan() -> None:
+    """Emit a pickup plan only when a resting part leads into a shared downbeat."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": True, "vocals": False, "other": False},
+            {"bass": True, "vocals": True, "other": False},
+        ]
+    )
+    assert topologies[0]["bass-guitar"].get("pickupPlan") is None
+    assert topologies[1]["lead-vocal"]["pickupPlan"] == (
+        "Play this pickup with Bass Guitar; land the downbeat together."
+    )
+    assert "pickupPlan" not in topologies[1]["bass-guitar"]
+
+
+def test_role_extractor_groups_shared_other_stem_landing_for_pickup_plan() -> None:
+    """Name the shared accompaniment stem without inventing a specific instrument."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": False, "vocals": False, "other": True},
+            {"bass": True, "vocals": False, "other": True},
+        ]
+    )
+    assert topologies[1]["bass-guitar"]["pickupPlan"] == (
+        "Play this pickup with Keys / guitar; land the downbeat together."
+    )
+
+
+def test_role_extractor_does_not_assign_shared_other_pickup_to_specific_role() -> None:
+    """Do not invent a keys or guitar owner when the shared other stem enters."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": True, "vocals": False, "other": False},
+            {"bass": True, "vocals": False, "other": True},
+        ]
+    )
+    for role_id in ("keys-left", "keys-right", "acoustic-guitar"):
+        assert "pickupPlan" not in topologies[1][role_id]
+
+
+def test_role_extractor_keeps_mixed_landings_as_shared_pickup_evidence() -> None:
+    """Mixed landing is the pickup evidence, not an ambiguity."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": True, "vocals": False, "other": True},
+            {"bass": True, "vocals": True, "other": True},
+        ]
+    )
+    assert topologies[1]["lead-vocal"]["pickupPlan"] == (
+        "Play this pickup with the rest of the band; land the downbeat together."
+    )
+
+
+def test_role_extractor_keeps_lone_entrance_pickup_plan_unnamed() -> None:
+    """A lone entrance is not a pickup with the band."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": False, "vocals": False, "other": False},
+            {"bass": True, "vocals": False, "other": False},
+        ]
+    )
+    assert "pickupPlan" not in topologies[1]["bass-guitar"]
+
+
+def test_role_extractor_keeps_continuing_role_pickup_plan_unnamed() -> None:
+    """A part that was already playing is not leading in with a pickup."""
+    topologies = _extract_with_activity(
+        [
+            {"bass": True, "vocals": True, "other": False},
+            {"bass": True, "vocals": True, "other": False},
+        ]
+    )
+    assert all("pickupPlan" not in role for role in topologies[1].values())
+
+
+def test_role_extractor_keeps_first_section_pickup_plan_unnamed() -> None:
+    """Without a previous section there is no rest-then-enter evidence."""
+    extractor = RoleExtractor()
+    sections = [{"id": "intro"}]
+    audio_features = {
+        "stems": {"bass": np.ones(100, dtype=np.float32)},
+        "sr": 10,
+        "boundaries": [(0.0, 10.0)],
+    }
+    with (
+        patch(
+            "bandscope_analysis.roles.extractor.detect_stem_activity",
+            return_value=[{"bass": True, "vocals": True, "other": True}],
+        ),
+        patch.object(
+            RoleExtractor,
+            "_extract_features",
+            return_value=(
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "E1", "highestNote": "E3"},
+                "Em",
+            ),
+        ),
+    ):
+        result = extractor.extract(sections, audio_features)
+    intro_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    assert all("pickupPlan" not in role for role in intro_roles.values())
+
+
+def test_role_extractor_keeps_heuristic_pickup_plan_unnamed() -> None:
+    """Heuristic fallback topology must not invent a pickup."""
+    extractor = RoleExtractor()
+    result = extractor.extract([{"id": "intro"}, {"id": "verse-1"}])
+    intro_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    verse_roles = {role["id"]: role for role in result["topologies"][1]["active_roles"]}
+    assert all("pickupPlan" not in role for role in intro_roles.values())
+    assert all("pickupPlan" not in role for role in verse_roles.values())
+
+
+def test_activity_pickup_plan_fails_closed_without_a_named_partner() -> None:
+    """Unknown landing partners stay unnamed instead of inventing copy."""
+    assert (
+        RoleExtractor._activity_pickup_plan(
+            "lead-vocal",
+            {},
+            {"bass-guitar": True, "lead-vocal": True},
+            {"bass-guitar": True, "lead-vocal": False},
+        )
+        is None
+    )
+    assert (
+        RoleExtractor._activity_pickup_plan(
+            "keys-right",
+            {},
+            {"keys-right": True, "lead-vocal": True},
+            {"keys-right": False, "lead-vocal": True},
+        )
+        is None
+    )
