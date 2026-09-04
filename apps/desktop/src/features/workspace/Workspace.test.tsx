@@ -196,6 +196,46 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first high-priority part and the next lock-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-priority-lock");
+    expect(callout).toHaveTextContent("Tonight's first priority");
+    expect(callout).toHaveTextContent(
+      "Bass Guitar is a high-priority verse part. Lock that entrance before the verse."
+    );
+  });
+
+  it("keeps a selected medium-priority part in the first pass after the high-priority lock-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-priority-lock")).toHaveTextContent(
+      "Lead Vocal is a medium-priority verse part. Keep it in the first pass after the high-priority lock-in."
+    );
+  });
+
+  it("asks the player to pick a high-priority entrance when none is named", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      rehearsalPriority: "low"
+    }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-priority-lock")).toHaveTextContent(
+      "Tonight's first high-priority part still needs a first pass. Pick a high-priority entrance and lock it before the first section."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +365,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 잠글 우선순위")).toBeTruthy();
   });
 });
