@@ -29,7 +29,7 @@ The first implementation must not imply that `other` is a separately identified 
 
 After successful separation, the analysis engine will materialize the four aligned mono sources as PCM16 WAV files under the current project's app-owned temporary workspace. A single shared gain is applied to the whole set when needed to prevent clipping while preserving inter-stem level relationships.
 
-The internal native manifest is versioned and contains, at minimum:
+The Python playback-artifact adapter may use an in-process native manifest while it publishes and verifies the files:
 
 ```text
 artifact_set_id
@@ -48,7 +48,13 @@ stem_artifacts[]
   media_type
 ```
 
-The engine may disclose the native path only to the trusted Tauri process over the existing bounded JSONL subprocess boundary. It must never enter renderer state, UI copy, logs, exported handoffs, or persisted project JSON.
+The native path does **not** cross the analysis JSONL boundary. Before status emission, the adapter creates a detached path-free reference containing only artifact identity, canonical stem kind, media metadata, size, and content hash. Tauri already owns the project temporary root and reconstructs the only permitted location from the fixed suffix:
+
+```text
+{project_temp_root}/playable-stems-v1/{artifact_set_id}/{stem_kind}.wav
+```
+
+This avoids granting a Python-returned path filesystem authority. Native paths must never enter renderer state, UI copy, logs, exported handoffs, or persisted project JSON.
 
 ### 2. Extend the existing revocable playback authority
 
@@ -57,7 +63,7 @@ The Tauri layer will validate each artifact against the current project's app-ow
 - one artifact for each canonical stem and no unknown stem;
 - a regular, non-symlink WAV file under the expected project artifact directory;
 - bounded nonzero size;
-- manifest/file identity agreement;
+- path-free reference and file identity agreement;
 - common sample rate, sample count, channel count, and duration;
 - no duplicate artifact identifier or stem kind.
 
@@ -98,13 +104,20 @@ Multiple independently controlled `HTMLAudioElement` instances are not an accept
 
 Artifact creation proves that an output exists and can be played. It does not prove perceptual quality, instrument identity beyond the canonical model outputs, or genre-wide accuracy. Source-separation accuracy and rights-cleared listening evidence remain owned by Issue #770 and PR #828. Resource admission and decode bounds remain owned by Issue #781 and its canonical PR #866.
 
+### 6. Keep the Python implementation outside the numerical hot path
+
+The first artifact adapter is implemented in Python because Demucs currently yields NumPy arrays inside the existing analysis process, and the adapter performs bounded validation, PCM16 encoding, hashing, and atomic publication without introducing another array copy across a language boundary. It does not estimate, separate, resample, align, or score audio.
+
+This is an explicit adapter exception rather than a precedent for Python-owned production DSP. The source-separation and timing hot paths remain subject to the repository's Rust-first policy. Move PCM encoding or hashing into a Rust-owned native service if profiling shows this adapter materially affects latency, memory, concurrency, or attack-surface goals; preserve the same versioned artifact contract and tests when doing so.
+
 ## Domain ownership
 
 | Responsibility | Owner |
 | --- | --- |
 | Decode and separation computation | `services/analysis-engine` Source Separation |
 | PCM artifact materialization | `services/analysis-engine` Playback Artifact adapter |
-| Native path, identity, revocation, and byte-range serving | `apps/desktop/src-tauri` Playback Authority |
+| Path-free artifact reference | `services/analysis-engine` Playback Artifact adapter |
+| Native location derivation, identity, revocation, and byte-range serving | `apps/desktop/src-tauri` Playback Authority |
 | Public status and opaque source contracts | `packages/shared-types` |
 | Loop, count-in, seek, rate, and source selection | `apps/desktop` Active Player |
 | MIR accuracy and claim boundaries | Issue #770 / PR #828 |
@@ -119,14 +132,16 @@ The playback artifact adapter does not become a second source-separation owner, 
 
 - model-produced floating-point arrays;
 - app-owned cache and temporary directories;
-- Python-to-Rust manifest fields;
+- path-free Python-to-Rust artifact-reference fields;
 - custom-protocol paths and byte-range requests;
 - renderer source-selection events.
 
 ### Trust boundaries
 
 - analysis arrays are untrusted numeric output until shape, finiteness, cardinality, and alignment validation succeeds;
-- native paths are untrusted subprocess output until Tauri validates app-owned containment and file identity;
+- the analysis process emits no native path as authority;
+- Tauri derives the fixed artifact location from its own project root and a strict lowercase SHA-256 artifact-set identifier;
+- every derived file is revalidated by native identity, size, hash, media structure, and alignment before registration;
 - renderer handles are identifiers only and never paths;
 - selecting a source grants no new filesystem, network, export, or generic execution capability.
 
@@ -160,11 +175,16 @@ Rejected. It breaks the rehearsal loop, exposes filesystem concerns to the user,
 
 Rejected. The current canonical model does not establish that identity. The shipped label is `Other instruments` until independently validated model capability says otherwise.
 
+### F. Send native artifact paths to Tauri in the analysis status
+
+Rejected. Although Tauri is trusted, accepting a subprocess-returned path would unnecessarily widen the authority parser. A path-free artifact reference plus a fixed location derived from the already-authorized project root provides a narrower and more reviewable boundary.
+
 ## Consequences
 
 ### Positive
 
 - Real separation becomes an audible product capability instead of an internal analysis detail.
+- No native artifact path crosses the process or renderer status contract.
 - The renderer continues to receive opaque, revocable authority rather than native paths.
 - The existing Active Player remains the single transport state machine.
 - The design creates a measurable path to a later synchronized mixer without prematurely shipping fake controls.
@@ -173,7 +193,7 @@ Rejected. The current canonical model does not establish that identity. The ship
 ### Costs and constraints
 
 - Derived WAV files consume temporary disk space and require explicit lifecycle management.
-- The Python/Rust status boundary needs a trusted-internal manifest and a sanitized renderer projection.
+- Python and Rust must implement the same versioned path-free reference validation and location derivation contract.
 - The first slice auditions one source at a time; it does not satisfy the complete multitrack mixing expectation.
 - Changes touch Python, Rust, TypeScript, Tauri permissions, CSP/protocol tests, UI, and documentation, so cross-platform exact-head evidence is mandatory.
 
@@ -183,16 +203,17 @@ This ADR remains `Proposed` until one unchanged exact head proves all of the fol
 
 1. successful local separation produces exactly four aligned, finite, playable WAV artifacts;
 2. a feature-cache hit can recreate or reuse the same artifact contract without rerunning the model;
-3. Tauri rejects paths outside the current app-owned project root, symlinks, replacements, stale projects, unknown stems, duplicates, and metadata mismatch;
-4. renderer-visible status contains no native path;
-5. the source selector exposes only `Full mix`, `Vocals`, `Bass`, `Drums`, and `Other instruments` when actually available;
-6. selecting a stem produces observable audio playback through the same section loop and transport controls as the full mix;
-7. source replacement, app project replacement, playback error, and project close fail safely;
-8. keyboard-only and screen-reader journeys can identify and select the active source;
-9. normal, loading, unavailable, error, and partial/fail-closed states have executable component evidence;
-10. macOS and Windows production desktop tests use rights-cleared audio and confirm the audible source change;
-11. repository-owned production statement and branch coverage and public documentation remain 100%;
-12. current-head CI, security, SAST, dependency, SBOM, package, release, review-thread, and independent-approval gates pass without bypass.
+3. the emitted analysis reference contains no native path and is detached from the in-process native manifest;
+4. Tauri rejects artifact references or files with paths outside the current app-owned project root, symlinks, replacements, stale projects, unknown stems, duplicates, or metadata mismatch;
+5. renderer-visible status contains no native path, file hash, or internal storage location;
+6. the source selector exposes only `Full mix`, `Vocals`, `Bass`, `Drums`, and `Other instruments` when actually available;
+7. selecting a stem produces observable audio playback through the same section loop and transport controls as the full mix;
+8. source replacement, app project replacement, playback error, and project close fail safely;
+9. keyboard-only and screen-reader journeys can identify and select the active source;
+10. normal, loading, unavailable, error, and partial/fail-closed states have executable component evidence;
+11. macOS and Windows production desktop tests use rights-cleared audio and confirm the audible source change;
+12. repository-owned production statement and branch coverage and public documentation remain 100%;
+13. current-head CI, security, SAST, dependency, SBOM, package, release, review-thread, and independent-approval gates pass without bypass.
 
 ## References
 
