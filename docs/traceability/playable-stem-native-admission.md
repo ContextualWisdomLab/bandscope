@@ -3,9 +3,9 @@
 - **Status:** Draft implementation evidence; not a release or acceptance claim
 - **Date:** 2026-09-04
 - **Bounded contexts:** Source Separation → Native Resource Admission → Active Player
-- **Source implementation head before this documentation update:** `feat/playable-stem-native-contract-961@0f7c7749eef648374077f927415caed980a31479`
-- **Parent publication owner:** PR #1159, `dbafdd7a60d849960e620d071f2657088fa292da`
-- **Canonical playback owner:** PR #971, `d1ca68d5dee882db0a7442ebf425c87e5cb618f4`
+- **Source implementation head before this documentation update:** `feat/playable-stem-native-contract-961@85c474c177306b13fc54eda76fecb517cdcd7801`
+- **Parent publication owner:** PR #1159, `22a9f18d960cc7df93db890b2a5aa9594428c2b4`
+- **Canonical playback owner:** PR #971, `9c1b20e6df778e303fada3e170c93418c496394b`
 - **Decision:** ADR-0001 remains **Proposed** until the source-to-audible acceptance criteria are executable on one current stack.
 
 ## Problem and trust boundary
@@ -45,6 +45,8 @@ Native file identity is now one shared desktop primitive in `native_file_identit
 
 `activate_stems` first constructs all four canonical source authorities from preflighted path/size/identity values, then takes the existing playback-authority lock and installs the complete set only if the current project and latest-analysis job token still match. A partial set cannot be registered. A stale same-project analysis cannot overwrite a newer generation. Project/source replacement revokes the full mix, generation token and prior stems together.
 
+The JSONL worker now transports one validated `AnalysisProcessStatus` envelope per update instead of splitting renderer status and stem metadata into independent channels. The native worker retains the whole newest envelope while emitting only its renderer-safe `AnalysisJobStatus`. Authority binding consults `playableStemArtifactSet` only on that exact final retained envelope. A later succeeded status without stem metadata therefore replaces an earlier succeeded-with-stems envelope and cannot leave the earlier native reference eligible for binding.
+
 The custom protocol accepts only opaque native tokens:
 
 ```text
@@ -76,6 +78,7 @@ For this preflight increment, the native admission module therefore owns a small
 | RIFF/WAVE chunk model | Verify `RIFF`/`WAVE`, `fmt ` and `data` semantics and RIFF size relationships. | `validate_wave_header` plus malformed-header unit test. |
 | BandScope path-free contract | Python metadata cannot choose a path; native derives fixed locations. | `PlayableStemArtifactSetReference::derive_artifact_path` plus native exact-membership/containment checks. |
 | BandScope single playback authority | Stem files extend the current revocable authority instead of creating another transport store. | Shared native identity primitive, latest-job token, atomic four-stem map, opaque protocol routes, replacement-revocation tests. |
+| Exact final process envelope | Native artifact metadata must belong to the same final status returned to the renderer. | `retain_latest_process_status` regression covers succeeded-with-stems followed by succeeded-without-stems; `run_analysis_engine` channels whole envelopes. Hosted exact-head receipt is still absent. |
 
 ## Threat cases and current result
 
@@ -85,20 +88,22 @@ For this preflight increment, the native admission module therefore owns a small
 | Symlinked stem | Rejected on Unix test path; Windows reparse attribute is rejected in production code. | Windows exact-head executable evidence is still required. |
 | Same-size content replacement before preflight | Complete-file SHA-256 mismatch rejects it. | None at the metadata/hash boundary; exact-head execution is still required. |
 | Same-size path replacement after preflight | Reopened file identity differs and serving fails with `GONE`. | In-place mutation semantics still depend on the platform identity primitive and need exact-head platform evidence. |
-| Older same-project analysis finishes after a newer job | `job_id` generation token prevents the older result from replacing the newer stem set. | The terminal status and native artifact reference still travel through separate in-process bookkeeping paths; see current RED. |
+| Older same-project analysis finishes after a newer job | `job_id` generation token prevents the older result from replacing the newer stem set. | Exact-head executable evidence is still required. |
+| Earlier succeeded status has stems, later succeeded status does not | Whole-envelope replacement means only the final status can contribute a stem reference. | Exact-head executable evidence is still required. |
+| Non-empty malformed/unknown JSONL status after a valid status | `parse_analysis_process_status` rejects that line, but the worker currently skips parser failures and can retain the previous valid envelope. | Native worker must propagate parser failure so malformed producer output cannot fall back to earlier status. |
 | Partial four-stem publication | Exact directory membership, all-four preflight and atomic authority installation prevent partial registration. | Renderer selector has not shipped. |
 | Project/source replacement | One authority replacement revokes full mix, pending stem token and generated stems together. | Reopened-project persistence/recovery remains the #962 boundary. |
 | Renderer path disclosure | Analysis status strips native metadata and playback protocol uses project/stem tokens only. | The UI contract must continue to consume opaque handles only. |
 
 ## Current RED and acceptance boundary
 
-The source-to-native-authority path is now connected, but it is not GREEN.
+The exact-final-status stale-reference defect is repaired in production source, but the source-to-native-authority path is not GREEN.
 
-First, the current JSONL worker forwards renderer status through one channel while retaining native stem metadata separately. Binding currently chooses the last retained native stem reference after process completion. A malformed or future producer sequence could emit a succeeded status with stems and then a later succeeded status without stems, leaving the earlier native reference eligible for binding. The next causal repair is to retain the **final `AnalysisProcessStatus` envelope as one unit** so the artifact reference used for authority binding is the one attached to the exact final terminal status, while still emitting only renderer-safe `AnalysisJobStatus` updates.
+First, `run_analysis_engine` still uses `if let Ok(process_status) = parse_analysis_process_status(...)` and silently skips a non-empty JSONL line that fails strict parsing. If a malformed or future producer emits a valid succeeded envelope and then an invalid status before exiting successfully, the worker can still retain and return the earlier valid envelope. The next minimal causal repair is to propagate parser failure through the stdout reader and fail the native analysis response rather than falling back to an earlier envelope. Empty lines can remain ignorable; invalid non-empty JSONL must not be.
 
 Second, no shipped source selector yet exposes `Full mix | Vocals | Bass | Drums | Other instruments`. The next buyer-visible slice must use opaque handles from the existing protocol and verify source changes without resetting rehearsal position/range semantics, then cover pointer, touch, keyboard and screen-reader behavior, selection persistence/reload/stale race, and rights-cleared audible macOS/Windows behavior.
 
-Third, the stacked exact head has no hosted pull-request workflow run. Local/unit source evidence cannot substitute for current-head Rust format/test/Clippy/coverage, repository/central CI/security/SAST/dependency/SBOM/package/release/review evidence. ADR-0001 therefore stays Proposed and this PR stays Draft.
+Third, the stacked exact head has no hosted pull-request workflow run. Source-level RED/GREEN commits and unit contracts cannot substitute for current-head Rust format/test/Clippy/coverage, repository/central CI/security/SAST/dependency/SBOM/package/release/review evidence. ADR-0001 therefore stays Proposed and this PR stays Draft.
 
 ## References
 
