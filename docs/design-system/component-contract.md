@@ -94,6 +94,7 @@ These Figma patterns are valid visual guidance but are not yet extracted as stan
 | Status Pill | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when assignment/comment/approval status UI is reused. |
 | Song Structure Timeline | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when timeline editing or playback controls are added. |
 | Export Action Group | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when export controls are reused outside the workspace header. |
+| First Blocked Callout | `apps/desktop/src/features/workspace/FirstBlockedCallout.tsx` | Feature-local workspace next-action pattern until a traceable Figma node exists; extract or promote to Canonical Components when the pattern is reused and design authority is published. |
 
 ## PR Review Rules
 

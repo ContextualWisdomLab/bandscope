@@ -326,4 +326,40 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first blocked assignment on the mounted map", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.collaboration = {
+      ...song.collaboration!,
+      assignments: [
+        ...song.collaboration!.assignments,
+        {
+          id: "assign-keys-blocked",
+          assignee: "Keys",
+          summary: "Wait on the in-ear mix before the verse color pass.",
+          sectionId: "verse-1",
+          roleId: "keys-right",
+          status: "blocked"
+        }
+      ]
+    };
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText("Tonight's first blocked job")).toBeTruthy();
+    expect(
+      screen.getByText("Keys is blocked on Keyboard 1 Right Hand in the verse at 0:10.")
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open verse blocker at 0:10" })).toBeTruthy();
+  });
+
+  it("keeps the demo map honest when no assignment is blocked", () => {
+    setNavigatorLanguage("en-US");
+    render(<Workspace song={createDemoRehearsalSong()} />);
+
+    expect(
+      screen.getByText("No blocked job yet. Stay on tonight's map until a part is stuck.")
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /blocker/i })).toBeNull();
+  });
 });
