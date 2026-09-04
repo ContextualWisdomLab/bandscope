@@ -153,6 +153,226 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first leftover last-dropout remaining last-return tutti after leftover last-dropout remaining last-return", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      },
+      {
+        ...verse,
+        id: "tag-1",
+        label: "tag",
+        timeRange: {
+          start: verse.timeRange.end + 60,
+          end: verse.timeRange.end + 80
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "bass-guitar"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "coda-1",
+        label: "stop",
+        timeRange: {
+          start: verse.timeRange.end + 80,
+          end: verse.timeRange.end + 100
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "ending-1",
+        label: "ending",
+        timeRange: {
+          start: verse.timeRange.end + 100,
+          end: verse.timeRange.end + 120
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "fine-1",
+        label: "fine",
+        timeRange: {
+          start: verse.timeRange.end + 120,
+          end: verse.timeRange.end + 140
+        }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-leftover-last-dropout-remaining-last-return-tutti");
+    expect(callout).toHaveTextContent("Tonight's first leftover last-dropout remaining last-return tutti");
+    expect(callout).toHaveTextContent(
+      "Bass Guitar comes back at ending after leftover last-dropout remaining at stop, and the band is all in at fine. Count the leftover last-dropout remaining last-return tutti in from the top of fine."
+    );
+  });
+
+  it("tells leftover last-dropout remaining last-return tutti to come in together after leftover last-dropout remaining last-return", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      },
+      {
+        ...verse,
+        id: "tag-1",
+        label: "tag",
+        timeRange: {
+          start: verse.timeRange.end + 60,
+          end: verse.timeRange.end + 80
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "bass-guitar"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "coda-1",
+        label: "stop",
+        timeRange: {
+          start: verse.timeRange.end + 80,
+          end: verse.timeRange.end + 100
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "ending-1",
+        label: "ending",
+        timeRange: {
+          start: verse.timeRange.end + 100,
+          end: verse.timeRange.end + 120
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "fine-1",
+        label: "fine",
+        timeRange: {
+          start: verse.timeRange.end + 120,
+          end: verse.timeRange.end + 140
+        }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.getByTestId("first-leftover-last-dropout-remaining-last-return-tutti")).toHaveTextContent(
+      "Bass Guitar comes back at ending after leftover last-dropout remaining at stop, and the band is all in at fine. Come in together from the top of fine."
+    );
+  });
+
+  it("asks the player to verify the required not-yet-all-in then all-in order", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-leftover-last-dropout-remaining-last-return-tutti")).toHaveTextContent(
+      "This cue needs a last-return section where someone is still out, followed by a later section where everyone is in. Before rehearsing, confirm that order in the map."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
