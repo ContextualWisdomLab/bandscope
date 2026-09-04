@@ -155,9 +155,10 @@ fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, 
     }
     let metadata = std::fs::metadata(&canonical)
         .map_err(|_| "Could not read the selected audio file.".to_string())?;
-    if !metadata.is_file() || metadata.len() == 0 {
+    if !metadata.is_file() {
         return Err("Could not read the selected audio file.".into());
     }
+    let file_size_bytes = validate_local_audio_file_size(metadata.len())?;
     let file_name = canonical
         .file_name()
         .and_then(|value| value.to_str())
@@ -167,7 +168,7 @@ fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, 
         source_path: canonical.to_string_lossy().into_owned(),
         file_name: file_name.to_string(),
         extension,
-        file_size_bytes: metadata.len(),
+        file_size_bytes,
     })
 }
 
@@ -712,6 +713,7 @@ async fn import_youtube_url(
     if parsed.get("ok").and_then(|v| v.as_bool()) == Some(true) {
         if let Some(metadata) = parsed.get("metadata") {
             let source = youtube_source_from_metadata(metadata, &cache_root)?;
+            validate_local_audio_file_size(source.file_size_bytes)?;
 
             let summary = ProjectBootstrapSummaryPayload {
                 project_id,
@@ -826,7 +828,9 @@ fn attach_score_pdf(
 /// Security Notes: no path crosses the IPC boundary. Both ids are validated
 /// against strict allowlist shapes, the path is rebuilt locally, and the
 /// canonicalize-plus-prefix guard in `resolve_existing_score_pdf` rejects any
-/// escape from the app-owned scores root.
+/// escape from the app-owned scores root. The resolved file is then read
+/// through the bounded core helper so growth after attachment cannot trigger
+/// an allocation beyond the 25 MiB product limit.
 #[tauri::command]
 fn read_score_pdf(
     project_id: String,
@@ -838,7 +842,7 @@ fn read_score_pdf(
     }
     let scores_root = scores_root_for_project(&app, &project_id)?;
     let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
-    std::fs::read(path).map_err(|_| "Could not read the score PDF.".to_string())
+    read_validated_score_pdf(&path)
 }
 
 /// Security Notes: same id validation and traversal guard as `read_score_pdf`;

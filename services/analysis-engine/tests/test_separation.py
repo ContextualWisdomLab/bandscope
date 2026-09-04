@@ -466,6 +466,10 @@ def test_audio_stem_separator_rejects_empty_decoder_output(
     audio_path = tmp_path / "empty.wav"
     audio_path.write_bytes(b"placeholder")
     monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
         "bandscope_analysis.separation.audio_separator.librosa.load",
         lambda *args, **kwargs: (np.array([], dtype=np.float32), 8_000),
     )
@@ -481,6 +485,10 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
     """Ensure decoder failures are surfaced without full local paths."""
     audio_path = tmp_path / "broken.wav"
     audio_path.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
 
     def fail_decode(*args, **kwargs):
         raise RuntimeError(f"decoder failed under {tmp_path}")
