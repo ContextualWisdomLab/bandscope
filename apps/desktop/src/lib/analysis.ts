@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
-  createDemoRehearsalSong,
   createProjectBootstrapSummary,
   parseAnalysisJobStatus,
   parseAnalysisJobRequest,
@@ -15,6 +14,7 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
+import { DEMO_SONG_TITLE } from "./demo";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -27,23 +27,23 @@ declare global {
   }
 }
 
-const browserJobStore = new Map<string, AnalysisJobStatus>();
-const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
-  { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
-  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
-] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const DEMO_UNAVAILABLE_MESSAGE =
+  "The licensed demo song could not be loaded. Use your own song to start tonight.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
-  "Could not prepare the local temp workspace."
+  "Could not prepare the local temp workspace.",
+  DEMO_UNAVAILABLE_MESSAGE
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
+const LICENSED_DEMO_PROJECT_STORAGE_KEY = "bandscope.licensedDemoProjectId";
+const LICENSED_DEMO_JOB_STORAGE_KEY = "bandscope.licensedDemoJobId";
+let currentLicensedDemoProjectId: string | null = null;
+let currentLicensedDemoJobId: string | null = null;
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
@@ -51,6 +51,76 @@ export { MAX_YOUTUBE_URL_LENGTH };
 export type LocalAudioSelectionResult =
   | { ok: true; bootstrap: ProjectBootstrapSummary }
   | { ok: false; error: AnalysisJobError };
+
+/** Read a bounded renderer-session marker without making analysis depend on storage availability. */
+function readSessionMarker(storageKey: string): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return window.sessionStorage.getItem(storageKey);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist one renderer-session marker without failing the native analysis path. */
+function writeSessionMarker(storageKey: string, storageValue: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.sessionStorage.setItem(storageKey, storageValue);
+  } catch {
+    // Storage is a reload-continuity mirror only; the current renderer keeps identity in memory.
+  }
+}
+
+/** Remember the active licensed-demo project in memory and mirror it for renderer reload continuity. */
+function rememberLicensedDemoProjectId(projectId: string): void {
+  currentLicensedDemoProjectId = projectId;
+  writeSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY, projectId);
+}
+
+/** Resolve the active licensed-demo project, preferring current renderer authority over the reload mirror. */
+function readLicensedDemoProjectId(): string | null {
+  return currentLicensedDemoProjectId ?? readSessionMarker(LICENSED_DEMO_PROJECT_STORAGE_KEY);
+}
+
+/** Remember the active licensed-demo job in memory and mirror it for renderer reload continuity. */
+function rememberLicensedDemoJobId(jobId: string): void {
+  currentLicensedDemoJobId = jobId;
+  writeSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY, jobId);
+}
+
+/** Resolve the active licensed-demo job, preferring current renderer authority over the reload mirror. */
+function readLicensedDemoJobId(): string | null {
+  return currentLicensedDemoJobId ?? readSessionMarker(LICENSED_DEMO_JOB_STORAGE_KEY);
+}
+
+/** Preserve the trusted demo title across the current renderer and ordinary WebView module reloads. */
+function withLicensedDemoTitle(analysisStatus: AnalysisJobStatus): AnalysisJobStatus {
+  if (readLicensedDemoJobId() !== analysisStatus.jobId) {
+    return analysisStatus;
+  }
+  if (!analysisStatus.result && analysisStatus.progressStage !== "ready") {
+    return analysisStatus;
+  }
+  return {
+    ...analysisStatus,
+    ...(analysisStatus.progressStage === "ready"
+      ? { progressLabel: `Analysis ready for ${DEMO_SONG_TITLE}` }
+      : {}),
+    ...(analysisStatus.result
+      ? {
+          result: {
+            ...analysisStatus.result,
+            title: DEMO_SONG_TITLE
+          }
+        }
+      : {})
+  };
+}
 
 /** Documented. */
 function getInvoke(): TauriInvoke | null {
@@ -115,65 +185,34 @@ function browserJobId(prefix: string): string {
 async function browserFallback(command: string, args?: Record<string, unknown>): Promise<unknown> {
   if (command === "start_analysis_job") {
     parseAnalysisJobRequest(args?.request);
-    const jobId = browserJobId("browser-job");
-    const queued = createAnalysisJobStatus({
-      jobId,
-      state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0,
-      cacheStatus: "disabled"
+    return createAnalysisJobStatus({
+      jobId: browserJobId("browser-job"),
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
     });
-    browserJobStore.set(jobId, queued);
-    return queued;
   }
 
   if (command === "select_local_audio_source") {
     throw new Error(UNSUPPORTED_LOCAL_AUDIO_MESSAGE);
   }
 
+  if (command === "select_demo_audio_source") {
+    throw new Error(DEMO_UNAVAILABLE_MESSAGE);
+  }
+
   if (command === "get_analysis_job_status") {
     const jobId = String(args?.jobId ?? "");
-    const existing = browserJobStore.get(jobId);
-    if (!existing) {
-      return createAnalysisJobStatus({
-        jobId,
-        state: "failed",
-        error: {
-          code: "not_found",
-          message: "Analysis job was not found."
-        }
-      });
-    }
-    if (existing.state === "queued" || existing.state === "running") {
-      const currentPercent = existing.progressPercent ?? 0;
-      const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
-      if (nextStep) {
-        const running = createAnalysisJobStatus({
-          jobId,
-          state: "running",
-          requestedAt: existing.requestedAt,
-          progressLabel: nextStep.progressLabel,
-          progressStage: nextStep.progressStage,
-          progressPercent: nextStep.progressPercent,
-          cacheStatus: "disabled"
-        });
-        browserJobStore.set(jobId, running);
-        return running;
-      }
-    }
-    const succeeded = createAnalysisJobStatus({
+    return createAnalysisJobStatus({
       jobId,
-      state: "succeeded",
-      progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100,
-      cacheStatus: "disabled",
-      requestedAt: existing.requestedAt,
-      result: createDemoRehearsalSong()
+      state: "failed",
+      error: {
+        code: "not_found",
+        message: "Analysis job was not found."
+      }
     });
-    browserJobStore.set(jobId, succeeded);
-    return succeeded;
   }
 
   if (command === "save_project") {
@@ -244,6 +283,30 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
   }
 }
 
+/** Select the bundled licensed demo through the same local-audio bootstrap. */
+export async function selectDemoAudioSource(): Promise<LocalAudioSelectionResult> {
+  try {
+    const response = await invokeAnalysis("select_demo_audio_source");
+    const bootstrap = parseProjectBootstrapSummary(response);
+    rememberLicensedDemoProjectId(bootstrap.projectId);
+    return {
+      ok: true,
+      bootstrap
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message:
+          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
+            ? error.message
+            : DEMO_UNAVAILABLE_MESSAGE
+      }
+    };
+  }
+}
+
 /** Documented. */
 export async function startAnalysisJob(request: AnalysisJobRequest): Promise<AnalysisJobStatus> {
   let parsedRequest: AnalysisJobRequest;
@@ -260,11 +323,22 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
     });
   }
 
+  const isLicensedDemoProject =
+    parsedRequest.sourceKind === "local_audio" &&
+    Boolean(parsedRequest.projectId) &&
+    readLicensedDemoProjectId() === parsedRequest.projectId;
+  const analysisRequest: AnalysisJobRequest = isLicensedDemoProject
+    ? { ...parsedRequest, sourceLabel: DEMO_SONG_TITLE }
+    : parsedRequest;
   const response = await invokeAnalysis("start_analysis_job", {
-    request: parsedRequest
+    request: analysisRequest
   });
   try {
-    return parseAnalysisJobStatus(response);
+    const status = parseAnalysisJobStatus(response);
+    if (isLicensedDemoProject) {
+      rememberLicensedDemoJobId(status.jobId);
+    }
+    return withLicensedDemoTitle(status);
   } catch {
     throw new Error("Invalid analysis job status response");
   }
@@ -274,7 +348,7 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
   try {
-    return parseAnalysisJobStatus(response);
+    return withLicensedDemoTitle(parseAnalysisJobStatus(response));
   } catch {
     throw new Error("Invalid analysis job status response");
   }
@@ -296,7 +370,7 @@ export async function subscribeToAnalysisJobUpdates(
   try {
     const unlisten = await listen<unknown>("analysis-job-updated", (event) => {
       try {
-        const status = parseAnalysisJobStatus(event.payload);
+        const status = withLicensedDemoTitle(parseAnalysisJobStatus(event.payload));
         if (status.jobId === jobId) {
           onUpdate(status);
         }
@@ -331,7 +405,12 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === "string"
+          ? error
+          : "YouTube import failed.";
     return {
       ok: false,
       error: {

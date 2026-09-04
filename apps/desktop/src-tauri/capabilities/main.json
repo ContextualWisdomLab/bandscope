@@ -2,13 +2,16 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
   "description": "Capability for the main BandScope window to use the analysis orchestration commands.",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "allow-start-analysis-job",
     "allow-get-analysis-job-status",
     "allow-select-local-audio-source",
+    "allow-select-demo-audio-source",
     "allow-import-youtube-url",
     "allow-save-project",
     "allow-load-project",

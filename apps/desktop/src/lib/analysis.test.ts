@@ -4,6 +4,7 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   getAnalysisJobStatus,
   importYoutubeUrl,
+  selectDemoAudioSource,
   startAnalysisJob
 } from "./analysis";
 
@@ -18,6 +19,30 @@ describe("analysis bridge", () => {
   beforeEach(() => {
     delete tauriWindow.__TAURI_INTERNALS__;
     delete tauriWindow.__TAURI_INVOKE__;
+  });
+
+  it("fails closed when the licensed demo is requested outside Tauri", async () => {
+    const selection = await selectDemoAudioSource();
+
+    expect(selection).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "The licensed demo song could not be loaded. Use your own song to start tonight."
+      }
+    });
+  });
+
+  it("does not invent a browser demo bootstrap when Tauri internals lack invoke", async () => {
+    tauriWindow.__TAURI_INTERNALS__ = {};
+
+    const selection = await selectDemoAudioSource();
+
+    expect(selection.ok).toBe(false);
+    if (selection.ok) {
+      throw new Error("browser demo intake must fail closed");
+    }
+    expect(selection.error.message).toMatch(/use your own song/i);
   });
 
   it("imports a standard YouTube URL through the browser fallback when Tauri is absent", async () => {
@@ -99,6 +124,68 @@ describe("analysis bridge", () => {
     expect(selection.ok).toBe(true);
   });
 
+  it("preserves the canonical licensed-demo title through start and polling", async () => {
+    const engineResult = {
+      ...createDemoRehearsalSong(),
+      title: "Analyzed Track"
+    };
+    const nativeInvoke = vi.fn(async (command: string) => {
+      if (command === "select_demo_audio_source") {
+        return {
+          projectId: "licensed-demo-project",
+          sourceMode: "reference",
+          projectRoot: "/tmp/bandscope/projects/licensed-demo-project",
+          cacheRoot: "/tmp/bandscope/cache/licensed-demo-project",
+          tempRoot: "/tmp/bandscope/temp/licensed-demo-project",
+          source: {
+            sourcePath: "/tmp/bandscope/resources/demo/late-night-set.wav",
+            fileName: "late-night-set.wav",
+            extension: "wav",
+            fileSizeBytes: 441044
+          }
+        };
+      }
+      if (command === "start_analysis_job" || command === "get_analysis_job_status") {
+        return {
+          jobId: "job-licensed-demo",
+          state: "succeeded",
+          requestedAt: "2026-03-12T00:00:00.000Z",
+          updatedAt: "2026-03-12T00:00:01.000Z",
+          progressLabel: "Analysis ready for late-night-set.wav",
+          progressStage: "ready",
+          progressPercent: 100,
+          cacheStatus: "stored",
+          result: engineResult
+        };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    tauriWindow.__TAURI_INVOKE__ = nativeInvoke;
+
+    const selection = await selectDemoAudioSource();
+    expect(selection.ok).toBe(true);
+    if (!selection.ok) {
+      throw new Error("licensed demo selection must succeed through the native bridge");
+    }
+
+    const status = await startAnalysisJob({
+      sourceKind: "local_audio",
+      projectId: selection.bootstrap.projectId,
+      sourceLabel: selection.bootstrap.source.fileName,
+      roleFocus: ["bass-guitar"]
+    });
+
+    expect(nativeInvoke).toHaveBeenCalledWith("start_analysis_job", {
+      request: expect.objectContaining({ sourceLabel: "Late Night Set" })
+    });
+    expect(status.progressLabel).toBe("Analysis ready for Late Night Set");
+    expect(status.result?.title).toBe("Late Night Set");
+
+    const polledStatus = await getAnalysisJobStatus("job-licensed-demo");
+    expect(polledStatus.progressLabel).toBe("Analysis ready for Late Night Set");
+    expect(polledStatus.result?.title).toBe("Late Night Set");
+  });
+
   it("normalizes legacy analysis job status responses before returning them", async () => {
     const legacyResult = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
@@ -117,50 +204,17 @@ describe("analysis bridge", () => {
     expect(status.result?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
   });
 
-  it("reports staged browser fallback progress before returning the demo result", async () => {
-    const queued = await startAnalysisJob(createDemoAnalysisJobRequest());
+  it("fails browser analysis closed instead of synthesizing a rehearsal result", async () => {
+    const status = await startAnalysisJob(createDemoAnalysisJobRequest());
 
-    expect(queued).toMatchObject({
-      state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0
+    expect(status).toMatchObject({
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: "Analysis engine is unavailable."
+      }
     });
-
-    const running = await getAnalysisJobStatus(queued.jobId);
-    expect(running).toMatchObject({
-      state: "running",
-      progressLabel: "Decoding audio",
-      progressStage: "decode",
-      progressPercent: 20
-    });
-
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Separating stems... (45%)",
-      progressStage: "separate",
-      progressPercent: 45
-    });
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Building rehearsal cues",
-      progressStage: "analyze",
-      progressPercent: 70
-    });
-    expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
-      state: "running",
-      progressLabel: "Saving reusable features",
-      progressStage: "persist",
-      progressPercent: 90
-    });
-
-    const ready = await getAnalysisJobStatus(queued.jobId);
-    expect(ready).toMatchObject({
-      state: "succeeded",
-      progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100
-    });
+    expect(status.result).toBeUndefined();
   });
 
   it("ignores a non-function Tauri v1 invoke shim", async () => {

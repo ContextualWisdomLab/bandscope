@@ -304,7 +304,7 @@ describe("Workspace", () => {
     render(<EmptyState />);
     render(<LoadingState />);
 
-    expect(screen.getByRole("heading", { name: "분석 준비 완료" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "오늘 합주를 시작하세요" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "오디오 분석 중" })).toBeTruthy();
   });
 

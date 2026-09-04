@@ -40,6 +40,7 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
+  selectDemoAudioSource,
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
@@ -258,13 +259,18 @@ export function App() {
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [selectedSourceKind, setSelectedSourceKind] = useState<"demo" | "local" | "youtube" | null>(null);
+  const [isSelectingDemo, setIsSelectingDemo] = useState(false);
+  const [isSelectingLocal, setIsSelectingLocal] = useState(false);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isOpeningProject, setIsOpeningProject] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
+  const workspaceIntakeInFlightRef = useRef(false);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
@@ -387,6 +393,10 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
+      return;
+    }
+
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
     setJobResult(null);
@@ -415,22 +425,64 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    setSelectionError(null);
-    setSelectionErrorSource(null);
-    const selection = await selectLocalAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
       return;
     }
 
-    setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+    workspaceIntakeInFlightRef.current = true;
+    setIsSelectingLocal(true);
+    setSelectionError(null);
+    setSelectionErrorSource(null);
+    try {
+      const selection = await selectLocalAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        setSelectedSourceKind("local");
+        return;
+      }
+
+      setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      workspaceIntakeInFlightRef.current = false;
+      setIsSelectingLocal(false);
+    }
+  };
+
+  /** Validate the bundled licensed demo through the same local-audio bootstrap. */
+  const handleTryDemo = async () => {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
+      return;
+    }
+
+    workspaceIntakeInFlightRef.current = true;
+    setIsSelectingDemo(true);
+    setSelectionError(null);
+    setSelectionErrorSource(null);
+    try {
+      const selection = await selectDemoAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        setSelectedSourceKind("demo");
+        return;
+      }
+
+      setSelectionError(safeErrorDetail(selection.error.message, t("demoUnavailable")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      workspaceIntakeInFlightRef.current = false;
+      setIsSelectingDemo(false);
+    }
   };
 
   /** Documented. */
   const handleImportYoutube = async () => {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -446,11 +498,13 @@ export function App() {
       return;
     }
 
+    workspaceIntakeInFlightRef.current = true;
     setIsImporting(true);
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
+        setSelectedSourceKind("youtube");
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
@@ -460,6 +514,7 @@ export function App() {
       setSelectionError(t("youtubeImportFailed"));
       setSelectionErrorSource("youtube");
     } finally {
+      workspaceIntakeInFlightRef.current = false;
       setIsImporting(false);
     }
   };
@@ -472,18 +527,30 @@ export function App() {
 
   /** Documented. */
   const handleLoadProject = async () => {
+    if (analysisInFlight || isStarting || workspaceIntakeInFlightRef.current) {
+      return;
+    }
+
+    workspaceIntakeInFlightRef.current = true;
+    setIsOpeningProject(true);
     try {
       const song = await loadProject();
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
       setSelectedBootstrap(null);
+      setSelectedSourceKind(null);
+      setSelectionError(null);
+      setSelectionErrorSource(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
+    } finally {
+      workspaceIntakeInFlightRef.current = false;
+      setIsOpeningProject(false);
     }
   };
 
@@ -514,7 +581,15 @@ export function App() {
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return <EmptyState />;
+    return (
+      <EmptyState
+        selectedLabel={selectedBootstrap?.source.fileName ?? null}
+        selectedKind={selectedSourceKind}
+        disabled={isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
+        onTryDemo={handleTryDemo}
+        onUseOwnSong={handleChooseLocalAudio}
+      />
+    );
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
@@ -682,7 +757,7 @@ export function App() {
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
+                  disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
                   variant="secondary"
                   className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label={t("chooseLocalAudio")}
@@ -702,13 +777,19 @@ export function App() {
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        disabled={analysisInFlight || isStarting || isImporting}
+                        disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
-                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                      {youtubeUrl &&
+                      !analysisInFlight &&
+                      !isStarting &&
+                      !isImporting &&
+                      !isSelectingDemo &&
+                      !isSelectingLocal &&
+                      !isOpeningProject ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
@@ -723,7 +804,15 @@ export function App() {
                   </div>
                   <Button
                     onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    disabled={
+                      !youtubeUrl ||
+                      analysisInFlight ||
+                      isStarting ||
+                      isImporting ||
+                      isSelectingDemo ||
+                      isSelectingLocal ||
+                      isOpeningProject
+                    }
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label={t("importYoutube")}
@@ -737,7 +826,7 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
+                  disabled={analysisInFlight || isStarting || isImporting || isSelectingDemo || isSelectingLocal || isOpeningProject}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
@@ -770,7 +859,15 @@ export function App() {
                 )}
                 <Button
                   onClick={handleStartAnalysis}
-                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  disabled={
+                    analysisInFlight ||
+                    isStarting ||
+                    !selectedBootstrap ||
+                    isImporting ||
+                    isSelectingDemo ||
+                    isSelectingLocal ||
+                    isOpeningProject
+                  }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
                   aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}

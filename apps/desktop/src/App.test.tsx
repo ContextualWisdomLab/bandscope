@@ -46,6 +46,7 @@ vi.mock("./lib/analysis", async (importActual) => {
       roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
     }),
     selectLocalAudioSource: async () => mockLocalAudioSelectionResult ?? actual.selectLocalAudioSource(),
+    selectDemoAudioSource: () => actual.selectDemoAudioSource(),
     subscribeToAnalysisJobUpdates: (...args: Parameters<typeof mockSubscribeToAnalysisJobUpdates>) =>
       mockSubscribeToAnalysisJobUpdates(...args),
     loadProject: () => mockLoadProject(),
@@ -420,6 +421,77 @@ describe("App", () => {
     });
   });
 
+  it("selects the licensed demo through the same local-audio bootstrap", async () => {
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /try the demo/i }));
+
+    await waitFor(() => {
+      expect(tauriInvoke).toHaveBeenCalledWith("select_demo_audio_source", undefined);
+      expect(screen.getByText(/start analysis to open tonight's first cue/i)).toBeTruthy();
+    });
+  });
+
+  it("does not issue duplicate demo selection requests while intake is pending", async () => {
+    let resolveSelection: ((value: unknown) => void) | null = null;
+    tauriInvoke.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveSelection = resolve;
+      })
+    );
+
+    render(<App />);
+
+    const tryDemo = screen.getByRole("button", { name: /try the demo/i });
+    fireEvent.click(tryDemo);
+    fireEvent.click(tryDemo);
+
+    expect(tauriInvoke).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveSelection?.(bootstrapResponse());
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/start analysis to open tonight's first cue/i)).toBeTruthy();
+  });
+
+  it("does not issue duplicate local selection requests while intake is pending", async () => {
+    let resolveSelection: ((value: unknown) => void) | null = null;
+    tauriInvoke.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveSelection = resolve;
+      })
+    );
+
+    render(<App />);
+
+    const chooseOwnSong = screen.getByRole("button", { name: /use my own song/i });
+    fireEvent.click(chooseOwnSong);
+    fireEvent.click(chooseOwnSong);
+
+    expect(tauriInvoke).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      resolveSelection?.(bootstrapResponse());
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/start analysis to open your first cue/i)).toBeTruthy();
+  });
+
+  it("names using your own song when the licensed demo cannot load", async () => {
+    tauriInvoke.mockRejectedValueOnce(
+      new Error("The licensed demo song could not be loaded. Use your own song to start tonight.")
+    );
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /try the demo/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/use your own song to start tonight/i);
+    });
+  });
+
   it("shows a safe file-intake error for unsupported local audio selection", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("Choose a WAV, MP3, FLAC, or M4A file to start analysis."));
 
@@ -432,6 +504,21 @@ describe("App", () => {
     });
     expect(screen.getByRole("alert").textContent).toMatch(/choose a wav, mp3, flac, or m4a file/i);
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
+  });
+
+  it("disables the source-bar local-audio button while a selection is pending", async () => {
+    let resolveSelection!: (value: unknown) => void;
+    mockLocalAudioSelectionResult = new Promise((resolve) => {
+      resolveSelection = resolve;
+    });
+    render(<App />);
+
+    const sourceBarButton = screen.getByRole("button", { name: "Choose local audio" });
+    fireEvent.click(sourceBarButton);
+    await waitFor(() => expect(sourceBarButton).toBeDisabled());
+
+    resolveSelection({ ok: false, error: { code: "invalid_request", message: "" } });
+    await waitFor(() => expect(sourceBarButton).toBeEnabled());
   });
 
   it("falls back to generic local-audio error copy when selection omits a message", async () => {
@@ -1122,6 +1209,7 @@ describe("App", () => {
         url: "https://youtube.com/watch?v=abc123DEF45"
       });
       expect(screen.getByText(/youtube\.wav/i)).toBeTruthy();
+      expect(screen.getByText(/start analysis to open your first cue/i)).toBeTruthy();
     });
   });
 

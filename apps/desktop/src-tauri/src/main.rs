@@ -662,6 +662,35 @@ fn select_local_audio_source(
 }
 
 #[tauri::command]
+fn select_demo_audio_source(
+    app: tauri::AppHandle<impl Runtime>,
+    state: tauri::State<'_, AppState>,
+) -> Result<ProjectBootstrapSummaryPayload, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|_| DEMO_UNAVAILABLE_MESSAGE.to_string())?;
+    let path = resource_dir.join("demo").join(DEMO_AUDIO_FILE_NAME);
+    let source = validate_demo_audio_source(&path)?;
+    let project_id = next_project_id(&state);
+    let project_root = app_owned_root(&app, "projects", &project_id)?;
+    let cache_root = app_owned_root(&app, "cache", &project_id)?;
+    let temp_root = app_owned_root(&app, "temp", &project_id)?;
+
+    let summary = ProjectBootstrapSummaryPayload {
+        project_id,
+        source_mode: "reference".into(),
+        project_root: project_root.to_string_lossy().into_owned(),
+        cache_root: cache_root.to_string_lossy().into_owned(),
+        temp_root: temp_root.to_string_lossy().into_owned(),
+        source,
+    };
+    store_bootstrap_source(&state, summary.clone());
+
+    Ok(summary)
+}
+
+#[tauri::command]
 async fn import_youtube_url(
     url: String,
     app: tauri::AppHandle<impl Runtime>,
@@ -870,6 +899,7 @@ fn main() {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
+            select_demo_audio_source,
             import_youtube_url,
             start_analysis_job,
             get_analysis_job_status,

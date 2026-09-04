@@ -4,16 +4,22 @@
 
 ### Added
 
+- First-run empty workspace offers **Try the demo** and **Use my own song**, with a CC0 licensed `Late Night Set` package that uses the same local-audio intake as a user-selected file (#964).
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
 ### Changed
 
+- Translate the licensed-demo provenance wire manifest at one anti-corruption boundary so established public JSON keys remain compatible while organization-owned runtime types use semantically specific song and asset names.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
 
+- Preserve the licensed demo's buyer-facing `Late Night Set` title in ready-state analysis progress after native local-source validation.
+- Fail the legacy `job_runner` analysis mutation bridge closed outside Tauri instead of synthesizing browser-only success, while preserving its read-only placeholder workspace and native IPC wire contract.
+- Serialized local, demo, and YouTube source selection behind one synchronous authority so replacement intake cannot analyze a stale prior song or race another source; failed replacement preserves the prior valid selection.
+- Added checksum-bound supplemental inventory coverage for every packaged licensed-demo asset, including the WAV, license, annotations, and provenance manifest.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29

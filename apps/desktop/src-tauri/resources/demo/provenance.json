@@ -1,0 +1,39 @@
+{
+  "manifestVersion": 1,
+  "artifactKind": "bandscope.licensed-demo",
+  "song": {
+    "id": "late-night-set",
+    "title": "Late Night Set",
+    "performer": "Contextual Wisdom Lab",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "permittedUses": [
+      "evaluation",
+      "redistribution",
+      "rehearsal-demo"
+    ]
+  },
+  "assets": [
+    {
+      "path": "late-night-set.wav",
+      "role": "audio",
+      "sha256": "9e4d5598a8e0f2836b4e7637ec19adfb48ce93eb8d18a2984d20ae597d05a8fb",
+      "bytes": 441044,
+      "mediaType": "audio/wav"
+    },
+    {
+      "path": "LICENSE",
+      "role": "license",
+      "sha256": "1657b89949ca8bfb2920e26dceb4c1012d6212b5d77eda7d7f3921da29adde5e",
+      "bytes": 822,
+      "mediaType": "text/plain"
+    },
+    {
+      "path": "annotations.json",
+      "role": "annotations",
+      "sha256": "6ed9253d81168f9cb6d1d3fa905849c5baafc6d079e91e287b03cba4190ca7f7",
+      "bytes": 707,
+      "mediaType": "application/json"
+    }
+  ]
+}
