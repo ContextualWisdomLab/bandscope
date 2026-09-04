@@ -88,6 +88,43 @@ describe("playback source discovery session", () => {
     }
   });
 
+  it("fails closed when hostile option inspection throws", () => {
+    const begin = beginPlaybackSourceDiscovery(
+      createPlaybackSourceSession(projectA),
+      projectA,
+    );
+    const throwingGetter = Object.defineProperties({}, {
+      authority: { enumerable: true, value: projectA },
+      kind: {
+        enumerable: true,
+        get: () => {
+          throw new Error("hostile kind getter");
+        },
+      },
+    });
+    const throwingProxy = new Proxy({}, {
+      getOwnPropertyDescriptor: () => {
+        throw new Error("hostile property trap");
+      },
+    });
+
+    for (const invalid of [[throwingGetter], [throwingProxy]]) {
+      expect(() =>
+        completePlaybackSourceDiscovery(begin.state, begin.request, invalid),
+      ).not.toThrow();
+      const completed = completePlaybackSourceDiscovery(
+        begin.state,
+        begin.request,
+        invalid,
+      );
+      expect(completed.options).toEqual([
+        { kind: "full_mix", authority: projectA },
+      ]);
+      expect(completed.selectedAuthority).toBe(projectA);
+      expect(completed.pendingRequest).toBeNull();
+    }
+  });
+
   it("admits selection only from the latest canonical option set", () => {
     const begin = beginPlaybackSourceDiscovery(
       createPlaybackSourceSession(projectA),
