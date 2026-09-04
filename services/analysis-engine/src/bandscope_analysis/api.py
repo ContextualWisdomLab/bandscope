@@ -1,4 +1,9 @@
-"""Public API helpers for the BandScope analysis baseline."""
+"""Public API helpers for the BandScope analysis baseline.
+
+Security Notes:
+- Local cache identity reads selected audio in bounded chunks and stores only a
+  digest; raw audio bytes and source paths never enter cache metadata or logs.
+"""
 
 from __future__ import annotations
 
@@ -19,11 +24,13 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer, analyze_tempo_stability
+from bandscope_analysis.temporal.analyzer import MAX_AUDIO_FILE_BYTES
 
 logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
-ANALYSIS_CACHE_SCHEMA_VERSION = 1
+ANALYSIS_CACHE_SCHEMA_VERSION = 2
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
@@ -83,6 +90,23 @@ class RangePayload(TypedDict):
 
     lowestNote: str
     highestNote: str
+
+
+class TempoChangePayload(TypedDict):
+    """Typed sustained tempo change payload returned in rehearsal results."""
+
+    time: float
+    fromBpm: float
+    toBpm: float
+
+
+class TempoStabilityPayload(TypedDict):
+    """Typed tempo movement summary returned in rehearsal results."""
+
+    bpmMedian: float
+    bpmStdev: float
+    stability: Literal["steady", "loose", "variable"]
+    tempoChanges: list[TempoChangePayload]
 
 
 class HarmonyPayload(TypedDict):
@@ -160,6 +184,7 @@ class RehearsalSong(TypedDict):
     id: str
     title: str
     tempo: NotRequired[int]
+    tempoStability: NotRequired[TempoStabilityPayload]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -510,12 +535,62 @@ def _coerce_tempo_bpm(bpm_val: Any) -> int | None:
 
 
 def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> None:
-    """Attach a sanitized integer tempo property to a rehearsal song."""
+    """Attach sanitized tempo guidance to a rehearsal song."""
     if not audio_features:
         return
     bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
     if bpm is not None:
         song["tempo"] = bpm
+    stability = audio_features.get("tempo_stability")
+    if not isinstance(stability, dict):
+        return
+    changes = stability.get("tempo_changes")
+    if not isinstance(changes, list):
+        return
+    try:
+        bpm_median = float(stability["bpm_median"])
+        bpm_stdev = float(stability["bpm_stdev"])
+        stability_label = stability["stability"]
+    except (KeyError, TypeError, ValueError):
+        return
+    if (
+        not np.isfinite(bpm_median)
+        or bpm_median <= 0
+        or not np.isfinite(bpm_stdev)
+        or bpm_stdev < 0
+        or stability_label not in ("steady", "loose", "variable")
+    ):
+        return
+
+    normalized_changes: list[TempoChangePayload] = []
+    for change in changes:
+        if not isinstance(change, dict):
+            return
+        try:
+            normalized_change: TempoChangePayload = {
+                "time": float(change["time"]),
+                "fromBpm": float(change["from_bpm"]),
+                "toBpm": float(change["to_bpm"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return
+        if (
+            not np.isfinite(normalized_change["time"])
+            or normalized_change["time"] < 0
+            or not np.isfinite(normalized_change["fromBpm"])
+            or normalized_change["fromBpm"] <= 0
+            or not np.isfinite(normalized_change["toBpm"])
+            or normalized_change["toBpm"] <= 0
+        ):
+            return
+        normalized_changes.append(normalized_change)
+
+    song["tempoStability"] = {
+        "bpmMedian": bpm_median,
+        "bpmStdev": bpm_stdev,
+        "stability": cast(Literal["steady", "loose", "variable"], stability_label),
+        "tempoChanges": normalized_changes,
+    }
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -594,7 +669,25 @@ def _build_job_status(
     return status
 
 
-def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
+def _local_audio_content_fingerprint(request: AnalysisJobRequest) -> str:
+    """Return a bounded content identity without retaining audio bytes or paths."""
+    source_path = Path(request["localSource"]["sourcePath"])
+    try:
+        file_size = source_path.stat().st_size
+        if file_size > MAX_AUDIO_FILE_BYTES:
+            return f"oversized:{file_size}"
+        digest = hashlib.sha256()
+        with source_path.open("rb") as source_file:
+            for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return "unavailable"
+
+
+def _analysis_cache_path(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> Path | None:
     """Return the per-track cache path for a local-audio request when caching is enabled."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
@@ -602,33 +695,82 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     if not cache_root:
         return None
 
+    digest = _local_audio_cache_digest(request, ANALYSIS_CACHE_SCHEMA_VERSION, source_fingerprint)
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
+
+
+def _local_audio_cache_digest(
+    request: AnalysisJobRequest,
+    schema_version: int,
+    source_fingerprint: str | None = None,
+    include_source_fingerprint: bool = True,
+) -> str:
+    """Return a stable local-audio cache digest for an independent schema namespace."""
     local_source = request["localSource"]
-    key_payload = {
-        "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
+    key_payload: dict[str, object] = {
+        "schemaVersion": schema_version,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
-    digest = hashlib.sha256(
+    if include_source_fingerprint:
+        key_payload["sourceFingerprint"] = (
+            source_fingerprint
+            if source_fingerprint is not None
+            else _local_audio_content_fingerprint(request)
+        )
+    return hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
 
 
-def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
+def _feature_cache_paths(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
-    analysis_cache_path = _analysis_cache_path(request)
-    if analysis_cache_path is None:
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+    # Keep the v1 feature namespace stable while final result caches evolve independently.
+    stem_cache_base = (
+        Path(cache_root)
+        / "analysis-cache-v1"
+        / _local_audio_cache_digest(request, FEATURE_CACHE_SCHEMA_VERSION, source_fingerprint)
+    )
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
     )
 
 
-def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
+def _legacy_feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
+    """Return pre-fingerprint feature cache paths for one-time migration or invalidation."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+    stem_cache_base = (
+        Path(cache_root)
+        / "analysis-cache-v1"
+        / _local_audio_cache_digest(
+            request,
+            FEATURE_CACHE_SCHEMA_VERSION,
+            include_source_fingerprint=False,
+        )
+    )
+    return (
+        stem_cache_base.with_suffix(".features.json"),
+        stem_cache_base.with_suffix(".features.npz"),
+    )
+
+
+def _stem_work_arrays_path(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> Path | None:
     """Return an app-temp stem array path for process handoff when available."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
@@ -643,6 +785,9 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
+        "sourceFingerprint": source_fingerprint
+        if source_fingerprint is not None
+        else _local_audio_content_fingerprint(request),
     }
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -668,7 +813,12 @@ def _load_cached_analysis(path: Path) -> RehearsalSong | None:
     return cast(RehearsalSong, result)
 
 
-def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: RehearsalSong) -> bool:
+def _store_cached_analysis(
+    path: Path,
+    request: AnalysisJobRequest,
+    result: RehearsalSong,
+    source_fingerprint: str | None = None,
+) -> bool:
     """Persist cache metadata without storing the original absolute source path."""
     if "localSource" not in request:
         return False
@@ -680,6 +830,9 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
             "fileName": local_source["fileName"],
             "extension": local_source["extension"],
             "fileSizeBytes": local_source["fileSizeBytes"],
+            "sourceFingerprint": source_fingerprint
+            if source_fingerprint is not None
+            else _local_audio_content_fingerprint(request),
         },
         "result": result,
     }
@@ -718,7 +871,11 @@ def _normalize_stem_role_types(
 
 
 def _load_cached_local_audio_features(
-    metadata_path: Path, arrays_path: Path
+    metadata_path: Path,
+    arrays_path: Path,
+    request: AnalysisJobRequest | None = None,
+    expected_source_fingerprint: str | None = None,
+    require_source_fingerprint: bool = False,
 ) -> dict[str, Any] | None:
     """Load cached stem/features payload, treating malformed files as cache misses."""
     try:
@@ -730,6 +887,22 @@ def _load_cached_local_audio_features(
         return None
     if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
         return None
+    if request is not None:
+        cached_source = metadata_payload.get("source")
+        expected_source = request.get("localSource")
+        if not isinstance(cached_source, dict) or not isinstance(expected_source, dict):
+            return None
+        if (
+            cached_source.get("fileName") != expected_source["fileName"]
+            or cached_source.get("extension") != expected_source["extension"]
+            or cached_source.get("fileSizeBytes") != expected_source["fileSizeBytes"]
+        ):
+            return None
+        if require_source_fingerprint and (
+            expected_source_fingerprint is None
+            or cached_source.get("sourceFingerprint") != expected_source_fingerprint
+        ):
+            return None
     if not isinstance(metadata_payload.get("sampleRate"), int):
         return None
     separation = metadata_payload.get("separation")
@@ -792,6 +965,7 @@ def _store_cached_local_audio_features(
     arrays_path: Path,
     request: AnalysisJobRequest,
     audio_features: dict[str, Any],
+    source_fingerprint: str | None = None,
 ) -> bool:
     """Persist reusable local-audio features with atomic writes."""
     if "localSource" not in request:
@@ -818,6 +992,9 @@ def _store_cached_local_audio_features(
             "fileName": local_source["fileName"],
             "extension": local_source["extension"],
             "fileSizeBytes": local_source["fileSizeBytes"],
+            "sourceFingerprint": source_fingerprint
+            if source_fingerprint is not None
+            else _local_audio_content_fingerprint(request),
         },
         "sampleRate": sample_rate,
         "separation": {
@@ -1009,14 +1186,16 @@ def _run_stem_separation_with_timeout(
     raise RuntimeError(str(payload))
 
 
-def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+def _build_local_audio_features(
+    request: AnalysisJobRequest, source_fingerprint: str | None = None
+) -> dict[str, Any] | None:
     """Build downstream audio features for a local-audio request."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
 
     separation_result = _run_stem_separation_with_timeout(
         request["localSource"]["sourcePath"],
-        arrays_path=_stem_work_arrays_path(request),
+        arrays_path=_stem_work_arrays_path(request, source_fingerprint),
     )
     if "sample_rate" not in separation_result:
         if "stem_role_types" not in separation_result and isinstance(
@@ -1037,6 +1216,24 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
             "notes": separation_result["separation_notes"],
         },
     }
+
+
+def _build_local_temporal_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+    """Build bounded tempo guidance without retaining raw decode metadata."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+
+    try:
+        temporal = TemporalAnalyzer().analyze(request["localSource"]["sourcePath"])
+        stability = analyze_tempo_stability(temporal["beat_times"])
+        return {
+            "title": request["sourceLabel"],
+            "bpm": temporal["bpm"],
+            "tempo_stability": stability,
+        }
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        logger.warning("Tempo movement analysis unavailable; continuing with safe fallback.")
+        return None
 
 
 def run_analysis_job_updates(
@@ -1060,7 +1257,12 @@ def run_analysis_job_updates(
             )
         ]
 
-    cache_path = _analysis_cache_path(request)
+    source_fingerprint = None
+    if request["sourceKind"] == "local_audio" and (
+        request.get("cacheRoot") is not None or request.get("tempRoot") is not None
+    ):
+        source_fingerprint = _local_audio_content_fingerprint(request)
+    cache_path = _analysis_cache_path(request, source_fingerprint)
     cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
     if cache_path is not None:
         cached_result = _load_cached_analysis(cache_path)
@@ -1090,7 +1292,10 @@ def run_analysis_job_updates(
     decode_label = (
         "Decoding local audio" if request["sourceKind"] == "local_audio" else "Preparing demo track"
     )
-    feature_cache_paths = _feature_cache_paths(request)
+    feature_cache_paths = _feature_cache_paths(request, source_fingerprint)
+    legacy_feature_cache_paths = (
+        _legacy_feature_cache_paths(request) if feature_cache_paths is not None else None
+    )
     updates = [
         _build_job_status(
             job_id=job_id,
@@ -1104,8 +1309,17 @@ def run_analysis_job_updates(
     ]
     audio_features: dict[str, Any] | None = None
     feature_cache_hit = False
+    legacy_feature_cache_loaded = False
     if feature_cache_paths is not None:
-        cached_features = _load_cached_local_audio_features(*feature_cache_paths)
+        cached_features = _load_cached_local_audio_features(*feature_cache_paths, request)
+        if cached_features is None:
+            cached_features = _load_cached_local_audio_features(
+                *cast(tuple[Path, Path], legacy_feature_cache_paths),
+                request,
+                source_fingerprint,
+                require_source_fingerprint=True,
+            )
+            legacy_feature_cache_loaded = cached_features is not None
         if cached_features is not None:
             audio_features = cached_features
             feature_cache_hit = True
@@ -1134,7 +1348,7 @@ def run_analysis_job_updates(
             )
         )
         try:
-            audio_features = _build_local_audio_features(request)
+            audio_features = _build_local_audio_features(request, source_fingerprint)
         except StemSeparationTimedOut:
             updates.append(
                 _build_job_status(
@@ -1192,6 +1406,30 @@ def run_analysis_job_updates(
         )
     )
 
+    temporal_features = _build_local_temporal_features(request)
+    if temporal_features is not None:
+        audio_features = {**(audio_features or {}), **temporal_features}
+
+    if source_fingerprint is not None and (
+        _local_audio_content_fingerprint(request) != source_fingerprint
+    ):
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                progress_label="Source audio changed during analysis",
+                progress_stage="analyze",
+                progress_percent=70,
+                cache_status=cache_status,
+                error={
+                    "code": "engine_unavailable",
+                    "message": "Source audio changed during analysis; retry the analysis.",
+                },
+            )
+        )
+        return updates
+
     result = build_demo_rehearsal_song(audio_features)
     updates.append(
         _build_job_status(
@@ -1205,13 +1443,27 @@ def run_analysis_job_updates(
         )
     )
     final_cache_status = cache_status
-    if audio_features is not None and feature_cache_paths is not None and not feature_cache_hit:
-        _store_cached_local_audio_features(
-            feature_cache_paths[0], feature_cache_paths[1], request, audio_features
+    if (
+        audio_features is not None
+        and feature_cache_paths is not None
+        and (not feature_cache_hit or legacy_feature_cache_loaded)
+    ):
+        feature_cache_stored = _store_cached_local_audio_features(
+            feature_cache_paths[0],
+            feature_cache_paths[1],
+            request,
+            audio_features,
+            source_fingerprint,
         )
+        if feature_cache_stored:
+            for legacy_path in cast(tuple[Path, Path], legacy_feature_cache_paths):
+                with suppress(OSError):
+                    legacy_path.unlink()
     if cache_path is not None:
         final_cache_status = (
-            "stored" if _store_cached_analysis(cache_path, request, result) else "miss"
+            "stored"
+            if _store_cached_analysis(cache_path, request, result, source_fingerprint)
+            else "miss"
         )
     updates.append(
         _build_job_status(
