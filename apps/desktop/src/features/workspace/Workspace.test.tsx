@@ -8,6 +8,7 @@ import { generateMetadataHandoffJson } from "../../lib/export";
 const originalLanguage = navigator.language;
 const originalCreateObjectUrl = URL.createObjectURL;
 const originalRevokeObjectUrl = URL.revokeObjectURL;
+const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -28,6 +29,7 @@ describe("Workspace", () => {
       configurable: true,
       value: originalRevokeObjectUrl
     });
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
   });
 
   it("updates practice progress immutably through onSongUpdate", () => {
@@ -85,20 +87,23 @@ describe("Workspace", () => {
     expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
-  it("enables bass transcription from selected role metadata rather than role id text", () => {
+  it("enables tonight's setup from the role setup cue rather than the role name", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
       ...song.sections[0]!.roles[0]!,
       id: "low-end",
-      name: "Bass Guitar"
+      name: "Bass Guitar",
+      setupNote: "Keep the attack short so the verse breathes."
     };
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
-    expect(transcribeButton.disabled).toBe(false);
-    expect(transcribeButton.title).toBe("Transcribe part");
+    const setupButton = screen.getByRole("button", {
+      name: /Set up Bass Guitar · then start in C#2–E3\. Setup: Keep the attack short so the verse breathes/i
+    }) as HTMLButtonElement;
+    expect(setupButton.disabled).toBe(false);
+    expect(screen.queryByRole("button", { name: "Transcribe Bass" })).toBeNull();
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
@@ -115,7 +120,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
+    const grooveMap = screen.getByRole("region", { name: /bass guitar transcription groove map/i });
     expect(grooveMap.className).toContain("bg-slate-950");
     expect(screen.getByText("E2")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();
@@ -325,5 +330,78 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("arms tonight's setup and names the first later-section entrance", () => {
+    const song = createDemoRehearsalSong();
+    const verseRole = song.sections[0]!.roles[0]!;
+    song.sections[0]!.roles[0] = {
+      ...verseRole,
+      transcription: undefined
+    };
+    song.sections.push({
+      ...song.sections[0]!,
+      id: "chorus-1",
+      label: "chorus",
+      timeRange: { start: 40, end: 64 },
+      roles: [
+        {
+          ...verseRole,
+          transcription: [{ pitch: "A2", onset: 42, offset: 42.75, velocity: 0.7 }]
+        }
+      ]
+    });
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Set up Bass Guitar · then start on A2 from 0:42\. Setup: Keep the attack short so the verse breathes/i
+      })
+    );
+
+    expect(
+      screen.getByText(
+        "Tonight's Bass Guitar setup: Keep the attack short so the verse breathes. Start on A2 from 0:42 on the groove map."
+      )
+    ).toBeTruthy();
+    expect(document.activeElement?.id).toBe("workspace-role-setup");
+    expect(document.getElementById("workspace-groove-entrance")).toBeTruthy();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Isolation is not ready. Set up tonight's part first." })).toBeTruthy();
+  });
+
+  it("keeps setup unavailable when the role has no setup cue", () => {
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      setupNote: "   ",
+      transpositionPlan: "",
+      simplification: "  "
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const setupButton = screen.getByRole("button", { name: "No setup cue yet. Stay on tonight's map." });
+    expect(setupButton).toBeDisabled();
+    fireEvent.click(setupButton);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("localizes tonight's setup action without broken Korean particles", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(
+      screen.getByRole("button", {
+        name: /Bass Guitar 세팅 · .*세팅: Keep the attack short so the verse breathes/
+      })
+    ).toBeTruthy();
   });
 });
