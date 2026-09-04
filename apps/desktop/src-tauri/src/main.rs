@@ -417,23 +417,19 @@ fn run_analysis_engine(
         let reader = BufReader::new(stdout);
         let mut latest_process_status = None;
         for line in reader.lines() {
-            let Ok(line) = line else {
-                break;
-            };
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
+            let line = line.map_err(|_| ())?;
+            let Some(process_status) =
+                analysis_process_status::parse_analysis_process_status_line(&line)
+                    .map_err(|_| ())?
+            else {
                 continue;
-            }
-            if let Ok(process_status) =
-                analysis_process_status::parse_analysis_process_status(trimmed)
-            {
-                latest_process_status = Some(process_status.clone());
-                if process_status_tx.send(process_status).is_err() {
-                    break;
-                }
+            };
+            latest_process_status = Some(process_status.clone());
+            if process_status_tx.send(process_status).is_err() {
+                break;
             }
         }
-        latest_process_status
+        Ok::<_, ()>(latest_process_status)
     });
     let stderr_reader = thread::spawn(move || {
         let mut reader = stderr;
@@ -510,7 +506,21 @@ fn run_analysis_engine(
             }
         }
     }
-    let reader_latest_process_status = stdout_reader.join().unwrap_or(None);
+    let reader_latest_process_status = match stdout_reader.join() {
+        Ok(Ok(latest_process_status)) => latest_process_status,
+        _ => {
+            let _ = stderr_reader.join();
+            return failed_status(
+                payload["jobId"]
+                    .as_str()
+                    .unwrap_or("unknown-job")
+                    .to_string(),
+                requested_at,
+                AnalysisJobErrorCode::EngineUnavailable,
+                "Analysis engine returned an invalid response.",
+            );
+        }
+    };
     let _ = stderr_reader.join();
     drain_analysis_process_status_updates(
         &state,
