@@ -163,9 +163,15 @@ export function completePlaybackSourceDiscovery(
     return state;
   }
 
-  const options =
-    normalizeDiscoveredOptions(request.fullMixAuthority, discovered) ??
-    fullMixOnly(request.fullMixAuthority);
+  let options: PlaybackSourceOption[];
+  try {
+    options =
+      normalizeDiscoveredOptions(request.fullMixAuthority, discovered) ??
+      fullMixOnly(request.fullMixAuthority);
+  } catch {
+    // Hostile getters/proxy traps cannot turn revoked availability into renderer state.
+    options = fullMixOnly(request.fullMixAuthority);
+  }
   const selectedAuthority = options.some(
     (option) => option.authority === state.selectedAuthority,
   )
