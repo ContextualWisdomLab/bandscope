@@ -219,10 +219,16 @@ export type ScoreAttachment = {
 };
 
 /** Documented. */
+export type RehearsalMark = {
+  text: string;
+};
+
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
   tempo?: number;
+  rehearsalMark?: RehearsalMark;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -432,6 +438,9 @@ const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
   tempo: 120,
+  rehearsalMark: {
+    text: "A"
+  },
   sections: [
     {
       id: "verse-1",
@@ -1756,6 +1765,28 @@ function migrateLegacySectionTimeRanges(value: unknown): unknown {
 }
 
 /** Documented. */
+function validateRehearsalMark(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["text"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.text !== "string") {
+    return invalidField(`${path}.text`);
+  }
+  const text = value.text;
+  const isLetterMark = /^[A-Z]{1,2}$/u.test(text);
+  const isNumberMark = /^[1-9][0-9]?$/u.test(text);
+  if (!isLetterMark && !isNumberMark) {
+    return invalidField(`${path}.text`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateScoreAttachment(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1787,7 +1818,7 @@ function validateRehearsalSong(
   }
   const extraKey = unexpectedKey(
     normalized,
-    ["id", "title", "tempo", "sections", "exportSummary", "collaboration", "scoreAttachments"],
+    ["id", "title", "tempo", "rehearsalMark", "sections", "exportSummary", "collaboration", "scoreAttachments"],
     ""
   );
   if (extraKey) {
@@ -1804,6 +1835,12 @@ function validateRehearsalSong(
     (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
   ) {
     return invalidField("tempo");
+  }
+  if (normalized.rehearsalMark !== undefined) {
+    const rehearsalMarkError = validateRehearsalMark(normalized.rehearsalMark, "rehearsalMark");
+    if (rehearsalMarkError) {
+      return rehearsalMarkError;
+    }
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");

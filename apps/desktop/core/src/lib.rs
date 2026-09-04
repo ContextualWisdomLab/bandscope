@@ -122,10 +122,69 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_rehearsal_mark",
+        skip_serializing_if = "Option::is_none"
+    )]
+    rehearsal_mark: Option<RehearsalMarkPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RehearsalMarkPayload {
+    text: String,
+}
+
+impl<'de> Deserialize<'de> for RehearsalMarkPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawRehearsalMarkPayload {
+            text: String,
+        }
+
+        let raw = RawRehearsalMarkPayload::deserialize(deserializer)?;
+        if !is_trusted_rehearsal_mark_text(&raw.text) {
+            return Err(serde::de::Error::custom(
+                "rehearsalMark text must be A–Z, AA–ZZ, or 1–99",
+            ));
+        }
+
+        Ok(Self { text: raw.text })
+    }
+}
+
+fn is_trusted_rehearsal_mark_text(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    match bytes.len() {
+        1 => bytes[0].is_ascii_uppercase() || (b'1'..=b'9').contains(&bytes[0]),
+        2 => {
+            let first = bytes[0];
+            let second = bytes[1];
+            (first.is_ascii_uppercase() && second.is_ascii_uppercase())
+                || ((b'1'..=b'9').contains(&first) && second.is_ascii_digit())
+        }
+        _ => false,
+    }
+}
+
+fn deserialize_optional_rehearsal_mark<'de, D>(
+    deserializer: D,
+) -> Result<Option<RehearsalMarkPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<RehearsalMarkPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("rehearsalMark must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -810,6 +869,68 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_rehearsal_mark() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["rehearsalMark"] = json!({ "text": "A" });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a rehearsal mark should deserialize");
+        let mark = parsed
+            .rehearsal_mark
+            .as_ref()
+            .expect("rehearsal mark should survive deserialization");
+        assert_eq!(mark.text, "A");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("marked song payload should serialize back");
+        assert_eq!(serialized["rehearsalMark"], json!({ "text": "A" }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("marked payload should encode"),
+        )
+        .expect("marked project should load");
+        assert_eq!(
+            loaded.rehearsal_mark.as_ref().map(|value| value.text.as_str()),
+            Some("A")
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_double_letter_and_number_marks() {
+        for text in ["AA", "ZZ", "1", "12", "99"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["rehearsalMark"] = json!({ "text": text });
+
+            let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+                .unwrap_or_else(|_| panic!("trusted mark {text} should deserialize"));
+            assert_eq!(
+                parsed.rehearsal_mark.as_ref().map(|value| value.text.as_str()),
+                Some(text)
+            );
+        }
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_rehearsal_mark() {
+        for mark in [
+            json!({ "text": "a" }),
+            json!({ "text": "0" }),
+            json!({ "text": "01" }),
+            json!({ "text": "" }),
+            json!({ "text": "100" }),
+            json!({ "text": "AAA" }),
+            json!({ "text": "A1" }),
+            json!({ "text": "A", "confidence": "high" }),
+            json!({ "letter": "A" }),
+            Value::Null,
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["rehearsalMark"] = mark;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_accepts_legacy_files_without_score_attachments() {
         let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
 
@@ -817,9 +938,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.rehearsal_mark.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("rehearsalMark").is_none());
     }
 
     #[test]
