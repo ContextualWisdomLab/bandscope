@@ -17,6 +17,7 @@ from bandscope_analysis.api import (
     _stop_process,
     _store_cached_analysis,
     _store_cached_local_audio_features,
+    _temporal_features_for_request,
     build_demo_rehearsal_song,
     build_section_time_range,
     get_analysis_status,
@@ -394,6 +395,11 @@ def test_build_demo_rehearsal_song_matches_expected_fixture() -> None:
     assert song["sections"][0]["roles"][4]["manualOverrides"][0]["value"]["source"] == "user"
 
 
+def test_temporal_features_skip_non_local_requests() -> None:
+    """Demo requests do not invoke the local-file temporal analyzer."""
+    assert _temporal_features_for_request({"sourceKind": "demo"}) == {}  # type: ignore[arg-type]
+
+
 def test_build_demo_rehearsal_song_with_tempo() -> None:
     """Ensure build_demo_rehearsal_song incorporates tempo from audio features."""
     song = build_demo_rehearsal_song({"bpm": 120.4})
@@ -478,6 +484,7 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
     """Ensure local-audio requests separate stems before building rehearsal roles."""
     with (
         patch("bandscope_analysis.api._run_stem_separation_with_timeout") as separator,
+        patch("bandscope_analysis.api.TemporalAnalyzer") as temporal_analyzer,
         patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
         patch(
             "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
@@ -502,6 +509,10 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
             },
             "separation_notes": "Separated selected local audio into 4 canonical stems.",
         }
+        temporal_analyzer.return_value.analyze.return_value = {
+            "bpm": 120.0,
+            "beat_times": [0.0, 0.5, 1.0],
+        }
 
         success = run_analysis_job(
             "job-3",
@@ -522,6 +533,12 @@ def test_run_analysis_job_returns_success_for_local_audio_request() -> None:
 
     assert success["state"] == "succeeded"
     assert success["progressLabel"] == "Analysis ready for late-night-set.wav"
+    assert success["result"]["tempo"] == 120
+    separator.assert_called_once()
+    assert separator.call_args.args == ("/Users/test/Music/late-night-set.wav",)
+    temporal_analyzer.return_value.analyze.assert_called_once_with(
+        "/Users/test/Music/late-night-set.wav"
+    )
 
 
 def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
@@ -582,7 +599,7 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             ("succeeded", "ready", 100),
         ]
         assert updates[-1]["cacheStatus"] == "stored"
-        cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
+        cache_files = list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
         assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
         assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
 
@@ -648,7 +665,7 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
     for content in (
         "[]",
         '{"schemaVersion": 999, "result": {}}',
-        '{"schemaVersion": 1, "result": []}',
+        '{"schemaVersion": 2, "result": []}',
     ):
         cache_path.write_text(content, encoding="utf-8")
         assert _load_cached_analysis(cache_path) is None
@@ -813,15 +830,15 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     for content in (
         "[]",
         '{"schemaVersion": 999, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
-        '{"schemaVersion": 1, "sampleRate": "22050", "separation": {}, "stemKeys": ["bass"]}',
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": [], "stemKeys": ["bass"]}',
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": []}',
+        '{"schemaVersion": 2, "sampleRate": "22050", "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": [], "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": []}',
     ):
         metadata_path.write_text(content, encoding="utf-8")
         assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
         encoding="utf-8",
     )
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
@@ -830,28 +847,28 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
         encoding="utf-8",
     )
     arrays_path.write_bytes(b"not an npz archive")
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": [7]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": [7]}',
         encoding="utf-8",
     )
     np.savez_compressed(arrays_path, stem_bass=np.zeros(4))
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, '
         '"stemKeys": ["bass"], "stemRoleTypes": []}',
         encoding="utf-8",
     )
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, '
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, '
         '"stemKeys": ["bass"], "stemRoleTypes": {"bass": "percussion"}}',
         encoding="utf-8",
     )
@@ -871,7 +888,7 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
             return "not-an-array"
 
     metadata_path.write_text(
-        '{"schemaVersion": 1, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
+        '{"schemaVersion": 2, "sampleRate": 22050, "separation": {}, "stemKeys": ["bass"]}',
         encoding="utf-8",
     )
     with patch("bandscope_analysis.api.np.load", return_value=BadArchive()):
@@ -1081,6 +1098,8 @@ def test_stem_separation_worker_writes_large_stems_to_file_envelope(tmp_path) ->
             "duration_seconds": 1.0,
             "chunk_count": 1,
             "separation_notes": "Separated test stems.",
+            "bpm": 120.0,
+            "beat_times": [0.0, 0.5, 1.0],
         }
         _stem_separation_worker("/tmp/audio.wav", fake_queue, str(arrays_path))
 

@@ -122,10 +122,32 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_tempo",
+        skip_serializing_if = "Option::is_none"
+    )]
+    tempo: Option<f64>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+fn deserialize_tempo<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    let Some(tempo) = value.as_f64() else {
+        return Err(serde::de::Error::custom("tempo must be a positive number"));
+    };
+    if !tempo.is_finite() || tempo <= 0.0 {
+        return Err(serde::de::Error::custom(
+            "tempo must be positive and finite",
+        ));
+    }
+    Ok(Some(tempo))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -178,19 +200,68 @@ pub struct ManualOverridePayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum RitardandoPlanSourcePayload {
+    Model,
+    User,
+}
+
+fn deserialize_practice_progress<'de, D>(deserializer: D) -> Result<Option<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let progress = Option::<u8>::deserialize(deserializer)?;
+    if let Some(value) = progress {
+        if value > 100 {
+            return Err(serde::de::Error::custom(
+                "practiceProgress must be between 0 and 100",
+            ));
+        }
+    }
+    Ok(progress)
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_practice_progress",
+        skip_serializing_if = "Option::is_none"
+    )]
+    practice_progress: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ritardando_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ritardando_plan_source: Option<RitardandoPlanSourcePayload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ritardando_plan_at_seconds: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -527,9 +598,134 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Validates persisted plan text without normalizing user-authored content.
+fn is_valid_ritardando_plan(value: &str, source: Option<&RitardandoPlanSourcePayload>) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+        && (!matches!(source, Some(RitardandoPlanSourcePayload::Model))
+            || is_valid_model_ritardando_plan(value.trim()))
+}
+
+const MAX_SECTION_TIME_SECONDS: f64 = 4_294_967_295.0;
+const MAX_RITARDANDO_PLAN_CHARACTERS: usize = 180;
+const RITARDANDO_PLAN_PREFIX: &str = "Ease this part from ";
+const RITARDANDO_PLAN_MIDDLE: &str = " BPM into ";
+const RITARDANDO_PLAN_SUFFIX: &str = " BPM; let the next downbeat land later.";
+const HALF_TIME_RATIO_MIN: f64 = 0.45;
+const HALF_TIME_RATIO_MAX: f64 = 0.55;
+
+fn is_decimal_bpm_token(value: &str) -> bool {
+    let mut has_digit = false;
+    let mut decimal_points = 0;
+    for character in value.chars() {
+        if character.is_ascii_digit() {
+            has_digit = true;
+        } else if character == '.' {
+            decimal_points += 1;
+        } else {
+            return false;
+        }
+    }
+    has_digit && decimal_points <= 1 && !value.starts_with('.') && !value.ends_with('.')
+}
+
+fn is_valid_model_ritardando_plan(value: &str) -> bool {
+    if value.len() > MAX_RITARDANDO_PLAN_CHARACTERS
+        || !value.starts_with(RITARDANDO_PLAN_PREFIX)
+        || !value.ends_with(RITARDANDO_PLAN_SUFFIX)
+    {
+        return false;
+    }
+    let inner = &value[RITARDANDO_PLAN_PREFIX.len()..value.len() - RITARDANDO_PLAN_SUFFIX.len()];
+    let Some((from_bpm, to_bpm)) = inner.split_once(RITARDANDO_PLAN_MIDDLE) else {
+        return false;
+    };
+    if !is_decimal_bpm_token(from_bpm) || !is_decimal_bpm_token(to_bpm) {
+        return false;
+    }
+    let Ok(from_bpm) = from_bpm.parse::<f64>() else {
+        return false;
+    };
+    let Ok(to_bpm) = to_bpm.parse::<f64>() else {
+        return false;
+    };
+    if !from_bpm.is_finite() || !to_bpm.is_finite() || from_bpm <= 0.0 || to_bpm <= 0.0 {
+        return false;
+    }
+    if to_bpm >= from_bpm {
+        return false;
+    }
+    let ratio = to_bpm / from_bpm;
+    !(HALF_TIME_RATIO_MIN..=HALF_TIME_RATIO_MAX).contains(&ratio)
+}
+
+fn validate_ritardando_plan_provenance(
+    payload: RehearsalSongPayload,
+) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role
+                .ritardando_plan
+                .as_deref()
+                .is_some_and(|ritardando_plan| {
+                    !is_valid_ritardando_plan(ritardando_plan, role.ritardando_plan_source.as_ref())
+                })
+            {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.ritardando_plan.is_none() && role.ritardando_plan_source.is_some() {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.ritardando_plan.is_some() && role.ritardando_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.ritardando_plan_at_seconds.is_some_and(|time| {
+                !time.is_finite() || time < 0.0 || time > MAX_SECTION_TIME_SECONDS
+            }) {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.ritardando_plan_at_seconds.is_some()
+                && (role.ritardando_plan.is_none() || role.ritardando_plan_source.is_none())
+            {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
+}
+
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_ritardando_plan_provenance(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +743,9 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_ritardando_plan_provenance(parsed)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -784,6 +982,48 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_tempo() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["tempo"] = json!(128.5);
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("optional tempo should deserialize in Tauri");
+        let serialized =
+            serde_json::to_value(&parsed).expect("tempo-bearing song should serialize back");
+
+        assert_eq!(serialized["tempo"], json!(128.5));
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_tempo_values() {
+        for tempo in [json!(null), json!(0), json!(-1), json!("128")] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["tempo"] = tempo;
+
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
+    fn analysis_job_status_round_trips_tempo_in_result() {
+        let mut result = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        result["tempo"] = json!(128.5);
+        let status = json!({
+            "jobId": "job-1",
+            "state": "succeeded",
+            "requestedAt": "2026-03-12T00:00:00Z",
+            "updatedAt": "2026-03-12T00:00:01Z",
+            "result": result
+        });
+
+        let parsed = serde_json::from_value::<AnalysisJobStatus>(status)
+            .expect("analysis status with tempo should deserialize");
+        let serialized = serde_json::to_value(parsed).expect("analysis status should serialize");
+
+        assert_eq!(serialized["result"]["tempo"], json!(128.5));
     }
 
     #[test]

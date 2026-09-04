@@ -1,0 +1,113 @@
+import { createDemoRehearsalSong, parseRehearsalSong } from "../src/index";
+import { describe, expect, it } from "vitest";
+
+const DEMO_RITARDANDO_PLAN =
+  "Ease this part from 120 BPM into 80 BPM; let the next downbeat land later.";
+
+describe("ritardandoPlan provenance", () => {
+  it.each(["model", "user"] as const)("admits a %s ritardando plan source", (source) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    role.ritardandoPlanSource = source;
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlanSource).toBe(source);
+  });
+
+  it("round-trips the precise tempo-change time", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    role.ritardandoPlanSource = "model";
+    role.ritardandoPlanAtSeconds = 12.375;
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlanAtSeconds).toBe(12.375);
+  });
+
+  it.each([
+    "Use this model plan instead.",
+    "Ease this part from 80 BPM into 120 BPM; let the next downbeat land later.",
+    "Ease this part from 120 BPM into 60 BPM; let the next downbeat land later.",
+    "Ease this part from 0 BPM into 80 BPM; let the next downbeat land later.",
+    "Ease this part from BPM into 80 BPM; let the next downbeat land later."
+  ])("rejects semantically invalid model ritardando copy %j", (ritardandoPlan) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = ritardandoPlan;
+    role.ritardandoPlanSource = "model";
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlan/);
+  });
+
+  it.each([Number.NaN, -1, 4_294_967_296])("rejects invalid ritardando-plan timing %s", (time) => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    role.ritardandoPlanSource = "model";
+    role.ritardandoPlanAtSeconds = time;
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanAtSeconds/);
+  });
+
+  it("rejects an unknown ritardando plan source", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    role.ritardandoPlanSource = "inferred" as never;
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanSource/);
+  });
+
+  it("rejects a ritardando plan source without copy", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    delete role.ritardandoPlan;
+    role.ritardandoPlanSource = "model";
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanSource/);
+  });
+
+  it("rejects ritardando plan copy without provenance", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = DEMO_RITARDANDO_PLAN;
+    delete role.ritardandoPlanSource;
+    expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlanSource/);
+  });
+
+  it.each([
+    "",
+    "   ",
+    "\u00a0\u2003\u3000",
+    "ease here\nthen hold",
+    "ease here\rthen hold",
+    "ease here\u0085then hold",
+    "ease here\u2028then hold",
+    "ease here\u2029then hold"
+  ])(
+    "rejects a ritardando plan source with blank or multiline copy %j",
+    (ritardandoPlan) => {
+      const song = createDemoRehearsalSong();
+      const role = song.sections[0]!.roles[0]!;
+      role.ritardandoPlan = ritardandoPlan;
+      role.ritardandoPlanSource = "model";
+      expect(() => parseRehearsalSong(song)).toThrow(/ritardandoPlan/);
+    }
+  );
+
+  it("accepts padded single-line ritardando copy without normalizing it", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = "  Ease the phrase late. \u00a0";
+    role.ritardandoPlanSource = "user";
+
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlan).toBe(
+      role.ritardandoPlan
+    );
+  });
+
+  it("keeps arbitrary user ritardando copy valid", () => {
+    const song = createDemoRehearsalSong();
+    const role = song.sections[0]!.roles[0]!;
+    role.ritardandoPlan = "Try the landing softer and leave room for the next downbeat.";
+    role.ritardandoPlanSource = "user";
+
+    expect(parseRehearsalSong(song).sections[0]!.roles[0]!.ritardandoPlan).toBe(
+      role.ritardandoPlan
+    );
+  });
+});

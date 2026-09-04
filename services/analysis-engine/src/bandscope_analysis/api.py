@@ -19,12 +19,14 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer
+from bandscope_analysis.temporal.ritardando import apply_ritardando_plan, derive_beat_times
 
 logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
-ANALYSIS_CACHE_SCHEMA_VERSION = 1
-FEATURE_CACHE_SCHEMA_VERSION = 1
+ANALYSIS_CACHE_SCHEMA_VERSION = 2
+FEATURE_CACHE_SCHEMA_VERSION = 2
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
 logger = logging.getLogger(__name__)
@@ -116,6 +118,9 @@ class RehearsalRolePayload(TypedDict):
     setupNote: str
     manualOverrides: list[ManualOverridePayload]
     overlapWarnings: list[str]
+    ritardandoPlan: NotRequired[str]
+    ritardandoPlanSource: NotRequired[Literal["model", "user"]]
+    ritardandoPlanAtSeconds: NotRequired[float]
 
 
 class PartGraphNodePayload(TypedDict):
@@ -196,6 +201,8 @@ class CachedFeaturePayload(TypedDict):
     separation: dict[str, object]
     stemKeys: list[str]
     stemRoleTypes: dict[str, str]
+    bpm: NotRequired[float]
+    beatTimes: NotRequired[list[float]]
 
 
 class StemSeparationTimedOut(RuntimeError):
@@ -456,6 +463,7 @@ def _build_from_pipeline(
         },
     }
     _apply_tempo(song, features)
+    _apply_ritardando(song, mix, sr, features, boundaries)
     return song
 
 
@@ -516,6 +524,50 @@ def _apply_tempo(song: RehearsalSong, audio_features: dict[str, Any] | None) -> 
     bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
     if bpm is not None:
         song["tempo"] = bpm
+
+
+def _coerce_beat_times(audio_features: dict[str, Any] | None) -> list[float] | None:
+    """Return finite non-negative beat times from analysis features, or None."""
+    if not audio_features:
+        return None
+    raw = audio_features.get("beat_times")
+    if not isinstance(raw, list):
+        return None
+    times: list[float] = []
+    for item in raw:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            return None
+        value = float(item)
+        if np.isnan(value) or np.isinf(value) or value < 0:
+            return None
+        times.append(value)
+    return times
+
+
+def _temporal_features_for_request(request: AnalysisJobRequest) -> dict[str, Any]:
+    """Return original-audio temporal features, or an empty safe fallback."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return {}
+    try:
+        features = TemporalAnalyzer().analyze(request["localSource"]["sourcePath"])
+        return {"bpm": features["bpm"], "beat_times": features["beat_times"]}
+    except Exception:
+        logger.warning("Temporal analysis unavailable; continuing with fallback cues.")
+        return {}
+
+
+def _apply_ritardando(
+    song: RehearsalSong,
+    mix: Any,
+    sr: int,
+    audio_features: dict[str, Any] | None,
+    section_boundaries: list[tuple[float, float]] | None = None,
+) -> None:
+    """Stamp tonight's first ritardando from existing tempo-stability changes."""
+    beat_times = _coerce_beat_times(audio_features)
+    if beat_times is None:
+        beat_times = derive_beat_times(mix, sr)
+    apply_ritardando_plan(song, beat_times, section_boundaries)
 
 
 def _reconstruct_mix(stems: dict[str, Any]) -> Any:
@@ -613,7 +665,7 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
@@ -758,7 +810,7 @@ def _load_cached_local_audio_features(
     except (OSError, ValueError):
         return None
 
-    return {
+    loaded: dict[str, Any] = {
         "stems": stems,
         "sr": metadata_payload["sampleRate"],
         "stem_role_types": stem_role_types,
@@ -768,6 +820,12 @@ def _load_cached_local_audio_features(
             "notes": separation.get("notes"),
         },
     }
+    bpm = _coerce_tempo_bpm(metadata_payload.get("bpm"))
+    beat_times = _coerce_beat_times({"beat_times": metadata_payload.get("beatTimes")})
+    if bpm is not None and beat_times is not None:
+        loaded["bpm"] = float(bpm)
+        loaded["beat_times"] = beat_times
+    return loaded
 
 
 def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
@@ -828,6 +886,11 @@ def _store_cached_local_audio_features(
         "stemKeys": stem_keys,
         "stemRoleTypes": stem_role_types,
     }
+    bpm = _coerce_tempo_bpm(audio_features.get("bpm"))
+    beat_times = _coerce_beat_times(audio_features)
+    if bpm is not None and beat_times is not None:
+        metadata_payload["bpm"] = float(bpm)
+        metadata_payload["beatTimes"] = beat_times
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
         metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
@@ -876,6 +939,8 @@ def _stem_separation_worker(
                         },
                         "stemKeys": stem_keys,
                         "stemRoleTypes": stem_role_types,
+                        "bpm": separation_result["bpm"],
+                        "beatTimes": separation_result["beat_times"],
                     },
                 )
             )
@@ -988,6 +1053,8 @@ def _run_stem_separation_with_timeout(
             "separation": payload.get("separation"),
             "stemKeys": payload.get("stemKeys"),
             "stemRoleTypes": payload.get("stemRoleTypes"),
+            "bpm": payload.get("bpm"),
+            "beatTimes": payload.get("beatTimes"),
         }
         arrays_output_path = Path(str(payload.get("arraysPath", "")))
         metadata_temp = arrays_output_path.with_suffix(".json")
@@ -1036,6 +1103,8 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
             "chunk_count": separation_result["chunk_count"],
             "notes": separation_result["separation_notes"],
         },
+        "bpm": separation_result.get("bpm"),
+        "beat_times": separation_result.get("beat_times"),
     }
 
 
@@ -1179,6 +1248,14 @@ def run_analysis_job_updates(
                 )
             )
             return updates
+
+    if audio_features is not None and (
+        _coerce_tempo_bpm(audio_features.get("bpm")) is None
+        or _coerce_beat_times(audio_features) is None
+    ):
+        temporal_features = _temporal_features_for_request(request)
+        if temporal_features:
+            audio_features = {**audio_features, **temporal_features}
 
     updates.append(
         _build_job_status(

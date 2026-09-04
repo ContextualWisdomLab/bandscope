@@ -80,11 +80,17 @@ class AudioStemSeparator:
         self._model: Any = None
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
-        """Separate local audio into vocals, bass, drums, and other stems."""
+        """Separate local audio and retain temporal evidence from the same decode."""
         path = self._resolve_audio_file(audio_path)
         audio, sample_rate = self._load_audio(path)
         if audio.size == 0:
             raise ValueError(f"Stem separation decode failed for {path.name}")
+
+        tempo, beat_frames = librosa.beat.beat_track(y=audio, sr=sample_rate)
+        bpm = float(np.asarray(tempo, dtype=np.float64).reshape(-1)[0])
+        beat_times = [
+            float(value) for value in librosa.frames_to_time(beat_frames, sr=sample_rate).tolist()
+        ]
 
         stem_arrays = self._separate_signal(audio, sample_rate)
         stems: AudioStemPayload = {
@@ -111,6 +117,8 @@ class AudioStemSeparator:
                 "Separated selected local audio into vocals, bass, drums, and other "
                 f"using the {self.config.model_name} model."
             ),
+            "bpm": bpm,
+            "beat_times": beat_times,
         }
 
     def _separate_signal(

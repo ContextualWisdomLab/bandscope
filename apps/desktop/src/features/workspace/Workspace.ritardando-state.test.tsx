@@ -1,0 +1,84 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Workspace } from "./Workspace";
+
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  "scrollIntoView"
+);
+
+function analyzedSongWithRitardandoPlan(): RehearsalSong {
+  const song = createDemoRehearsalSong();
+  song.id = "analyzed-song";
+  const verse = song.sections[0]!;
+  verse.partGraph = verse.partGraph.map((node) => ({ ...node, is_active: true }));
+  const vocal = verse.roles.find((role) => role.id === "lead-vocal")!;
+  vocal.ritardandoPlan =
+    "Ease this part from 120 BPM into 80 BPM; let the next downbeat land later.";
+  vocal.ritardandoPlanSource = "model";
+  return song;
+}
+
+describe("Workspace ritardando state authority", () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn()
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (originalScrollIntoView) {
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScrollIntoView);
+    } else {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+  });
+
+  it("keeps an opened rit armed after an immutable edit and role switch", () => {
+    const song = analyzedSongWithRitardandoPlan();
+    let updatedSong: RehearsalSong | null = null;
+    const onSongUpdate = vi.fn((nextSong: RehearsalSong) => {
+      updatedSong = nextSong;
+    });
+    const { rerender } = render(<Workspace song={song} onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal rit at 0:10" }));
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase progress" }));
+    expect(updatedSong).not.toBeNull();
+
+    rerender(<Workspace song={updatedSong!} onSongUpdate={onSongUpdate} />);
+
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
+    ).toBeTruthy();
+  });
+
+  it("resets armed guidance when a new song arrives", () => {
+    const song = analyzedSongWithRitardandoPlan();
+    const nextSong = structuredClone(song);
+    const { rerender } = render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal rit at 0:10" }));
+    expect(
+      screen.getByText(/Ease Lead Vocal together at 0:10 so the slower landing is audible\./)
+    ).toBeTruthy();
+
+    rerender(<Workspace song={nextSong} />);
+
+    expect(screen.getByText("Lead Vocal eases the verse at 0:10.")).toBeTruthy();
+  });
+});

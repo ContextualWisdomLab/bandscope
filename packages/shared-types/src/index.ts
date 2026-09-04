@@ -15,6 +15,11 @@ const SECTION_FORM_LABELS = [
 ] as const;
 export /** Documented. */
 const MAX_SECTION_TIME_SECONDS = 4_294_967_295;
+const MAX_RITARDANDO_PLAN_CHARACTERS = 180;
+const RITARDANDO_PLAN_PREFIX = "Ease this part from ";
+const RITARDANDO_PLAN_SUFFIX = " BPM; let the next downbeat land later.";
+const HALF_TIME_RATIO_MIN = 0.45;
+const HALF_TIME_RATIO_MAX = 0.55;
 
 /** Documented. */
 export type SectionFormLabel = (typeof SECTION_FORM_LABELS)[number];
@@ -143,6 +148,9 @@ export type RehearsalRole = {
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
   practiceProgress?: number;
+  ritardandoPlan?: string;
+  ritardandoPlanSource?: ProvenanceSource;
+  ritardandoPlanAtSeconds?: number;
 };
 
 /** Documented. */
@@ -405,6 +413,77 @@ function isDenseArray(value: unknown): value is unknown[] {
 /** Documented. */
 function isOneOf<T extends string>(options: readonly T[], value: unknown): value is T {
   return typeof value === "string" && options.includes(value as T);
+}
+
+/** Return whether a plan is non-empty and contains no Unicode line separator. */
+export function isNonEmptySingleLineText(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  let hasNonWhitespace = false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint === 0x000a ||
+      codePoint === 0x000d ||
+      codePoint === 0x0085 ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029
+    ) {
+      return false;
+    }
+    if (!(
+      (codePoint >= 0x0009 && codePoint <= 0x000d) ||
+      codePoint === 0x0020 ||
+      codePoint === 0x0085 ||
+      codePoint === 0x00a0 ||
+      codePoint === 0x1680 ||
+      (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029 ||
+      codePoint === 0x202f ||
+      codePoint === 0x205f ||
+      codePoint === 0x3000 ||
+      codePoint === 0xfeff
+    )) {
+      hasNonWhitespace = true;
+    }
+  }
+  return hasNonWhitespace;
+}
+
+/** Return whether model ritardando copy preserves the engine's tempo semantics. */
+function isValidModelRitardandoPlan(value: string): boolean {
+  if (value.length > MAX_RITARDANDO_PLAN_CHARACTERS) {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (
+    !trimmed.startsWith(RITARDANDO_PLAN_PREFIX) ||
+    !trimmed.endsWith(RITARDANDO_PLAN_SUFFIX)
+  ) {
+    return false;
+  }
+  const inner = trimmed.slice(RITARDANDO_PLAN_PREFIX.length, -RITARDANDO_PLAN_SUFFIX.length);
+  const match = inner.match(/^(\d+(?:\.\d+)?) BPM into (\d+(?:\.\d+)?)$/u);
+  if (!match) {
+    return false;
+  }
+  const fromBpm = Number(match[1]);
+  const toBpm = Number(match[2]);
+  if (
+    !Number.isFinite(fromBpm) ||
+    !Number.isFinite(toBpm) ||
+    fromBpm <= 0 ||
+    toBpm <= 0
+  ) {
+    return false;
+  }
+  if (toBpm >= fromBpm) {
+    return false;
+  }
+  const ratio = toBpm / fromBpm;
+  return ratio < HALF_TIME_RATIO_MIN || ratio > HALF_TIME_RATIO_MAX;
 }
 
 /** Documented. */
@@ -1500,7 +1579,10 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "manualOverrides",
       "overlapWarnings",
       "transcription",
-      "practiceProgress"
+      "practiceProgress",
+      "ritardandoPlan",
+      "ritardandoPlanSource",
+      "ritardandoPlanAtSeconds"
     ],
     path
   );
@@ -1586,6 +1668,46 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
     if (typeof value.practiceProgress !== "number" || !Number.isFinite(value.practiceProgress) || !Number.isInteger(value.practiceProgress) || value.practiceProgress < 0 || value.practiceProgress > 100) {
       return invalidField(`${path}.practiceProgress`);
     }
+  }
+
+  if (
+    value.ritardandoPlan !== undefined &&
+    !isNonEmptySingleLineText(value.ritardandoPlan)
+  ) {
+    return invalidField(`${path}.ritardandoPlan`);
+  }
+  if (
+    value.ritardandoPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.ritardandoPlanSource)
+  ) {
+    return invalidField(`${path}.ritardandoPlanSource`);
+  }
+  if (value.ritardandoPlanSource !== undefined && value.ritardandoPlan === undefined) {
+    return invalidField(`${path}.ritardandoPlanSource`);
+  }
+  if (value.ritardandoPlan !== undefined && value.ritardandoPlanSource === undefined) {
+    return invalidField(`${path}.ritardandoPlanSource`);
+  }
+  if (
+    value.ritardandoPlanSource === "model" &&
+    !isValidModelRitardandoPlan(value.ritardandoPlan!)
+  ) {
+    return invalidField(`${path}.ritardandoPlan`);
+  }
+  if (
+    value.ritardandoPlanAtSeconds !== undefined &&
+    (typeof value.ritardandoPlanAtSeconds !== "number" ||
+      !Number.isFinite(value.ritardandoPlanAtSeconds) ||
+      value.ritardandoPlanAtSeconds < 0 ||
+      value.ritardandoPlanAtSeconds > MAX_SECTION_TIME_SECONDS)
+  ) {
+    return invalidField(`${path}.ritardandoPlanAtSeconds`);
+  }
+  if (
+    value.ritardandoPlanAtSeconds !== undefined &&
+    (value.ritardandoPlan === undefined || value.ritardandoPlanSource === undefined)
+  ) {
+    return invalidField(`${path}.ritardandoPlanAtSeconds`);
   }
 
   return null;

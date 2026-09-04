@@ -51,3 +51,5 @@ class AudioSeparationResult(TypedDict):
     chunk_count: int
     stem_role_types: StemRoleTypeMap
     separation_notes: str
+    bpm: float
+    beat_times: list[float]
