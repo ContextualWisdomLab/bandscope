@@ -78,6 +78,8 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - `docs/security/github-required-checks.md`
 - `docs/plans/2026-03-10-bandscope-harness-design.md`
 - `docs/plans/2026-03-10-bandscope-harness.md`
+- `docs/doctoring/section-harmony-known-progression.md`
+- `docs/plans/2026-08-16-section-harmony-known-progression.md`
 
 ## Code style
 - Keep UI and analysis engine decoupled through shared contracts.
@@ -85,6 +87,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Prefer practical, friendly, rehearsal-first wording over academic or authority-heavy language.
 - Do not reduce the product to a chord analyzer when form, timing, player coordination, playable ranges, simplification, and setup cues are the real rehearsal blockers.
 - Do not frame usability as a reason to accept weak analysis quality; BandScope should aim for both easy use and high accuracy.
+- Do not replace the known-progression section-harmony lock with a mocked recognizer. A verse/chorus take must keep distinct section answers.
 
 ## Safety
 - Do not add network-dependent runtime paths for local analysis.
