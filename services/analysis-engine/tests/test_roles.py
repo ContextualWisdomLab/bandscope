@@ -133,3 +133,131 @@ def test_role_extractor_falls_back_when_activity_detection_fails() -> None:
 
     assert result["topologies"][0]["section_id"] == "verse-1"
     assert result["topologies"][0]["part_graph"][0]["role_id"] == "bass-guitar"
+
+
+def test_role_extractor_emits_activity_corroborated_vamp_plan() -> None:
+    """Emit a vamp plan only from real stem activity plus an upcoming entrance."""
+    extractor = RoleExtractor()
+    sections = [{"id": "verse-1"}, {"id": "chorus-1"}]
+    audio_features = {
+        "stems": {"bass": np.ones(200, dtype=np.float32)},
+        "sr": 10,
+        "boundaries": [(0.0, 10.0), (10.0, 20.0)],
+    }
+
+    with (
+        patch(
+            "bandscope_analysis.roles.extractor.detect_stem_activity",
+            return_value=[
+                {"bass": True, "vocals": False, "other": False},
+                {"bass": True, "vocals": True, "other": False},
+            ],
+        ),
+        patch.object(
+            RoleExtractor,
+            "_extract_features",
+            return_value=(
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "E1", "highestNote": "E3"},
+                "Em",
+            ),
+        ),
+    ):
+        result = extractor.extract(sections, audio_features)
+
+    verse_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    assert verse_roles["bass-guitar"]["vampPlan"] == (
+        "Keep this part going until Lead Vocal enters in the next section."
+    )
+    assert verse_roles["bass-guitar"]["vampPlanSource"] == "model"
+
+
+def test_role_extractor_groups_shared_other_stem_entrance_for_vamp_plan() -> None:
+    """Name the shared accompaniment stem without inventing a specific instrument."""
+    extractor = RoleExtractor()
+    sections = [{"id": "verse-1"}, {"id": "chorus-1"}]
+    audio_features = {
+        "stems": {"bass": np.ones(200, dtype=np.float32)},
+        "sr": 10,
+        "boundaries": [(0.0, 10.0), (10.0, 20.0)],
+    }
+
+    with (
+        patch(
+            "bandscope_analysis.roles.extractor.detect_stem_activity",
+            return_value=[
+                {"bass": True, "vocals": False, "other": False},
+                {"bass": True, "vocals": False, "other": True},
+            ],
+        ),
+        patch.object(
+            RoleExtractor,
+            "_extract_features",
+            return_value=(
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "E1", "highestNote": "E3"},
+                "Em",
+            ),
+        ),
+    ):
+        result = extractor.extract(sections, audio_features)
+
+    verse_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    assert verse_roles["bass-guitar"]["vampPlan"] == (
+        "Keep this part going until Accompaniment enters in the next section."
+    )
+    assert verse_roles["bass-guitar"]["vampPlanSource"] == "model"
+
+
+def test_role_extractor_keeps_mixed_entrances_vamp_plan_ambiguous() -> None:
+    """Do not emit a vamp plan when distinct entrance sources arrive together."""
+    extractor = RoleExtractor()
+    sections = [{"id": "verse-1"}, {"id": "chorus-1"}]
+    audio_features = {
+        "stems": {"bass": np.ones(200, dtype=np.float32)},
+        "sr": 10,
+        "boundaries": [(0.0, 10.0), (10.0, 20.0)],
+    }
+
+    with (
+        patch(
+            "bandscope_analysis.roles.extractor.detect_stem_activity",
+            return_value=[
+                {"bass": True, "vocals": False, "other": False},
+                {"bass": True, "vocals": True, "other": True},
+            ],
+        ),
+        patch.object(
+            RoleExtractor,
+            "_extract_features",
+            return_value=(
+                {"lowestNote": "", "highestNote": ""},
+                "",
+                {"lowestNote": "E1", "highestNote": "E3"},
+                "Em",
+            ),
+        ),
+    ):
+        result = extractor.extract(sections, audio_features)
+
+    verse_roles = {role["id"]: role for role in result["topologies"][0]["active_roles"]}
+    assert "vampPlan" not in verse_roles["bass-guitar"]
+
+
+def test_activity_vamp_plan_rejects_unknown_activating_role() -> None:
+    """Fail closed when activity names a role absent from the rehearsal role catalog."""
+    extractor = RoleExtractor()
+    empty_range = {"lowestNote": "", "highestNote": ""}
+    roles = extractor._build_roles("", empty_range, "", empty_range)
+
+    assert (
+        extractor._activity_vamp_plan(
+            "bass-guitar",
+            roles,
+            {"bass-guitar": True, "unmodeled-role": False},
+            {"bass-guitar": True, "unmodeled-role": True},
+        )
+        is None
+    )
