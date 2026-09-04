@@ -115,6 +115,27 @@ describe("playback source switch continuity", () => {
     expect(capture("looping", 37.25, targetAuthority, sequence)).toBeNull();
   });
 
+  it.each([
+    ["file:///private/source.wav", vocalsAuthority],
+    [fullMixAuthority, "https://example.com/reference.wav"],
+    [
+      fullMixAuthority,
+      "bandscope-project://project-99-1/stem/vocals",
+    ],
+    [`${fullMixAuthority}/stem/guitar`, vocalsAuthority],
+  ])(
+    "rejects non-canonical or cross-project source-switch authority: %s -> %s",
+    (sourceAuthority, targetAuthority) => {
+      expect(
+        capturePlaybackSourceSwitch(transport("looping"), 37.25, {
+          sourceAuthority,
+          targetAuthority,
+          sequence: 3,
+        }),
+      ).toBeNull();
+    },
+  );
+
   it("admits a target only when its decoded duration and switch receipt still match the active target", () => {
     const plan = capture("looping", 37.25);
     expect(plan).not.toBeNull();
