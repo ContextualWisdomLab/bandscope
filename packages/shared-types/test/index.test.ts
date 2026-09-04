@@ -738,6 +738,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[1]?.soloPlan).toContain("verse solo");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -831,6 +832,28 @@ describe("shared type helpers", () => {
         headline: "oops"
       }
     })).toThrow("exportSummary.format");
+  });
+
+  it("keeps optional solo plans aligned with Rust project loading", () => {
+    for (const soloPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "hold here\nthen move",
+      "hold here\rthen move",
+      "hold here\u0085then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[1]!.soloPlan = soloPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[1].soloPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[1]!.soloPlan = "\uFEFF Hold the space \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 
   it("round-trips score attachment metadata and rejects malformed entries", () => {
@@ -1255,6 +1278,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[1].soloPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[1]!.soloPlan = 2 as never;
         })
       },
       {

@@ -139,6 +139,8 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  /** Rehearsal-facing solo guidance owned by this role when runtime graph evidence corroborates it. */
+  soloPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -407,6 +409,48 @@ function isOneOf<T extends string>(options: readonly T[], value: unknown): value
   return typeof value === "string" && options.includes(value as T);
 }
 
+/** Return whether a code point is in the cross-language plan whitespace set. */
+function isPlanWhitespaceCodePoint(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x0009 && codePoint <= 0x000d) ||
+    codePoint === 0x0020 ||
+    codePoint === 0x0085 ||
+    codePoint === 0x00a0 ||
+    codePoint === 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    codePoint === 0x202f ||
+    codePoint === 0x205f ||
+    codePoint === 0x3000 ||
+    codePoint === 0xfeff
+  );
+}
+
+/** Apply one explicit cross-language Unicode whitespace policy to plan text. */
+export function isNonEmptySingleLineText(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  let hasNonWhitespace = false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint === 0x000a ||
+      codePoint === 0x000d ||
+      codePoint === 0x0085 ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029
+    ) {
+      return false;
+    }
+    if (!isPlanWhitespaceCodePoint(codePoint)) {
+      hasNonWhitespace = true;
+    }
+  }
+  return hasNonWhitespace;
+}
+
 /** Documented. */
 function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
@@ -506,6 +550,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           simplification: "Drop the top extension if the chorus turnaround still feels busy.",
           setupNote: "Keep the patch bright enough to stay over the guitars.",
           transpositionPlan: "If the band rehearses in D, keep the voicing in first inversion so the top line still sings.",
+          soloPlan: "Hold the verse solo; everyone else drops to a two-bar pad so the run can land.",
           manualOverrides: [],
           overlapWarnings: [
             "Melodic overlap: top notes conflict with Lead Vocal range."
@@ -1497,6 +1542,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "soloPlan",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1597,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.soloPlan !== undefined && !isNonEmptySingleLineText(value.soloPlan)) {
+    return invalidField(`${path}.soloPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);
