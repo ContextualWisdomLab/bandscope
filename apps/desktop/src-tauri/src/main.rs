@@ -387,6 +387,7 @@ fn run_analysis_engine(
     let playback_project_id = request.project_id.clone();
     let playback_temp_root = request.temp_root.clone();
     let playback_job_id = job_id.clone();
+    let process_job_id = job_id.clone();
     let payload = json!({
         "jobId": job_id.clone(),
         "request": request,
@@ -424,6 +425,11 @@ fn run_analysis_engine(
             else {
                 continue;
             };
+            analysis_process_status::validate_analysis_process_status_for_job(
+                &process_status,
+                &process_job_id,
+            )
+            .map_err(|_| ())?;
             latest_process_status = Some(process_status.clone());
             if process_status_tx.send(process_status).is_err() {
                 break;
@@ -544,11 +550,13 @@ fn run_analysis_engine(
         );
     }
 
-    let finished = latest_process_status
-        .as_ref()
-        .map(|process_status| process_status.renderer_status().clone())
-        .unwrap_or_else(|| {
-            failed_status(
+    let final_process_status = match analysis_process_status::validate_final_analysis_process_status(
+        latest_process_status.as_ref(),
+        &playback_job_id,
+    ) {
+        Ok(process_status) => process_status,
+        Err(_) => {
+            return failed_status(
                 payload["jobId"]
                     .as_str()
                     .unwrap_or("unknown-job")
@@ -557,11 +565,11 @@ fn run_analysis_engine(
                 AnalysisJobErrorCode::EngineUnavailable,
                 "Analysis engine returned an invalid response.",
             )
-        });
+        }
+    };
+    let finished = final_process_status.renderer_status().clone();
     if matches!(finished.state, AnalysisJobState::Succeeded) {
-        let final_artifact_set = latest_process_status
-            .as_ref()
-            .and_then(|process_status| process_status.playable_stem_artifact_set());
+        let final_artifact_set = final_process_status.playable_stem_artifact_set();
         if let (Some(project_id), Some(temp_root), Some(artifact_set)) = (
             playback_project_id.as_deref(),
             playback_temp_root.as_deref(),
