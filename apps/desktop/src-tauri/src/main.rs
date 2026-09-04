@@ -415,7 +415,12 @@ fn run_analysis_engine(
             if trimmed.is_empty() {
                 continue;
             }
-            if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(trimmed) {
+            if let Ok(process_status) =
+                analysis_process_status::parse_analysis_process_status(trimmed)
+            {
+                // Native stem metadata is validated here but remains outside renderer state
+                // until playback admission verifies the actual WAV files.
+                let status = process_status.renderer_status().clone();
                 last_status = Some(status.clone());
                 if status_tx.send(status).is_err() {
                     break;
