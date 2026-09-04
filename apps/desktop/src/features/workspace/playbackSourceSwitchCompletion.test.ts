@@ -45,10 +45,10 @@ describe("playback source switch completion", () => {
       vocalsAuthority,
     );
     const admitted = admitPlaybackSourceSwitchTarget(
+      begun.state,
       begun.plan,
       45,
       vocalsAuthority,
-      begun.state.sequence,
     );
     expect(admitted).toBe(begun.plan);
 
@@ -70,10 +70,10 @@ describe("playback source switch completion", () => {
       vocalsAuthority,
     );
     const staleAdmitted = admitPlaybackSourceSwitchTarget(
+      first.state,
       first.plan,
       45,
       vocalsAuthority,
-      first.state.sequence,
     );
     const second = beginPlaybackSourceSwitch(
       first.state,
@@ -99,10 +99,10 @@ describe("playback source switch completion", () => {
     );
     expect(
       admitPlaybackSourceSwitchTarget(
+        begun.state,
         begun.plan,
         40,
         vocalsAuthority,
-        begun.state.sequence,
       ),
     ).toBeNull();
 
