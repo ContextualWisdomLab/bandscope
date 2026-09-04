@@ -94,6 +94,7 @@ These Figma patterns are valid visual guidance but are not yet extracted as stan
 | Status Pill | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when assignment/comment/approval status UI is reused. |
 | Song Structure Timeline | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when timeline editing or playback controls are added. |
 | Export Action Group | `apps/desktop/src/features/workspace/Workspace.tsx` | Extract when export controls are reused outside the workspace header. |
+| First Transposition Plan Callout | `apps/desktop/src/features/workspace/FirstTranspositionPlanCallout.tsx` | No Figma node yet. Extract when a second workspace next-action callout reuses the pattern. Behavioral contract: name the owning part only when an active graph node corroborates it, the owned `transpositionPlan` copy, the labeled section start, and the time exist; never invent that copy from `groove`, cue text, `simplification`, overlap warnings, range copy, `harmony.chord`, `harmony.functionLabel`, `setupNote`, confirmed overrides, `harmonicExplanation`, or confidence notes. Open scrolls the renderer-owned song-structure section; keep the unavailable state guidance-only. Distinct from first-entrance Tempo/Key/Transpose cockpit work (#987). |
 
 ## PR Review Rules
 

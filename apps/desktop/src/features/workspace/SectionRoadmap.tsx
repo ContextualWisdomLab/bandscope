@@ -1,6 +1,6 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useId, useMemo } from "react";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -113,7 +113,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
           >
             <CardHeader className="border-b border-white/10 bg-white/[0.04] p-5 pb-4">
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-lg font-black tracking-tight text-white">{section.label}</h3>
+                <h3 className="text-lg font-black tracking-tight text-white">{translateSectionFormLabel(locale, section.label)}</h3>
                 <ConfidenceBadge level={section.confidence.level} />
               </div>
               <div className="flex items-center text-sm font-medium text-slate-300">
@@ -154,7 +154,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                         <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
                         <button
                           type="button"
-                          aria-label={editChordLabel(role, section.label)}
+                          aria-label={editChordLabel(role, translateSectionFormLabel(locale, section.label))}
                           className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                             onSongUpdate
                               ? "cursor-pointer hover:bg-white/10"
@@ -192,7 +192,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               {validatedRange.lowestNote} — {validatedRange.highestNote}
                             </span>
                             <p className="mt-1 text-xs font-medium text-slate-400">
-                              {fillRangeCopy(t("sectionRangeNextAction"), { sectionLabel: section.label })}
+                              {fillRangeCopy(t("sectionRangeNextAction"), { sectionLabel: translateSectionFormLabel(locale, section.label) })}
                             </p>
                           </div>
                         ) : null}

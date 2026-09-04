@@ -49,6 +49,7 @@
   "workspaceTranspositionLabel": "전조 / 단순화",
   "workspaceStemsLabel": "스템",
   "workspaceRehearsalPrioritiesLabel": "합주 우선순위",
+  "workspaceRehearsalPrioritiesFocusPrefix": "집중:",
   "workspaceRolesHarmonyLabel": "역할과 화성",
   "sectionRoadmapTitle": "구간 흐름",
   "sectionRoadmapScrollHint": "더 많은 구간은 옆으로 스크롤하세요 →",
@@ -149,10 +150,16 @@
   "practiceProgressLabel": "연습 진척도",
   "decreasePracticeProgressLabel": "진척도 감소",
   "increasePracticeProgressLabel": "진척도 증가",
+  "firstTranspositionPlanLabel": "오늘 첫 이조 계획",
+  "firstTranspositionPlanOpenAction": "{at} {role} 이조 위치 열기",
+  "firstTranspositionPlanBody": "{at} {section}에서 {role} 파트의 이조 계획이 있습니다.",
+  "firstTranspositionPlanArmed": "{at}에서 {role} 파트의 이조를 맞춘 다음 합주를 시작하세요.",
+  "firstTranspositionPlanUnavailable": "이조 계획이 있는 파트가 없습니다. 합주용 이조가 있는 파트가 생길 때까지 오늘 맵에 머무르세요.",
   "workspaceFirstRangeTitle": "오늘 먼저 볼 음역",
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "workspaceFocusFallback": "첫 마디 연습"
 }

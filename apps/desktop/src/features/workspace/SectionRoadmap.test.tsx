@@ -33,7 +33,7 @@ describe("SectionRoadmap", () => {
     expect(screen.getByText("사용자")).toBeTruthy();
     expect(screen.getAllByText("음역").length).toBeGreaterThan(0);
     expect(screen.getByText("C#2 — E3")).toBeTruthy();
-    expect(screen.getAllByText("verse 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("벌스 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
   });
 
   it("omits the range row when both notes are unnamed", () => {
@@ -79,6 +79,16 @@ describe("SectionRoadmap", () => {
     expect(screen.queryByText(/Check this span on your instrument/i)).toBeNull();
   });
 
+  it("localizes section card headers like the timeline instead of rendering raw labels", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<SectionRoadmap song={song} activeRole={null} />);
+
+    expect(screen.getByText("벌스")).toBeTruthy();
+    expect(screen.queryByText("verse")).toBeNull();
+  });
+
   it("uses localized copy for chord edit prompts and control labels", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
@@ -87,7 +97,7 @@ describe("SectionRoadmap", () => {
 
     render(<SectionRoadmap song={song} activeRole={null} onSongUpdate={onSongUpdate} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bass Guitar의 벌스 코드 수정, 현재 C#m7" }));
 
     expect(promptSpy).toHaveBeenCalledWith("새 코드 입력:", "C#m7");
     expect(screen.getAllByTitle("코드 수정").length).toBeGreaterThan(0);

@@ -85,6 +85,16 @@ describe("Workspace", () => {
     expect(screen.getByText(/verse · 0:00–0:00/i)).toBeTruthy();
   });
 
+  it("localizes the rehearsal priorities focus line like the other surfaces", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByText(/집중: 벌스\./)).toBeTruthy();
+    expect(screen.queryByText(/Focus: 벌스\./)).toBeNull();
+  });
+
   it("enables bass transcription from selected role metadata rather than role id text", () => {
     const song = createDemoRehearsalSong();
     song.sections[0]!.roles[0] = {
@@ -135,7 +145,7 @@ describe("Workspace", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
     expect(screen.getByText(/The bass holds the vi center/i)).toBeTruthy();
-    expect(screen.getByText(/whole step lower/i)).toBeTruthy();
+    expect(screen.getAllByText(/whole step lower/i).length).toBeGreaterThan(1);
     expect(screen.getByText(/Lock the bass entrance against the pickup/i)).toBeTruthy();
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
@@ -325,5 +335,35 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names tonight's first transposition plan as workspace navigation", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(
+      screen.getAllByText(
+        "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones."
+      ).length
+    ).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar transpose at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Lock that transpose on Bass Guitar at 0:10 before the room starts./)
+    ).toBeTruthy();
   });
 });

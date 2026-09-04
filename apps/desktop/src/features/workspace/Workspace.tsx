@@ -1,11 +1,12 @@
 import { useState, useMemo, memo, type MouseEvent } from "react";
-import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
+import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole, type SectionFormLabel } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { FirstTranspositionPlanCallout } from "./FirstTranspositionPlanCallout";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "../../i18n";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -41,6 +42,7 @@ function downloadTextFile(contents: string, type: string, filename: string): voi
 }
 
 type Translator = ReturnType<typeof createTranslator>;
+type WorkspaceLocale = ReturnType<typeof detectPreferredLocale>;
 
 /** Documented. */
 function preventUnavailableAction(event: MouseEvent<HTMLButtonElement>): void {
@@ -72,7 +74,7 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({ sections, t, locale }: { sections: RehearsalSong["sections"]; t: Translator; locale: WorkspaceLocale }) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -88,13 +90,18 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
       >
         <div
           className="grid min-w-[720px]"
+          data-workspace-song-structure-grid
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+          {sections.map((section, sectionIndex) => (
+            <div
+              key={section.id}
+              data-section-index={sectionIndex}
+              className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
+            >
               <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                {translateSectionFormLabel(locale, section.label)} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
               <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
             </div>
@@ -121,7 +128,17 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
-  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const locale = useMemo(() => detectPreferredLocale(), []);
+  const t = useMemo(() => createTranslator(locale), [locale]);
+  // Rehearsal priorities focus copy localizes section form labels like every
+  // other surface; unknown focus strings fall back to their raw value.
+  const focusSummary = song.exportSummary?.focusSections?.length
+    ? song.exportSummary.focusSections
+        .map((label) => translateSectionFormLabel(locale, label as SectionFormLabel))
+        .join(", ")
+    : song.sections[0]
+      ? translateSectionFormLabel(locale, song.sections[0].label)
+      : t("workspaceFocusFallback");
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -157,9 +174,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
         {
           roleName: firstRange.roleName,
-          lowestNote: firstRange.lowestNote,
-          highestNote: firstRange.highestNote,
-          sectionLabel: firstRange.sectionLabel
+            lowestNote: firstRange.lowestNote,
+            highestNote: firstRange.highestNote,
+            sectionLabel: translateSectionFormLabel(locale, firstRange.sectionLabel)
         }
       )
     : t("workspaceFirstRangeMissing");
@@ -348,12 +365,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
+                {t("workspaceRehearsalPrioritiesFocusPrefix")} {focusSummary}.
               </p>
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <FirstTranspositionPlanCallout song={song} />
+
+          <SongStructure sections={song.sections} t={t} locale={locale} />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
