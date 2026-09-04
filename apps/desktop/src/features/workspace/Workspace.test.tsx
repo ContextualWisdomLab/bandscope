@@ -196,6 +196,72 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first tutti after a reduced section", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-tutti");
+    expect(callout).toHaveTextContent("Tonight's first tutti");
+    expect(callout).toHaveTextContent(
+      "chorus is the first full-band hit after verse. Play together from the top of chorus."
+    );
+  });
+
+  it("keeps the selected active part on tonight's first tutti", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-tutti")).toHaveTextContent(
+      "chorus is the first full-band hit after verse. Play together from the top of chorus."
+    );
+  });
+
+  it("asks the player to confirm the full-band hit when every part stays active", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-tutti")).toHaveTextContent(
+      "Tonight's first tutti still needs a full-band hit. Confirm where every sitting-out part is back in before the first section."
+    );
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

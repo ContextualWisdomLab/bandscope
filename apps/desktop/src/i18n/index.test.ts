@@ -60,6 +60,7 @@ describe("i18n", () => {
       const t = createTranslator("ko");
       expect(t("appTitle")).toBe("BandScope");
       expect(t("appSubtitle")).toBe("합주 준비를 위한 로컬-퍼스트 분석 도구");
+      expect(t("workspaceFirstTuttiTitle")).toBe("오늘 먼저 모두 들어올 자리");
     });
 
     it("falls back to English when a Korean translation is missing", () => {

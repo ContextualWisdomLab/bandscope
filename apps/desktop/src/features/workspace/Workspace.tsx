@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstTutti } from "./firstTutti";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const namedTutti = useMemo(() => firstTutti(song, activeRole), [activeRole, song]);
+  const firstTuttiCopy = namedTutti
+    ? fillRangeCopy(t("workspaceFirstTuttiNamed"), {
+        sectionLabel: namedTutti.sectionLabel,
+        fromSectionLabel: namedTutti.fromSectionLabel
+      })
+    : t("workspaceFirstTuttiMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +316,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+            data-testid="first-tutti"
+            aria-label={t("workspaceFirstTuttiTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceFirstTuttiTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstTuttiCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
