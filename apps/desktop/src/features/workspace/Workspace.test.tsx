@@ -196,6 +196,68 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first-action chart download and leads the file with that action", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const createObjectUrl = vi.fn(() => "blob:chart");
+    const revokeObjectUrl = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl
+    });
+
+    render(<Workspace song={song} />);
+
+    const download = screen.getByRole("button", { name: "Download tonight's first-action chart" });
+    fireEvent.click(download);
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const payload = JSON.parse(await blob.text());
+    expect(Object.keys(payload)[1]).toBe("firstAction");
+    expect(payload.firstAction).toEqual({
+      section: "verse",
+      role: "Bass Guitar",
+      lowestNote: "C#2",
+      highestNote: "E3",
+      next: "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
+    });
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:chart");
+  });
+
+  it("does not invent a first-action chart lead when the first range still needs an ear check", async () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles = song.sections[0]!.roles.map((role) => ({
+      ...role,
+      range: { lowestNote: "", highestNote: "none" },
+      overlapWarnings: []
+    }));
+    const createObjectUrl = vi.fn(() => "blob:chart-missing");
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: vi.fn()
+    });
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Download tonight's first-action chart" }));
+
+    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const payload = JSON.parse(await blob.text());
+    expect(payload.firstAction).toBeUndefined();
+    expect(Object.keys(payload)).toEqual(["title", "headline", "sections"]);
+  });
+
   it("falls back from blank planning copy and tolerates partial collaboration payloads", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -325,5 +387,6 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "오늘 먼저 할 일 차트 받기" })).toBeTruthy();
   });
 });

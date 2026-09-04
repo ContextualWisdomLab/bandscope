@@ -131,6 +131,7 @@ describe("export generation", () => {
     const parsed = JSON.parse(jsonStr);
     expect(parsed.title).toBe("Test");
     expect(parsed.sections[0].roles[0].chord).toBe("=Cmaj7");
+    expect(parsed.firstAction).toBeUndefined();
   });
 
   it("generates chart summary JSON when headline is missing", () => {
@@ -141,6 +142,33 @@ describe("export generation", () => {
     const jsonStr = generateChartSummaryJson(mockSongNoHeadline);
     const parsed = JSON.parse(jsonStr);
     expect(parsed.headline).toBe("");
+  });
+
+  it("leads the chart JSON with tonight's first action when a lead is provided", () => {
+    const jsonStr = generateChartSummaryJson(mockSong, {
+      firstAction: {
+        section: "verse",
+        role: "=HYPERLINK(\"http://evil\")",
+        lowestNote: "C2",
+        highestNote: "C3",
+        next: "=HYPERLINK(\"http://evil\") sits C2–C3 in verse. Check that span on your instrument before the verse."
+      }
+    });
+    const parsed = JSON.parse(jsonStr);
+    expect(Object.keys(parsed)).toEqual(["title", "firstAction", "headline", "sections"]);
+    expect(parsed.firstAction).toEqual({
+      section: "verse",
+      role: "=HYPERLINK(\"http://evil\")",
+      lowestNote: "C2",
+      highestNote: "C3",
+      next: "=HYPERLINK(\"http://evil\") sits C2–C3 in verse. Check that span on your instrument before the verse."
+    });
+    expect(parsed.sections[0].roles[0].chord).toBe("=Cmaj7");
+  });
+
+  it("does not invent a first action when the lead is omitted or null", () => {
+    expect(JSON.parse(generateChartSummaryJson(mockSong)).firstAction).toBeUndefined();
+    expect(JSON.parse(generateChartSummaryJson(mockSong, { firstAction: null })).firstAction).toBeUndefined();
   });
 
   it("generates a metadata-only local handoff without source paths or transcription data", () => {
