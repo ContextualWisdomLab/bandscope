@@ -6,6 +6,7 @@ Last updated: 2026-03-11
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- The mounted workspace copy for tonight's first labeled outro must name the holding part when corroborated, the labeled ending, and the time so the next action is obvious. The current `PlayerFeature` placeholder is not mounted by `App.tsx` and must remain guidance-only until a real playback owner provides seek authority.
 
 ## Security source
 

@@ -326,4 +326,48 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first outro as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    const outro = structuredClone(verse);
+    outro.id = "outro-1";
+    outro.label = "outro";
+    outro.timeRange = { start: 180, end: 196 };
+    outro.roles = [
+      {
+        ...verse.roles[0]!,
+        id: "drums",
+        name: "Drums",
+        rehearsalPriority: "high"
+      }
+    ];
+    outro.partGraph = [
+      {
+        role_id: "drums",
+        is_active: true,
+        handoff_to: [],
+        handoff_from: []
+      }
+    ];
+    song.sections = [verse, outro];
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(1);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    const action = screen.getByRole("button", {
+      name: "Open Drums outro at 3:00"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText(/Hold with Drums at 3:00. Finish together./)).toBeTruthy();
+  });
 });
