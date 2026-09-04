@@ -4,6 +4,7 @@ import {
   type RehearsalTransportPhase,
   type RehearsalTransportState,
 } from "./rehearsalTransport";
+import { playbackSourceProjectId } from "./playbackSourceSelection";
 
 /** Identity of one renderer-owned media-source replacement attempt. */
 export interface PlaybackSourceSwitchIdentity {
@@ -23,11 +24,11 @@ export interface PlaybackSourceSwitchPlan extends PlaybackSourceSwitchIdentity {
 }
 
 function hasValidSwitchIdentity(identity: PlaybackSourceSwitchIdentity): boolean {
+  const sourceProjectId = playbackSourceProjectId(identity.sourceAuthority);
+  const targetProjectId = playbackSourceProjectId(identity.targetAuthority);
   return (
-    typeof identity.sourceAuthority === "string" &&
-    identity.sourceAuthority.length > 0 &&
-    typeof identity.targetAuthority === "string" &&
-    identity.targetAuthority.length > 0 &&
+    sourceProjectId !== null &&
+    sourceProjectId === targetProjectId &&
     identity.sourceAuthority !== identity.targetAuthority &&
     Number.isSafeInteger(identity.sequence) &&
     identity.sequence > 0
@@ -41,7 +42,8 @@ function hasValidSwitchIdentity(identity: PlaybackSourceSwitchIdentity): boolean
  * count-in clock is running would create a second timing race. Looping/paused
  * switches retain the exact admitted media position; armed switches start from the
  * selected loop boundary. Invalid positions or switch identities fail closed rather
- * than being clamped or converted into an ambiguous no-op.
+ * than being clamped or converted into an ambiguous no-op. Source and target must
+ * both be canonical opaque authorities for the same mounted playback project.
  */
 export function capturePlaybackSourceSwitch(
   transport: RehearsalTransportState,

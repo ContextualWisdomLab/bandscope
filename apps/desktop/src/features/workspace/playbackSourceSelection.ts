@@ -17,6 +17,14 @@ const SOURCE_AUTHORITY =
   /^bandscope-project:\/\/(project-[0-9]+-[0-9]+)(?:\/stem\/(vocals|bass|drums|other))?$/;
 const STEM_ORDER = ["vocals", "bass", "drums", "other"] as const;
 
+/** Return the owning project id only for one canonical renderer playback authority. */
+export function playbackSourceProjectId(authority: unknown): string | null {
+  if (typeof authority !== "string") {
+    return null;
+  }
+  return authority.match(SOURCE_AUTHORITY)?.[1] ?? null;
+}
+
 /**
  * Project native availability into renderer options without creating authority.
  * A generated set is all-or-nothing because native admission binds four stems atomically.
