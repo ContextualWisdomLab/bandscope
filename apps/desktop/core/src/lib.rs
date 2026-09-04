@@ -6,6 +6,9 @@
 //! measured for coverage) on any platform without a windowing system or a
 //! bundled frontend.
 
+pub mod analysis_process_status;
+pub mod playable_stem_contract;
+
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::{
