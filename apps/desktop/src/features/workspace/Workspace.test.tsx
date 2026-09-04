@@ -153,6 +153,44 @@ describe("Workspace", () => {
     );
   });
 
+  it("checks the first range after a D.S. al Fine when sections are already named", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-ds-al-fine");
+    expect(callout).toHaveTextContent("Tonight's first D.S. al Fine");
+    expect(callout).toHaveTextContent(
+      "Tonight's first D.S. al Fine is D.S. al Fine: at D.S. al Fine, return to the segno and end at Fine, then check tonight's first range."
+    );
+    expect(callout).not.toHaveTextContent("start the first verse");
+  });
+
+  it("asks the room to stay on the map when the D.S. al Fine is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.dsAlFine;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-ds-al-fine")).toHaveTextContent(
+      "Tonight's first D.S. al Fine still needs a label. Stay on tonight's map until the first D.S. al Fine is marked, then check tonight's first range."
+    );
+  });
+
+  it("keeps D.S. al Fine copy target-agnostic even when the first section is unnamed", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-ds-al-fine")).toHaveTextContent(
+      "Tonight's first D.S. al Fine is D.S. al Fine: at D.S. al Fine, return to the segno and end at Fine, then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
