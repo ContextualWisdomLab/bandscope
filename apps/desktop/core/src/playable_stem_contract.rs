@@ -19,8 +19,15 @@ pub const MAX_PLAYBACK_SAMPLE_RATE_HZ: u32 = 192_000;
 
 const PCM16_BYTES_PER_SAMPLE: u64 = 2;
 const CANONICAL_WAVE_HEADER_BYTES: u64 = 44;
+const RIFF_CHUNK_PREFIX_BYTES: u64 = 8;
+const RIFF_CHUNK_OVERHEAD_BYTES: u64 =
+    CANONICAL_WAVE_HEADER_BYTES - RIFF_CHUNK_PREFIX_BYTES;
 const SHA256_HEX_CHARACTER_COUNT: usize = 64;
 const DURATION_RELATIVE_TOLERANCE: f64 = 1e-12;
+
+/// Largest mono PCM16 sample count representable by a classic RIFF/WAV header.
+pub const MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT: u64 =
+    (u32::MAX as u64 - RIFF_CHUNK_OVERHEAD_BYTES) / PCM16_BYTES_PER_SAMPLE;
 
 /// Canonical source kinds produced by the current BandScope separation model.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -253,6 +260,11 @@ impl<'de> Deserialize<'de> for PlayableStemArtifactSetReference {
                 "playable stem sampleCount must be positive",
             ));
         }
+        if raw_artifact_set.sample_count > MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT {
+            return Err(serde::de::Error::custom(
+                "playable stem sampleCount exceeds the classic RIFF/WAV limit",
+            ));
+        }
         let expected_duration =
             raw_artifact_set.sample_count as f64 / raw_artifact_set.sample_rate as f64;
         validate_duration(raw_artifact_set.duration_seconds, expected_duration)
@@ -265,11 +277,8 @@ impl<'de> Deserialize<'de> for PlayableStemArtifactSetReference {
             ));
         }
 
-        let expected_file_size = raw_artifact_set
-            .sample_count
-            .checked_mul(PCM16_BYTES_PER_SAMPLE)
-            .and_then(|sample_bytes| sample_bytes.checked_add(CANONICAL_WAVE_HEADER_BYTES))
-            .ok_or_else(|| serde::de::Error::custom("playable stem file size overflow"))?;
+        let expected_file_size = CANONICAL_WAVE_HEADER_BYTES
+            + raw_artifact_set.sample_count * PCM16_BYTES_PER_SAMPLE;
         let mut stem_artifacts = Vec::with_capacity(raw_artifact_set.stem_artifacts.len());
         for (raw_artifact, expected_stem_kind) in raw_artifact_set
             .stem_artifacts
