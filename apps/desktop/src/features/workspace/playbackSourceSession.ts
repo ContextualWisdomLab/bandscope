@@ -195,7 +195,7 @@ export function beginPlaybackSourceDiscovery(
   };
 }
 
-/** Apply only the latest matching discovery receipt; malformed results stay full-mix only. */
+/** Apply only the exact issued discovery receipt; malformed results stay full-mix only. */
 export function completePlaybackSourceDiscovery(
   state: PlaybackSourceSession,
   request: PlaybackSourceDiscoveryRequest | null,
@@ -204,6 +204,7 @@ export function completePlaybackSourceDiscovery(
   if (
     request === null ||
     state.pendingRequest === null ||
+    state.pendingRequest !== request ||
     state.pendingRequest.sequence !== request.sequence ||
     state.pendingRequest.fullMixAuthority !== request.fullMixAuthority ||
     state.fullMixAuthority !== request.fullMixAuthority
