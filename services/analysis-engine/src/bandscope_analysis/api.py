@@ -154,12 +154,19 @@ class ExportSummaryPayload(TypedDict):
     focusSections: list[str]
 
 
+class RehearsalDsAlCodaPayload(TypedDict):
+    """Typed trusted D.S. al Coda payload nested inside rehearsal songs."""
+
+    label: str
+
+
 class RehearsalSong(TypedDict):
     """Typed rehearsal song payload returned by the bootstrap engine."""
 
     id: str
     title: str
     tempo: NotRequired[int]
+    dsAlCoda: NotRequired[RehearsalDsAlCodaPayload]
     sections: list[RehearsalSectionPayload]
     exportSummary: ExportSummaryPayload
 
@@ -1193,6 +1200,8 @@ def run_analysis_job_updates(
     )
 
     result = build_demo_rehearsal_song(audio_features)
+    if request["sourceKind"] == "demo":
+        result["dsAlCoda"] = {"label": "D.S. al Coda"}
     updates.append(
         _build_job_status(
             job_id=job_id,
