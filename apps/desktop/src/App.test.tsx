@@ -1002,7 +1002,7 @@ describe("App", () => {
         progressLabel: "Running analysis"
       }))
       .mockRejectedValueOnce(new Error("transport down"))
-      .mockResolvedValueOnce(succeededResult());
+      .mockResolvedValueOnce({ ...succeededResult(), jobId: "job-4" });
 
     render(<App />);
 
@@ -1240,7 +1240,7 @@ describe("App", () => {
 
   it("rejects downgraded YouTube URL intake before invoking the bridge", async () => {
     render(<App />);
-    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    const input = screen.getByPlaceholderText(/YouTube URL/i);
     fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=abc123DEF45" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
@@ -1253,7 +1253,7 @@ describe("App", () => {
 
   it("rejects duplicate YouTube video parameters even when one is blank", async () => {
     render(<App />);
-    const input = screen.getByPlaceholderText(/YouTube URL.../i);
+    const input = screen.getByPlaceholderText(/YouTube URL/i);
     fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45&v=" } });
 
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
@@ -1263,7 +1263,6 @@ describe("App", () => {
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
-
 
   it("loads a project and updates the UI", async () => {
     mockLoadProject.mockResolvedValueOnce(succeededResult().result);
@@ -1551,7 +1550,6 @@ describe("App", () => {
       expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
     });
   });
-
 
   it("renders Settings and Help as focusable aria-disabled controls", () => {
     render(<App />);

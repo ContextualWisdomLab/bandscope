@@ -28,6 +28,7 @@ import {
   SUPPORTED_AUDIO_FORMATS,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
+  type MetadataHandoffArtifact,
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
@@ -43,10 +44,15 @@ import {
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
+import {
+  createAnalysisRequestForSelection,
+  type HandoffImportErrorCode
+} from "./lib/handoff";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { HandoffImportControl } from "./features/import/HandoffImportControl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -145,6 +151,27 @@ function safeErrorDetail(error: unknown, fallback: string): string {
     : redacted;
 }
 
+/** Map bounded import failures to localized, payload-free copy. */
+function handoffErrorMessage(
+  t: ReturnType<typeof createTranslator>,
+  code: HandoffImportErrorCode
+): string {
+  switch (code) {
+    case "unsupported_file":
+      return t("handoffErrorUnsupportedFile");
+    case "too_large":
+      return t("handoffErrorTooLarge");
+    case "invalid_utf8":
+      return t("handoffErrorInvalidUtf8");
+    case "invalid_json":
+      return t("handoffErrorInvalidJson");
+    case "invalid_artifact":
+      return t("handoffErrorInvalidArtifact");
+    case "read_failed":
+      return t("handoffErrorReadFailed");
+  }
+}
+
 /** Documented. */
 function BandScopeMark({ ariaLabel }: { ariaLabel: string }) {
   return (
@@ -210,7 +237,6 @@ function sectionCountDetail(t: ReturnType<typeof createTranslator>, sectionCount
 function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnType<typeof createTranslator> }) {
   const sectionCount = song?.sections.length ?? 0;
   const confidenceOrder = { high: 3, medium: 2, low: 1 } as const;
-
   // Performance: Avoid O(N) array scan with .reduce() to find minimum confidence.
   // Instead use a for loop that can early exit (O(K)) as soon as the lowest bound ("low") is hit.
   let lowestConfidence: RehearsalSong["sections"][number]["confidence"]["level"] | null = null;
@@ -258,36 +284,49 @@ export function App() {
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [pendingHandoff, setPendingHandoff] = useState<MetadataHandoffArtifact | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
+  const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | "handoff" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isSelectingLocalAudio, setIsSelectingLocalAudio] = useState(false);
+  const [isReadingHandoff, setIsReadingHandoff] = useState(false);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
+  const activeJobStateRef = useRef<AnalysisJobStatus["state"] | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
-  const selectedRequest: AnalysisJobRequest = selectedBootstrap
-    ? {
-        sourceKind: "local_audio",
-        projectId: selectedBootstrap.projectId,
-        sourceLabel: selectedBootstrap.source.fileName,
-        roleFocus: defaultRequest.roleFocus
-      }
-    : defaultRequest;
+  const sourceTransitionLocked =
+    analysisInFlight ||
+    isStarting ||
+    isSelectingLocalAudio ||
+    isImporting ||
+    isReadingHandoff ||
+    isLoadingProject;
+  const selectedRequest: AnalysisJobRequest = createAnalysisRequestForSelection(
+    defaultRequest,
+    selectedBootstrap,
+    pendingHandoff
+  );
 
   useEffect(() => {
     activeJobIdRef.current = jobStatus?.jobId ?? null;
-  }, [jobStatus?.jobId]);
+    activeJobStateRef.current = jobStatus?.state ?? null;
+  }, [jobStatus?.jobId, jobStatus?.state]);
 
-  /** Documented. */
+  /** Apply one status while synchronizing the polling authority snapshot. */
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
+    activeJobIdRef.current = nextStatus.jobId;
+    activeJobStateRef.current = nextStatus.state;
     setJobStatus(nextStatus);
     if (nextStatus.state === "succeeded" && nextStatus.result) {
       setJobResult(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
+      setPendingHandoff(null);
       setJobError(null);
     }
     if (nextStatus.state === "failed") {
@@ -321,7 +360,6 @@ export function App() {
     }, 20);
     return () => window.clearTimeout(timer);
   }, [jobStatus?.progressPercent, jobStatus?.state, renderedProgressPercent]);
-
   useEffect(() => {
     if (!jobStatus || (jobStatus.state !== "queued" && jobStatus.state !== "running")) {
       return;
@@ -354,10 +392,19 @@ export function App() {
     const timer = window.setTimeout(async () => {
       try {
         const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
+        if (
+          activeJobIdRef.current !== jobStatus.jobId ||
+          (activeJobStateRef.current !== "queued" && activeJobStateRef.current !== "running")
+        ) {
+          return;
+        }
         applyJobStatus(nextStatus);
       } catch (error) {
         if (error instanceof Error && error.message === "Invalid analysis job status response") {
-          if (activeJobIdRef.current !== jobStatus.jobId) {
+          if (
+            activeJobIdRef.current !== jobStatus.jobId ||
+            (activeJobStateRef.current !== "queued" && activeJobStateRef.current !== "running")
+          ) {
             return;
           }
           const fallbackMessage = t("analysisCouldNotStart");
@@ -387,6 +434,10 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    if (sourceTransitionLocked || !selectedBootstrap) {
+      return;
+    }
+
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
     setJobResult(null);
@@ -397,14 +448,19 @@ export function App() {
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
       if (nextStatus.state === "succeeded" && nextStatus.result) {
+        activeJobIdRef.current = nextStatus.jobId;
+        activeJobStateRef.current = nextStatus.state;
         setJobStatus(nextStatus);
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
         setActiveAnalysisBootstrap(null);
+        setPendingHandoff(null);
       } else {
         applyJobStatus(nextStatus);
       }
     } catch {
+      activeJobIdRef.current = null;
+      activeJobStateRef.current = null;
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
       setJobError(t("analysisCouldNotStart"));
@@ -415,22 +471,35 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    setSelectionError(null);
-    setSelectionErrorSource(null);
-    const selection = await selectLocalAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
+    if (sourceTransitionLocked) {
       return;
     }
 
-    setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+    setSelectionError(null);
+    setSelectionErrorSource(null);
+    setIsSelectingLocalAudio(true);
+    try {
+      const selection = await selectLocalAudioSource();
+      if (selection.ok) {
+        setSelectedBootstrap(selection.bootstrap);
+        return;
+      }
+
+      setSelectedBootstrap(null);
+      setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+      setSelectionErrorSource("local");
+      setJobStatus(null);
+    } finally {
+      setIsSelectingLocalAudio(false);
+    }
   };
 
   /** Documented. */
   const handleImportYoutube = async () => {
+    if (sourceTransitionLocked || pendingHandoff) {
+      return;
+    }
+
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -445,7 +514,6 @@ export function App() {
       setSelectionErrorSource("youtube");
       return;
     }
-
     setIsImporting(true);
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
@@ -470,27 +538,62 @@ export function App() {
     setYoutubeUrl("");
   };
 
+  /** Store or clear one validated handoff without reading referenced assets. */
+  const handleHandoffChange = (handoff: MetadataHandoffArtifact | null) => {
+    setPendingHandoff(handoff);
+    if (handoff) {
+      setSelectedBootstrap(null);
+      setSelectionError(null);
+      setSelectionErrorSource(null);
+    }
+  };
+
+  /** Convert bounded import failure codes into localized, payload-free copy. */
+  const handleHandoffImportError = (code: HandoffImportErrorCode | null) => {
+    if (code === null) {
+      if (selectionErrorSource === "handoff") {
+        setSelectionError(null);
+        setSelectionErrorSource(null);
+      }
+      return;
+    }
+    setSelectionError(handoffErrorMessage(t, code));
+    setSelectionErrorSource("handoff");
+  };
+
   /** Documented. */
   const handleLoadProject = async () => {
+    if (sourceTransitionLocked) {
+      return;
+    }
+
+    setIsLoadingProject(true);
     try {
       const song = await loadProject();
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
       setSelectedBootstrap(null);
+      setPendingHandoff(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
+    } finally {
+      setIsLoadingProject(false);
     }
   };
 
   /** Documented. */
   const handleSaveProject = async () => {
+    if (isLoadingProject || !jobResult) {
+      return;
+    }
+
     try {
-      await saveProject(jobResult!);
+      await saveProject(jobResult);
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
@@ -680,16 +783,38 @@ export function App() {
               </div>
 
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
-                <Button
-                  onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
-                  variant="secondary"
-                  className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
-                  aria-label={t("chooseLocalAudio")}
-                >
-                  <Upload className="mr-2 size-4" aria-hidden="true" />
-                  {t("chooseLocalAudio")}
-                </Button>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start">
+                  <Button
+                    onClick={handleChooseLocalAudio}
+                    disabled={
+                      analysisInFlight ||
+                      isStarting ||
+                      isSelectingLocalAudio ||
+                      isImporting ||
+                      isReadingHandoff ||
+                      isLoadingProject
+                    }
+                    variant="secondary"
+                    className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 sm:w-auto"
+                    aria-label={t("chooseLocalAudio")}
+                  >
+                    <Upload className="mr-2 size-4" aria-hidden="true" />
+                    {t("chooseLocalAudio")}
+                  </Button>
+                  <HandoffImportControl
+                    disabled={
+                      analysisInFlight ||
+                      isStarting ||
+                      isSelectingLocalAudio ||
+                      isImporting ||
+                      isLoadingProject
+                    }
+                    handoff={pendingHandoff}
+                    onHandoffChange={handleHandoffChange}
+                    onImportError={handleHandoffImportError}
+                    onReadingChange={setIsReadingHandoff}
+                  />
+                </div>
 
                 <div className="grid min-w-0 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                   <div className="flex min-w-0 items-center gap-2">
@@ -702,13 +827,28 @@ export function App() {
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
                         onChange={(e) => setYoutubeUrl(e.target.value)}
-                        disabled={analysisInFlight || isStarting || isImporting}
+                        disabled={
+                          analysisInFlight ||
+                          isStarting ||
+                          isSelectingLocalAudio ||
+                          isImporting ||
+                          isReadingHandoff ||
+                          isLoadingProject ||
+                          pendingHandoff !== null
+                        }
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
                         aria-invalid={selectionError && selectionErrorSource === "youtube" ? true : undefined}
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
-                      {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
+                      {youtubeUrl &&
+                      !analysisInFlight &&
+                      !isStarting &&
+                      !isImporting &&
+                      !isSelectingLocalAudio &&
+                      !isReadingHandoff &&
+                      !isLoadingProject &&
+                      pendingHandoff === null ? (
                         <button
                           type="button"
                           onClick={handleClearYoutubeUrl}
@@ -723,7 +863,16 @@ export function App() {
                   </div>
                   <Button
                     onClick={handleImportYoutube}
-                    disabled={!youtubeUrl || analysisInFlight || isStarting || isImporting}
+                    disabled={
+                      !youtubeUrl ||
+                      analysisInFlight ||
+                      isStarting ||
+                      isSelectingLocalAudio ||
+                      isImporting ||
+                      isReadingHandoff ||
+                      isLoadingProject ||
+                      pendingHandoff !== null
+                    }
                     variant="outline"
                     className="min-h-10 w-full border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white sm:w-auto"
                     aria-label={t("importYoutube")}
@@ -737,7 +886,14 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
+                  disabled={
+                    analysisInFlight ||
+                    isStarting ||
+                    isSelectingLocalAudio ||
+                    isImporting ||
+                    isReadingHandoff ||
+                    isLoadingProject
+                  }
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
@@ -748,6 +904,7 @@ export function App() {
                 {jobResult ? (
                   <Button
                     onClick={handleSaveProject}
+                    disabled={isLoadingProject}
                     variant="outline"
                     className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                     aria-label={t("saveProject")}
@@ -770,7 +927,15 @@ export function App() {
                 )}
                 <Button
                   onClick={handleStartAnalysis}
-                  disabled={analysisInFlight || isStarting || !selectedBootstrap || isImporting}
+                  disabled={
+                    analysisInFlight ||
+                    isStarting ||
+                    isSelectingLocalAudio ||
+                    !selectedBootstrap ||
+                    isImporting ||
+                    isReadingHandoff ||
+                    isLoadingProject
+                  }
                   size="lg"
                   className="min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
                   aria-label={isStarting ? t("startingAnalysis") : t("startAnalysis")}

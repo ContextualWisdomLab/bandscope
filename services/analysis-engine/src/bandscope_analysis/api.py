@@ -594,6 +594,54 @@ def _build_job_status(
     return status
 
 
+def _focus_rehearsal_song(
+    result: RehearsalSong,
+    role_focus: list[str],
+) -> RehearsalSong:
+    """Project one complete analysis onto requested roles without mutating its cache value."""
+    if not role_focus:
+        return result
+
+    focus_ids = set(role_focus)
+    focused_sections: list[RehearsalSectionPayload] = []
+    focus_sections: list[str] = []
+    for section in result["sections"]:
+        focused_roles = [role for role in section["roles"] if role["id"] in focus_ids]
+        focused_graph: list[PartGraphNodePayload] = []
+        for node in section["partGraph"]:
+            if node["role_id"] not in focus_ids:
+                continue
+            focused_graph.append(
+                {
+                    **node,
+                    "handoff_to": [
+                        role_id for role_id in node["handoff_to"] if role_id in focus_ids
+                    ],
+                    "handoff_from": [
+                        role_id for role_id in node["handoff_from"] if role_id in focus_ids
+                    ],
+                }
+            )
+        focused_sections.append(
+            {
+                **section,
+                "roles": focused_roles,
+                "partGraph": focused_graph,
+            }
+        )
+        if focused_roles and section["label"] not in focus_sections:
+            focus_sections.append(section["label"])
+
+    return {
+        **result,
+        "sections": focused_sections,
+        "exportSummary": {
+            **result["exportSummary"],
+            "focusSections": focus_sections,
+        },
+    }
+
+
 def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     """Return the per-track cache path for a local-audio request when caching is enabled."""
     if request["sourceKind"] != "local_audio" or "localSource" not in request:
@@ -1065,6 +1113,10 @@ def run_analysis_job_updates(
     if cache_path is not None:
         cached_result = _load_cached_analysis(cache_path)
         if cached_result is not None:
+            focused_cached_result = _focus_rehearsal_song(
+                cached_result,
+                request["roleFocus"],
+            )
             return [
                 _build_job_status(
                     job_id=job_id,
@@ -1083,7 +1135,7 @@ def run_analysis_job_updates(
                     progress_stage="ready",
                     progress_percent=100,
                     cache_status="hit",
-                    result=cached_result,
+                    result=focused_cached_result,
                 ),
             ]
 
@@ -1192,7 +1244,8 @@ def run_analysis_job_updates(
         )
     )
 
-    result = build_demo_rehearsal_song(audio_features)
+    complete_result = build_demo_rehearsal_song(audio_features)
+    focused_result = _focus_rehearsal_song(complete_result, request["roleFocus"])
     updates.append(
         _build_job_status(
             job_id=job_id,
@@ -1211,7 +1264,7 @@ def run_analysis_job_updates(
         )
     if cache_path is not None:
         final_cache_status = (
-            "stored" if _store_cached_analysis(cache_path, request, result) else "miss"
+            "stored" if _store_cached_analysis(cache_path, request, complete_result) else "miss"
         )
     updates.append(
         _build_job_status(
@@ -1222,7 +1275,7 @@ def run_analysis_job_updates(
             progress_stage="ready",
             progress_percent=100,
             cache_status=final_cache_status,
-            result=result,
+            result=focused_result,
         )
     )
     return updates
