@@ -337,11 +337,15 @@ fn drain_analysis_process_status_updates(
     latest_process_status: &mut Option<analysis_process_status::AnalysisProcessStatus>,
 ) {
     while let Ok(process_status) = process_status_rx.try_recv() {
+        let emit_as_progress =
+            analysis_process_status::is_analysis_process_progress_status(&process_status);
         let renderer_status = analysis_process_status::retain_latest_process_status(
             latest_process_status,
             process_status,
         );
-        store_status_and_emit(state, app, &renderer_status);
+        if emit_as_progress {
+            store_status_and_emit(state, app, &renderer_status);
+        }
     }
 }
 
