@@ -140,6 +140,39 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
+  it("finds tonight's first range on the structure timeline", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("button", { name: "Find verse at 0:10–0:30 on the timeline" }));
+
+    expect(screen.getByTestId("song-structure-section-verse-1")).toHaveAttribute("aria-current", "location");
+    expect(screen.getByTestId("song-structure-grid").querySelector("[aria-current='location']")).toHaveTextContent(/verse · 0:10–0:30/i);
+  });
+
+  it("hides the timeline find control when the named section clock is unusable", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0].timeRange = {
+      start: Number.NaN,
+      end: Number.POSITIVE_INFINITY
+    };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.queryByRole("button", { name: /Find .+ on the timeline/ })).toBeNull();
+  });
+
+  it("localizes the first-range timeline find control", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByRole("button", { name: "타임라인에서 0:10–0:30 verse 찾기" })).toBeTruthy();
+  });
+
   it("names tonight's first playable range and the next instrument check", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
@@ -151,6 +184,7 @@ describe("Workspace", () => {
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
     );
+    expect(screen.getByRole("button", { name: "Find verse at 0:10–0:30 on the timeline" })).toBeTruthy();
   });
 
   it("asks for an ear check when the selected part has no named span", () => {
@@ -167,6 +201,7 @@ describe("Workspace", () => {
     expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
       "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section."
     );
+    expect(screen.queryByRole("button", { name: /Find .+ on the timeline/ })).toBeNull();
   });
 
   it("limits the range callout to the selected role", () => {

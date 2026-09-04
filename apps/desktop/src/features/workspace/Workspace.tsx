@@ -1,10 +1,17 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useEffect, useRef, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import {
+  fillRangeCopy,
+  firstRangeRoadmap,
+  firstRangeSqueeze,
+  firstRangeTimeline,
+  hasUniqueRoadmapNavigationTarget,
+  hasUniqueSectionNavigationTarget
+} from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -16,6 +23,21 @@ interface WorkspaceProps {
   sourceBootstrap?: ProjectBootstrapSummary | null;
   onSongUpdate?: (song: RehearsalSong) => void;
 }
+
+/** Request identity for a user-initiated structure-timeline focus action. */
+type TimelineFocusRequest = {
+  rehearsalSourceIdentity: string;
+  sectionId: string;
+  requestSequence: number;
+};
+
+/** Request identity for a user-initiated section-roadmap focus action. */
+type RoadmapFocusRequest = {
+  rehearsalSourceIdentity: string;
+  sectionId: string;
+  roleId: string;
+  requestSequence: number;
+};
 
 /** Documented. */
 function formatTimelineTime(totalSeconds: number): string {
@@ -72,7 +94,36 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
 }
 
 /** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  focusSectionId,
+  focusRequestSequence
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  focusSectionId: string | null;
+  focusRequestSequence: number;
+}) {
+  const cellRefs = useRef(new Map<string, HTMLDivElement>());
+
+  useEffect(() => {
+    if (!focusSectionId || focusRequestSequence < 1) {
+      return;
+    }
+    const sectionCell = cellRefs.current.get(focusSectionId);
+    if (sectionCell && typeof sectionCell.scrollIntoView === "function") {
+      const reducedMotionPreferred =
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      sectionCell.scrollIntoView({
+        behavior: reducedMotionPreferred ? "auto" : "smooth",
+        inline: "center",
+        block: "nearest"
+      });
+    }
+  }, [focusRequestSequence, focusSectionId]);
+
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -91,14 +142,33 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
-              <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
-              </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
-            </div>
-          ))}
+          {sections.map((section) => {
+            const sectionFocused = focusSectionId === section.id;
+            return (
+              <div
+                key={section.id}
+                ref={(sectionNode) => {
+                  if (sectionNode) {
+                    cellRefs.current.set(section.id, sectionNode);
+                  } else {
+                    cellRefs.current.delete(section.id);
+                  }
+                }}
+                data-testid={`song-structure-section-${section.id}`}
+                aria-current={sectionFocused ? "location" : undefined}
+                className={
+                  sectionFocused
+                    ? "border-r border-fuchsia-300/40 bg-fuchsia-300/15 px-3 py-3 last:border-r-0 ring-2 ring-inset ring-fuchsia-300"
+                    : "border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0"
+                }
+              >
+                <p className="text-sm font-black text-white">
+                  {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                </p>
+                <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+              </div>
+            );
+          })}
         </div>
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
@@ -121,7 +191,16 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [timelineFocusRequest, setTimelineFocusRequest] = useState<TimelineFocusRequest | null>(null);
+  const [roadmapFocusRequest, setRoadmapFocusRequest] = useState<RoadmapFocusRequest | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const parsedSourceBootstrap = useMemo(
+    () => safeProjectBootstrapSummary(sourceBootstrap),
+    [sourceBootstrap]
+  );
+  const rehearsalSourceIdentity = parsedSourceBootstrap
+    ? `project:${parsedSourceBootstrap.projectId}`
+    : `song:${song.id}`;
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -163,6 +242,73 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstRangeClock = firstRangeTimeline(song, firstRange);
+  const firstRangeTimelineFindCopy = firstRangeClock
+    ? fillRangeCopy(t("workspaceFirstRangeFindSection"), {
+        sectionLabel: firstRangeClock.sectionLabel,
+        startClock: firstRangeClock.startClock,
+        endClock: firstRangeClock.endClock
+      })
+    : null;
+  const firstRangeBoard = firstRangeRoadmap(song, firstRange);
+  const firstRangeRoadmapFindCopy = firstRangeBoard
+    ? fillRangeCopy(t("workspaceFirstRangeFindRoadmap"), {
+        sectionLabel: firstRangeBoard.sectionLabel,
+        roleName: firstRangeBoard.roleName
+      })
+    : null;
+  const timelineFocusTargetIsCurrent =
+    timelineFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity &&
+    hasUniqueSectionNavigationTarget(song, timelineFocusRequest.sectionId);
+  const timelineFocusedSectionId = timelineFocusTargetIsCurrent
+    ? timelineFocusRequest.sectionId
+    : null;
+  const timelineFocusRequestSequence = timelineFocusTargetIsCurrent
+    ? timelineFocusRequest.requestSequence
+    : 0;
+  const roadmapFocusTargetIsCurrent =
+    roadmapFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity &&
+    hasUniqueRoadmapNavigationTarget(song, roadmapFocusRequest.sectionId, roadmapFocusRequest.roleId);
+  const roadmapFocusedSectionId = roadmapFocusTargetIsCurrent
+    ? roadmapFocusRequest.sectionId
+    : null;
+  const roadmapFocusedRoleId = roadmapFocusTargetIsCurrent
+    ? roadmapFocusRequest.roleId
+    : null;
+  const roadmapFocusRequestSequence = roadmapFocusTargetIsCurrent
+    ? roadmapFocusRequest.requestSequence
+    : 0;
+
+  /** Request the first-range section on every activation, even when it is already highlighted. */
+  const handleFindFirstRangeSection = () => {
+    if (!firstRangeClock) {
+      return;
+    }
+    setTimelineFocusRequest((previousFocusRequest) => ({
+      rehearsalSourceIdentity,
+      sectionId: firstRangeClock.sectionId,
+      requestSequence:
+        previousFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
+          ? previousFocusRequest.requestSequence + 1
+          : 1
+    }));
+  };
+
+  /** Request the first-range roadmap cell on every activation, even when it is already highlighted. */
+  const handleFindFirstRangeRoadmap = () => {
+    if (!firstRangeBoard) {
+      return;
+    }
+    setRoadmapFocusRequest((previousFocusRequest) => ({
+      rehearsalSourceIdentity,
+      sectionId: firstRangeBoard.sectionId,
+      roleId: firstRangeBoard.roleId,
+      requestSequence:
+        previousFocusRequest?.rehearsalSourceIdentity === rehearsalSourceIdentity
+          ? previousFocusRequest.requestSequence + 1
+          : 1
+    }));
+  };
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -240,7 +386,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportHandoff = () => {
-    const parsedSourceBootstrap = safeProjectBootstrapSummary(sourceBootstrap);
     const json = generateMetadataHandoffJson(song, {
       sourceBootstrap: parsedSourceBootstrap,
       workspaceId: song.id,
@@ -308,6 +453,33 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+            {(firstRangeClock && firstRangeTimelineFindCopy) ||
+            (firstRangeBoard && firstRangeRoadmapFindCopy) ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {firstRangeClock && firstRangeTimelineFindCopy ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                    onClick={handleFindFirstRangeSection}
+                  >
+                    {firstRangeTimelineFindCopy}
+                  </Button>
+                ) : null}
+                {firstRangeBoard && firstRangeRoadmapFindCopy ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+                    onClick={handleFindFirstRangeRoadmap}
+                  >
+                    {firstRangeRoadmapFindCopy}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -353,7 +525,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure
+            sections={song.sections}
+            t={t}
+            focusSectionId={timelineFocusedSectionId}
+            focusRequestSequence={timelineFocusRequestSequence}
+          />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -506,6 +683,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             song={song}
             activeRole={activeRole}
             onSongUpdate={onSongUpdate}
+            focusSectionId={roadmapFocusedSectionId}
+            focusRoleId={roadmapFocusedRoleId}
+            focusRequestSequence={roadmapFocusRequestSequence}
           />
           </section>
         </CardContent>

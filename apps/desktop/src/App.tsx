@@ -254,6 +254,7 @@ export function App() {
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [loadedProjectRevision, setLoadedProjectRevision] = useState(0);
   const [jobError, setJobError] = useState<string | null>(null);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
@@ -474,6 +475,7 @@ export function App() {
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
+      setLoadedProjectRevision((revision) => revision + 1);
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
@@ -512,7 +514,17 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
+      const workspaceInstanceKey = jobResultBootstrap?.projectId
+        ? `analysis-project-${jobResultBootstrap.projectId}`
+        : `loaded-project-${loadedProjectRevision}`;
+      return (
+        <Workspace
+          key={workspaceInstanceKey}
+          song={jobResult}
+          sourceBootstrap={jobResultBootstrap}
+          onSongUpdate={handleSongUpdate}
+        />
+      );
     }
     return <EmptyState />;
   };
