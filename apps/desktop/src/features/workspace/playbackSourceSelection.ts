@@ -1,3 +1,4 @@
+/** Renderer-visible source kinds backed by the current native playback authority. */
 export type PlaybackSourceKind =
   | "full_mix"
   | "vocals"
@@ -5,6 +6,7 @@ export type PlaybackSourceKind =
   | "drums"
   | "other";
 
+/** One opaque, project-scoped source that the rehearsal player may select. */
 export interface PlaybackSourceOption {
   kind: PlaybackSourceKind;
   authority: string;
@@ -23,7 +25,10 @@ export function derivePlaybackSourceOptions(
   currentFullMixAuthority: string | null | undefined,
   availableAuthorities: unknown,
 ): PlaybackSourceOption[] | null {
-  const currentMatch = currentFullMixAuthority?.match(FULL_MIX_AUTHORITY);
+  if (typeof currentFullMixAuthority !== "string") {
+    return null;
+  }
+  const currentMatch = currentFullMixAuthority.match(FULL_MIX_AUTHORITY);
   if (!currentMatch || !Array.isArray(availableAuthorities)) {
     return null;
   }
@@ -74,11 +79,17 @@ export function derivePlaybackSourceOptions(
     return null;
   }
 
+  const stemOptions: PlaybackSourceOption[] = [];
+  for (const stemKind of STEM_ORDER) {
+    const authority = stems.get(stemKind);
+    if (authority === undefined) {
+      return null;
+    }
+    stemOptions.push({ kind: stemKind, authority });
+  }
+
   return [
     { kind: "full_mix", authority: currentFullMixAuthority },
-    ...STEM_ORDER.map((stemKind) => ({
-      kind: stemKind,
-      authority: stems.get(stemKind)!,
-    })),
+    ...stemOptions,
   ];
 }
