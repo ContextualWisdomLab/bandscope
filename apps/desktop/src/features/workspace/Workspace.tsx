@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstCueSheetLead } from "./firstCueSheetLead";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -228,7 +229,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Documented. */
   const handleExportCueSheet = () => {
-    const csv = generateCueSheetCsv(song);
+    const csv = generateCueSheetCsv(song, { leadRow: firstCueSheetLead(song, activeRole, t) });
     downloadTextFile(csv, "text/csv;charset=utf-8;", `${sanitizeFilename(song.title)}_cuesheet.csv`);
   };
 
@@ -308,6 +309,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleExportCueSheet}
+              aria-label={t("workspaceFirstRangeDownloadSheet")}
+              className="mt-3 min-h-10 border-fuchsia-300/30 bg-fuchsia-300/10 font-semibold text-fuchsia-50 hover:bg-fuchsia-300/20 hover:text-white"
+            >
+              <Download className="mr-2 size-4 text-fuchsia-200" aria-hidden="true" />
+              {t("workspaceFirstRangeDownloadSheet")}
+            </Button>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
