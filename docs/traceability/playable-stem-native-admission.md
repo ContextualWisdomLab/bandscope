@@ -3,7 +3,7 @@
 - **Status:** Draft implementation evidence; not a release or acceptance claim
 - **Date:** 2026-09-04
 - **Bounded contexts:** Source Separation → Native Resource Admission → Active Player
-- **Implementation source head before this documentation update:** `feat/playable-stem-native-contract-961@68b308302f90865d0f596526c917cb60c615c7d0`
+- **Implementation source head before this documentation update:** `feat/playable-stem-native-contract-961@810c4b88d8186c083363e068dc7b67acd0ce1c60`
 - **Parent publication owner:** PR #1159, `22a9f18d960cc7df93db890b2a5aa9594428c2b4`
 - **Canonical playback owner:** PR #971, `9c1b20e6df778e303fada3e170c93418c496394b`
 - **Decision:** ADR-0001 remains **Proposed** until the source-to-audible acceptance criteria are executable on one current stack.
@@ -43,9 +43,9 @@ Native file identity is one shared desktop primitive in `native_file_identity.rs
 
 `PlaybackAuthority` keeps the full mix and an optional complete four-stem map under the same revocation mutex. When local-audio analysis is queued, `begin_stem_analysis(project_id, job_id)` makes that job the only generation allowed to register stems and clears an older generated set. `activate_stems(project_id, job_id, preflight)` constructs all four canonical source authorities before taking the authority lock, then installs the complete set only when the current project and latest-analysis job token still match. Project/source replacement revokes full mix, generation token and generated stems together.
 
-The JSONL worker transports one validated `AnalysisProcessStatus` envelope per update. It emits only renderer-safe `AnalysisJobStatus`, retains the complete newest native envelope, and reads `playableStemArtifactSet` only from the exact final retained envelope. A later succeeded status without stem metadata therefore replaces an earlier succeeded-with-stems envelope.
+The JSONL worker transports one validated `AnalysisProcessStatus` envelope per update. It retains the complete newest native envelope and exposes only renderer-safe `AnalysisJobStatus`. During subprocess execution, only genuine `queued` and `running` producer updates are stored/emitted as progress. Producer `succeeded` and `failed` envelopes are retained natively but withheld from the renderer until process exit, complete stdout validation, final-job/state validation, and—when applicable—stem preflight/authority binding have finished. The outer analysis worker remains the single terminal `store_status_and_emit` owner.
 
-The process contract now also fails closed on malformed non-empty JSONL, reader errors, producer job-ID mismatch, contradictory state payloads, absence of a final status, and successful process exit whose final state is still `queued` or `running`. Whitespace-only JSONL separators remain ignorable. A `succeeded` status requires a result and no error; a `failed` status requires an error and no result; `queued`/`running` may carry neither. These invariants are checked before producer status can be accepted for the requested native job.
+The process stream reads `playableStemArtifactSet` only from the exact final retained envelope. A later succeeded status without stem metadata therefore replaces an earlier succeeded-with-stems envelope. The process contract also fails closed on malformed non-empty JSONL, reader errors, producer job-ID mismatch, contradictory state payloads, absence of a final status, and successful process exit whose final state is still `queued` or `running`. Whitespace-only JSONL separators remain ignorable. A `succeeded` status requires a result and no error; a `failed` status requires an error and no result; `queued`/`running` may carry neither. These invariants are checked before producer status can be accepted for the requested native job.
 
 The custom protocol accepts only opaque native tokens:
 
@@ -80,6 +80,7 @@ For this preflight increment, the native admission module therefore owns a small
 | BandScope single playback authority | Stem files extend the current revocable authority instead of creating another transport store. | Shared native identity primitive, latest-job token, atomic four-stem map, opaque protocol routes, replacement-revocation tests. |
 | Exact final process envelope | Native artifact metadata must belong to the same final status returned to the renderer. | Whole-envelope retention regression plus production `run_analysis_engine` coupling. Hosted exact-head receipt is still absent. |
 | Fail-closed JSONL/job contract | Invalid non-empty JSONL, mismatched job identity, contradictory state payloads and nonterminal final output are not accepted as a successful native process result. | `analysis_process_status` and `analysis_process_contract` Rust regressions; production stdout reader propagates parse/identity failure. Hosted exact-head receipt is still absent. |
+| Terminal-event ordering | Producer terminal states are not buyer-visible until subprocess exit and complete stream validation. | `only_nonterminal_status_is_renderer_progress` plus production `drain_analysis_process_status_updates` gating; hosted exact-head receipt is still absent. |
 
 ## Threat cases and current result
 
@@ -91,7 +92,7 @@ For this preflight increment, the native admission module therefore owns a small
 | Same-size path replacement after preflight | Reopened file identity differs and serving fails with `GONE`. | In-place mutation semantics still depend on the platform identity primitive and need exact-head platform evidence. |
 | Older same-project analysis finishes after a newer job | `job_id` generation token prevents the older result from replacing the newer stem set. | Exact-head executable evidence is still required. |
 | Earlier succeeded status has stems, later succeeded status does not | Whole-envelope replacement means only the final status can contribute a stem reference. | Exact-head executable evidence is still required. |
-| Non-empty malformed/unknown JSONL status after a valid status | Reader returns a process-contract error; the native result becomes failed instead of falling back to the previous envelope. | An earlier renderer event may have been emitted before a later malformed line is discovered; no stem authority is bound until final process validation. |
+| Non-empty malformed/unknown JSONL status after a valid terminal status | Reader returns a process-contract error; the native result becomes failed, and the earlier producer terminal state was never emitted to the renderer. | Exact-head executable evidence is still required. |
 | Status for another job ID | Rejected before storage/emission by the native stdout reader. | Exact-head executable evidence is still required. |
 | Process exits successfully with queued/running final status | Rejected as an invalid native response. | Exact-head executable evidence is still required. |
 | Contradictory succeeded/failed/result/error payload | Rejected by strict process-status semantics even without stem metadata. | Exact-head executable evidence is still required. |
@@ -101,13 +102,11 @@ For this preflight increment, the native admission module therefore owns a small
 
 ## Current RED and acceptance boundary
 
-The native process and file-admission source contracts are substantially connected, but the source-to-audible vertical is not GREEN.
+The native process/file-admission and terminal-ordering source contracts are now connected, but the source-to-audible vertical is not GREEN. Hosted exact-head Rust format/test/Clippy/coverage and repository/central gates have not yet established current-head executable evidence for this stacked branch, so source-level regressions and source inspection are non-passing evidence.
 
-One remaining process-ordering edge is buyer-visible rather than authority-level: an otherwise valid status can be emitted to the renderer before a later malformed JSONL line causes the process result to fail. No stem authority is installed before final validation, but a terminal renderer state should not flash as accepted before the subprocess stream itself is known to be valid. The next process-boundary increment should buffer terminal producer status until subprocess completion while continuing to emit genuine queued/running progress, then emit only the validated final terminal envelope.
+The next buyer-visible gap is the source selector: no shipped control yet exposes `Full mix | Vocals | Bass | Drums | Other instruments`. The slice must use only opaque handles from the existing playback authority, preserve position/loop/range semantics across source changes, and cover pointer, touch, keyboard and screen-reader behavior, selection persistence/reload/stale race, KO/EN/JA/ZH/VI/ES/DE/FR expansion, and rights-cleared audible macOS/Windows behavior. It must not claim guitar/keyboard identity for the `other` stem.
 
-No shipped source selector yet exposes `Full mix | Vocals | Bass | Drums | Other instruments`. The buyer-visible slice must use opaque handles from the existing protocol and verify source changes without resetting rehearsal position/range semantics, then cover pointer, touch, keyboard and screen-reader behavior, selection persistence/reload/stale race, locale expansion, and rights-cleared audible macOS/Windows behavior.
-
-The stacked exact head has no hosted pull-request workflow run. Source-level RED/fix commits and unit contracts cannot substitute for current-head Rust format/test/Clippy/coverage, repository/central CI/security/SAST/dependency/SBOM/package/release/review evidence. ADR-0001 therefore stays Proposed and this PR stays Draft.
+The stacked exact head has no qualifying hosted pull-request workflow receipt at the time of this documentation update. ADR-0001 therefore stays Proposed and this PR stays Draft.
 
 ## References
 
