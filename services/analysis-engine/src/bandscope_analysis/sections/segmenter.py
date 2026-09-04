@@ -18,6 +18,7 @@ from typing import Any, Literal
 
 import librosa
 import numpy as np
+from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
 
 from .._native import HAVE_RUST, _checkerboard_novelty_rust
@@ -121,7 +122,7 @@ def _checkerboard_novelty_reference(
     half = kernel_size // 2
     novelty = np.zeros(n, dtype=np.float64)
 
-    if n < kernel_size:
+    if kernel_size == 0 or n < kernel_size:
         return novelty
 
     # Build the Foote checkerboard kernel. On-diagonal quadrants (within a
@@ -134,16 +135,20 @@ def _checkerboard_novelty_reference(
     kernel[:half, :half] = 1.0
     kernel[half:, half:] = 1.0
 
-    # Sum each checkerboard offset across all valid diagonal windows at once.
-    valid = novelty[half : n - half]
-    for di in range(-half, half):
-        for dj in range(-half, half):
-            value = kernel[di + half, dj + half]
-            diagonal = np.diagonal(ssm[half + di : n - half + di, half + dj : n - half + dj])
-            if value > 0:
-                valid += diagonal
-            else:
-                valid -= diagonal
+    # ``sliding_window_view`` and ``diagonal`` are zero-copy views. Restrict
+    # the final window axis to the exact public output slice (even kernels have
+    # one additional bottom-right window), then contract directly into novelty
+    # so no K²×N temporary tensor or second O(N) result vector is materialized.
+    windows = sliding_window_view(ssm, (kernel_size, kernel_size))
+    valid_length = n - kernel_size + 1
+    diagonal_windows = np.diagonal(windows, axis1=0, axis2=1)[..., :valid_length]
+    np.einsum(
+        "ij,ijk->k",
+        kernel,
+        diagonal_windows,
+        out=novelty[half : half + valid_length],
+        optimize=False,
+    )
 
     # Normalize by peak absolute magnitude, preserving sign.
     max_val = np.max(np.abs(novelty))

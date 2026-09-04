@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Optimized `_checkerboard_novelty_reference` by replacing Python inner loops with a vectorized NumPy `sliding_window_view` and `einsum` implementation for fallback parity, preserving the Rust kernel as the production arithmetic path. Zero-sized kernels retain the prior all-zero curve instead of entering an invalid `n + 1` window range.
+
+
 ### Added
 
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.

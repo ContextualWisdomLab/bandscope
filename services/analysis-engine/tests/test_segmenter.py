@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from bandscope_analysis.sections.segmenter import (
     MAX_SSM_FRAMES,
@@ -104,29 +105,42 @@ def test_checkerboard_novelty_short_matrix_returns_zeros() -> None:
     assert np.array_equal(novelty, np.zeros(2, dtype=np.float64))
 
 
-def test_checkerboard_novelty_matches_loop_reference() -> None:
-    """Ensure diagonal vectorization preserves checkerboard novelty values."""
-    rng = np.random.default_rng(42)
-    ssm = rng.random((48, 48), dtype=np.float64)
-    ssm = (ssm + ssm.T) / 2.0
-    kernel_size = 8
+def _checkerboard_loop_oracle(ssm: np.ndarray, kernel_size: int) -> np.ndarray:
+    """Compute the Foote novelty curve with explicit centered patch loops."""
+    n = ssm.shape[0]
     half = kernel_size // 2
-    expected = np.zeros(ssm.shape[0], dtype=np.float64)
+    expected = np.zeros(n, dtype=np.float64)
+    if kernel_size == 0 or n < kernel_size:
+        return expected
 
-    # Foote kernel: +1 on-diagonal quadrants, -1 cross quadrants.
     kernel = np.full((kernel_size, kernel_size), -1.0, dtype=np.float64)
     kernel[:half, :half] = 1.0
     kernel[half:, half:] = 1.0
-    for i in range(half, ssm.shape[0] - half):
-        patch = ssm[i - half : i + half, i - half : i + half]
-        expected[i] = np.sum(patch * kernel)
+    for center in range(half, half + (n - kernel_size + 1)):
+        start = center - half
+        patch = ssm[start : start + kernel_size, start : start + kernel_size]
+        expected[center] = float(np.sum(patch * kernel))
 
-    max_value = np.max(np.abs(expected))
-    expected = expected / max_value
+    max_value = float(np.max(np.abs(expected)))
+    return expected / max_value if max_value > 0.0 else expected
+
+
+@pytest.mark.parametrize(
+    ("matrix_size", "kernel_size"),
+    [(1, 1), (4, 3), (17, 4), (48, 8), (65, 64), (96, 15)],
+)
+def test_checkerboard_novelty_reference_matches_independent_loop(
+    matrix_size: int,
+    kernel_size: int,
+) -> None:
+    """Vectorization preserves even, odd, unit, and boundary-size kernels."""
+    rng = np.random.default_rng(matrix_size * 101 + kernel_size)
+    ssm = rng.random((matrix_size, matrix_size), dtype=np.float64)
+    ssm = (ssm + ssm.T) / 2.0
 
     np.testing.assert_allclose(
-        _checkerboard_novelty(ssm, kernel_size=kernel_size),
-        expected,
+        _checkerboard_novelty_reference(ssm, kernel_size=kernel_size),
+        _checkerboard_loop_oracle(ssm, kernel_size),
         rtol=1e-12,
         atol=1e-12,
     )

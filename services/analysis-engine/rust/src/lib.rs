@@ -37,13 +37,15 @@ fn checkerboard_novelty<'py>(
     let half = kernel_size / 2;
     let mut novelty = Array1::<f64>::zeros(n);
 
-    // Mirror the Python guard: matrices smaller than the kernel yield zeros.
-    if n < kernel_size {
+    // Preserve the legacy all-zero curve for a zero-sized kernel; matrices
+    // smaller than a nonzero kernel likewise have no valid diagonal patch.
+    if kernel_size == 0 || n < kernel_size {
         return Ok(novelty.into_pyarray(py));
     }
 
-    // valid_range = range(half, n - half)
-    for i in half..(n - half) {
+    // Emit one value for every valid K×K diagonal patch. For even kernels,
+    // this includes the final bottom-right patch that `half..(n - half)` omits.
+    for i in half..(half + n - kernel_size + 1) {
         let mut acc = 0.0_f64;
         // patch = ssm[i-half : i+half, i-half : i+half]; sum(patch * kernel)
         for r in 0..kernel_size {
