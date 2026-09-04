@@ -16,6 +16,9 @@ from .playback_artifacts import (
     NativePlayableStemArtifact,
     NativePlayableStemArtifactSet,
     PlaybackStemKind,
+    PlayableStemArtifactReference,
+    PlayableStemArtifactSetReference,
+    build_playable_stem_artifact_set_reference,
     materialize_playable_stem_artifact_set,
 )
 from .separator import StemSeparator
@@ -30,11 +33,14 @@ __all__ = [
     "NativePlayableStemArtifact",
     "NativePlayableStemArtifactSet",
     "PlaybackStemKind",
+    "PlayableStemArtifactReference",
+    "PlayableStemArtifactSetReference",
     "StemRoleTypeMap",
     "AudioStemSeparator",
     "StemSeparator",
     "StemCategory",
     "StemDescriptor",
     "SeparationResult",
+    "build_playable_stem_artifact_set_reference",
     "materialize_playable_stem_artifact_set",
 ]
