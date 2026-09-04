@@ -219,10 +219,16 @@ export type ScoreAttachment = {
 };
 
 /** Documented. */
+export type RehearsalFine = {
+  label: string;
+};
+
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
   tempo?: number;
+  fine?: RehearsalFine;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -432,6 +438,9 @@ const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
   tempo: 120,
+  fine: {
+    label: "Fine"
+  },
   sections: [
     {
       id: "verse-1",
@@ -1756,6 +1765,25 @@ function migrateLegacySectionTimeRanges(value: unknown): unknown {
 }
 
 /** Documented. */
+function validateRehearsalFine(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["label"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.label !== "string") {
+    return invalidField(`${path}.label`);
+  }
+  if (!/^Fine(?: [1-9])?$/u.test(value.label)) {
+    return invalidField(`${path}.label`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateScoreAttachment(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1787,7 +1815,7 @@ function validateRehearsalSong(
   }
   const extraKey = unexpectedKey(
     normalized,
-    ["id", "title", "tempo", "sections", "exportSummary", "collaboration", "scoreAttachments"],
+    ["id", "title", "tempo", "fine", "sections", "exportSummary", "collaboration", "scoreAttachments"],
     ""
   );
   if (extraKey) {
@@ -1804,6 +1832,12 @@ function validateRehearsalSong(
     (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
   ) {
     return invalidField("tempo");
+  }
+  if (normalized.fine !== undefined) {
+    const fineError = validateRehearsalFine(normalized.fine, "fine");
+    if (fineError) {
+      return fineError;
+    }
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");
