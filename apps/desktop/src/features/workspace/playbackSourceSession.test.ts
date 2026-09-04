@@ -61,6 +61,32 @@ describe("playback source discovery session", () => {
     expect(staleCompletion.pendingRequest).toEqual(rotated.request);
   });
 
+  it("rejects a forged discovery receipt even when its scalar identity matches", () => {
+    const begin = beginPlaybackSourceDiscovery(
+      createPlaybackSourceSession(projectA),
+      projectA,
+    );
+    expect(begin.request).not.toBeNull();
+    const forgedRequest = begin.request
+      ? {
+          fullMixAuthority: begin.request.fullMixAuthority,
+          sequence: begin.request.sequence,
+        }
+      : null;
+
+    const completed = completePlaybackSourceDiscovery(
+      begin.state,
+      forgedRequest,
+      projectAOptions,
+    );
+
+    expect(completed).toBe(begin.state);
+    expect(completed.options).toEqual([
+      { kind: "full_mix", authority: projectA },
+    ]);
+    expect(completed.pendingRequest).toBe(begin.request);
+  });
+
   it("fails closed when completion is partial, malformed, or project-mismatched", () => {
     const begin = beginPlaybackSourceDiscovery(
       createPlaybackSourceSession(projectA),
