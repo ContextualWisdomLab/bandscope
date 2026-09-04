@@ -242,9 +242,30 @@ pub struct RehearsalSectionPayload {
     label: String,
     groove: String,
     time_range: SectionTimeRangePayload,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_measure_start",
+        skip_serializing_if = "Option::is_none"
+    )]
+    measure_start: Option<u32>,
     confidence: ConfidencePayload,
     roles: Vec<RehearsalRolePayload>,
     part_graph: Vec<PartGraphNodePayload>,
+}
+
+fn deserialize_optional_measure_start<'de, D>(deserializer: D) -> Result<Option<u32>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match Option::<u32>::deserialize(deserializer)? {
+        None => Err(serde::de::Error::custom(
+            "measureStart must be an integer when present",
+        )),
+        Some(measure_start) if !(1..=9_999).contains(&measure_start) => Err(
+            serde::de::Error::custom("measureStart must be between 1 and 9999"),
+        ),
+        Some(measure_start) => Ok(Some(measure_start)),
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -820,6 +841,36 @@ mod tests {
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized["sections"][0].get("measureStart").is_none());
+    }
+
+    #[test]
+    fn rehearsal_section_payload_round_trips_optional_measure_start() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["measureStart"] = json!(9);
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with measureStart should deserialize");
+        assert_eq!(parsed.sections[0].measure_start, Some(9));
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("bar-labeled song payload should serialize back");
+        assert_eq!(serialized["sections"][0]["measureStart"], json!(9));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("bar-labeled payload should encode"),
+        )
+        .expect("bar-labeled project should load");
+        assert_eq!(loaded.sections[0].measure_start, Some(9));
+    }
+
+    #[test]
+    fn rehearsal_section_payload_rejects_invalid_measure_start() {
+        for measure_start in [json!(0), json!(10_000), json!(1.5), json!("9"), Value::Null] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["sections"][0]["measureStart"] = measure_start;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
     }
 
     #[test]

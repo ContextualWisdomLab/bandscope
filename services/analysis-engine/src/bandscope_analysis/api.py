@@ -141,6 +141,7 @@ class RehearsalSectionPayload(TypedDict):
     label: str
     groove: str
     timeRange: SectionTimeRangePayload
+    measureStart: NotRequired[int]
     confidence: ConfidencePayload
     roles: list[RehearsalRolePayload]
     partGraph: list[PartGraphNodePayload]
@@ -479,6 +480,7 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
                 "label": verse_section["form_label"],
                 "groove": verse_section["groove"],
                 "timeRange": build_section_time_range(10, 30),
+                "measureStart": 9,
                 "confidence": {
                     "level": "medium",
                     "source": "model",
