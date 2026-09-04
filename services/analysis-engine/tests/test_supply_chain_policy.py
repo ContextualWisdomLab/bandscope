@@ -1242,7 +1242,12 @@ def test_central_governance_workflows_are_push_only_where_local_signals_remain()
 
     assert not (workflows_dir / "dependency-review.yml").exists()
 
-    for local_signal in ("codeql.yml", "ossf-scorecard.yml", "trivy.yml"):
+    for local_signal in (
+        "bandit.yml",
+        "codeql.yml",
+        "ossf-scorecard.yml",
+        "trivy.yml",
+    ):
         workflow = workflows_dir / local_signal
         assert workflow.exists(), (
             f"{local_signal} keeps repository-local security-tab/SAST signal "
@@ -1257,6 +1262,27 @@ def test_central_governance_workflows_are_push_only_where_local_signals_remain()
     assert ".github/workflows/dependency-review.yml" not in required
     assert ".github/workflows/codeql.yml" in required
     assert ".github/workflows/ossf-scorecard.yml" in required
+
+
+def test_local_security_workflows_cancel_superseded_runs_with_read_only_defaults() -> None:
+    """Keep retained local security signals bounded and least-privileged."""
+    repo_root = Path(__file__).resolve().parents[3]
+    workflows_dir = repo_root / ".github" / "workflows"
+
+    for workflow_name in (
+        "bandit.yml",
+        "codeql.yml",
+        "ossf-scorecard.yml",
+        "secret-scan-gate.yml",
+        "security-audit.yml",
+        "trivy.yml",
+    ):
+        workflow = (workflows_dir / workflow_name).read_text(encoding="utf-8")
+        assert "concurrency:" in workflow, workflow_name
+        assert "cancel-in-progress: true" in workflow, workflow_name
+        assert "contents: read" in workflow or "permissions: read-all" in workflow, (
+            workflow_name
+        )
 
 
 def test_opencode_review_declares_top_level_token_permissions() -> None:

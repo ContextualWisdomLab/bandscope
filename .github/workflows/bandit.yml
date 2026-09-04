@@ -5,10 +5,14 @@ on:
     branches:
       - develop
       - main
-  pull_request:
-    branches:
-      - develop
-      - main
+  workflow_dispatch:
+
+# Pull-request SAST is owned by the organization-required SAST Semgrep
+# workflow. Keep Bandit as a trusted-branch/manual backstop without duplicating
+# PR checkout, dependency installation, and Python scanning.
+concurrency:
+  group: bandit-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

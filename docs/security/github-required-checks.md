@@ -9,12 +9,19 @@ These are the merge-gate status checks that should be required on protected bran
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
-- `CodeQL`
-- `trivy-fs-scan`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
 - `gate / build / macos`
+- `trivy-fs`
+- `coverage-evidence`
+- `opencode-review`
+- `strix`
+- `scan-pr-queue`
+- `osv-scan`
+- `scorecard`
+- `Analyze (javascript-typescript)`
+- `Analyze (python)`
 
 `gate / build / windows` must cover both Windows `amd64` and Windows `arm64`.
 `gate / build / macos` must cover both macOS Intel (`amd64`) and macOS `arm64`.
@@ -24,12 +31,28 @@ These are the merge-gate status checks that should be required on protected bran
 - `ci / build-and-test`
 - `dependency-review`
 - `security-audit`
-- `CodeQL`
-- `trivy-fs-scan`
 - `sbom`
 - `release-preflight`
 - `gate / build / windows`
 - `gate / build / macos`
+- `trivy-fs`
+- `Analyze (javascript-typescript)`
+- `Analyze (python)`
+
+The organization required-workflow rule is the authoritative PR owner for
+`osv-scan`, `dependency-review`, `trivy-fs`, Scorecard visibility, Semgrep SAST,
+Strix, and Noema. Repository-local Bandit, CodeQL, Scorecard, and Trivy run only
+after trusted-branch pushes, on schedules where applicable, or manually. The
+repository `security-audit` and `secret-scan-gate` remain PR-scoped because
+their coverage has not been fully inherited by a central workflow.
+
+The lists above reflect the live classic required-status contexts verified on
+2026-09-04. The active organization ruleset separately requires the central
+`close-empty-pr.yml`, `opencode-review.yml`, `pr-review-merge-scheduler.yml`,
+`security-scan.yml`, `strix.yml`, `sast-semgrep.yml`, and `noema-review.yml`
+workflows on the default branch. Keep these two enforcement mechanisms distinct
+when changing local triggers: a context must not be removed while classic
+protection still requires it.
 
 ## GitHub settings baseline
 

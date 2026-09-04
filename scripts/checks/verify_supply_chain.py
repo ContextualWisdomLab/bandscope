@@ -18,8 +18,10 @@ REQUIRED_FILES = [
     Path("apps/desktop/src-tauri/Cargo.lock"),
     Path(".github/dependabot.yml"),
     # Dependency review runs via the org-level required workflow in
-    # ContextualWisdomLab/.github; repo-local CodeQL and Scorecard stay push-only
-    # so GitHub/Scorecard can still observe SAST and supply-chain security tabs.
+    # ContextualWisdomLab/.github; repo-local Bandit, CodeQL, Scorecard, and
+    # Trivy stay push/schedule-only as trusted-branch backstops while central
+    # required workflows own PR enforcement.
+    Path(".github/workflows/bandit.yml"),
     Path(".github/workflows/security-audit.yml"),
     Path(".github/workflows/codeql.yml"),
     Path(".github/workflows/sbom.yml"),
@@ -1240,6 +1242,17 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
             missing.append(f"security audit workflow missing vulnerability audit token: {token}")
 
 
+def _verify_bandit_coverage(missing: list[str]) -> None:
+    bandit = read_workflow(Path(".github/workflows/bandit.yml"), "bandit", missing)
+    for token in ["develop", "main", "push", "bandit"]:
+        if bandit and token not in bandit:
+            missing.append(f"bandit workflow missing token: {token}")
+    if bandit and "pull_request:" in bandit:
+        missing.append(
+            "bandit workflow must stay push/manual-only; central SAST owns PR scanning"
+        )
+
+
 def _verify_codeql_coverage(missing: list[str]) -> None:
     codeql = read_workflow(
         Path(".github/workflows/codeql.yml"), "codeql", missing, optional=True
@@ -1352,6 +1365,7 @@ def verify_workflow_coverage() -> list[str]:
     missing: list[str] = []
     _verify_ci_coverage(missing)
     _verify_sbom_coverage(missing)
+    _verify_bandit_coverage(missing)
     _verify_security_audit_coverage(missing)
     _verify_codeql_coverage(missing)
     _verify_release_coverage(missing)

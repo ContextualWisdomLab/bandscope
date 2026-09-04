@@ -10,6 +10,12 @@ on:
       - develop
       - main
 
+concurrency:
+  group: >-
+    security-audit-${{ github.repository }}-${{
+    github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

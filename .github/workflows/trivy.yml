@@ -6,6 +6,10 @@ on:
       - develop
       - main
 
+concurrency:
+  group: trivy-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
