@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2026-03-06 - [파이썬 O(N^2) 리스트 룩업을 O(1) 딕셔너리로 최적화]
+**Learning:** `chart.py`의 텍스트 변환 로직에서 `not in list`로 중복을 방지하며 삽입하는 방식은 리스트 크기가 커질 때 O(N^2) 병목을 유발합니다. 파이썬 3.7+부터 딕셔너리가 삽입 순서를 유지하므로, `dict[item] = None`을 사용해 순서를 보존하면서 O(1)의 성능 최적화가 가능함을 배웠습니다.
+**Action:** 앞으로 리스트의 중복을 제거하면서 순서를 유지해야 하는 로직에서는 `set` 대신 딕셔너리(dictionary) 키를 활용할 것입니다.

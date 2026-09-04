@@ -10,6 +10,7 @@
 
 ### Changed
 
+- Changed chart-export role, cue, and priority de-duplication to insertion-ordered dictionaries, preserving first-occurrence output while replacing repeated linear membership scans with average constant-time key lookups.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
