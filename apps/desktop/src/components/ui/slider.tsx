@@ -3,9 +3,12 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 
 import { cn } from "@/lib/utils"
 
-type SliderProps = React.ComponentProps<typeof SliderPrimitive.Root>
+type SliderProps = Omit<
+  React.ComponentProps<typeof SliderPrimitive.Root>,
+  "orientation"
+>
 
-/** Render a styled slider while forwarding its accessible name to the interactive thumb. */
+/** Render the reusable horizontal slider and name its interactive thumb. */
 function Slider({
   className,
   "aria-label": ariaLabel,
@@ -16,6 +19,7 @@ function Slider({
   return (
     <SliderPrimitive.Root
       data-slot="slider"
+      orientation="horizontal"
       className={cn(
         "relative flex w-full touch-none select-none items-center",
         className
@@ -36,7 +40,7 @@ function Slider({
             aria-label={ariaLabel}
             aria-labelledby={ariaLabelledBy}
             aria-describedby={ariaDescribedBy}
-            className="block h-6 w-6 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            className="block h-6 w-6 rounded-full border border-primary/50 bg-background shadow transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring disabled:pointer-events-none disabled:opacity-50"
           />
         </SliderPrimitive.Track>
       </SliderPrimitive.Control>
