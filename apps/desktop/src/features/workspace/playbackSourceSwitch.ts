@@ -23,6 +23,12 @@ export interface PlaybackSourceSwitchPlan extends PlaybackSourceSwitchIdentity {
   resumeAfterLoad: boolean;
 }
 
+/** Renderer-owned identity state for the mutable HTML media source lifecycle. */
+export interface PlaybackSourceSwitchSession {
+  sequence: number;
+  activePlan: PlaybackSourceSwitchPlan | null;
+}
+
 function hasValidSwitchIdentity(identity: PlaybackSourceSwitchIdentity): boolean {
   const sourceProjectId = playbackSourceProjectId(identity.sourceAuthority);
   const targetProjectId = playbackSourceProjectId(identity.targetAuthority);
@@ -33,6 +39,11 @@ function hasValidSwitchIdentity(identity: PlaybackSourceSwitchIdentity): boolean
     Number.isSafeInteger(identity.sequence) &&
     identity.sequence > 0
   );
+}
+
+/** Start a renderer switch session with no reusable media receipt. */
+export function createPlaybackSourceSwitchSession(): PlaybackSourceSwitchSession {
+  return { sequence: 0, activePlan: null };
 }
 
 /**
@@ -80,6 +91,48 @@ export function capturePlaybackSourceSwitch(
     playbackRate: transport.playbackRate,
     sourcePhase: transport.phase,
     resumeAfterLoad: transport.phase === "looping",
+  };
+}
+
+/**
+ * Begin one media-source replacement and invalidate every older metadata receipt.
+ *
+ * The sequence is burned before continuity capture. A rejected target or transport
+ * phase therefore cannot leave an older `loadedmetadata` receipt authoritative.
+ * Sequence values never wrap; exhaustion clears the active plan until the player
+ * mounts a fresh switch session.
+ */
+export function beginPlaybackSourceSwitch(
+  state: PlaybackSourceSwitchSession,
+  transport: RehearsalTransportState,
+  currentMediaTimeSeconds: number,
+  sourceAuthority: string,
+  targetAuthority: string,
+): { state: PlaybackSourceSwitchSession; plan: PlaybackSourceSwitchPlan | null } {
+  const currentSequence =
+    Number.isSafeInteger(state.sequence) && state.sequence >= 0
+      ? state.sequence
+      : Number.MAX_SAFE_INTEGER;
+  if (currentSequence >= Number.MAX_SAFE_INTEGER) {
+    return {
+      state: { sequence: Number.MAX_SAFE_INTEGER, activePlan: null },
+      plan: null,
+    };
+  }
+
+  const sequence = currentSequence + 1;
+  const plan = capturePlaybackSourceSwitch(
+    transport,
+    currentMediaTimeSeconds,
+    {
+      sourceAuthority,
+      targetAuthority,
+      sequence,
+    },
+  );
+  return {
+    state: { sequence, activePlan: plan },
+    plan,
   };
 }
 
