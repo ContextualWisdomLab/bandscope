@@ -725,7 +725,8 @@ describe("shared type helpers", () => {
               }
             }
           ]
-        }
+        },
+        expect.anything()
       ],
       exportSummary: {
         format: "cue-sheet"
@@ -738,6 +739,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[0]?.turnaroundPlan).toContain("verse last beat");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -746,6 +748,12 @@ describe("shared type helpers", () => {
       value: {
         chord: "C#m11"
         }
+    });
+    expect(song.sections).toHaveLength(2);
+    expect(song.sections[1]).toMatchObject({
+      id: "chorus-1",
+      label: "chorus",
+      timeRange: { start: 30, end: 50 }
     });
   });
 
@@ -1255,6 +1263,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].turnaroundPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.turnaroundPlan = 2 as never;
         })
       },
       {

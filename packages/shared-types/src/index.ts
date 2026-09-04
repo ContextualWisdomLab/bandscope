@@ -125,7 +125,7 @@ export type ManualOverride =
     source: "user";
   };
 
-/** Documented. */
+/** An active rehearsal role on one section of tonight's map, carrying optional activity-backed guidance metadata. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -139,6 +139,8 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  turnaroundPlan?: string;
+  turnaroundPlanSource?: ProvenanceSource;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -474,6 +476,8 @@ const demoRehearsalSongSeed: RehearsalSong = {
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
+          turnaroundPlan: "Turn these last bars with Lead Vocal on the verse last beat; land the chorus downbeat together.",
+          turnaroundPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -621,6 +625,30 @@ const demoRehearsalSongSeed: RehearsalSong = {
     ]
   }
 };
+
+/** Keep the demo turnaround on a real continuation boundary for the workspace resolver. */
+const demoContinuationSection = structuredClone(demoRehearsalSongSeed.sections[0]);
+demoContinuationSection.id = "chorus-1";
+demoContinuationSection.label = "chorus";
+demoContinuationSection.groove = "Open chorus lift on the shared downbeat";
+demoContinuationSection.timeRange = { start: 30, end: 50 };
+demoContinuationSection.confidence = {
+  level: "medium",
+  source: "model",
+  notes: "The chorus follows the verse turnaround."
+};
+demoContinuationSection.roles = demoContinuationSection.roles.map((role) => {
+  const clone = structuredClone(role);
+  delete clone.turnaroundPlan;
+  delete clone.turnaroundPlanSource;
+  return clone;
+});
+demoContinuationSection.partGraph = demoContinuationSection.partGraph.map((node) => ({
+  ...node,
+  handoff_to: [],
+  handoff_from: []
+}));
+demoRehearsalSongSeed.sections.push(demoContinuationSection);
 
 /** Documented. */
 export function createDefaultProjectSummary(input: {
@@ -1497,6 +1525,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "turnaroundPlan",
+      "turnaroundPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1581,21 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.turnaroundPlan !== undefined && typeof value.turnaroundPlan !== "string") {
+    return invalidField(`${path}.turnaroundPlan`);
+  }
+  if (
+    value.turnaroundPlanSource !== undefined &&
+    !isOneOf(PROVENANCE_SOURCES, value.turnaroundPlanSource)
+  ) {
+    return invalidField(`${path}.turnaroundPlanSource`);
+  }
+  if (value.turnaroundPlanSource !== undefined && value.turnaroundPlan === undefined) {
+    return invalidField(`${path}.turnaroundPlanSource`);
+  }
+  if (value.turnaroundPlan !== undefined && value.turnaroundPlanSource === undefined) {
+    return invalidField(`${path}.turnaroundPlanSource`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

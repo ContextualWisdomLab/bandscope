@@ -92,6 +92,7 @@ describe("Workspace", () => {
       id: "low-end",
       name: "Bass Guitar"
     };
+    song.sections = [song.sections[0]!];
 
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
@@ -161,6 +162,7 @@ describe("Workspace", () => {
       range: { lowestNote: "", highestNote: "none" },
       overlapWarnings: []
     }));
+    song.sections = [song.sections[0]!];
 
     render(<Workspace song={song} />);
 
@@ -188,6 +190,7 @@ describe("Workspace", () => {
       ...role,
       overlapWarnings: []
     }));
+    song.sections = [song.sections[0]!];
 
     render(<Workspace song={song} />);
 
@@ -325,5 +328,35 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+  });
+
+  it("names tonight's first turnaround plan as workspace navigation", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    expect(
+      screen.getAllByText(
+        "Turn these last bars with Lead Vocal on the verse last beat; land the chorus downbeat together."
+      ).length
+    ).toBeGreaterThan(0);
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar turnaround at 0:30"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Turn those last bars on Bass Guitar at 0:30 before the next section lands./)
+    ).toBeTruthy();
   });
 });

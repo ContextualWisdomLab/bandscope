@@ -32,7 +32,7 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByTitle("우선순위: high").length).toBeGreaterThan(0);
     expect(screen.getByText("사용자")).toBeTruthy();
     expect(screen.getAllByText("음역").length).toBeGreaterThan(0);
-    expect(screen.getByText("C#2 — E3")).toBeTruthy();
+    expect(screen.getAllByText("C#2 — E3").length).toBeGreaterThan(0);
     expect(screen.getAllByText("verse 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
   });
 
@@ -43,6 +43,7 @@ describe("SectionRoadmap", () => {
       ...song.sections[0]!.roles[0]!,
       range: { lowestNote: " ", highestNote: "none" }
     };
+    song.sections = [song.sections[0]!];
 
     render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
 
@@ -57,6 +58,7 @@ describe("SectionRoadmap", () => {
       ...song.sections[0]!.roles[0]!,
       range: { lowestNote: "E3", highestNote: "C#2" }
     };
+    song.sections = [song.sections[0]!];
 
     render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
 
@@ -72,6 +74,7 @@ describe("SectionRoadmap", () => {
       ...song.sections[0]!.roles[0]!,
       range: { lowestNote: "low-ish", highestNote: "E3" }
     };
+    song.sections = [song.sections[0]!];
 
     render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
 

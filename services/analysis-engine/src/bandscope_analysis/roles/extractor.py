@@ -22,6 +22,12 @@ from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_OTHER_STEM_SOURCE_LABEL = "Accompaniment"
+_TURNAROUND_PLAN_PREFIX = "Turn these last bars with "
+_TURNAROUND_PLAN_SUFFIX = "; land the downbeat together."
+_TURNAROUND_PLAN_BAND_TARGET = "the rest of the band"
+
 
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
@@ -330,6 +336,63 @@ class RoleExtractor:
             "acoustic_guitar": acoustic_guitar_role,
         }
 
+    @staticmethod
+    def _activity_turnaround_plan(
+        role_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        next_role_activity: dict[str, bool] | None,
+    ) -> str | None:
+        """Return bounded turnaround guidance only for a shared continuation.
+
+        A turnaround plan is emitted only when real stem activity shows this role
+        remaining active into the next section with at least one other distinct
+        source also continuing. Mixed-source shared continuation is the evidence.
+        Heuristic fallback topology and last-section (no next activity) produce no plan.
+        """
+        if (
+            next_role_activity is None
+            or not role_activity.get(role_id, False)
+            or not next_role_activity.get(role_id, False)
+        ):
+            return None
+
+        continuing_role_ids = [
+            candidate_id
+            for candidate_id, is_active in role_activity.items()
+            if is_active and next_role_activity.get(candidate_id, False)
+        ]
+        named_source_ids = [
+            candidate_id
+            for candidate_id in continuing_role_ids
+            if candidate_id not in _OTHER_STEM_ROLE_IDS
+        ]
+        other_stem_continuing = any(
+            candidate_id in _OTHER_STEM_ROLE_IDS for candidate_id in continuing_role_ids
+        )
+        source_count = len(named_source_ids) + (1 if other_stem_continuing else 0)
+        if source_count < 2:
+            return None
+        if source_count >= 3:
+            return (
+                f"{_TURNAROUND_PLAN_PREFIX}{_TURNAROUND_PLAN_BAND_TARGET}{_TURNAROUND_PLAN_SUFFIX}"
+            )
+
+        partner_ids = [candidate_id for candidate_id in named_source_ids if candidate_id != role_id]
+        other_name: str | None = None
+        if partner_ids:
+            other_id = partner_ids[0]
+            other_name = next(
+                (role["name"] for role in roles.values() if role["id"] == other_id),
+                None,
+            )
+        else:
+            other_name = _OTHER_STEM_SOURCE_LABEL
+
+        if other_name is None:
+            return None
+        return f"{_TURNAROUND_PLAN_PREFIX}{other_name}{_TURNAROUND_PLAN_SUFFIX}"
+
     def _build_activity_topology(
         self,
         section_id: str,
@@ -357,7 +420,18 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                active_roles.append(roles[role_key])
+                role = roles[role_key]
+                turnaround_plan = self._activity_turnaround_plan(
+                    role_id,
+                    roles,
+                    role_activity,
+                    next_role_activity,
+                )
+                if turnaround_plan is not None:
+                    role = role.copy()
+                    role["turnaroundPlan"] = turnaround_plan
+                    role["turnaroundPlanSource"] = "model"
+                active_roles.append(role)
 
             part_graph.append(
                 {

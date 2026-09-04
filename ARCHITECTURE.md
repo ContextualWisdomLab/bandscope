@@ -1,10 +1,11 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-26
 
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- The mounted workspace copy for tonight's first turnaround plan must name the owning part when corroborated, the owned `turnaroundPlan` text, the labeled section, and the time so the next action is obvious. Open moves to the matching rendered map section. Do not invent that copy from groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, transposition plans, vamp plans, fill plans, tuning plans, dynamics plans, articulation plans, hook plans, solo plans, pad plans, hit plans, cutoff plans, confirmed overrides, harmonic explanations, or confidence notes. Distinct from first-cutoff-plan, first-hit-plan, first-vamp-plan, first-pad-plan, first-solo-plan, first-hook-plan, first-fill-plan, first-setup-note, first-transposition-plan, first-tuning-plan, and first-articulation-plan.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source
