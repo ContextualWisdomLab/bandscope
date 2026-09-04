@@ -7,8 +7,14 @@ import os
 import platform
 import re
 import shutil
+import subprocess
+import sys
 from collections import Counter
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import Any
+
+CommandRunner = Callable[..., Any]
 
 
 def sha256_file(path: Path) -> str:
@@ -104,8 +110,72 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     return sorted(installers)
 
 
+def _is_tag_release() -> bool:
+    """Return whether this package operation belongs to a version-tag release build."""
+    return os.environ.get("GITHUB_REF", "").startswith("refs/tags/v")
+
+
+def _platform_trust_command(repo_root: Path, output_dir: Path) -> Sequence[str]:
+    """Build the fixed verifier command for the selected tagged release target."""
+    verifier_path = repo_root / "scripts" / "checks" / "verify_release_platform_trust.py"
+    target_platform, _ = resolved_artifact_target()
+    if target_platform == "windows":
+        return [
+            sys.executable,
+            str(verifier_path),
+            "windows",
+            str(output_dir),
+            "--expected-identity",
+            os.environ.get("BANDSCOPE_WINDOWS_PUBLISHER_SUBJECT", ""),
+        ]
+    if target_platform == "macos":
+        target_triple = os.environ.get("BANDSCOPE_TARGET_TRIPLE", "")
+        if not target_triple:
+            raise RuntimeError("Tagged macOS release packaging requires BANDSCOPE_TARGET_TRIPLE")
+        bundle_root = (
+            repo_root
+            / "apps"
+            / "desktop"
+            / "src-tauri"
+            / "target"
+            / target_triple
+            / "release"
+            / "bundle"
+            / "macos"
+        )
+        return [
+            sys.executable,
+            str(verifier_path),
+            "macos",
+            str(output_dir),
+            "--bundle-root",
+            str(bundle_root),
+            "--expected-identity",
+            os.environ.get("BANDSCOPE_APPLE_TEAM_ID", ""),
+        ]
+    raise RuntimeError("Tagged release packaging is unsupported on this platform")
+
+
+def verify_tag_platform_trust(
+    repo_root: Path,
+    output_dir: Path,
+    *,
+    runner: CommandRunner = subprocess.run,
+) -> None:
+    """Block tagged artifact publication unless platform-native trust evidence passes."""
+    if not _is_tag_release():
+        return
+    command = _platform_trust_command(repo_root, output_dir)
+    try:
+        result = runner(list(command), check=False)
+    except OSError as verification_error:
+        raise RuntimeError("Platform release trust verification could not run") from verification_error
+    if result.returncode != 0:
+        raise RuntimeError("Platform release trust verification failed")
+
+
 def main() -> int:
-    """Find the built installer packages, rename them, and calculate checksums."""
+    """Find the built installer packages, rename them, calculate checksums, and verify tag trust."""
     repo_root = Path(__file__).resolve().parents[2]
     output_dir = repo_root / "artifacts"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -155,6 +225,7 @@ def main() -> int:
 
         print(f"Packaged {installer_path.name} to artifacts/{archive_name}")
 
+    verify_tag_platform_trust(repo_root, output_dir)
     return 0
 
 
