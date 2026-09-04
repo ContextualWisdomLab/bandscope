@@ -54,7 +54,9 @@ fn status(state: &str) -> Value {
     value
 }
 
-fn parse(value: Value) -> Result<bandscope_desktop_core::analysis_process_status::AnalysisProcessStatus, &'static str> {
+fn parse(
+    value: Value,
+) -> Result<bandscope_desktop_core::analysis_process_status::AnalysisProcessStatus, &'static str> {
     parse_analysis_process_status(
         &serde_json::to_string(&value).expect("analysis status fixture should serialize"),
     )
@@ -120,12 +122,6 @@ fn rejects_contradictory_state_payloads_without_stem_metadata() {
             json!({"code": "engine_unavailable", "message": "Contradictory status."}),
         );
 
-    let failed_without_error = status("failed")
-        .as_object_mut()
-        .map(|object| {
-            object.remove("error");
-        });
-    assert!(failed_without_error.is_some());
     let mut failed_without_error = status("failed");
     failed_without_error
         .as_object_mut()
