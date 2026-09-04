@@ -738,6 +738,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[0]?.padPlan).toContain("two-bar pad");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -831,6 +832,28 @@ describe("shared type helpers", () => {
         headline: "oops"
       }
     })).toThrow("exportSummary.format");
+  });
+
+  it("keeps optional pad plans aligned with Rust project loading", () => {
+    for (const padPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "keep here\nthen move",
+      "keep here\rthen move",
+      "keep here\u0085then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.padPlan = padPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].padPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[0]!.padPlan = "\uFEFF Keep the space \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 
   it("round-trips score attachment metadata and rejects malformed entries", () => {
@@ -1255,6 +1278,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].padPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.padPlan = 2 as never;
         })
       },
       {
