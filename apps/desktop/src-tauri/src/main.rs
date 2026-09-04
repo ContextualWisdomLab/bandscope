@@ -330,15 +330,18 @@ fn renderer_bootstrap_summary(
     Ok(summary)
 }
 
-fn drain_analysis_status_updates(
+fn drain_analysis_process_status_updates(
     state: &AppState,
     app: &tauri::AppHandle<impl Runtime>,
-    status_rx: &mpsc::Receiver<AnalysisJobStatus>,
-    last_status: &mut Option<AnalysisJobStatus>,
+    process_status_rx: &mpsc::Receiver<analysis_process_status::AnalysisProcessStatus>,
+    latest_process_status: &mut Option<analysis_process_status::AnalysisProcessStatus>,
 ) {
-    while let Ok(status) = status_rx.try_recv() {
-        store_status_and_emit(state, app, &status);
-        *last_status = Some(status);
+    while let Ok(process_status) = process_status_rx.try_recv() {
+        let renderer_status = analysis_process_status::retain_latest_process_status(
+            latest_process_status,
+            process_status,
+        );
+        store_status_and_emit(state, app, &renderer_status);
     }
 }
 
@@ -408,12 +411,11 @@ fn run_analysis_engine(
             "Analysis engine is unavailable.",
         );
     };
-    let (status_tx, status_rx) = mpsc::channel::<AnalysisJobStatus>();
-    let (stem_tx, stem_rx) =
-        mpsc::channel::<playable_stem_contract::PlayableStemArtifactSetReference>();
+    let (process_status_tx, process_status_rx) =
+        mpsc::channel::<analysis_process_status::AnalysisProcessStatus>();
     let stdout_reader = thread::spawn(move || {
         let reader = BufReader::new(stdout);
-        let mut last_status = None;
+        let mut latest_process_status = None;
         for line in reader.lines() {
             let Ok(line) = line else {
                 break;
@@ -425,19 +427,13 @@ fn run_analysis_engine(
             if let Ok(process_status) =
                 analysis_process_status::parse_analysis_process_status(trimmed)
             {
-                if let Some(playable_stem_artifact_set) =
-                    process_status.playable_stem_artifact_set().cloned()
-                {
-                    let _ = stem_tx.send(playable_stem_artifact_set);
-                }
-                let status = process_status.renderer_status().clone();
-                last_status = Some(status.clone());
-                if status_tx.send(status).is_err() {
+                latest_process_status = Some(process_status.clone());
+                if process_status_tx.send(process_status).is_err() {
                     break;
                 }
             }
         }
-        last_status
+        latest_process_status
     });
     let stderr_reader = thread::spawn(move || {
         let mut reader = stderr;
@@ -465,10 +461,15 @@ fn run_analysis_engine(
     }
 
     let deadline = Instant::now() + ANALYSIS_PROCESS_TIMEOUT;
-    let mut last_status = None;
+    let mut latest_process_status = None;
     let exit_status;
     loop {
-        drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
+        drain_analysis_process_status_updates(
+            &state,
+            &app,
+            &process_status_rx,
+            &mut latest_process_status,
+        );
         match process.try_wait() {
             Ok(Some(status)) => {
                 exit_status = status;
@@ -509,11 +510,16 @@ fn run_analysis_engine(
             }
         }
     }
-    let reader_last_status = stdout_reader.join().unwrap_or(None);
+    let reader_latest_process_status = stdout_reader.join().unwrap_or(None);
     let _ = stderr_reader.join();
-    drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
-    if last_status.is_none() {
-        last_status = reader_last_status;
+    drain_analysis_process_status_updates(
+        &state,
+        &app,
+        &process_status_rx,
+        &mut latest_process_status,
+    );
+    if latest_process_status.is_none() {
+        latest_process_status = reader_latest_process_status;
     }
 
     if !exit_status.success() {
@@ -528,26 +534,30 @@ fn run_analysis_engine(
         );
     }
 
-    let finished = last_status.unwrap_or_else(|| {
-        failed_status(
-            payload["jobId"]
-                .as_str()
-                .unwrap_or("unknown-job")
-                .to_string(),
-            requested_at,
-            AnalysisJobErrorCode::EngineUnavailable,
-            "Analysis engine returned an invalid response.",
-        )
-    });
+    let finished = latest_process_status
+        .as_ref()
+        .map(|process_status| process_status.renderer_status().clone())
+        .unwrap_or_else(|| {
+            failed_status(
+                payload["jobId"]
+                    .as_str()
+                    .unwrap_or("unknown-job")
+                    .to_string(),
+                requested_at,
+                AnalysisJobErrorCode::EngineUnavailable,
+                "Analysis engine returned an invalid response.",
+            )
+        });
     if matches!(finished.state, AnalysisJobState::Succeeded) {
+        let final_artifact_set = latest_process_status
+            .as_ref()
+            .and_then(|process_status| process_status.playable_stem_artifact_set());
         if let (Some(project_id), Some(temp_root), Some(artifact_set)) = (
             playback_project_id.as_deref(),
             playback_temp_root.as_deref(),
-            stem_rx.try_iter().last(),
+            final_artifact_set,
         ) {
-            if let Ok(preflight) =
-                preflight_playable_stem_set(Path::new(temp_root), &artifact_set)
-            {
+            if let Ok(preflight) = preflight_playable_stem_set(Path::new(temp_root), artifact_set) {
                 let _ = playback_authority.activate_stems(project_id, &playback_job_id, &preflight);
             }
         }
@@ -887,7 +897,7 @@ fn read_score_pdf(
     if !is_valid_project_id(&project_id) {
         return Err("Invalid project id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects", &project_id)?;
     let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
     std::fs::read(path).map_err(|_| "Could not read the score PDF.".to_string())
 }
@@ -907,7 +917,7 @@ fn remove_score_pdf(
     if !is_valid_score_id(&score_id) {
         return Err("Invalid score id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects", &project_id)?;
     let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
         Ok(path) => path,
         Err(_) => return Ok(false),
