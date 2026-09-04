@@ -47,6 +47,16 @@ import { createTranslator, detectPreferredLocale, type TranslationKey } from "./
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import {
+  formatMetricCopy,
+  resolveTonightStartingChord,
+  resolveTonightTempo,
+  resolveTonightTransposePlan,
+  scrollToWorkspaceSurface,
+  WORKSPACE_SURFACE_HARMONY,
+  WORKSPACE_SURFACE_TEMPO,
+  WORKSPACE_SURFACE_TRANSPOSE
+} from "./features/workspace/rehearsalMetrics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -172,13 +182,17 @@ function MetricCard({
   label,
   value,
   detail,
-  accent = "text-cyan-300"
+  accent = "text-cyan-300",
+  actionLabel,
+  onAction
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   detail: string;
   accent?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }) {
   return (
     <article className="group relative overflow-hidden rounded-lg border border-[color:var(--bandscope-border)] bg-[var(--bandscope-surface)] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-300/40">
@@ -189,6 +203,15 @@ function MetricCard({
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
           <p className="mt-1 text-2xl font-semibold tracking-tight text-white">{value}</p>
           <p className="mt-1 text-sm text-slate-400">{detail}</p>
+          {actionLabel && onAction ? (
+            <Button
+              type="button"
+              className="relative mt-3 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950"
+              onClick={onAction}
+            >
+              {actionLabel}
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>
@@ -264,6 +287,12 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
+  const [openedCockpitMetrics, setOpenedCockpitMetrics] = useState<{
+    songId: string;
+    tempo: boolean;
+    key: boolean;
+    transpose: boolean;
+  } | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -518,6 +547,33 @@ export function App() {
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  // Cockpit next actions scroll to surfaces that only exist inside the mounted
+  // Workspace, so the affordances are suppressed in the Score view instead of
+  // rendering visible buttons whose click would be a silent no-op.
+  const cockpitActionsAvailable = currentView === "workspace";
+  const readySongId = typeof jobResult?.id === "string" ? jobResult.id : "";
+  const tonightTempo = resolveTonightTempo(jobResult);
+  const tonightChord = resolveTonightStartingChord(jobResult);
+  const tonightTranspose = resolveTonightTransposePlan(jobResult);
+  const openedMetrics =
+    openedCockpitMetrics?.songId === readySongId
+      ? openedCockpitMetrics
+      : { songId: readySongId, tempo: false, key: false, transpose: false };
+
+  /** Mark a cockpit next action complete only after the workspace surface actually moved. */
+  const handleCockpitMetricAction = (
+    metric: "tempo" | "key" | "transpose",
+    surfaceIds: readonly string[]
+  ) => {
+    if (!scrollToWorkspaceSurface(surfaceIds) || readySongId.length === 0) {
+      return;
+    }
+    setOpenedCockpitMetrics({
+      ...openedMetrics,
+      songId: readySongId,
+      [metric]: true
+    });
+  };
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
@@ -834,9 +890,87 @@ export function App() {
           </section>
 
           <header aria-label={t("analysisSummaryAriaLabel")} className="mb-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard icon={<Clock3 className="size-5" aria-hidden="true" />} label={t("metricTempoLabel")} value={t("metricPendingValue")} detail={t("metricTempoPendingDetail")} accent="text-sky-300" />
-            <MetricCard icon={<KeyRound className="size-5" aria-hidden="true" />} label={t("metricKeyLabel")} value={t("metricPendingValue")} detail={t("metricKeyPendingDetail")} accent="text-cyan-300" />
-            <MetricCard icon={<Wand2 className="size-5" aria-hidden="true" />} label={t("metricTransposeLabel")} value={t("metricPendingValue")} detail={t("metricTransposePendingDetail")} accent="text-blue-300" />
+            <MetricCard
+              icon={<Clock3 className="size-5" aria-hidden="true" />}
+              label={t("metricTempoLabel")}
+              value={
+                tonightTempo
+                  ? formatMetricCopy(t("metricTempoReadyValue"), { bpm: String(tonightTempo.bpm) })
+                  : t("metricPendingValue")
+              }
+              detail={
+                tonightTempo
+                  ? formatMetricCopy(
+                      t(openedMetrics.tempo ? "metricTempoArmed" : "metricTempoReadyDetail"),
+                      { bpm: String(tonightTempo.bpm) }
+                    )
+                  : t("metricTempoPendingDetail")
+              }
+              actionLabel={
+                tonightTempo && cockpitActionsAvailable ? formatMetricCopy(t("metricTempoAction"), { bpm: String(tonightTempo.bpm) }) : undefined
+              }
+              onAction={
+                tonightTempo && cockpitActionsAvailable
+                  ? () => handleCockpitMetricAction("tempo", [WORKSPACE_SURFACE_TEMPO])
+                  : undefined
+              }
+              accent="text-sky-300"
+            />
+            <MetricCard
+              icon={<KeyRound className="size-5" aria-hidden="true" />}
+              label={t("metricKeyLabel")}
+              value={tonightChord ? tonightChord.chord : t("metricPendingValue")}
+              detail={
+                tonightChord
+                  ? formatMetricCopy(
+                      t(openedMetrics.key ? "metricKeyArmed" : "metricKeyReadyDetail"),
+                      { chord: tonightChord.chord, role: tonightChord.roleName }
+                    )
+                  : t("metricKeyPendingDetail")
+              }
+              actionLabel={
+                tonightChord && cockpitActionsAvailable
+                  ? formatMetricCopy(t("metricKeyAction"), {
+                      chord: tonightChord.chord,
+                      role: tonightChord.roleName
+                    })
+                  : undefined
+              }
+              onAction={
+                tonightChord && cockpitActionsAvailable
+                  ? () => handleCockpitMetricAction("key", [WORKSPACE_SURFACE_HARMONY])
+                  : undefined
+              }
+              accent="text-cyan-300"
+            />
+            <MetricCard
+              icon={<Wand2 className="size-5" aria-hidden="true" />}
+              label={t("metricTransposeLabel")}
+              value={tonightTranspose ? tonightTranspose.roleName : t("metricPendingValue")}
+              detail={
+                tonightTranspose
+                  ? formatMetricCopy(
+                      t(openedMetrics.transpose ? "metricTransposeArmed" : "metricTransposeReadyDetail"),
+                      { role: tonightTranspose.roleName, plan: tonightTranspose.plan }
+                    )
+                  : t("metricTransposePendingDetail")
+              }
+              actionLabel={
+                tonightTranspose && cockpitActionsAvailable
+                  ? formatMetricCopy(t("metricTransposeAction"), { role: tonightTranspose.roleName })
+                  : undefined
+              }
+              onAction={
+                tonightTranspose && cockpitActionsAvailable
+                  ? () =>
+                      handleCockpitMetricAction("transpose", [
+                        WORKSPACE_SURFACE_TRANSPOSE,
+                        WORKSPACE_SURFACE_HARMONY
+                      ])
+                  : undefined
+              }
+              accent="text-blue-300"
+            />
             <ConfidenceMetric song={jobResult} t={t} />
             <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label={t("metricPriorityLabel")} value={priorityLabel(jobResult, t)} detail={jobResult?.exportSummary?.headline ?? t("metricPriorityPendingDetail")} accent="text-amber-300" />
           </header>

@@ -4,6 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { resolveTonightTempo } from "./rehearsalMetrics";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -122,6 +123,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const tonightTempo = resolveTonightTempo(song);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -257,9 +259,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           <div className="space-y-1.5">
               <div className="flex items-center gap-2">
                 <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">{t("workspaceRehearsalMapLabel")}</p>
-                {song.tempo && (
-                  <span className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-cyan-100">
-                    {t("workspaceTempoLabel")}: {song.tempo} BPM
+                {tonightTempo && (
+                  <span
+                    id="workspace-surface-tempo"
+                    className="rounded-full border border-cyan-300/30 bg-cyan-300/10 px-2.5 py-0.5 text-[0.65rem] font-bold text-cyan-100"
+                  >
+                    {t("workspaceTempoLabel")}: {tonightTempo.bpm} BPM
                   </span>
                 )}
               </div>
@@ -355,7 +360,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SongStructure sections={song.sections} t={t} />
 
-          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4" id="workspace-surface-harmony">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-300">{t("workspaceRolesHarmonyLabel")}</p>
@@ -438,7 +443,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       {roleHarmonicExplanation}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
+                  <div
+                    id="workspace-surface-transpose"
+                    className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3"
+                  >
                     <div className="flex items-center gap-2 text-indigo-100">
                       <ClipboardList className="size-4" aria-hidden="true" />
                       <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>

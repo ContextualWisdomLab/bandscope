@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
 
 // The Score view pulls in ScoreViewer -> pdfjs-dist, which needs DOMMatrix
 // (absent in jsdom). Stub the pdf.js bridge so App can mount the real
@@ -338,6 +339,86 @@ describe("App", () => {
     expect(screen.queryByText(/entry, dropout/i)).toBeNull();
     expect(screen.queryByText(/Preview-ready lanes/i)).toBeNull();
     expect(screen.getAllByText(/Pending/i).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("names tonight's tempo, first-entrance chord, and transpose setup after analysis", async () => {
+    mockLoadProject.mockResolvedValueOnce(createDemoRehearsalSong());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
+    expect(screen.getAllByText("120 BPM").length).toBeGreaterThan(0);
+    expect(screen.getByText("Count 120 in before the first entrance.")).toBeTruthy();
+    expect(screen.getAllByText("C#m7").length).toBeGreaterThan(0);
+    expect(screen.getByText("Bass Guitar starts in this shape. Check the first entrance.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open tonight's first chord" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Lock Bass Guitar's setup" })).toBeTruthy();
+    expect(screen.queryByText(/^Pending$/)).toBeNull();
+  });
+
+  it("opens the matching workspace surface from the cockpit next action", async () => {
+    mockLoadProject.mockResolvedValueOnce(createDemoRehearsalSong());
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
+
+    const tempoTarget = document.getElementById("workspace-surface-tempo");
+    const harmonyTarget = document.getElementById("workspace-surface-harmony");
+    expect(tempoTarget).toBeTruthy();
+    expect(harmonyTarget).toBeTruthy();
+    const tempoScroll = vi.fn();
+    const harmonyScroll = vi.fn();
+    Object.defineProperty(tempoTarget!, "scrollIntoView", { configurable: true, value: tempoScroll });
+    Object.defineProperty(harmonyTarget!, "scrollIntoView", { configurable: true, value: harmonyScroll });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open tonight's count-in" }));
+    expect(tempoScroll).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText("Count 120 together. Start from the map.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open tonight's first chord" }));
+    expect(harmonyScroll).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(screen.getByText("Check C#m7 at the first entrance before the room starts.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Lock Bass Guitar's setup" }));
+    expect(harmonyScroll).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Lock Bass Guitar's setup, then count in from the map.")).toBeTruthy();
+  });
+
+  it("keeps a cockpit next action incomplete when the workspace surface is missing", async () => {
+    mockLoadProject.mockResolvedValueOnce(createDemoRehearsalSong());
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
+    document.getElementById("workspace-surface-tempo")?.remove();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open tonight's count-in" }));
+    expect(screen.getByText("Count 120 in before the first entrance.")).toBeTruthy();
+    expect(screen.queryByText("Count 120 together. Start from the map.")).toBeNull();
+  });
+
+  it("localizes ready cockpit metric copy for Korean rehearsal", async () => {
+    const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
+    mockLoadProject.mockResolvedValueOnce(createDemoRehearsalSong());
+
+    try {
+      render(<App />);
+      fireEvent.click(screen.getByRole("button", { name: /프로젝트 열기/i }));
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "오늘 카운트 위치 열기" })).toBeTruthy();
+      });
+      expect(screen.getByText("첫 시작 전에 120으로 카운트하세요.")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "오늘 첫 코드 열기" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Bass Guitar 세팅 잠그기" })).toBeTruthy();
+    } finally {
+      languageSpy.mockRestore();
+    }
   });
 
   it("summarizes confidence from the lowest-confidence loaded section", async () => {
@@ -1593,6 +1674,26 @@ describe("App", () => {
     // storage is gated behind the active-project notice.
     expect(screen.getByText(/Scores attach to the active analysis project/i)).toBeInTheDocument();
     expect(screen.queryByText(/Song Timeline/i)).toBeNull();
+  });
+
+  it("hides cockpit next actions in the Score view and restores them back in the Workspace", async () => {
+    mockLoadProject.mockResolvedValueOnce(createDemoRehearsalSong());
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Score$/i })[0]);
+    expect(await screen.findByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open tonight's count-in" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open tonight's first chord" })).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^Workspace$/i })[0]);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Open tonight's count-in" })).toBeTruthy();
+    });
   });
 
   it("switches to the Score view from the compact mobile navigation", async () => {

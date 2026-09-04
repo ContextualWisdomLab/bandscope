@@ -6,6 +6,7 @@ Last updated: 2026-03-11
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- After analysis, the mounted cockpit Tempo, Key, and Transpose metrics must name a countable BPM, the first-entrance chord shape, and the first-entrance transpose setup when those owned fields exist. Keep missing values pending. Do not invent a song-wide key detector; the Key metric is the starting shape the room can check. Cockpit Open/Lock actions scroll renderer-owned workspace surfaces only.
 
 ## Security source
 

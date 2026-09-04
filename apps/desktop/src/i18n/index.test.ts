@@ -74,5 +74,12 @@ describe("i18n", () => {
         koDictionary.appSubtitle = originalSubtitle;
       }
     });
+
+    it("keeps Korean cockpit next-action copy for tempo, chord, and transpose", () => {
+      const t = createTranslator("ko");
+      expect(t("metricTempoAction")).toBe("오늘 카운트 위치 열기");
+      expect(t("metricKeyAction")).toBe("오늘 첫 코드 열기");
+      expect(t("metricTransposeAction")).toBe("{role} 세팅 잠그기");
+    });
   });
 });

@@ -326,4 +326,16 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("exposes renderer-owned surfaces for cockpit tempo, chord, and transpose actions", () => {
+    const song = createDemoRehearsalSong();
+    render(<Workspace song={song} />);
+
+    expect(document.getElementById("workspace-surface-tempo")).toBeTruthy();
+    expect(document.getElementById("workspace-surface-harmony")).toBeTruthy();
+    expect(document.getElementById("workspace-surface-transpose")).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    expect(document.getElementById("workspace-surface-transpose")).toBeTruthy();
+  });
 });
