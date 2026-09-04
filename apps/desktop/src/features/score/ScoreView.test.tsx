@@ -90,6 +90,35 @@ describe("ScoreView", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
+  it("ignores clicks while attaching", async () => {
+    const song = makeSong([]);
+    render(<ScoreView song={song} projectId="123" onSongUpdate={vi.fn()} />);
+    const addBtn = screen.getByRole("button", { name: "Add score" });
+
+    // In our mock, attachScorePdf returns a promise.
+    // We can mock it to not resolve immediately, simulating a pending attach
+    let resolveAttach: (val: unknown) => void;
+    mockInvoke.mockReturnValueOnce(new Promise((resolve) => {
+        resolveAttach = resolve;
+    }));
+
+    await act(async () => {
+        fireEvent.click(addBtn);
+    });
+
+    // Second click should hit `!isAttaching` branch and do nothing
+    await act(async () => {
+        fireEvent.click(addBtn);
+    });
+
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+
+    // Resolve the promise to cleanup
+    await act(async () => {
+        resolveAttach({ id: "new-score", fileName: "new.pdf" });
+    });
+  });
+
   it("keeps unavailable score storage actions focusable when no project workspace is active", () => {
     const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
