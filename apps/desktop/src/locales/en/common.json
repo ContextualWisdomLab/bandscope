@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstKeyTitle": "Tonight's first key",
+  "workspaceFirstKeyReady": "Tonight's first key is {label}. Tune to {tonic}, then check tonight's first range before the {sectionLabel}.",
+  "workspaceFirstKeyReadyNoSection": "Tonight's first key is {label}. Tune to {tonic}, then name the first section so the room knows where it starts.",
+  "workspaceFirstKeyMissing": "Tonight's first key still needs an ear check. Confirm the concert key by ear, then check tonight's first range.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

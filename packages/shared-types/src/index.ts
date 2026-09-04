@@ -219,10 +219,17 @@ export type ScoreAttachment = {
 };
 
 /** Documented. */
+export type RehearsalKey = {
+  fifths: number;
+  mode: "major" | "minor";
+};
+
+/** Documented. */
 export type RehearsalSong = {
   id: string;
   title: string;
   tempo?: number;
+  key?: RehearsalKey;
   sections: RehearsalSection[];
   exportSummary: ExportSummary;
   collaboration?: RehearsalCollaboration;
@@ -432,6 +439,10 @@ const demoRehearsalSongSeed: RehearsalSong = {
   id: "demo-song",
   title: "Late Night Set",
   tempo: 120,
+  key: {
+    fifths: 4,
+    mode: "major"
+  },
   sections: [
     {
       id: "verse-1",
@@ -1756,6 +1767,25 @@ function migrateLegacySectionTimeRanges(value: unknown): unknown {
 }
 
 /** Documented. */
+function validateRehearsalKey(value: unknown, path: string): string | null {
+  if (!isRecord(value)) {
+    return invalidField(path);
+  }
+  const extraKey = unexpectedKey(value, ["fifths", "mode"], path);
+  if (extraKey) {
+    return extraKey;
+  }
+  if (typeof value.fifths !== "number" || !Number.isInteger(value.fifths) || value.fifths < -7 || value.fifths > 7) {
+    return invalidField(`${path}.fifths`);
+  }
+  if (value.mode !== "major" && value.mode !== "minor") {
+    return invalidField(`${path}.mode`);
+  }
+
+  return null;
+}
+
+/** Documented. */
 function validateScoreAttachment(value: unknown, path: string): string | null {
   if (!isRecord(value)) {
     return invalidField(path);
@@ -1787,7 +1817,7 @@ function validateRehearsalSong(
   }
   const extraKey = unexpectedKey(
     normalized,
-    ["id", "title", "tempo", "sections", "exportSummary", "collaboration", "scoreAttachments"],
+    ["id", "title", "tempo", "key", "sections", "exportSummary", "collaboration", "scoreAttachments"],
     ""
   );
   if (extraKey) {
@@ -1804,6 +1834,12 @@ function validateRehearsalSong(
     (typeof normalized.tempo !== "number" || !Number.isFinite(normalized.tempo) || normalized.tempo <= 0)
   ) {
     return invalidField("tempo");
+  }
+  if (normalized.key !== undefined) {
+    const keyError = validateRehearsalKey(normalized.key, "key");
+    if (keyError) {
+      return keyError;
+    }
   }
   if (!isDenseArray(normalized.sections)) {
     return invalidField("sections");
