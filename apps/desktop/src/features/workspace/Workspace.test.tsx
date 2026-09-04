@@ -153,6 +153,43 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first segno and the next return-together", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-segno");
+    expect(callout).toHaveTextContent("Tonight's first segno");
+    expect(callout).toHaveTextContent(
+      "Tonight's first segno is Segno. Return to Segno after the last verse, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to stay on the map when the segno is missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.segno;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-segno")).toHaveTextContent(
+      "Tonight's first segno still needs a label. Stay on tonight's map until the first segno is marked, then check tonight's first range."
+    );
+  });
+
+  it("asks the room to name the first section after a trusted segno", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections = song.sections.map((section) => ({ ...section, label: "none" }));
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-segno")).toHaveTextContent(
+      "Tonight's first segno is Segno. Return to Segno together, then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
