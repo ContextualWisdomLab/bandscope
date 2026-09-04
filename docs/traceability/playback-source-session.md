@@ -6,7 +6,7 @@
 - **Protected product source:** `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 - **Canonical Active Player owner:** PR #971 `09bedd835475015379716292e63e6be376fceec9`
 - **Stem publication parent:** PR #1159 `c27f3781ddcbcc013dce07a26c0baf6080e4b2ac`
-- **Current native/UI child source head before this documentation update:** PR #1160 `b3e3f89ef7058551a6360f8093a554704e9e06f1`
+- **Current native/UI child source head before this documentation update:** PR #1160 `7cc68bff49cd1bc038ab2da56c04dff5a1bb4bd9`
 
 ## Problem
 
@@ -78,16 +78,25 @@ The first switch-identity guard checked only that source and target were non-emp
 
 The repair narrows renderer state only. Native `PlaybackAuthority` remains the sole owner of the actual file identity and bytes, and the current source session still decides which same-project handles are selectable at any instant.
 
+## Switch-session receipt invalidation repair
+
+The continuity plan carried a sequence, but no production helper owned sequence advancement and active-plan invalidation. A future mounted selector could therefore update `audio.src` for a newer choice before invalidating the previous `loadedmetadata` receipt, leaving a narrow integration window where the older receipt still looked current.
+
+- RED `102ceb0fcf13424fecd865701a960dc30a4f5f42` requires a renderer switch session to mint monotonic sequence `1`, then `2`, reject the first receipt as soon as the second switch begins, burn a new identity even when continuity capture is rejected, and fail closed rather than wrap at `Number.MAX_SAFE_INTEGER`.
+- Causal fix `7cc68bff49cd1bc038ab2da56c04dff5a1bb4bd9` adds `PlaybackSourceSwitchSession`, `createPlaybackSourceSwitchSession`, and `beginPlaybackSourceSwitch`. The session increments before continuity capture and replaces `activePlan` immediately, so a failed or superseding attempt cannot leave an older media receipt authoritative. Sequence exhaustion clears the plan and requires a freshly mounted session rather than identity reuse.
+
+The switch session is renderer-only receipt state. It neither decides native file availability nor creates a second transport or playback authority.
+
 ## Current acceptance boundary
 
 The renderer-side authority/session and switch-receipt contracts are not the finished selector. `RehearsalPlayer` still uses `audioSourcePath` directly, pauses and reloads when its resolved media URL changes, and does not yet call `discoverPlaybackSourceOptions`, bind `PlaybackSourceSession`, render `Full mix | Vocals | Bass | Drums | Other instruments`, or execute the source-switch plan and receipt through the actual `audio.src` → `load()` → `loadedmetadata` lifecycle.
 
-The next source fix must therefore keep one mounted switch transaction owner: increment the renderer switch sequence when a currently selectable authority is chosen, capture continuity before replacing `src`, invalidate prior receipts immediately, admit `loadedmetadata` only against the exact current target/sequence, seek and restore playback rate only after target-duration admission, and resume only when the captured plan came from a previously looping transport. Revocation or malformed/short target media must fail closed to a non-playing state rather than silently falling back to stale transport.
+The next source fix must therefore mount the existing session contracts in one transaction owner: refresh native availability, keep selection within the current option snapshot, call `beginPlaybackSourceSwitch` before replacing `src`, admit `loadedmetadata` only against the exact current target/sequence, seek and restore playback rate only after target-duration admission, and resume only when the captured plan came from a previously looping transport. Revocation or malformed/short target media must fail closed to a non-playing state rather than silently falling back to stale transport.
 
 Current locale infrastructure supports English and Korean only. JA/ZH/VI/ES/DE/FR expansion, text expansion/CJK fallback checks, pointer/touch/keyboard/screen-reader interaction, persistence/reload, stale/revocation UI behavior and rights-cleared audible macOS/Windows acceptance therefore remain open.
 
-Fresh Actions lookup on the preceding exact source heads returned no pull-request workflow runs for this stacked branch. Source-level RED→fix lineage is not a substitute for the 14 protected repository/central required contexts or qualifying independent unchanged-head approval. PR #1160 remains Draft.
+Source-level RED→fix lineage is not a substitute for the 14 protected repository/central required contexts or qualifying independent unchanged-head approval. PR #1160 remains Draft until exact-head evidence materializes and is terminal-success.
 
 ## Delivery gate
 
-**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, same-project source-switch authority, source-switch continuity, and stale media-receipt rejection are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
+**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, same-project source-switch authority, source-switch continuity, stale media-receipt rejection, and immediate switch-session receipt invalidation are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
