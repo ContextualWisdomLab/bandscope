@@ -6,6 +6,18 @@ import { fileURLToPath } from "node:url";
 
 const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 
+/** Production files whose V8 coverage is owned by the desktop test gate. */
+export const DESKTOP_OWNED_PRODUCTION_COVERAGE = [
+  "src/App.tsx",
+  "src/lib/export.ts",
+  "src/i18n/index.ts",
+  "src/features/score/ScoreViewer.tsx",
+  "src/features/score/ScoreView.tsx",
+  "src/features/score/scoreStorage.ts",
+  "src/features/workspace/firstHookPlan.ts",
+  "src/features/workspace/FirstHookPlanCallout.tsx"
+];
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -19,14 +31,7 @@ export default defineConfig({
     setupFiles: ["./src/setupTests.ts"],
     coverage: {
       provider: "v8",
-      include: [
-        "src/App.tsx",
-        "src/lib/export.ts",
-        "src/i18n/index.ts",
-        "src/features/score/ScoreViewer.tsx",
-        "src/features/score/ScoreView.tsx",
-        "src/features/score/scoreStorage.ts"
-      ],
+      include: DESKTOP_OWNED_PRODUCTION_COVERAGE,
       thresholds: {
         lines: 90,
         functions: 90,
