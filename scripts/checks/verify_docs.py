@@ -35,6 +35,9 @@ REQUIRED_PATHS = [
     Path("docs/plans/2026-03-10-bandscope-supply-chain.md"),
     Path("docs/plans/2026-03-10-bandscope-cross-platform-build-design.md"),
     Path("docs/plans/2026-03-10-bandscope-cross-platform-build.md"),
+    Path("docs/design-system/README.md"),
+    Path("docs/design-system/figma-handoff-inventory.json"),
+    Path("docs/design-system/figma-to-code-workflow.md"),
 ]
 
 REQUIRED_REFERENCES = {

@@ -29,12 +29,23 @@ Product Design additions must follow [product-design-handoff.md](product-design-
 
 - The 2026-07-01 fourth pass found that Figma pages `28 Implementation Contract` through `34 Workspace State Matrix` could appear empty or stale unless each page was loaded before inspection. Some pages also had duplicate historical roots. That mismatch was treated as a design-system defect.
 - Pages `28` through `34` were loaded with `figma.setCurrentPageAsync(page)`, cleaned to one visible root each, and rebuilt in Figma with text-bearing nodes, code paths, state maps, QA rules, and concrete mobile/desktop screen anatomy.
-- Current verified Figma root IDs are `99:2` (`28 Implementation Contract`), `99:82` (`29 UI Repair Playbook`), `99:171` (`30 Publisher + QA Matrix`), `99:253` (`31 Component Contract Catalog`), `99:415` (`32 Screen Blueprints`), `99:714` (`33 Figma-Only Readiness Audit`), and `99:560` (`34 Workspace State Matrix`).
+- **2026-08-21 inventory repair:** Figma MCP `get_metadata` without nodeId lists only the current page (`16:2` `00 Cover`). That listing is **not** a page inventory and must not be used as proof that pages 28-34 are missing. Plugin API `figma.root.children` after `setCurrentPageAsync` is the discoverability method recorded in [figma-handoff-inventory.json](figma-handoff-inventory.json).
+- Current verified Figma **page IDs** and **root IDs** (colon form for Plugin API; hyphen form in URLs):
+  - `00 Cover` page `16:2` root `16:3`
+  - `28 Implementation Contract` page `37:2` root `99:2`
+  - `29 UI Repair Playbook` page `38:2` root `99:82`
+  - `30 Publisher + QA Matrix` page `39:2` root `99:171`
+  - `31 Component Contract Catalog` page `45:86` root `99:253`
+  - `32 Screen Blueprints` page `45:270` root `99:415`
+  - `33 Figma-Only Readiness Audit` page `45:316` root `99:714`
+  - `34 Workspace State Matrix` page `80:2` root `99:560`
+- Next action for implementers: open `28 Implementation Contract` (`node-id=37-2`) and the matching `31` catalog row before editing UI. Do not start from the Cover-only MCP listing.
 - Use colon-form IDs such as `99:560` in Figma Plugin API calls. Use hyphen-form IDs such as `node-id=99-560` in Figma URLs.
 - The post-rebuild structural audit reported `0` empty pages, `0` duplicate roots, `0` empty roots, `0` low-detail placeholder sections, `0` manual-height clipping candidates, `0` parent-overflow candidates, and `0` top-level overlap candidates across pages `28` through `34`.
 - `32 Screen Blueprints` remains the visual target for source-first mobile and desktop repair work. The current app implements that source-first order in [App.tsx](../../apps/desktop/src/App.tsx), and the regression is covered by [App.test.tsx](../../apps/desktop/src/App.test.tsx).
 - If a Figma page or blueprint section is empty, label-only, or structurally detached from its visible text, treat that as a Figma handoff defect unless the corresponding runtime surface is genuinely unimplemented. The fourth pass found the relevant runtime surfaces already implemented, so Figma was corrected instead of adding code.
 - A runtime state audit found the app already implements `EmptyState`, `LoadingState`, and `ErrorState` in [WorkspaceStates.tsx](../../apps/desktop/src/features/workspace/WorkspaceStates.tsx), with routing in [App.tsx](../../apps/desktop/src/App.tsx). Page `34 Workspace State Matrix` now mirrors that contract with visible text nodes at root `99:560`.
+- `scripts/checks/verify_figma_handoff.py` fails when this README, the workflow, or the component contract drift from the committed inventory. The check never calls Figma, never uses a Figma token, and is not a runtime dependency.
 
 ## Frontend Engineer Checklist
 
