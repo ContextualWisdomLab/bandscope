@@ -15,11 +15,36 @@ pub const PLAYBACK_SOURCE_AVAILABILITY_ERROR: &str =
 /// all absent; a partial set is rejected so the renderer never invents a mixed
 /// generation or displays controls for sources that are not jointly authoritative.
 pub fn resolve_playback_source_availability(
-    _full_mix_authority: String,
-    _stem_authorities: [String; 4],
-    _probe: impl FnMut(&str) -> Result<bool, String>,
+    full_mix_authority: String,
+    stem_authorities: [String; 4],
+    mut probe: impl FnMut(&str) -> Result<bool, String>,
 ) -> Result<Vec<String>, String> {
-    Err(PLAYBACK_SOURCE_AVAILABILITY_ERROR.to_string())
+    let full_mix_is_available = probe(&full_mix_authority)
+        .map_err(|_| PLAYBACK_SOURCE_AVAILABILITY_ERROR.to_string())?;
+    if !full_mix_is_available {
+        return Err(PLAYBACK_SOURCE_AVAILABILITY_ERROR.to_string());
+    }
+
+    let mut available_stem_count = 0usize;
+    for stem_authority in &stem_authorities {
+        if probe(stem_authority)
+            .map_err(|_| PLAYBACK_SOURCE_AVAILABILITY_ERROR.to_string())?
+        {
+            available_stem_count += 1;
+        }
+    }
+
+    if available_stem_count == 0 {
+        return Ok(vec![full_mix_authority]);
+    }
+    if available_stem_count != stem_authorities.len() {
+        return Err(PLAYBACK_SOURCE_AVAILABILITY_ERROR.to_string());
+    }
+
+    let mut available = Vec::with_capacity(1 + stem_authorities.len());
+    available.push(full_mix_authority);
+    available.extend(stem_authorities);
+    Ok(available)
 }
 
 #[cfg(test)]
