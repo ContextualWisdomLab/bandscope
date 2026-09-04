@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,14 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes supported section labels and fails closed on unknown labels", () => {
+      expect(translateSectionFormLabel("en", "chorus")).toBe("chorus");
+      expect(translateSectionFormLabel("ko", "chorus")).toBe("코러스");
+      expect(translateSectionFormLabel("en", "not-a-section" as never)).toBe("not-a-section");
     });
   });
 });

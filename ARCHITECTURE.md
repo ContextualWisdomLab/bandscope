@@ -83,6 +83,7 @@ Last updated: 2026-03-11
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
+  - tonight's first fermata plan on the mounted map when existing beat times report an isolated extra-duration hold (about 1.75–3.5× the local median pulse, extra 0.25–8 s) that tempo-stability ignores as a single IBI outlier, landing on the highest-priority active named vocal or bass in the section that contains the hold. Open moves to the matching rendered map section. Heuristic-only topology stays unnamed. Distinct from first-accelerando, first-ritardando, first-fade, first-swell, first-drop, first-breakdown, first-hit, first-stop, first-cutoff, first-pickup, and first-turnaround. This is not a new MIR product.
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
