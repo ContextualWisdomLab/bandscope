@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,51 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes every supported Korean section form label", () => {
+      expect([
+        translateSectionFormLabel("ko", "intro"),
+        translateSectionFormLabel("ko", "verse"),
+        translateSectionFormLabel("ko", "pre-chorus"),
+        translateSectionFormLabel("ko", "chorus"),
+        translateSectionFormLabel("ko", "bridge"),
+        translateSectionFormLabel("ko", "outro"),
+        translateSectionFormLabel("ko", "tag"),
+        translateSectionFormLabel("ko", "pickup"),
+        translateSectionFormLabel("ko", "stop"),
+        translateSectionFormLabel("ko", "handoff")
+      ]).toEqual([
+        "인트로",
+        "벌스",
+        "프리코러스",
+        "코러스",
+        "브리지",
+        "아웃트로",
+        "태그",
+        "픽업",
+        "스톱",
+        "핸드오프"
+      ]);
+    });
+
+    it("preserves every supported English section form label", () => {
+      expect(translateSectionFormLabel("en", "verse")).toBe("verse");
+      expect(translateSectionFormLabel("en", "outro")).toBe("outro");
+    });
+
+    it("does not treat inherited object keys as localized section labels", () => {
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
+
+    it("keeps Korean first-assignment next-action copy particle-safe", () => {
+      const t = createTranslator("ko");
+      expect(t("firstAssignmentOpenAction")).toBe("{at} {role} 과제 위치 열기");
+      expect(t("firstAssignmentBody")).toBe("{at} {section}에서 {role} 파트 담당은 {assignee}입니다.");
+      expect(t("firstAssignmentArmed")).toBe("{at}에서 {role} 파트 과제를 이어서 하세요. 함께 잠그세요.");
     });
   });
 });
