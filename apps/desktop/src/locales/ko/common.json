@@ -153,6 +153,9 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstTacetTitle": "오늘 먼저 쉴 파트",
+  "workspaceFirstTacetNamed": "{roleName}은 {sectionLabel}에서 쉽니다. 다음 이름 있는 구간까지 들어오지 마세요.",
+  "workspaceFirstTacetMissing": "오늘 먼저 쉴 파트는 아직 없습니다. 첫 구간 전에 누가 쉬는지 확인해 보세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
