@@ -388,6 +388,8 @@ export function App() {
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    setSelectionError(null);
+    setSelectionErrorSource(null);
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
@@ -429,8 +431,21 @@ export function App() {
     setJobStatus(null);
   };
 
-  /** Documented. */
+  /**
+   * Import the current YouTube URL through BandScope's existing downloader boundary.
+   *
+   * Security Notes:
+   * - The URL field and bridge failure detail are untrusted input.
+   * - URL admission remains fail-closed through `isSupportedYoutubeUrl` before the downloader is invoked.
+   * - Buyer-visible failures pass through `safeErrorDetail`, which removes URL, local-path, and secret-shaped details.
+   * - The recovery action only focuses/selects the existing field; it never performs a second network request.
+   */
   const handleImportYoutube = async () => {
+    if (isImporting) {
+      return;
+    }
+
+    setJobError(null);
     setSelectionError(null);
     setSelectionErrorSource(null);
     const normalizedUrl = youtubeUrl.trim();
@@ -456,11 +471,27 @@ export function App() {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
         setSelectionErrorSource("youtube");
       }
-    } catch {
-      setSelectionError(t("youtubeImportFailed"));
+    } catch (error) {
+      const fallback = t("youtubeImportFailed");
+      const detail = safeErrorDetail(error, fallback);
+      setSelectionError(detail === fallback ? fallback : `${fallback} ${detail}`);
       setSelectionErrorSource("youtube");
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  /** Focus the YouTube field so the next paste replaces the failed link. */
+  const handlePasteAnotherYoutubeLink = () => {
+    youtubeInputRef.current?.focus();
+    youtubeInputRef.current?.select();
+  };
+
+  /** Clear only the YouTube-owned recovery state, preserving unrelated source errors. */
+  const dismissYoutubeSelectionError = () => {
+    if (selectionErrorSource === "youtube") {
+      setSelectionError(null);
+      setSelectionErrorSource(null);
     }
   };
 
@@ -468,12 +499,15 @@ export function App() {
   const handleClearYoutubeUrl = () => {
     youtubeInputRef.current?.focus();
     setYoutubeUrl("");
+    dismissYoutubeSelectionError();
   };
 
   /** Documented. */
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
+      setSelectionError(null);
+      setSelectionErrorSource(null);
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
@@ -511,6 +545,18 @@ export function App() {
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
     }
+    if (selectionError && selectionErrorSource === "youtube") {
+      return (
+        <ErrorState
+          error={selectionError}
+          title={t("youtubeImportFailureTitle")}
+          guidance={t("youtubeImportFailureGuidance")}
+          actionLabel={t("pasteAnotherYoutubeLink")}
+          onAction={handlePasteAnotherYoutubeLink}
+          actionDisabled={isImporting}
+        />
+      );
+    }
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
@@ -518,6 +564,7 @@ export function App() {
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
+  const youtubeRecoveryVisible = Boolean(selectionError && selectionErrorSource === "youtube");
 
   /** Resolve label, enablement, and active state for one sidebar item. */
   const navButtonState = (item: (typeof NAV_ITEMS)[number]) => {
@@ -701,7 +748,10 @@ export function App() {
                         placeholder={t("youtubePlaceholder")}
                         value={youtubeUrl}
                         maxLength={MAX_YOUTUBE_URL_LENGTH}
-                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        onChange={(e) => {
+                          setYoutubeUrl(e.target.value);
+                          dismissYoutubeSelectionError();
+                        }}
                         disabled={analysisInFlight || isStarting || isImporting}
                         className="h-10 w-full border-0 bg-transparent pr-9 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-300"
                         aria-label={t("youtubeUrlAriaLabel")}
@@ -737,7 +787,7 @@ export function App() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 2xl:flex 2xl:flex-wrap 2xl:justify-end">
                 <Button
                   onClick={handleLoadProject}
-                  disabled={analysisInFlight || isStarting}
+                  disabled={analysisInFlight || isStarting || isImporting}
                   variant="outline"
                   className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100 hover:bg-white/10 hover:text-white"
                   aria-label={t("openProject")}
@@ -825,7 +875,13 @@ export function App() {
                 )}
 
                 {selectionError && (
-                  <div id={selectionErrorSource === "youtube" ? "selection-error" : undefined} className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div
+                    id={selectionErrorSource === "youtube" ? "selection-error" : undefined}
+                    className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100"
+                    role={selectionErrorSource === "youtube" ? undefined : "alert"}
+                    aria-live={selectionErrorSource === "youtube" ? undefined : "assertive"}
+                    aria-atomic={selectionErrorSource === "youtube" ? undefined : "true"}
+                  >
                     {selectionError}
                   </div>
                 )}
@@ -842,7 +898,7 @@ export function App() {
           </header>
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
-            {currentView === "score" && jobResult ? (
+            {currentView === "score" && jobResult && !youtubeRecoveryVisible ? (
               <ScoreView
                 song={jobResult}
                 projectId={jobResultBootstrap?.projectId ?? null}
