@@ -153,6 +153,27 @@ describe("playback source switch continuity", () => {
     ).toBeNull();
   });
 
+  it("rejects a copied switch plan instead of treating equal scalar fields as an issued active receipt", () => {
+    const begun = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    expect(begun.plan).not.toBeNull();
+    const copiedPlan = Object.freeze({ ...begun.plan! });
+
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        copiedPlan,
+        45,
+        vocalsAuthority,
+        begun.state.sequence,
+      ),
+    ).toBeNull();
+  });
+
   it("rejects stale loadedmetadata receipts after a newer source switch supersedes the target", () => {
     const stalePlan = capture("looping", 37.25, vocalsAuthority, 3);
     const currentPlan = capture("looping", 37.25, bassAuthority, 4);
