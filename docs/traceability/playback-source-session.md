@@ -6,7 +6,7 @@
 - **Protected product source:** `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 - **Canonical Active Player owner:** PR #971 `09bedd835475015379716292e63e6be376fceec9`
 - **Stem publication parent:** PR #1159 `c27f3781ddcbcc013dce07a26c0baf6080e4b2ac`
-- **Current native/UI child source head before this documentation update:** PR #1160 `8a9484424783a3950f4c3deb0c0e2ee6f33e2bc0`
+- **Current native/UI child source head before this documentation update:** PR #1160 `b3e3f89ef7058551a6360f8093a554704e9e06f1`
 
 ## Problem
 
@@ -68,6 +68,16 @@ A second race remained because that plan had no immutable identity for the media
 
 The sequence is renderer-owned and carries no filesystem or native capability. The fix does not create a second playback authority; it only prevents a mutable media-element event from reactivating stale transport state.
 
+## Same-project switch authority repair
+
+The first switch-identity guard checked only that source and target were non-empty, different strings with a positive safe sequence. The canonical source session normally supplies same-project opaque handles, but `capturePlaybackSourceSwitch` itself would still mint a continuity plan for an arbitrary URL, native-path-shaped string, unknown stem suffix, or a handle belonging to another app-minted project. Leaving that invariant to a future mounted caller makes the media-switch transaction easier to misuse during integration.
+
+- RED `e175246ed31dd991d3c76c9ca3e12e92596e3702` adds `file://`, `https://`, unknown-stem and cross-project source/target cases and requires all of them to be rejected before a continuity plan exists.
+- Causal fix `bf33e412002ede67443f3ad2b3a19f7b9b869eae` adds the reusable `playbackSourceProjectId` parser at the existing renderer source-selection authority boundary and makes `capturePlaybackSourceSwitch` require canonical source and target handles owned by the same playback project. It does not accept a filesystem path or add a second URI grammar.
+- Coverage follow-up `b3e3f89ef7058551a6360f8093a554704e9e06f1` exercises canonical full-mix/stem parsing plus non-string, native-path, unknown-stem and path-shaped rejection directly so the new public parser does not rely only on indirect switch tests.
+
+The repair narrows renderer state only. Native `PlaybackAuthority` remains the sole owner of the actual file identity and bytes, and the current source session still decides which same-project handles are selectable at any instant.
+
 ## Current acceptance boundary
 
 The renderer-side authority/session and switch-receipt contracts are not the finished selector. `RehearsalPlayer` still uses `audioSourcePath` directly, pauses and reloads when its resolved media URL changes, and does not yet call `discoverPlaybackSourceOptions`, bind `PlaybackSourceSession`, render `Full mix | Vocals | Bass | Drums | Other instruments`, or execute the source-switch plan and receipt through the actual `audio.src` → `load()` → `loadedmetadata` lifecycle.
@@ -80,4 +90,4 @@ Fresh Actions lookup on the preceding exact source heads returned no pull-reques
 
 ## Delivery gate
 
-**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, source-switch continuity, and stale media-receipt rejection are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
+**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, same-project source-switch authority, source-switch continuity, and stale media-receipt rejection are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
