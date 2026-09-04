@@ -39,11 +39,9 @@ Bootstrap or setup work is not complete unless GitHub-facing supply-chain contro
 
 - `.github/dependabot.yml`
 - `.github/workflows/security-audit.yml`
-- `.github/workflows/codeql.yml`
-- `.github/workflows/bandit.yml`
 - `.github/workflows/sbom.yml`
 - `.github/workflows/release.yml`
-- branch protection or rulesets for `main` and `develop` that require repository CI, security audit, secret scan, SBOM, release preflight, platform builds, and the organization-required Security Scan, CodeQL/code-quality, SAST, Strix, and review workflows
+- branch protection or rulesets for `main` and `develop` that require repository CI, SBOM, platform builds, and the organization-required Security Scan, CodeQL/code-quality, SAST, Strix, and review workflows
 - PR workflow that still requests CodeRabbit review and records its result when the provider responds cleanly
 - release retention for the generated SBOM and supplemental inventory
 

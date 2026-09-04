@@ -9,18 +9,15 @@ BandScope treats GitHub Code Security as part of bootstrap governance.
 - organization-required CodeQL/code-quality evidence and multi-language SAST on pull requests
 - organization-required Trivy filesystem and OSV vulnerability scans
 - organization-required dependency review on pull requests
-- repository security audit workflow for npm, Python, and Rust dependencies in scope
+- repository trusted-branch security backstop for npm, Python, and Rust dependencies in scope
 - Dependabot alerts and security updates
-- secret scanning in GitHub plus the repository supplemental secret-scan gate workflow
+- secret scanning in GitHub plus a supplemental trusted-branch secret check
 
 The central Security Scan owns PR OSV, dependency-review, Trivy, and soft
-Scorecard evidence. Central Gitleaks currently runs only for
-`ContextualWisdomLab/.github`, so BandScope keeps `secret-scan-gate` on pull
-requests. The repository `security-audit` also remains a pull-request check: its
-native npm, pip, and Cargo audits and documented exception handling are not
-fully replaced by the central scanners. Bandit, CodeQL, Scorecard, and Trivy
-remain push/schedule/manual backstops only; central SAST and CodeQL evidence own
-their pull-request paths.
+Scorecard evidence. BandScope combines npm, pip, Cargo, Bandit, supplemental
+secret, and Trivy checks into one trusted-branch/manual backstop. GitHub default
+setup owns CodeQL, while Scorecard remains separate for its restricted publish
+permissions. Central workflows own every pull-request security path.
 
 ## Enforcement
 
