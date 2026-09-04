@@ -200,6 +200,60 @@ describe("export generation", () => {
       confidence: { level: "high", source: "model", notes: "" },
       rehearsalPriority: "high"
     });
+    expect(parsed.firstAction).toBeUndefined();
+  });
+
+  it("leads the handoff JSON with tonight's first action when a lead is provided", () => {
+    const formulaRoleName = '=HYPERLINK("http://evil")';
+    const songWithFormulaRoleName: RehearsalSong = {
+      ...mockSong,
+      sections: [{
+        ...mockSong.sections[0]!,
+        roles: [{
+          ...mockSong.sections[0]!.roles[0]!,
+          name: formulaRoleName
+        }]
+      }]
+    };
+    const jsonStr = generateMetadataHandoffJson(songWithFormulaRoleName, {
+      createdAt: "2026-06-15T08:30:00.000Z",
+      firstAction: {
+        sectionId: "s1",
+        sectionLabel: "verse",
+        roleId: "r1",
+        roleName: formulaRoleName,
+        lowestNote: "C2",
+        highestNote: "C3",
+        clash: false
+      }
+    });
+    const parsed = JSON.parse(jsonStr);
+    expect(Object.keys(parsed)).toEqual([
+      "artifactKind",
+      "artifactVersion",
+      "createdAt",
+      "workspace",
+      "song",
+      "firstAction",
+      "sections",
+      "sourceAssets"
+    ]);
+    expect(parsed.firstAction).toEqual({
+      sectionId: "s1",
+      sectionLabel: "verse",
+      roleId: "r1",
+      roleName: formulaRoleName,
+      lowestNote: "C2",
+      highestNote: "C3",
+      clash: false
+    });
+  });
+
+  it("does not invent a first action when the handoff lead is omitted or null", () => {
+    expect(JSON.parse(generateMetadataHandoffJson(mockSong, { createdAt: "2026-06-15T08:30:00.000Z" })).firstAction).toBeUndefined();
+    expect(
+      JSON.parse(generateMetadataHandoffJson(mockSong, { createdAt: "2026-06-15T08:30:00.000Z", firstAction: null })).firstAction
+    ).toBeUndefined();
   });
 
   it("uses the song identity as the default handoff workspace identity", () => {

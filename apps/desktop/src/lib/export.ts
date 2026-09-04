@@ -5,6 +5,7 @@ import {
   parseRehearsalSong,
   type AnalysisJobRequest,
   type MetadataHandoffArtifact,
+  type MetadataHandoffFirstAction,
   type ProjectBootstrapSummary,
   type RehearsalSong
 } from "@bandscope/shared-types";
@@ -87,6 +88,7 @@ export function createMetadataHandoffArtifact(
     sourceBootstrap?: ProjectBootstrapSummary | null;
     workspaceId?: string;
     workspaceTitle?: string;
+    firstAction?: MetadataHandoffFirstAction | null;
   } = {}
 ): MetadataHandoffArtifact {
   const parsedSong = parseRehearsalSong(song);
@@ -94,9 +96,8 @@ export function createMetadataHandoffArtifact(
     ? parseProjectBootstrapSummary(options.sourceBootstrap)
     : null;
 
-  return parseMetadataHandoffArtifact({
-    artifactKind: "bandscope.metadata-handoff",
-    artifactVersion: 1,
+  const payload = {
+    artifactKind: "bandscope.metadata-handoff" as const,
     createdAt: options.createdAt ?? new Date().toISOString(),
     workspace: {
       id: options.workspaceId ?? parsedSong.id,
@@ -124,15 +125,38 @@ export function createMetadataHandoffArtifact(
     sourceAssets: sourceBootstrap
       ? [
           {
-            referenceKind: "local_audio",
-            sourceMode: "reference",
+            referenceKind: "local_audio" as const,
+            sourceMode: "reference" as const,
             fileName: sourceBootstrap.source.fileName,
             extension: sourceBootstrap.source.extension,
             fileSizeBytes: sourceBootstrap.source.fileSizeBytes,
-            status: "referenced"
+            status: "referenced" as const
           }
         ]
       : []
+  };
+
+  if (options.firstAction) {
+    return parseMetadataHandoffArtifact({
+      artifactKind: payload.artifactKind,
+      artifactVersion: 2,
+      createdAt: payload.createdAt,
+      workspace: payload.workspace,
+      song: payload.song,
+      firstAction: options.firstAction,
+      sections: payload.sections,
+      sourceAssets: payload.sourceAssets
+    });
+  }
+
+  return parseMetadataHandoffArtifact({
+    artifactKind: payload.artifactKind,
+    artifactVersion: 1,
+    createdAt: payload.createdAt,
+    workspace: payload.workspace,
+    song: payload.song,
+    sections: payload.sections,
+    sourceAssets: payload.sourceAssets
   });
 }
 

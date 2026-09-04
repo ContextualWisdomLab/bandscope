@@ -621,7 +621,7 @@ describe("shared type helpers", () => {
     expect(parseMetadataHandoffArtifact(artifact)).toEqual(artifact);
     expect(() => parseMetadataHandoffArtifact({
       ...artifact,
-      artifactVersion: 2
+      artifactVersion: 3
     })).toThrow("artifactVersion");
     expect(() => parseMetadataHandoffArtifact({
       ...artifact,
