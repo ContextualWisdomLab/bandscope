@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
+from math import isfinite
 from typing import Any
 
 from ..sections.utils import validate_section
-from .activity import compute_handoffs, detect_stem_activity, map_stems_to_roles
+from .activity import (
+    compute_handoffs,
+    detect_stem_activity,
+    detect_stem_energy,
+    map_stems_to_role_energy,
+    map_stems_to_roles,
+)
 from .model import (
     CueAnchorKind,
     PartGraphNode,
@@ -21,6 +29,14 @@ from .priority import calculate_rehearsal_priority
 from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
+
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_NAMED_SWELL_ROLE_IDS = frozenset({"lead-vocal", "bass-guitar"})
+_SWELL_PLAN_SOLO = "Swell this part; grow into the next downbeat."
+_SWELL_PLAN_PREFIX = "Swell this part with "
+_SWELL_PLAN_SUFFIX = "; grow into the next downbeat."
+_SWELL_RATIO = 1.8
+_SWELL_PREVIOUS_FLOOR = 1e-4
 
 
 class RoleExtractor:
@@ -54,25 +70,54 @@ class RoleExtractor:
         vocal_range, vocal_chord, bass_range, bass_chord = self._extract_features(stems, sr)
         roles = self._build_roles(bass_chord, bass_range, vocal_chord, vocal_range)
 
-        # Use real stem activity detection when we have stems and boundaries
-        activity_maps: list[dict[str, bool]] | None = None
+        # Keep raw stem source sets beside rendered role activity so swell
+        # continuity can see non-rendered sources such as drums.
+        activity_evidence: list[tuple[dict[str, bool], set[str]]] | None = None
+        energy_maps: list[dict[str, float]] | None = None
         if stems and boundaries and len(boundaries) == len(sections):
             try:
                 stem_activity = detect_stem_activity(stems, boundaries, sr)
-                activity_maps = [map_stems_to_roles(sa) for sa in stem_activity]
+                activity_evidence = [
+                    (
+                        map_stems_to_roles(segment_activity),
+                        {stem_id for stem_id, is_active in segment_activity.items() if is_active},
+                    )
+                    for segment_activity in stem_activity
+                ]
             except Exception as e:
                 logger.warning("Stem activity detection failed, using fallback: %s", e)
-                activity_maps = None
+                activity_evidence = None
+            try:
+                stem_energy = detect_stem_energy(stems, boundaries, sr)
+                energy_maps = [map_stems_to_role_energy(se) for se in stem_energy]
+            except Exception as e:
+                logger.warning("Stem energy detection failed, leaving swell unnamed: %s", e)
+                energy_maps = None
 
         for i, section in enumerate(sections):
             section_id = validate_section(section, i, logger)
 
-            if activity_maps is not None:
+            if activity_evidence is not None:
                 # Real activity-based topology
-                current_activity = activity_maps[i]
-                next_activity = activity_maps[i + 1] if i + 1 < len(activity_maps) else None
+                current_activity, current_source_ids = activity_evidence[i]
+                next_activity = (
+                    activity_evidence[i + 1][0] if i + 1 < len(activity_evidence) else None
+                )
+                previous_activity = activity_evidence[i - 1][0] if i > 0 else None
+                stem_source_continuity = (
+                    current_source_ids == activity_evidence[i - 1][1] if i > 0 else None
+                )
+                current_energy = energy_maps[i] if energy_maps is not None else None
+                previous_energy = energy_maps[i - 1] if energy_maps is not None and i > 0 else None
                 topology = self._build_activity_topology(
-                    section_id, roles, current_activity, next_activity
+                    section_id,
+                    roles,
+                    current_activity,
+                    next_activity,
+                    previous_activity,
+                    current_energy,
+                    previous_energy,
+                    stem_source_continuity,
                 )
             else:
                 # Fallback to heuristic-based topology
@@ -82,7 +127,7 @@ class RoleExtractor:
 
         extraction_method = (
             "Extracted roles from real stem activity detection."
-            if activity_maps is not None
+            if activity_evidence is not None
             else "Extracted roles and computed handoffs."
         )
 
@@ -330,12 +375,105 @@ class RoleExtractor:
             "acoustic_guitar": acoustic_guitar_role,
         }
 
+    @staticmethod
+    def _source_id(role_id: str) -> str:
+        """Collapse accompaniment stems onto one rehearsal source."""
+        return "other" if role_id in _OTHER_STEM_ROLE_IDS else role_id
+
+    @staticmethod
+    def _active_role_ids(role_activity: dict[str, bool]) -> set[str]:
+        """Return role ids whose activity flag is explicitly true."""
+        return {role_id for role_id, is_active in role_activity.items() if is_active}
+
+    @classmethod
+    def _source_ids(cls, role_ids: set[str]) -> set[str]:
+        """Return distinct source-separation stems among the given roles."""
+        return {cls._source_id(role_id) for role_id in role_ids}
+
+    def _named_swell_ids(
+        self,
+        role_activity: dict[str, bool],
+        previous_role_activity: dict[str, bool],
+        role_energy: dict[str, float] | None,
+        previous_role_energy: dict[str, float] | None,
+        stem_source_continuity: bool | None = None,
+    ) -> set[str]:
+        """Return named staying roles whose RMS rose by the swell ratio."""
+        if role_energy is None or previous_role_energy is None:
+            return set()
+        if stem_source_continuity is False:
+            return set()
+        previous_active = self._active_role_ids(previous_role_activity)
+        current_active = self._active_role_ids(role_activity)
+        if self._source_ids(previous_active) != self._source_ids(current_active):
+            return set()
+        swelled: set[str] = set()
+        for role_id in _NAMED_SWELL_ROLE_IDS & current_active & previous_active:
+            previous_rms = float(previous_role_energy.get(role_id, 0.0) or 0.0)
+            current_rms = float(role_energy.get(role_id, 0.0) or 0.0)
+            if not isfinite(previous_rms) or not isfinite(current_rms):
+                continue
+            if previous_rms < _SWELL_PREVIOUS_FLOOR:
+                continue
+            if current_rms < previous_rms * _SWELL_RATIO:
+                continue
+            swelled.add(role_id)
+        return swelled
+
+    def _activity_swell_plan(
+        self,
+        role_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        previous_role_activity: dict[str, bool] | None,
+        role_energy: dict[str, float] | None,
+        previous_role_energy: dict[str, float] | None,
+        stem_source_continuity: bool | None = None,
+    ) -> str | None:
+        """Return bounded swell guidance only for a corroborated intensity rise.
+
+        A swell plan is emitted only when real stem activity shows this named
+        part staying while its RMS grows by at least 1.8× after an already
+        audible previous section, and the distinct source set does not change.
+        A density fill (drop), a thinning hold (breakdown), a leaving part
+        (dropout), a first-section, heuristic topology, or an accompaniment
+        ``other`` landing stay unnamed.
+        """
+        if previous_role_activity is None:
+            return None
+        if role_id in _OTHER_STEM_ROLE_IDS:
+            return None
+        swelled = self._named_swell_ids(
+            role_activity,
+            previous_role_activity,
+            role_energy,
+            previous_role_energy,
+            stem_source_continuity,
+        )
+        if role_id not in swelled:
+            return None
+        partners = sorted(swelled - {role_id})
+        if not partners:
+            return _SWELL_PLAN_SOLO
+        partner_id = partners[0]
+        other_name = next(
+            (role["name"] for role in roles.values() if role["id"] == partner_id),
+            None,
+        )
+        if other_name is None:
+            return None
+        return f"{_SWELL_PLAN_PREFIX}{other_name}{_SWELL_PLAN_SUFFIX}"
+
     def _build_activity_topology(
         self,
         section_id: str,
         roles: dict[str, RehearsalRole],
         role_activity: dict[str, bool],
         next_role_activity: dict[str, bool] | None,
+        previous_role_activity: dict[str, bool] | None = None,
+        role_energy: dict[str, float] | None = None,
+        previous_role_energy: dict[str, float] | None = None,
+        stem_source_continuity: bool | None = None,
     ) -> SectionRoleTopology:
         """Build topology from real stem activity detection."""
         handoffs = compute_handoffs(role_activity, next_role_activity)
@@ -357,7 +495,20 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                active_roles.append(roles[role_key])
+                role = deepcopy(roles[role_key])
+                swell_plan = self._activity_swell_plan(
+                    role_id,
+                    roles,
+                    role_activity,
+                    previous_role_activity,
+                    role_energy,
+                    previous_role_energy,
+                    stem_source_continuity,
+                )
+                if swell_plan is not None:
+                    role["swellPlan"] = swell_plan
+                    role["swellPlanSource"] = "model"
+                active_roles.append(role)
 
             part_graph.append(
                 {

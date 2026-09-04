@@ -154,5 +154,13 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "firstSwellPlanLabel": "오늘 첫 스웰 계획",
+  "firstSwellPlanOpenAction": "{at} {role} 스웰 열기",
+  "firstSwellPlanBody": "{at} {section}에서 {role} 파트가 스웰합니다.",
+  "firstSwellPlanArmed": "{at}에서 {role} 파트로 함께 스웰하세요. 리프트가 들리도록 키우세요.",
+  "firstSwellPlanGeneratedGuidance": "{target} 파트와 이 파트를 스웰하세요. 다음 다운비트까지 키우세요.",
+  "firstSwellPlanGeneratedSoloGuidance": "이 파트를 스웰하세요. 다음 다운비트까지 키우세요.",
+  "firstSwellPlanUnavailable": "사용 가능한 스웰 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
+  "firstSwellPlanNavigationFailed": "곡 맵에서 이 스웰을 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요."
 }

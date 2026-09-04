@@ -83,6 +83,7 @@ Last updated: 2026-03-11
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
+  - tonight's first swell plan on the mounted map when section-level stem energy shows a corroborated intensity rise (same distinct source set stays, named vocals or bass RMS ≥1.8× after already-audible previous), with Open moving to the matching rendered map section. Heuristic-only topology stays unnamed. Distinct from first-drop, first-breakdown, first-dropout, first-cutoff, first-stop, first-pickup, and first-turnaround. Accompaniment other never owns.
   - simplification, transposition, capo, tuning, or setup cues where applicable
   - role-specific rehearsal priorities and confidence flags
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
