@@ -33,7 +33,7 @@ function owns(record: Record<string, unknown>, field: string): boolean {
 }
 
 /** Return whether a role already owns a 0–100 integer practice mark. */
-export function hasLoggedPracticeProgress(value: unknown): boolean {
+export function hasLoggedPracticeProgress(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100;
 }
 
