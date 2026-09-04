@@ -4,7 +4,8 @@
 mod playable_stem_contract;
 
 use playable_stem_contract::{
-    PlayableStemArtifactSetReference, PlaybackStemKind, PLAYABLE_STEM_ARTIFACT_VERSION,
+    PlayableStemArtifactSetReference, PlaybackStemKind,
+    MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT, PLAYABLE_STEM_ARTIFACT_VERSION,
 };
 use serde_json::{json, Map, Value};
 use std::path::Path;
@@ -72,6 +73,24 @@ fn stem_artifact_object_mut(
     stem_artifacts_mut(reference_value)[artifact_index]
         .as_object_mut()
         .expect("stem artifact fixture must remain an object")
+}
+
+fn set_sample_geometry(reference_value: &mut Value, sample_count: u64) {
+    let sample_rate = 8_000_u64;
+    let duration_seconds = sample_count as f64 / sample_rate as f64;
+    let file_size_bytes = 44_u64 + (sample_count * 2_u64);
+    reference_object_mut(reference_value)
+        .insert("sampleCount".to_string(), json!(sample_count));
+    reference_object_mut(reference_value)
+        .insert("durationSeconds".to_string(), json!(duration_seconds));
+    for stem_artifact in stem_artifacts_mut(reference_value) {
+        let stem_artifact_object = stem_artifact
+            .as_object_mut()
+            .expect("stem artifact fixture must remain an object");
+        stem_artifact_object.insert("sampleCount".to_string(), json!(sample_count));
+        stem_artifact_object.insert("durationSeconds".to_string(), json!(duration_seconds));
+        stem_artifact_object.insert("fileSizeBytes".to_string(), json!(file_size_bytes));
+    }
 }
 
 #[test]
@@ -269,16 +288,29 @@ fn rejects_set_level_version_media_and_alignment_mismatch() {
 }
 
 #[test]
-fn rejects_file_size_overflow_before_accepting_artifacts() {
-    let mut malformed_reference = valid_reference_value();
-    let oversized_sample_count = u64::MAX;
-    let oversized_duration = oversized_sample_count as f64 / 8000.0;
-    reference_object_mut(&mut malformed_reference)
-        .insert("sampleCount".to_string(), json!(oversized_sample_count));
-    reference_object_mut(&mut malformed_reference)
-        .insert("durationSeconds".to_string(), json!(oversized_duration));
+fn enforces_classic_riff_sample_count_boundary() {
+    let mut maximum_reference = valid_reference_value();
+    set_sample_geometry(
+        &mut maximum_reference,
+        MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT,
+    );
+    let parsed_maximum =
+        parse_reference(maximum_reference).expect("classic RIFF maximum should parse");
+    assert_eq!(
+        parsed_maximum.sample_count(),
+        MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT
+    );
+    assert_eq!(
+        parsed_maximum.stem_artifacts()[0].file_size_bytes(),
+        4_294_967_302
+    );
 
-    assert!(parse_reference(malformed_reference).is_err());
+    let mut excessive_reference = valid_reference_value();
+    set_sample_geometry(
+        &mut excessive_reference,
+        MAX_CLASSIC_RIFF_PCM16_SAMPLE_COUNT + 1,
+    );
+    assert!(parse_reference(excessive_reference).is_err());
 }
 
 #[test]
