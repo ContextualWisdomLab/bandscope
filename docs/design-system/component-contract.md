@@ -80,6 +80,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 - `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
 - `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
 - `EmptyState` must remain an actionable state card, not a blank placeholder panel.
+- Score list empty copy and `ScoreViewer` empty copy must name **Add a score** (or analyze first when no project is active) rather than describing a missing PDF.
 - If a new workspace state is added in code, update Figma page 34 and page 33 audit evidence before merging.
 
 ## Pattern Backlog

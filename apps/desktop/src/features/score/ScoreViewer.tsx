@@ -190,6 +190,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <div className="mb-4 rounded-full border border-cyan-300/30 bg-cyan-300/10 p-4 text-cyan-200">
             <FileMusic className="size-8" aria-hidden="true" />
           </div>
+          <h3 className="mb-2 text-lg font-black text-white">{t("scoreViewerEmptyTitle")}</h3>
           <p className="max-w-sm text-slate-400">{t("scoreViewerEmpty")}</p>
         </CardContent>
       </Card>

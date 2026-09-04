@@ -23,7 +23,7 @@ vi.mock("../../i18n", () => ({
       scoreViewTitle: "Score",
       scoreViewSubtitle: "Attach validated PDF scores to the current song.",
       scoreListTitle: "Attached scores",
-      scoreListEmpty: "No scores attached to this song yet.",
+      scoreListEmpty: "Add a score to read it during rehearsal.",
       scoreAttach: "Add score",
       scoreAttaching: "Attaching...",
       scoreRemove: "Remove",
@@ -84,7 +84,8 @@ describe("ScoreView", () => {
     render(<ScoreView song={makeSong()} projectId="project-1-2" onSongUpdate={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: /Score · Late Night Set/i })).toBeInTheDocument();
-    expect(screen.getByText("No scores attached to this song yet.")).toBeInTheDocument();
+    expect(screen.getByText("Add a score to read it during rehearsal.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Add a score to read it during rehearsal.");
     expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
     expect(mockInvoke).not.toHaveBeenCalled();

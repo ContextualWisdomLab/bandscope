@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createTranslator, detectPreferredLocale } from "./index";
+import enCommon from "../locales/en/common.json";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -46,6 +47,18 @@ describe("i18n", () => {
   });
 
   describe("createTranslator", () => {
+    it("keeps English and Korean dictionaries aligned for score empty next actions", () => {
+      expect(Object.keys(enCommon).sort()).toEqual(Object.keys(koCommon).sort());
+      const tEn = createTranslator("en");
+      const tKo = createTranslator("ko");
+      expect(tEn("scoreListEmpty")).toMatch(/Add a score/);
+      expect(tEn("scoreViewerEmpty")).toMatch(/Add a score above/);
+      expect(tEn("scoreViewerEmptyTitle")).toBe("No score is open");
+      expect(tKo("scoreListEmpty")).toMatch(/악보를 추가/);
+      expect(tKo("scoreViewerEmpty")).toMatch(/악보를 추가한 다음/);
+      expect(tKo("scoreViewerEmptyTitle")).toBe("열린 악보가 없습니다");
+    });
+
     it("translates to English by default", () => {
       const t = createTranslator();
       expect(t("appTitle")).toBe("BandScope");

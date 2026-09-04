@@ -16,6 +16,7 @@
 ### Fixed
 
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
+- Name **Add a score** as the next rehearsal action when the score list or viewer is empty, instead of describing the missing PDF.
 
 ## [0.1.3] - 2026-04-29
 
