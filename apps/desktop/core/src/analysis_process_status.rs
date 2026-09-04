@@ -125,8 +125,12 @@ pub fn parse_analysis_process_status(
         .map_err(|_| PROCESS_STATUS_ERROR)?;
 
     let state_payload_is_valid = match &renderer_status.state {
-        AnalysisJobState::Succeeded => renderer_status.result.is_some() && renderer_status.error.is_none(),
-        AnalysisJobState::Failed => renderer_status.result.is_none() && renderer_status.error.is_some(),
+        AnalysisJobState::Succeeded => {
+            renderer_status.result.is_some() && renderer_status.error.is_none()
+        }
+        AnalysisJobState::Failed => {
+            renderer_status.result.is_none() && renderer_status.error.is_some()
+        }
         AnalysisJobState::Queued | AnalysisJobState::Running => {
             renderer_status.result.is_none() && renderer_status.error.is_none()
         }
