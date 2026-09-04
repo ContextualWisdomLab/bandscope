@@ -122,10 +122,71 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_dc_al_fine",
+        skip_serializing_if = "Option::is_none"
+    )]
+    dc_al_fine: Option<DcAlFinePayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DcAlFinePayload {
+    label: String,
+}
+
+impl<'de> Deserialize<'de> for DcAlFinePayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawDcAlFinePayload {
+            label: String,
+        }
+
+        let raw = RawDcAlFinePayload::deserialize(deserializer)?;
+        if !is_trusted_dc_al_fine_label(&raw.label) {
+            return Err(serde::de::Error::custom(
+                "dcAlFine label must be D.C. al Fine or D.C. al Fine 1–9",
+            ));
+        }
+
+        Ok(Self { label: raw.label })
+    }
+}
+
+fn is_trusted_dc_al_fine_label(label: &str) -> bool {
+    matches!(
+        label,
+        "D.C. al Fine"
+            | "D.C. al Fine 1"
+            | "D.C. al Fine 2"
+            | "D.C. al Fine 3"
+            | "D.C. al Fine 4"
+            | "D.C. al Fine 5"
+            | "D.C. al Fine 6"
+            | "D.C. al Fine 7"
+            | "D.C. al Fine 8"
+            | "D.C. al Fine 9"
+    )
+}
+
+fn deserialize_optional_dc_al_fine<'de, D>(
+    deserializer: D,
+) -> Result<Option<DcAlFinePayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<DcAlFinePayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("dcAlFine must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -787,6 +848,77 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_dc_al_fine() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["dcAlFine"] = json!({ "label": "D.C. al Fine" });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a dcAlFine should deserialize");
+        let dc_al_fine = parsed
+            .dc_al_fine
+            .as_ref()
+            .expect("dcAlFine should survive deserialization");
+        assert_eq!(dc_al_fine.label, "D.C. al Fine");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("marked song payload should serialize back");
+        assert_eq!(serialized["dcAlFine"], json!({ "label": "D.C. al Fine" }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("marked payload should encode"),
+        )
+        .expect("marked project should load");
+        assert_eq!(
+            loaded.dc_al_fine.as_ref().map(|value| value.label.as_str()),
+            Some("D.C. al Fine")
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_numbered_dc_al_fine_labels() {
+        for label in ["D.C. al Fine 1", "D.C. al Fine 5", "D.C. al Fine 9"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["dcAlFine"] = json!({ "label": label });
+
+            let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+                .unwrap_or_else(|_| panic!("trusted dcAlFine {label} should deserialize"));
+            assert_eq!(
+                parsed.dc_al_fine.as_ref().map(|value| value.label.as_str()),
+                Some(label)
+            );
+        }
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_dc_al_fine() {
+        for dc_al_fine in [
+            json!({ "label": "d.c. al fine" }),
+            json!({ "label": "D.C. Al Fine" }),
+            json!({ "label": "Da Capo" }),
+            json!({ "label": "Dal Segno" }),
+            json!({ "label": "Fine" }),
+            json!({ "label": "To Coda" }),
+            json!({ "label": "Coda" }),
+            json!({ "label": "D.S. al Coda" }),
+            json!({ "label": "D.C. al Coda" }),
+            json!({ "label": "D.S. al Fine" }),
+            json!({ "label": "al Fine" }),
+            json!({ "label": "D.S." }),
+            json!({ "label": "D.C." }),
+            json!({ "label": "D.C. al Fine 0" }),
+            json!({ "label": "D.C. al Fine 10" }),
+            json!({ "label": "" }),
+            json!({ "label": "D.C. al Fine", "confidence": "high" }),
+            json!({ "text": "D.C. al Fine" }),
+            Value::Null,
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["dcAlFine"] = dc_al_fine;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_round_trips_score_attachments() {
         let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         payload["scoreAttachments"] = json!([
@@ -817,9 +949,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.dc_al_fine.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("dcAlFine").is_none());
     }
 
     #[test]
