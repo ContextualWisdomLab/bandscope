@@ -122,10 +122,69 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_to_coda",
+        skip_serializing_if = "Option::is_none"
+    )]
+    to_coda: Option<ToCodaPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToCodaPayload {
+    label: String,
+}
+
+impl<'de> Deserialize<'de> for ToCodaPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawToCodaPayload {
+            label: String,
+        }
+
+        let raw = RawToCodaPayload::deserialize(deserializer)?;
+        if !is_trusted_to_coda_label(&raw.label) {
+            return Err(serde::de::Error::custom(
+                "toCoda label must be To Coda or To Coda 1–9",
+            ));
+        }
+
+        Ok(Self { label: raw.label })
+    }
+}
+
+fn is_trusted_to_coda_label(label: &str) -> bool {
+    matches!(
+        label,
+        "To Coda"
+            | "To Coda 1"
+            | "To Coda 2"
+            | "To Coda 3"
+            | "To Coda 4"
+            | "To Coda 5"
+            | "To Coda 6"
+            | "To Coda 7"
+            | "To Coda 8"
+            | "To Coda 9"
+    )
+}
+
+fn deserialize_optional_to_coda<'de, D>(deserializer: D) -> Result<Option<ToCodaPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<ToCodaPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("toCoda must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -787,6 +846,72 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_to_coda() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["toCoda"] = json!({ "label": "To Coda" });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a toCoda should deserialize");
+        let to_coda = parsed
+            .to_coda
+            .as_ref()
+            .expect("toCoda should survive deserialization");
+        assert_eq!(to_coda.label, "To Coda");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("marked song payload should serialize back");
+        assert_eq!(serialized["toCoda"], json!({ "label": "To Coda" }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("marked payload should encode"),
+        )
+        .expect("marked project should load");
+        assert_eq!(
+            loaded.to_coda.as_ref().map(|value| value.label.as_str()),
+            Some("To Coda")
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_numbered_to_coda_labels() {
+        for label in ["To Coda 1", "To Coda 5", "To Coda 9"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["toCoda"] = json!({ "label": label });
+
+            let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+                .unwrap_or_else(|_| panic!("trusted toCoda {label} should deserialize"));
+            assert_eq!(
+                parsed.to_coda.as_ref().map(|value| value.label.as_str()),
+                Some(label)
+            );
+        }
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_to_coda() {
+        for to_coda in [
+            json!({ "label": "to coda" }),
+            json!({ "label": "To coda" }),
+            json!({ "label": "Coda" }),
+            json!({ "label": "D.S. al Coda" }),
+            json!({ "label": "D.C. al Coda" }),
+            json!({ "label": "al Coda" }),
+            json!({ "label": "Fine" }),
+            json!({ "label": "D.S." }),
+            json!({ "label": "To Coda 0" }),
+            json!({ "label": "To Coda 10" }),
+            json!({ "label": "" }),
+            json!({ "label": "To Coda", "confidence": "high" }),
+            json!({ "text": "To Coda" }),
+            Value::Null,
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["toCoda"] = to_coda;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_round_trips_score_attachments() {
         let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         payload["scoreAttachments"] = json!([
@@ -817,9 +942,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.to_coda.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("toCoda").is_none());
     }
 
     #[test]

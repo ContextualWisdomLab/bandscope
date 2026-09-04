@@ -1023,6 +1023,41 @@ describe("shared type helpers", () => {
     expect(() => parseRehearsalSong(invalidTempoInfinity)).toThrow("tempo");
   });
 
+  it("validates toCoda correctly", () => {
+    const validSong = createDemoRehearsalSong();
+    expect(validSong.toCoda).toEqual({ label: "To Coda" });
+    expect(isRehearsalSong(validSong)).toBe(true);
+
+    validSong.toCoda = { label: "To Coda 2" };
+    expect(isRehearsalSong(validSong)).toBe(true);
+    expect(parseRehearsalSong(validSong).toCoda).toEqual({ label: "To Coda 2" });
+
+    const withoutToCoda = createDemoRehearsalSong();
+    delete withoutToCoda.toCoda;
+    expect(isRehearsalSong(withoutToCoda)).toBe(true);
+    expect(parseRehearsalSong(withoutToCoda)).toEqual(withoutToCoda);
+
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: "To Coda" })).toThrow("toCoda");
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: { label: 1 } })).toThrow(
+      "toCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: { label: "to coda" } })).toThrow(
+      "toCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: { label: "Coda" } })).toThrow(
+      "toCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: { label: "D.S. al Coda" } })).toThrow(
+      "toCoda.label"
+    );
+    expect(() => parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: { label: "D.S." } })).toThrow(
+      "toCoda.label"
+    );
+    expect(() =>
+      parseRehearsalSong({ ...createDemoRehearsalSong(), toCoda: { label: "To Coda", extra: true } })
+    ).toThrow("toCoda.extra");
+  });
+
   it("validates practiceProgress successfully when valid", () => {
     const validPracticeProgressSong = createDemoRehearsalSong();
     validPracticeProgressSong.sections[0]!.roles[0]!.practiceProgress = 0;
