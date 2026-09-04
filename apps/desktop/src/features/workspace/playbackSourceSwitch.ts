@@ -41,9 +41,16 @@ function hasValidSwitchIdentity(identity: PlaybackSourceSwitchIdentity): boolean
   );
 }
 
+function freezePlaybackSourceSwitchSession(
+  sequence: number,
+  activePlan: PlaybackSourceSwitchPlan | null,
+): PlaybackSourceSwitchSession {
+  return Object.freeze({ sequence, activePlan });
+}
+
 /** Start a renderer switch session with no reusable media receipt. */
 export function createPlaybackSourceSwitchSession(): PlaybackSourceSwitchSession {
-  return { sequence: 0, activePlan: null };
+  return freezePlaybackSourceSwitchSession(0, null);
 }
 
 /**
@@ -83,7 +90,7 @@ export function capturePlaybackSourceSwitch(
     return null;
   }
 
-  return {
+  return Object.freeze({
     ...identity,
     loopStartSeconds: loop.startSeconds,
     loopEndSeconds: loop.endSeconds,
@@ -91,7 +98,7 @@ export function capturePlaybackSourceSwitch(
     playbackRate: transport.playbackRate,
     sourcePhase: transport.phase,
     resumeAfterLoad: transport.phase === "looping",
-  };
+  });
 }
 
 /**
@@ -100,7 +107,9 @@ export function capturePlaybackSourceSwitch(
  * The sequence is burned before continuity capture. A rejected target or transport
  * phase therefore cannot leave an older `loadedmetadata` receipt authoritative.
  * Sequence values never wrap; exhaustion clears the active plan until the player
- * mounts a fresh switch session.
+ * mounts a fresh switch session. Issued receipts and session identities are frozen
+ * so later renderer code cannot rewrite what a future metadata event is allowed to
+ * restore.
  */
 export function beginPlaybackSourceSwitch(
   state: PlaybackSourceSwitchSession,
@@ -115,7 +124,7 @@ export function beginPlaybackSourceSwitch(
       : Number.MAX_SAFE_INTEGER;
   if (currentSequence >= Number.MAX_SAFE_INTEGER) {
     return {
-      state: { sequence: Number.MAX_SAFE_INTEGER, activePlan: null },
+      state: freezePlaybackSourceSwitchSession(Number.MAX_SAFE_INTEGER, null),
       plan: null,
     };
   }
@@ -131,7 +140,7 @@ export function beginPlaybackSourceSwitch(
     },
   );
   return {
-    state: { sequence, activePlan: plan },
+    state: freezePlaybackSourceSwitchSession(sequence, plan),
     plan,
   };
 }
