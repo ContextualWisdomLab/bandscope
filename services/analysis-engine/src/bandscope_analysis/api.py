@@ -19,13 +19,14 @@ from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
 from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.temporal import TemporalAnalyzer
 
 logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
-ANALYSIS_CACHE_SCHEMA_VERSION = 1
+ANALYSIS_CACHE_SCHEMA_VERSION = 2
 FEATURE_CACHE_SCHEMA_VERSION = 1
-STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
+STEM_SEPARATION_TIMEOUT_SECONDS = 300.0
 
 logger = logging.getLogger(__name__)
 
@@ -472,7 +473,9 @@ def _build_from_arrangement(audio_features: dict[str, Any] | None = None) -> Reh
 
     song: RehearsalSong = {
         "id": "demo-song",
-        "title": "Late Night Set",
+        "title": (
+            audio_features.get("title", "Late Night Set") if audio_features else "Late Night Set"
+        ),
         "sections": [
             {
                 "id": verse_section["id"],
@@ -613,15 +616,29 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return Path(cache_root) / "analysis-cache-v1" / f"{digest}.json"
+    return Path(cache_root) / "analysis-cache-v2" / f"{digest}.json"
 
 
 def _feature_cache_paths(request: AnalysisJobRequest) -> tuple[Path, Path] | None:
     """Return metadata + array cache paths for intermediate local-audio features."""
-    analysis_cache_path = _analysis_cache_path(request)
-    if analysis_cache_path is None:
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
         return None
-    stem_cache_base = analysis_cache_path.with_suffix("")
+    cache_root = request.get("cacheRoot")
+    if not cache_root:
+        return None
+
+    local_source = request["localSource"]
+    key_payload = {
+        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+        "projectId": request.get("projectId", ""),
+        "sourcePath": local_source["sourcePath"],
+        "fileName": local_source["fileName"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    digest = hashlib.sha256(
+        json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    stem_cache_base = Path(cache_root) / "analysis-cache-v1" / digest
     return (
         stem_cache_base.with_suffix(".features.json"),
         stem_cache_base.with_suffix(".features.npz"),
@@ -1039,6 +1056,21 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     }
 
 
+def _build_local_temporal_features(request: AnalysisJobRequest) -> dict[str, Any] | None:
+    """Extract tempo features that remain useful when stem separation is unavailable."""
+    if request["sourceKind"] != "local_audio" or "localSource" not in request:
+        return None
+
+    try:
+        return {
+            "title": request["sourceLabel"],
+            **dict(TemporalAnalyzer().analyze(request["localSource"]["sourcePath"])),
+        }
+    except (FileNotFoundError, ValueError):
+        logger.warning("Temporal analysis unavailable; continuing with safe fallback.")
+        return {"title": request["sourceLabel"]}
+
+
 def run_analysis_job_updates(
     job_id: str,
     payload: object,
@@ -1102,12 +1134,13 @@ def run_analysis_job_updates(
             cache_status=cache_status,
         ),
     ]
-    audio_features: dict[str, Any] | None = None
+    temporal_features: dict[str, Any] | None = None
+    stem_features: dict[str, Any] | None = None
     feature_cache_hit = False
     if feature_cache_paths is not None:
         cached_features = _load_cached_local_audio_features(*feature_cache_paths)
         if cached_features is not None:
-            audio_features = cached_features
+            stem_features = cached_features
             feature_cache_hit = True
             updates.append(
                 _build_job_status(
@@ -1121,7 +1154,7 @@ def run_analysis_job_updates(
                 )
             )
 
-    if audio_features is None:
+    if stem_features is None:
         updates.append(
             _build_job_status(
                 job_id=job_id,
@@ -1134,7 +1167,7 @@ def run_analysis_job_updates(
             )
         )
         try:
-            audio_features = _build_local_audio_features(request)
+            stem_features = _build_local_audio_features(request)
         except StemSeparationTimedOut:
             updates.append(
                 _build_job_status(
@@ -1147,7 +1180,7 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                 )
             )
-            audio_features = None
+            stem_features = None
         except RuntimeError:
             updates.append(
                 _build_job_status(
@@ -1160,7 +1193,7 @@ def run_analysis_job_updates(
                     cache_status=cache_status,
                 )
             )
-            audio_features = None
+            stem_features = None
         except (FileNotFoundError, ValueError):
             logger.exception("Stem separation failed before analysis job completion.")
             updates.append(
@@ -1179,6 +1212,14 @@ def run_analysis_job_updates(
                 )
             )
             return updates
+
+    temporal_features = _build_local_temporal_features(request)
+    audio_features: dict[str, Any] | None = None
+    if temporal_features is not None or stem_features is not None:
+        audio_features = {
+            **(temporal_features or {}),
+            **(stem_features or {}),
+        }
 
     updates.append(
         _build_job_status(
