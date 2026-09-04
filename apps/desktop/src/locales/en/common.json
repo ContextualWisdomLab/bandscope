@@ -153,6 +153,16 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceConfirmedChordTitle": "Tonight's confirmed chord",
+  "workspaceConfirmedChordLock": "{roleName} uses the room's {chord} in {sectionLabel}. Lock that chord before the {sectionLabel}.",
+  "workspaceSelectedEntranceCueTitle": "Tonight's entrance cue",
+  "workspaceSelectedEntranceCueLyric": "Listen for \"{value}\" in {sectionLabel}, then {roleName} enters.",
+  "workspaceSelectedEntranceCueCount": "Count this in {sectionLabel} before {roleName} enters: {value}",
+  "workspaceSelectedEntranceCueTransition": "Catch this transition in {sectionLabel} before {roleName} enters: {value}",
+  "workspaceSelectedEntranceCueUnavailable": "This part still needs a trusted entrance cue. Confirm the lyric, count, or transition before the first entrance.",
+  "workspaceSelectedFirstPassTitle": "Tonight's first-pass take",
+  "workspaceSelectedFirstPassReady": "First pass for {roleName} in {sectionLabel}: {value} Play that simpler take before adding the rest.",
+  "workspaceSelectedFirstPassUnavailable": "This part still needs a trusted first-pass take. Confirm the simpler version before the first run.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

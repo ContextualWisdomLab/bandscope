@@ -5,7 +5,10 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { fillEntranceCueCopy, firstEntranceCue } from "./firstEntranceCue";
+import { fillFirstPassCopy, firstPassSimplification } from "./firstPassSimplification";
+import { fillConfirmedChordCopy, selectedPartConfirmedChord } from "./selectedPartConfirmedChord";
+import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -119,6 +122,17 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 });
 
 /** Documented. */
+function entranceCueCopyKey(kind: "lyric" | "count" | "transition"): TranslationKey {
+  if (kind === "lyric") {
+    return "workspaceSelectedEntranceCueLyric";
+  }
+  if (kind === "count") {
+    return "workspaceSelectedEntranceCueCount";
+  }
+  return "workspaceSelectedEntranceCueTransition";
+}
+
+/** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
@@ -163,6 +177,41 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const confirmedChord = useMemo(
+    () => selectedPartConfirmedChord(song, activeRole),
+    [activeRole, song]
+  );
+  const confirmedChordCopy = confirmedChord
+    ? fillConfirmedChordCopy(t("workspaceConfirmedChordLock"), {
+        roleName: confirmedChord.roleName,
+        chord: confirmedChord.chord,
+        sectionLabel: confirmedChord.sectionLabel
+      })
+    : null;
+  const selectedEntranceCue = useMemo(
+    () => (activeRole ? firstEntranceCue(song, activeRole) : null),
+    [activeRole, song]
+  );
+  const selectedEntranceCueCopy =
+    selectedEntranceCue?.status === "ready"
+      ? fillEntranceCueCopy(t(entranceCueCopyKey(selectedEntranceCue.kind)), {
+          roleName: selectedEntranceCue.roleName,
+          sectionLabel: selectedEntranceCue.sectionLabel,
+          value: selectedEntranceCue.value
+        })
+      : t("workspaceSelectedEntranceCueUnavailable");
+  const selectedFirstPass = useMemo(
+    () => (activeRole ? firstPassSimplification(song, activeRole) : null),
+    [activeRole, song]
+  );
+  const selectedFirstPassCopy =
+    selectedFirstPass?.status === "ready"
+      ? fillFirstPassCopy(t("workspaceSelectedFirstPassReady"), {
+          roleName: selectedFirstPass.roleName,
+          sectionLabel: selectedFirstPass.sectionLabel,
+          value: selectedFirstPass.value
+        })
+      : t("workspaceSelectedFirstPassUnavailable");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -310,6 +359,17 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
           </section>
 
+          {confirmedChordCopy ? (
+            <section
+              className="rounded-2xl border border-indigo-300/20 bg-indigo-300/[0.07] p-4"
+              data-testid="selected-part-confirmed-chord"
+              aria-label={t("workspaceConfirmedChordTitle")}
+            >
+              <p className="text-xs font-black uppercase tracking-[0.24em] text-indigo-200">{t("workspaceConfirmedChordTitle")}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-100">{confirmedChordCopy}</p>
+            </section>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
@@ -372,6 +432,26 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <section
+                  className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3"
+                  data-testid="selected-part-entrance-cue"
+                  aria-label={t("workspaceSelectedEntranceCueTitle")}
+                >
+                  <p className="text-[0.7rem] font-black uppercase tracking-[0.22em] text-amber-100">
+                    {t("workspaceSelectedEntranceCueTitle")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-100">{selectedEntranceCueCopy}</p>
+                </section>
+                <section
+                  className="mt-3 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3"
+                  data-testid="selected-part-first-pass"
+                  aria-label={t("workspaceSelectedFirstPassTitle")}
+                >
+                  <p className="text-[0.7rem] font-black uppercase tracking-[0.22em] text-indigo-100">
+                    {t("workspaceSelectedFirstPassTitle")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-slate-100">{selectedFirstPassCopy}</p>
+                </section>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
