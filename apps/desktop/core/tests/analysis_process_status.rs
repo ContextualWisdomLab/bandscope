@@ -1,7 +1,8 @@
 //! Process-boundary tests for native-only playable-stem status metadata.
 
 use bandscope_desktop_core::{
-    analysis_process_status::parse_analysis_process_status, AnalysisJobState,
+    analysis_process_status::{parse_analysis_process_status, AnalysisProcessStatus},
+    AnalysisJobState,
 };
 use serde_json::{json, Value};
 
@@ -81,11 +82,23 @@ fn queued_status() -> Value {
 
 fn parse_status_value(
     process_status_value: Value,
-) -> Result<bandscope_desktop_core::analysis_process_status::AnalysisProcessStatus, &'static str> {
+) -> Result<AnalysisProcessStatus, &'static str> {
     parse_analysis_process_status(
         &serde_json::to_string(&process_status_value)
             .expect("process status fixture should serialize"),
     )
+}
+
+fn assert_invalid_status(process_status_value: Value) {
+    let process_error = parse_status_value(process_status_value)
+        .expect_err("malformed process status must fail closed");
+    assert_eq!(process_error, PROCESS_STATUS_ERROR);
+}
+
+fn assert_invalid_json(process_status_json: &str) {
+    let process_error = parse_analysis_process_status(process_status_json)
+        .expect_err("malformed JSONL status must fail closed");
+    assert_eq!(process_error, PROCESS_STATUS_ERROR);
 }
 
 #[test]
@@ -101,7 +114,10 @@ fn isolates_native_artifact_reference_from_renderer_status() {
 
     let process_status =
         parse_status_value(process_status_value).expect("complete process status should parse");
-    assert_eq!(process_status.renderer_status().job_id, "job-playable-stems");
+    assert_eq!(
+        process_status.renderer_status().job_id,
+        "job-playable-stems"
+    );
     assert!(matches!(
         &process_status.renderer_status().state,
         AnalysisJobState::Succeeded
@@ -147,7 +163,10 @@ fn rejects_native_artifact_metadata_on_nonterminal_or_failed_status() {
         .as_object_mut()
         .expect("status fixture must remain an object");
     running_status_object.insert("state".to_string(), json!("running"));
-    running_status_object.insert("playableStemArtifactSet".to_string(), playable_stem_artifact_set());
+    running_status_object.insert(
+        "playableStemArtifactSet".to_string(),
+        playable_stem_artifact_set(),
+    );
 
     let mut failed_status = queued_status();
     let failed_status_object = failed_status
@@ -158,10 +177,13 @@ fn rejects_native_artifact_metadata_on_nonterminal_or_failed_status() {
         "error".to_string(),
         json!({"code": "engine_unavailable", "message": "Analysis failed."}),
     );
-    failed_status_object.insert("playableStemArtifactSet".to_string(), playable_stem_artifact_set());
+    failed_status_object.insert(
+        "playableStemArtifactSet".to_string(),
+        playable_stem_artifact_set(),
+    );
 
     for invalid_status in [running_status, failed_status] {
-        assert_eq!(parse_status_value(invalid_status), Err(PROCESS_STATUS_ERROR));
+        assert_invalid_status(invalid_status);
     }
 }
 
@@ -191,7 +213,7 @@ fn rejects_artifact_metadata_without_a_result_or_with_an_error() {
     );
 
     for invalid_status in [missing_result, success_with_error] {
-        assert_eq!(parse_status_value(invalid_status), Err(PROCESS_STATUS_ERROR));
+        assert_invalid_status(invalid_status);
     }
 }
 
@@ -237,7 +259,7 @@ fn rejects_null_malformed_or_path_bearing_artifact_metadata() {
         malformed_artifact_set,
         path_bearing_status,
     ] {
-        assert_eq!(parse_status_value(invalid_status), Err(PROCESS_STATUS_ERROR));
+        assert_invalid_status(invalid_status);
     }
 }
 
@@ -249,10 +271,7 @@ fn preserves_existing_unknown_field_and_json_shape_rejection() {
         .expect("status fixture must remain an object")
         .insert("unexpectedField".to_string(), json!(true));
 
-    assert_eq!(parse_status_value(unknown_status), Err(PROCESS_STATUS_ERROR));
-    assert_eq!(
-        parse_analysis_process_status("not-json"),
-        Err(PROCESS_STATUS_ERROR)
-    );
-    assert_eq!(parse_analysis_process_status("[]"), Err(PROCESS_STATUS_ERROR));
+    assert_invalid_status(unknown_status);
+    assert_invalid_json("not-json");
+    assert_invalid_json("[]");
 }
