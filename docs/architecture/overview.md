@@ -9,7 +9,7 @@ It is technically defined as a rehearsal-analysis product, not a single-output c
 ## Core rehearsal artifacts
 
 - likely harmony by section and by role
-- section roadmap with entries, dropouts, pickups, stops, and handoffs
+- section roadmap with entries, dropouts, pickups, stops, and handoffs; the ready workspace names tonight's first stop and the next entrance when one actually exists
 - groove and timing cues
 - role ranges, overlap warnings, and simplification guidance
 - transposition, capo, tuning, or setup cues where relevant

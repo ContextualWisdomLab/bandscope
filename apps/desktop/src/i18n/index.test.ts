@@ -74,5 +74,14 @@ describe("i18n", () => {
         koDictionary.appSubtitle = originalSubtitle;
       }
     });
+
+    it("keeps first-stop keys in both baseline locales", () => {
+      const tEn = createTranslator("en");
+      const tKo = createTranslator("ko");
+      expect(tEn("firstStopLabel")).toBe("Tonight's first stop");
+      expect(tKo("firstStopLabel")).toBe("오늘 첫 스톱");
+      expect(tEn("firstStopOpenAction")).toContain("{role}");
+      expect(tKo("firstStopOpenAction")).toContain("{role}");
+    });
   });
 });
