@@ -60,7 +60,8 @@ describe("Workspace", () => {
     expect(updatedSong.sections[0]!.roles[0]!.practiceProgress).toBe(60);
   });
 
-  it("keeps the song-structure grid valid when a project has no sections", () => {
+  it("keeps the song-structure grid and missing guidance truthful when a project has no sections", () => {
+    setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
     song.sections = [];
 
@@ -70,6 +71,15 @@ describe("Workspace", () => {
 
     expect(grid.style.gridTemplateColumns).not.toContain("repeat(0");
     expect(grid.style.gridTemplateColumns).toContain("repeat(1");
+    expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
+      "Groove change isn't confirmed yet. Analyze section groove evidence before rehearsal."
+    );
+    expect(screen.getByTestId("first-duration-change")).toHaveTextContent(
+      "Section timing isn't confirmed yet. Analyze section timing before using a count-in."
+    );
+    expect(screen.getByTestId("first-confidence-change")).toHaveTextContent(
+      "Section confidence isn't confirmed yet. Analyze section confidence before rehearsal."
+    );
   });
 
   it("falls back to safe timeline text for malformed section times", () => {
@@ -150,6 +160,41 @@ describe("Workspace", () => {
     expect(callout).toHaveTextContent("Tonight's first range");
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
+    );
+  });
+
+  it("names tonight's held feel and the next count-in when the form does not change groove", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-groove-change");
+    expect(callout).toHaveTextContent("Tonight's first feel change");
+    expect(callout).toHaveTextContent(
+      "Tonight's feel stays Straight eighths with a late snare feel through the form. Count that groove in before the verse."
+    );
+  });
+
+  it("names tonight's first feel change and the next count-in", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      verse,
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        groove: "Half-time snare with open hats",
+        roles: verse.roles.map((role) => ({ ...role, id: `${role.id}-chorus` }))
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
+      "The feel changes at chorus: Half-time snare with open hats, after verse's Straight eighths with a late snare feel. Count the new groove in before the chorus."
     );
   });
 
@@ -325,5 +370,18 @@ describe("Workspace", () => {
     expect(screen.getByText("스템")).toBeTruthy();
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
+    expect(screen.getByText("오늘 먼저 바뀌는 그루브")).toBeTruthy();
+  });
+
+  it("asks for an ear check when no named groove exists", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = { ...song.sections[0]!, label: " ", groove: "none" };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-groove-change")).toHaveTextContent(
+      "Groove change isn't confirmed yet. Analyze section groove evidence before rehearsal."
+    );
   });
 });

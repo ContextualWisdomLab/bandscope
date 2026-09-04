@@ -81,10 +81,10 @@ Last updated: 2026-03-11
 - Core rehearsal artifacts should include:
   - likely harmony by section and by role
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
-  - groove and timing cues relevant to locking the band together
+  - groove and timing cues relevant to locking the band together, with the ready workspace naming tonight's first feel change and first section-length change plus their next count-ins
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
   - simplification, transposition, capo, tuning, or setup cues where applicable
-  - role-specific rehearsal priorities and confidence flags
+  - role-specific rehearsal priorities and confidence flags, with the ready workspace naming tonight's first confidence change and the next ear check
   - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
 
 ## Confidence, edits, and provenance
