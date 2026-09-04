@@ -248,6 +248,14 @@ describe("App", () => {
     expect(screen.getByText(/YouTube only leaves the app when you choose import/i)).toBeTruthy();
   });
 
+  it("provides a keyboard skip link to the focusable main content landmark", () => {
+    render(<App />);
+
+    const skipLink = screen.getByRole("link", { name: "Skip to main content" });
+    expect(skipLink).toHaveAttribute("href", "#main-content");
+    expect(screen.getByRole("main")).toHaveAttribute("tabindex", "-1");
+  });
+
   it("renders localized Korean shell copy for buyer-demo surfaces", () => {
     const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("ko-KR");
 
