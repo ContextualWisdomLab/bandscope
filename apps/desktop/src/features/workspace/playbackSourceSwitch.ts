@@ -48,6 +48,21 @@ function freezePlaybackSourceSwitchSession(
   return Object.freeze({ sequence, activePlan });
 }
 
+function retireExactPlaybackSourceSwitch(
+  state: PlaybackSourceSwitchSession,
+  plan: PlaybackSourceSwitchPlan | null,
+): PlaybackSourceSwitchSession {
+  if (
+    plan === null ||
+    state.activePlan === null ||
+    state.activePlan !== plan ||
+    state.sequence !== plan.sequence
+  ) {
+    return state;
+  }
+  return freezePlaybackSourceSwitchSession(state.sequence, null);
+}
+
 /** Start a renderer switch session with no reusable media receipt. */
 export function createPlaybackSourceSwitchSession(): PlaybackSourceSwitchSession {
   return freezePlaybackSourceSwitchSession(0, null);
@@ -186,13 +201,19 @@ export function completePlaybackSourceSwitch(
   state: PlaybackSourceSwitchSession,
   admittedPlan: PlaybackSourceSwitchPlan | null,
 ): PlaybackSourceSwitchSession {
-  if (
-    admittedPlan === null ||
-    state.activePlan === null ||
-    state.activePlan !== admittedPlan ||
-    state.sequence !== admittedPlan.sequence
-  ) {
-    return state;
-  }
-  return freezePlaybackSourceSwitchSession(state.sequence, null);
+  return retireExactPlaybackSourceSwitch(state, admittedPlan);
+}
+
+/**
+ * Retire one failed media-switch receipt after target loading or admission fails.
+ *
+ * A failed target must not leave restoration authority alive for a later metadata
+ * event from the same mutable media element. Exact issued-object identity prevents
+ * a copied or stale failure receipt from cancelling a newer switch.
+ */
+export function abortPlaybackSourceSwitch(
+  state: PlaybackSourceSwitchSession,
+  failedPlan: PlaybackSourceSwitchPlan | null,
+): PlaybackSourceSwitchSession {
+  return retireExactPlaybackSourceSwitch(state, failedPlan);
 }
