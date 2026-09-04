@@ -1,14 +1,22 @@
 import type { RehearsalSong } from "@bandscope/shared-types";
+import { FirstLyricCueCallout } from "../workspace/FirstLyricCueCallout";
+import { createTranslator, detectPreferredLocale } from "../../i18n";
 
-/** Documented. */
-export function PlayerFeature(props: { title: string; song?: RehearsalSong | null }) {
-  const { title, song } = props;
+type PlayerFeatureProps = {
+  title: string;
+  song?: RehearsalSong | null;
+  onPlayFromSeconds?: (startSeconds: number) => void;
+};
+
+/** Player surface that names tonight's first lyric cue and delegates playback to the owning player. */
+export function PlayerFeature({ title, song, onPlayFromSeconds }: PlayerFeatureProps) {
+  const t = createTranslator(detectPreferredLocale());
 
   if (!song) {
     return (
       <section style={{ padding: "24px" }}>
         <h2>{title}</h2>
-        <p style={{ color: "#999" }}>No song loaded. Start an analysis to use the player.</p>
+        <p style={{ color: "#999" }}>{t("firstLyricCueNeedsSong")}</p>
       </section>
     );
   }
@@ -16,12 +24,18 @@ export function PlayerFeature(props: { title: string; song?: RehearsalSong | nul
   return (
     <section style={{ padding: "24px" }}>
       <h2>{title}</h2>
+      <FirstLyricCueCallout
+        song={song}
+        actionMode="callback-only"
+        onHearLyricCue={onPlayFromSeconds}
+      />
       <div
         style={{
           padding: "16px",
           backgroundColor: "#fafafa",
           borderRadius: "8px",
           border: "1px solid #e8e8e8",
+          marginTop: "16px",
         }}
       >
         <div style={{ marginBottom: "12px" }}>
