@@ -26,10 +26,15 @@ export interface ScoreViewProps {
  * Extract the first line of a bridge error for display, falling back to the
  * provided message when the error carries no usable text.
  */
-function bridgeErrorDetail(error: unknown, fallback: string): string {
-  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : null;
-  const firstLine = raw?.split(/\r?\n/)[0]?.trim();
-  return firstLine ? firstLine : fallback;
+function bridgeErrorDetail(bridgeError: unknown, fallbackMessage: string): string {
+  const rawErrorMessage =
+    bridgeError instanceof Error
+      ? bridgeError.message
+      : typeof bridgeError === "string"
+        ? bridgeError
+        : null;
+  const firstErrorLine = rawErrorMessage?.split(/\r?\n/)[0]?.trim();
+  return firstErrorLine ? firstErrorLine : fallbackMessage;
 }
 
 /**
@@ -38,13 +43,18 @@ function bridgeErrorDetail(error: unknown, fallback: string): string {
  * embedded viewer, and removes attachments (metadata plus stored copy).
  */
 export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
-  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
-  const attachments = useMemo(() => song.scoreAttachments ?? [], [song.scoreAttachments]);
-  const [selected, setSelected] = useState<ScoreAttachment | null>(null);
+  const scoreTranslator = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const scoreAttachments = useMemo(
+    () => song.scoreAttachments ?? [],
+    [song.scoreAttachments]
+  );
+  const [selectedScoreAttachment, setSelectedScoreAttachment] = useState<ScoreAttachment | null>(
+    null
+  );
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [isAttaching, setIsAttaching] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [scoreError, setScoreError] = useState<string | null>(null);
   const readRequestRef = useRef(0);
 
   /**
@@ -52,22 +62,27 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
    * the active project id explicitly; the storage controls are only wired up
    * (and enabled) when a workspace is present, so this never runs without one.
    */
-  const openAttachment = async (activeProjectId: string, attachment: ScoreAttachment) => {
+  const openAttachment = async (
+    activeProjectId: string,
+    scoreAttachment: ScoreAttachment
+  ) => {
     const requestId = readRequestRef.current + 1;
     readRequestRef.current = requestId;
-    setSelected(attachment);
+    setSelectedScoreAttachment(scoreAttachment);
     setPdfBytes(null);
-    setError(null);
+    setScoreError(null);
     setIsOpening(true);
     try {
-      const bytes = await readScorePdf(activeProjectId, attachment.id);
+      const scorePdfBytes = await readScorePdf(activeProjectId, scoreAttachment.id);
       if (readRequestRef.current === requestId) {
-        setPdfBytes(bytes);
+        setPdfBytes(scorePdfBytes);
       }
     } catch (readError) {
       if (readRequestRef.current === requestId) {
-        setSelected(null);
-        setError(`${t("scoreReadFailed")} ${bridgeErrorDetail(readError, "")}`.trim());
+        setSelectedScoreAttachment(null);
+        setScoreError(
+          `${scoreTranslator("scoreReadFailed")} ${bridgeErrorDetail(readError, "")}`.trim()
+        );
       }
     } finally {
       if (readRequestRef.current === requestId) {
@@ -82,56 +97,66 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
    * started; the active project id is supplied by the enabled control.
    */
   const handleAttach = async (activeProjectId: string) => {
-    setError(null);
+    setScoreError(null);
     setIsAttaching(true);
     try {
-      const result = await attachScorePdf(activeProjectId, song.id);
-      const attachment: ScoreAttachment = { id: result.id, fileName: result.fileName };
-      onSongUpdate({ ...song, scoreAttachments: [...attachments, attachment] });
+      const attachmentResult = await attachScorePdf(activeProjectId, song.id);
+      const scoreAttachment: ScoreAttachment = {
+        id: attachmentResult.id,
+        fileName: attachmentResult.fileName
+      };
+      onSongUpdate({ ...song, scoreAttachments: [...scoreAttachments, scoreAttachment] });
       setIsAttaching(false);
-      await openAttachment(activeProjectId, attachment);
+      await openAttachment(activeProjectId, scoreAttachment);
     } catch (attachError) {
       setIsAttaching(false);
-      setError(bridgeErrorDetail(attachError, t("scoreAttachFailed")));
+      setScoreError(bridgeErrorDetail(attachError, scoreTranslator("scoreAttachFailed")));
     }
   };
 
   /** Remove an attachment after confirmation (metadata and stored copy). */
-  const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
-    const confirmed = window.confirm(
-      t("scoreRemoveConfirm").replace("{fileName}", attachment.fileName)
+  const handleRemove = async (
+    activeProjectId: string,
+    scoreAttachment: ScoreAttachment
+  ) => {
+    const removalConfirmed = window.confirm(
+      scoreTranslator("scoreRemoveConfirm").replace("{fileName}", scoreAttachment.fileName)
     );
-    if (!confirmed) {
+    if (!removalConfirmed) {
       return;
     }
-    setError(null);
+    setScoreError(null);
     try {
-      await removeScorePdf(activeProjectId, attachment.id);
+      await removeScorePdf(activeProjectId, scoreAttachment.id);
       onSongUpdate({
         ...song,
-        scoreAttachments: attachments.filter((entry) => entry.id !== attachment.id)
+        scoreAttachments: scoreAttachments.filter(
+          (scoreAttachmentEntry) => scoreAttachmentEntry.id !== scoreAttachment.id
+        )
       });
-      if (selected?.id === attachment.id) {
+      if (selectedScoreAttachment?.id === scoreAttachment.id) {
         readRequestRef.current += 1;
-        setSelected(null);
+        setSelectedScoreAttachment(null);
         setPdfBytes(null);
         setIsOpening(false);
       }
     } catch (removeError) {
-      setError(bridgeErrorDetail(removeError, t("scoreRemoveFailed")));
+      setScoreError(bridgeErrorDetail(removeError, scoreTranslator("scoreRemoveFailed")));
     }
   };
 
   return (
-    <section aria-label={t("scoreViewTitle")} className="flex flex-col gap-4">
+    <section aria-label={scoreTranslator("scoreViewTitle")} className="flex flex-col gap-4">
       <Card className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl">
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-xl font-black tracking-tight text-white">
-                {t("scoreViewTitle")} · {song.title}
+                {scoreTranslator("scoreViewTitle")} · {song.title}
               </h2>
-              <p className="mt-1 max-w-2xl text-sm text-slate-400">{t("scoreViewSubtitle")}</p>
+              <p className="mt-1 max-w-2xl text-sm text-slate-400">
+                {scoreTranslator("scoreViewSubtitle")}
+              </p>
             </div>
             <Button
               onClick={projectId ? () => void handleAttach(projectId) : undefined}
@@ -144,60 +169,66 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               ) : (
                 <FilePlus2 className="mr-2 size-4" aria-hidden="true" />
               )}
-              {isAttaching ? t("scoreAttaching") : t("scoreAttach")}
+              {isAttaching ? scoreTranslator("scoreAttaching") : scoreTranslator("scoreAttach")}
             </Button>
           </div>
 
           {!projectId && (
             <p className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
-              {t("scoreRequiresProject")}
+              {scoreTranslator("scoreRequiresProject")}
             </p>
           )}
 
-          {error && (
+          {scoreError && (
             <p
               className="rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm font-medium text-rose-100"
               role="alert"
               aria-live="assertive"
             >
-              {error}
+              {scoreError}
             </p>
           )}
 
           <div>
             <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-              {t("scoreListTitle")}
+              {scoreTranslator("scoreListTitle")}
             </h3>
-            {attachments.length === 0 ? (
-              <p className="text-sm text-slate-400">{t("scoreListEmpty")}</p>
+            {scoreAttachments.length === 0 ? (
+              <p className="text-sm text-slate-400">{scoreTranslator("scoreListEmpty")}</p>
             ) : (
               <ul className="flex flex-col gap-2">
-                {attachments.map((attachment) => (
+                {scoreAttachments.map((scoreAttachment) => (
                   <li
-                    key={attachment.id}
+                    key={scoreAttachment.id}
                     className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${
-                      selected?.id === attachment.id
+                      selectedScoreAttachment?.id === scoreAttachment.id
                         ? "border-cyan-300/40 bg-cyan-300/10"
                         : "border-white/10 bg-white/[0.04]"
                     }`}
                   >
                     <button
                       type="button"
-                      onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
+                      onClick={
+                        projectId ? () => void openAttachment(projectId, scoreAttachment) : undefined
+                      }
                       disabled={!projectId}
-                      aria-current={selected?.id === attachment.id ? "true" : undefined}
-                      aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
+                      aria-current={
+                        selectedScoreAttachment?.id === scoreAttachment.id ? "true" : undefined
+                      }
+                      aria-label={`${scoreTranslator("scoreOpen")}: ${scoreAttachment.fileName}`}
                       className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
-                      <span className="truncate">{attachment.fileName}</span>
+                      <span className="truncate">{scoreAttachment.fileName}</span>
                     </button>
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
+                      onClick={
+                        projectId ? () => void handleRemove(projectId, scoreAttachment) : undefined
+                      }
                       disabled={!projectId}
-                      aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
+                      aria-label={`${scoreTranslator("scoreRemove")}: ${scoreAttachment.fileName}`}
                       className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
@@ -219,11 +250,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
         >
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Loader2 className="mb-4 size-10 animate-spin text-cyan-300" aria-hidden="true" />
-            <p className="animate-pulse text-slate-400">{t("scoreOpening")}</p>
+            <p className="animate-pulse text-slate-400">{scoreTranslator("scoreOpening")}</p>
           </CardContent>
         </Card>
       ) : (
-        <ScoreViewer data={pdfBytes} fileName={selected?.fileName} />
+        <ScoreViewer scorePdfBytes={pdfBytes} fileName={selectedScoreAttachment?.fileName} />
       )}
     </section>
   );
