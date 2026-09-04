@@ -2,8 +2,9 @@
 
 use bandscope_desktop_core::{
     analysis_process_status::{
-        parse_analysis_process_status, validate_analysis_process_status_for_job,
-        validate_final_analysis_process_status,
+        is_analysis_process_progress_status, parse_analysis_process_status,
+        validate_analysis_process_status_for_job, validate_final_analysis_process_status,
+        AnalysisProcessStatus,
     },
     AnalysisJobState,
 };
@@ -54,9 +55,7 @@ fn status(state: &str) -> Value {
     value
 }
 
-fn parse(
-    value: Value,
-) -> Result<bandscope_desktop_core::analysis_process_status::AnalysisProcessStatus, &'static str> {
+fn parse(value: Value) -> Result<AnalysisProcessStatus, &'static str> {
     parse_analysis_process_status(
         &serde_json::to_string(&value).expect("analysis status fixture should serialize"),
     )
@@ -103,6 +102,19 @@ fn final_process_status_must_be_terminal() {
     let missing = validate_final_analysis_process_status(None, JOB_ID)
         .expect_err("successful process exit without a status must fail closed");
     assert_eq!(missing, PROCESS_STATUS_ERROR);
+}
+
+#[test]
+fn only_nonterminal_status_is_renderer_progress() {
+    for state in ["queued", "running"] {
+        let process_status = parse(status(state)).expect("progress status should parse");
+        assert!(is_analysis_process_progress_status(&process_status));
+    }
+
+    for state in ["succeeded", "failed"] {
+        let process_status = parse(status(state)).expect("terminal status should parse");
+        assert!(!is_analysis_process_progress_status(&process_status));
+    }
 }
 
 #[test]
