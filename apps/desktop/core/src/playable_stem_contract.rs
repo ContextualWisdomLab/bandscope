@@ -221,56 +221,57 @@ struct RawPlayableStemArtifactSetReference {
 }
 
 impl<'de> Deserialize<'de> for PlayableStemArtifactSetReference {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<ArtifactDeserializer>(
+        artifact_deserializer: ArtifactDeserializer,
+    ) -> Result<Self, ArtifactDeserializer::Error>
     where
-        D: Deserializer<'de>,
+        ArtifactDeserializer: Deserializer<'de>,
     {
-        let raw = RawPlayableStemArtifactSetReference::deserialize(deserializer)?;
-        validate_sha256_hex(&raw.artifact_set_id, "artifactSetId")
+        let raw_artifact_set =
+            RawPlayableStemArtifactSetReference::deserialize(artifact_deserializer)?;
+        validate_sha256_hex(&raw_artifact_set.artifact_set_id, "artifactSetId")
             .map_err(serde::de::Error::custom)?;
-        if raw.format_version != PLAYABLE_STEM_ARTIFACT_VERSION {
+        if raw_artifact_set.format_version != PLAYABLE_STEM_ARTIFACT_VERSION {
             return Err(serde::de::Error::custom(
                 "unsupported playable stem artifact formatVersion",
             ));
         }
         if !(MIN_PLAYBACK_SAMPLE_RATE_HZ..=MAX_PLAYBACK_SAMPLE_RATE_HZ)
-            .contains(&raw.sample_rate)
+            .contains(&raw_artifact_set.sample_rate)
         {
             return Err(serde::de::Error::custom(
                 "playable stem sampleRate is outside the supported range",
             ));
         }
-        if raw.channel_count != 1 {
+        if raw_artifact_set.channel_count != 1 {
             return Err(serde::de::Error::custom(
                 "playable stem channelCount must be one",
             ));
         }
-        if raw.sample_count == 0 {
+        if raw_artifact_set.sample_count == 0 {
             return Err(serde::de::Error::custom(
                 "playable stem sampleCount must be positive",
             ));
         }
-        let expected_duration = raw.sample_count as f64 / raw.sample_rate as f64;
-        validate_duration(raw.duration_seconds, expected_duration)
+        let expected_duration =
+            raw_artifact_set.sample_count as f64 / raw_artifact_set.sample_rate as f64;
+        validate_duration(raw_artifact_set.duration_seconds, expected_duration)
             .map_err(serde::de::Error::custom)?;
-        if !raw.applied_gain.is_finite() || raw.applied_gain <= 0.0 || raw.applied_gain > 1.0 {
-            return Err(serde::de::Error::custom(
-                "playable stem appliedGain must be finite and within (0, 1]",
-            ));
-        }
-        if raw.stem_artifacts.len() != PlaybackStemKind::canonical_order().len() {
+        validate_applied_gain(raw_artifact_set.applied_gain)
+            .map_err(serde::de::Error::custom)?;
+        if raw_artifact_set.stem_artifacts.len() != PlaybackStemKind::canonical_order().len() {
             return Err(serde::de::Error::custom(
                 "playable stem artifact set must contain exactly four sources",
             ));
         }
 
-        let expected_file_size = raw
+        let expected_file_size = raw_artifact_set
             .sample_count
             .checked_mul(PCM16_BYTES_PER_SAMPLE)
             .and_then(|sample_bytes| sample_bytes.checked_add(CANONICAL_WAVE_HEADER_BYTES))
             .ok_or_else(|| serde::de::Error::custom("playable stem file size overflow"))?;
-        let mut stem_artifacts = Vec::with_capacity(raw.stem_artifacts.len());
-        for (raw_artifact, expected_stem_kind) in raw
+        let mut stem_artifacts = Vec::with_capacity(raw_artifact_set.stem_artifacts.len());
+        for (raw_artifact, expected_stem_kind) in raw_artifact_set
             .stem_artifacts
             .into_iter()
             .zip(PlaybackStemKind::canonical_order())
@@ -278,10 +279,10 @@ impl<'de> Deserialize<'de> for PlayableStemArtifactSetReference {
             validate_artifact(
                 &raw_artifact,
                 expected_stem_kind,
-                raw.sample_rate,
-                raw.channel_count,
-                raw.sample_count,
-                raw.duration_seconds,
+                raw_artifact_set.sample_rate,
+                raw_artifact_set.channel_count,
+                raw_artifact_set.sample_count,
+                raw_artifact_set.duration_seconds,
                 expected_file_size,
             )
             .map_err(serde::de::Error::custom)?;
@@ -299,20 +300,20 @@ impl<'de> Deserialize<'de> for PlayableStemArtifactSetReference {
         }
 
         Ok(Self {
-            artifact_set_id: raw.artifact_set_id,
-            format_version: raw.format_version,
-            sample_rate: raw.sample_rate,
-            channel_count: raw.channel_count,
-            sample_count: raw.sample_count,
-            duration_seconds: raw.duration_seconds,
-            applied_gain: raw.applied_gain,
+            artifact_set_id: raw_artifact_set.artifact_set_id,
+            format_version: raw_artifact_set.format_version,
+            sample_rate: raw_artifact_set.sample_rate,
+            channel_count: raw_artifact_set.channel_count,
+            sample_count: raw_artifact_set.sample_count,
+            duration_seconds: raw_artifact_set.duration_seconds,
+            applied_gain: raw_artifact_set.applied_gain,
             stem_artifacts,
         })
     }
 }
 
 fn validate_artifact(
-    artifact: &RawPlayableStemArtifactReference,
+    raw_artifact: &RawPlayableStemArtifactReference,
     expected_stem_kind: PlaybackStemKind,
     sample_rate: u32,
     channel_count: u8,
@@ -320,34 +321,34 @@ fn validate_artifact(
     duration_seconds: f64,
     expected_file_size: u64,
 ) -> Result<(), String> {
-    if artifact.stem_kind != expected_stem_kind {
+    if raw_artifact.stem_kind != expected_stem_kind {
         return Err("playable stems must use canonical source order".to_string());
     }
-    if artifact.artifact_id != expected_stem_kind.artifact_id() {
+    if raw_artifact.artifact_id != expected_stem_kind.artifact_id() {
         return Err("playable stem artifactId does not match stemKind".to_string());
     }
-    validate_sha256_hex(&artifact.content_hash_sha256, "contentHashSha256")?;
-    if artifact.media_type != "audio/wav" {
+    validate_sha256_hex(&raw_artifact.content_hash_sha256, "contentHashSha256")?;
+    if raw_artifact.media_type != "audio/wav" {
         return Err("playable stem mediaType must be audio/wav".to_string());
     }
-    if artifact.sample_rate != sample_rate
-        || artifact.channel_count != channel_count
-        || artifact.sample_count != sample_count
+    if raw_artifact.sample_rate != sample_rate
+        || raw_artifact.channel_count != channel_count
+        || raw_artifact.sample_count != sample_count
     {
         return Err("playable stem media metadata is not aligned with its set".to_string());
     }
-    validate_duration(artifact.duration_seconds, duration_seconds)?;
-    if artifact.file_size_bytes != expected_file_size {
+    validate_duration(raw_artifact.duration_seconds, duration_seconds)?;
+    if raw_artifact.file_size_bytes != expected_file_size {
         return Err("playable stem fileSizeBytes does not match canonical PCM16 WAV".to_string());
     }
     Ok(())
 }
 
-fn validate_sha256_hex(value: &str, field_name: &str) -> Result<(), String> {
-    if value.len() != SHA256_HEX_CHARACTER_COUNT
-        || !value
-            .bytes()
-            .all(|character| character.is_ascii_digit() || (b'a'..=b'f').contains(&character))
+fn validate_sha256_hex(hash_value: &str, field_name: &str) -> Result<(), String> {
+    if hash_value.len() != SHA256_HEX_CHARACTER_COUNT
+        || !hash_value.bytes().all(|hex_character| {
+            hex_character.is_ascii_digit() || (b'a'..=b'f').contains(&hex_character)
+        })
     {
         return Err(format!(
             "playable stem {field_name} must be lowercase SHA-256 hex"
@@ -357,12 +358,38 @@ fn validate_sha256_hex(value: &str, field_name: &str) -> Result<(), String> {
 }
 
 fn validate_duration(actual_duration: f64, expected_duration: f64) -> Result<(), String> {
-    let tolerance = expected_duration.abs().max(1.0) * DURATION_RELATIVE_TOLERANCE;
+    let duration_tolerance =
+        expected_duration.abs().max(1.0) * DURATION_RELATIVE_TOLERANCE;
     if !actual_duration.is_finite()
         || actual_duration <= 0.0
-        || (actual_duration - expected_duration).abs() > tolerance
+        || (actual_duration - expected_duration).abs() > duration_tolerance
     {
         return Err("playable stem durationSeconds is inconsistent".to_string());
     }
     Ok(())
+}
+
+fn validate_applied_gain(applied_gain: f64) -> Result<(), String> {
+    if !applied_gain.is_finite() || applied_gain <= 0.0 || applied_gain > 1.0 {
+        return Err("playable stem appliedGain must be finite and within (0, 1]".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod contract_unit_tests {
+    use super::{validate_applied_gain, validate_duration, validate_sha256_hex};
+
+    #[test]
+    fn internal_numeric_guards_reject_nonfinite_values() {
+        assert!(validate_duration(f64::NAN, 1.0).is_err());
+        assert!(validate_duration(f64::INFINITY, 1.0).is_err());
+        assert!(validate_applied_gain(f64::NAN).is_err());
+        assert!(validate_applied_gain(f64::INFINITY).is_err());
+    }
+
+    #[test]
+    fn sha256_guard_accepts_numeric_lowercase_hex() {
+        assert!(validate_sha256_hex(&"0".repeat(64), "testHash").is_ok());
+    }
 }
