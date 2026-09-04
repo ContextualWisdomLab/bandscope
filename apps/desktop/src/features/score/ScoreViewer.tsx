@@ -292,8 +292,9 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
+            aria-disabled={pageNumber <= 1 ? true : undefined}
+            title={pageNumber <= 1 ? t("scoreViewerAlreadyFirstPage") : undefined}
+            onClick={pageNumber <= 1 ? undefined : goToPreviousPage}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
           </Button>
@@ -305,8 +306,9 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
+            aria-disabled={pageNumber >= pageCount ? true : undefined}
+            title={pageNumber >= pageCount ? t("scoreViewerAlreadyLastPage") : undefined}
+            onClick={pageNumber >= pageCount ? undefined : goToNextPage}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>

@@ -1,3 +1,6 @@
 ## 2024-05-19 - Replace HTML disabled with aria-disabled="true" for Accessible Tooltips
 **Learning:** Native HTML `disabled` attributes completely hide elements from screen readers and block all pointer/hover events, preventing tooltips from functioning for disabled elements.
 **Action:** Replace `disabled` with `aria-disabled="true"`, enforce block click handlers via `e.preventDefault()`, and add a title tooltip directly to the element to maintain full tooltip accessibility and keyboard focus support for visually impaired and mouse users.
+## 2023-10-27 - Added disabled titles to ScoreViewer navigation
+**Learning:** Added tooltips explicitly explaining *why* navigation buttons in ScoreViewer are disabled (e.g. "Already at the first page" or "Already at the last page"), which provides significantly better a11y context than leaving them silently disabled, matching the UX guidance pattern. Also modified tests accordingly to assert for the right translated keys.
+**Action:** When converting HTML `disabled` attributes to `aria-disabled="true"` for interactive elements, always consider if there is an opportunity to communicate the reason for the disabled state to the user via a `title` or `aria-describedby` attribute, and ensure translations and testing are properly set up for this specific state.
