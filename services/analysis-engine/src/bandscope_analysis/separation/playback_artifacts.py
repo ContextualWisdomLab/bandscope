@@ -80,6 +80,33 @@ class NativePlayableStemArtifactSet(TypedDict):
     stemArtifacts: list[NativePlayableStemArtifact]
 
 
+class PlayableStemArtifactReference(TypedDict):
+    """Path-free metadata for one generated stem at a native registration boundary."""
+
+    artifactId: str
+    stemKind: PlaybackStemKind
+    fileSizeBytes: int
+    contentHashSha256: str
+    mediaType: Literal["audio/wav"]
+    sampleRate: int
+    channelCount: Literal[1]
+    sampleCount: int
+    durationSeconds: float
+
+
+class PlayableStemArtifactSetReference(TypedDict):
+    """Path-free reference to one complete aligned playback source set."""
+
+    artifactSetId: str
+    formatVersion: Literal[1]
+    sampleRate: int
+    channelCount: Literal[1]
+    sampleCount: int
+    durationSeconds: float
+    appliedGain: float
+    stemArtifacts: list[PlayableStemArtifactReference]
+
+
 def materialize_playable_stem_artifact_set(
     *,
     stem_arrays: Mapping[str, object],
@@ -135,6 +162,35 @@ def materialize_playable_stem_artifact_set(
         "durationSeconds": sample_count / validated_sample_rate,
         "appliedGain": applied_gain,
         "stemArtifacts": stem_artifacts,
+    }
+
+
+def build_playable_stem_artifact_set_reference(
+    native_artifact_set: NativePlayableStemArtifactSet,
+) -> PlayableStemArtifactSetReference:
+    """Project trusted native metadata into a detached path-free status value."""
+    return {
+        "artifactSetId": native_artifact_set["artifactSetId"],
+        "formatVersion": native_artifact_set["formatVersion"],
+        "sampleRate": native_artifact_set["sampleRate"],
+        "channelCount": native_artifact_set["channelCount"],
+        "sampleCount": native_artifact_set["sampleCount"],
+        "durationSeconds": native_artifact_set["durationSeconds"],
+        "appliedGain": native_artifact_set["appliedGain"],
+        "stemArtifacts": [
+            {
+                "artifactId": native_artifact["artifactId"],
+                "stemKind": native_artifact["stemKind"],
+                "fileSizeBytes": native_artifact["fileSizeBytes"],
+                "contentHashSha256": native_artifact["contentHashSha256"],
+                "mediaType": native_artifact["mediaType"],
+                "sampleRate": native_artifact["sampleRate"],
+                "channelCount": native_artifact["channelCount"],
+                "sampleCount": native_artifact["sampleCount"],
+                "durationSeconds": native_artifact["durationSeconds"],
+            }
+            for native_artifact in native_artifact_set["stemArtifacts"]
+        ],
     }
 
 
