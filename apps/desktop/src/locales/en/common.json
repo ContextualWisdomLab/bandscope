@@ -153,6 +153,12 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstNewDropoutTitle": "Tonight's first new dropout",
+  "workspaceFirstNewDropoutNamed": "{dropoutRoleName} newly sits out at {sectionLabel} after {returnSectionLabel} comes back from {fromSectionLabel}. Count {dropoutRoleName} out from the top of {sectionLabel}.",
+  "workspaceFirstNewDropoutStayOut": "{dropoutRoleName} newly sits out at {sectionLabel} after {returnSectionLabel} comes back from {fromSectionLabel}. Stay out from the top of {sectionLabel}.",
+  "workspaceFirstNewDropoutNone": "No new dropout is needed: every named part stays active after leftover parts return. Rehearse from the first section without a new sit-out cue.",
+  "workspaceFirstNewDropoutMissing": "Tonight's first new dropout still needs a named part that newly sits out after a leftover return. Confirm who newly sits out after that return before the first section.",
+  "workspaceFirstNewDropoutOpen": "Open",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }

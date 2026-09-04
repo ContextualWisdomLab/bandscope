@@ -153,6 +153,12 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstNewDropoutTitle": "오늘 먼저 새로 빠질 자리",
+  "workspaceFirstNewDropoutNamed": "{dropoutRoleName} 쪽은 {fromSectionLabel} 구간에서 쉰 파트들이 {returnSectionLabel} 구간에서 다 돌아온 뒤 {sectionLabel} 구간에서 새로 쉽니다. {sectionLabel} 구간 처음부터 {dropoutRoleName} 쪽을 빼 두세요.",
+  "workspaceFirstNewDropoutStayOut": "{dropoutRoleName} 쪽은 {fromSectionLabel} 구간에서 쉰 파트들이 {returnSectionLabel} 구간에서 다 돌아온 뒤 {sectionLabel} 구간에서 새로 쉽니다. {sectionLabel} 구간 처음부터 쉬세요.",
+  "workspaceFirstNewDropoutNone": "새로 빠질 자리는 없습니다. 이름이 확인된 모든 파트가 쉬는 파트가 돌아온 뒤에도 계속 연주합니다. 첫 구간부터 새 휴식 큐 없이 합주하세요.",
+  "workspaceFirstNewDropoutMissing": "오늘 먼저 새로 빠질 자리는 아직 확인이 필요합니다. 쉬는 파트가 돌아온 뒤 누가 새로 쉬는지를 첫 구간 전에 확인하세요.",
+  "workspaceFirstNewDropoutOpen": "열기",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
