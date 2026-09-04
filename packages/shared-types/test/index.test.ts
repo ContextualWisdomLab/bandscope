@@ -738,6 +738,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[0]?.hitPlan).toContain("verse downbeat");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -831,6 +832,37 @@ describe("shared type helpers", () => {
         headline: "oops"
       }
     })).toThrow("exportSummary.format");
+  });
+
+  it("keeps hit-plan provenance and text aligned with Rust project loading", () => {
+    for (const hitPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "Keep the melody\nthen move",
+      "Keep the melody\rthen move",
+      "Keep the melody\u0085then move",
+      "Keep the melody\u2028then move",
+      "Keep the melody\u2029then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.hitPlan = hitPlan;
+      song.sections[0]!.roles[0]!.hitPlanSource = "model";
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].hitPlan");
+    }
+
+    const sourceOnly = createDemoRehearsalSong();
+    delete sourceOnly.sections[0]!.roles[0]!.hitPlan;
+    sourceOnly.sections[0]!.roles[0]!.hitPlanSource = "model";
+    expect(isRehearsalSong(sourceOnly)).toBe(false);
+    expect(() => parseRehearsalSong(sourceOnly)).toThrow("sections[0].roles[0].hitPlanSource");
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[0]!.hitPlan = "\uFEFF Keep the melody \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 
   it("round-trips score attachment metadata and rejects malformed entries", () => {
@@ -1255,6 +1287,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].hitPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.hitPlan = 2 as never;
         })
       },
       {

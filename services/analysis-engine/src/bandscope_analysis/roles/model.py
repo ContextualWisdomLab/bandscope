@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 class RoleType(str, Enum):
@@ -69,7 +69,13 @@ class ManualOverride(TypedDict):
 
 
 class RehearsalRole(TypedDict):
-    """A role (instrument, vocal, or hand) active in a particular section."""
+    """A stable rehearsal part for one section.
+
+    ``id`` identifies the same musical part across sections. ``rehearsalPriority``
+    ranks that part for rehearsal. ``hitPlan`` is optional guidance emitted only
+    when activity evidence supports an entrance. When present, ``hitPlanSource``
+    states whether the copy is model-generated or user-authored.
+    """
 
     id: str
     name: str
@@ -83,6 +89,8 @@ class RehearsalRole(TypedDict):
     setupNote: str
     manualOverrides: list[ManualOverride]
     overlapWarnings: list[str]
+    hitPlan: NotRequired[str]
+    hitPlanSource: NotRequired[Literal["model", "user"]]
 
 
 class PartGraphNode(TypedDict):
