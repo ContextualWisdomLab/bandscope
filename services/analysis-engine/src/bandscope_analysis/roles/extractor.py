@@ -6,7 +6,13 @@ import logging
 from typing import Any
 
 from ..sections.utils import validate_section
-from .activity import compute_handoffs, detect_stem_activity, map_stems_to_roles
+from .activity import (
+    compute_handoffs,
+    detect_stem_activity,
+    detect_stem_energy,
+    map_stems_to_role_energy,
+    map_stems_to_roles,
+)
 from .model import (
     CueAnchorKind,
     PartGraphNode,
@@ -21,6 +27,15 @@ from .priority import calculate_rehearsal_priority
 from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
+
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_NAMED_FADE_ROLE_IDS = frozenset({"lead-vocal", "bass-guitar"})
+_FADE_PLAN_SOLO = "Fade this part; let the next downbeat land quieter."
+_FADE_PLAN_PREFIX = "Fade this part with "
+_FADE_PLAN_SUFFIX = "; let the next downbeat land quieter."
+_FADE_RATIO = 1.8
+_FADE_PREVIOUS_FLOOR = 1e-4
+_FADE_CURRENT_FLOOR = 1e-4
 
 
 class RoleExtractor:
@@ -56,13 +71,23 @@ class RoleExtractor:
 
         # Use real stem activity detection when we have stems and boundaries
         activity_maps: list[dict[str, bool]] | None = None
+        source_activity_maps: list[dict[str, bool]] | None = None
+        energy_maps: list[dict[str, float]] | None = None
         if stems and boundaries and len(boundaries) == len(sections):
             try:
                 stem_activity = detect_stem_activity(stems, boundaries, sr)
+                source_activity_maps = stem_activity
                 activity_maps = [map_stems_to_roles(sa) for sa in stem_activity]
             except Exception as e:
                 logger.warning("Stem activity detection failed, using fallback: %s", e)
                 activity_maps = None
+                source_activity_maps = None
+            try:
+                stem_energy = detect_stem_energy(stems, boundaries, sr)
+                energy_maps = [map_stems_to_role_energy(se) for se in stem_energy]
+            except Exception as e:
+                logger.warning("Stem energy detection failed, leaving fade unnamed: %s", e)
+                energy_maps = None
 
         for i, section in enumerate(sections):
             section_id = validate_section(section, i, logger)
@@ -71,8 +96,27 @@ class RoleExtractor:
                 # Real activity-based topology
                 current_activity = activity_maps[i]
                 next_activity = activity_maps[i + 1] if i + 1 < len(activity_maps) else None
+                previous_activity = activity_maps[i - 1] if i > 0 else None
+                current_energy = energy_maps[i] if energy_maps is not None else None
+                previous_energy = energy_maps[i - 1] if energy_maps is not None and i > 0 else None
                 topology = self._build_activity_topology(
-                    section_id, roles, current_activity, next_activity
+                    section_id,
+                    roles,
+                    current_activity,
+                    next_activity,
+                    previous_activity,
+                    current_energy,
+                    previous_energy,
+                    current_source_activity=(
+                        source_activity_maps[i]
+                        if source_activity_maps is not None and i < len(source_activity_maps)
+                        else None
+                    ),
+                    previous_source_activity=(
+                        source_activity_maps[i - 1]
+                        if source_activity_maps is not None and i > 0
+                        else None
+                    ),
                 )
             else:
                 # Fallback to heuristic-based topology
@@ -330,12 +374,123 @@ class RoleExtractor:
             "acoustic_guitar": acoustic_guitar_role,
         }
 
+    @staticmethod
+    def _source_id(role_id: str) -> str:
+        """Collapse accompaniment stems onto one rehearsal source."""
+        return "other" if role_id in _OTHER_STEM_ROLE_IDS else role_id
+
+    @staticmethod
+    def _active_role_ids(role_activity: dict[str, bool]) -> set[str]:
+        """Return role ids whose activity flag is explicitly true."""
+        return {role_id for role_id, is_active in role_activity.items() if is_active}
+
+    @classmethod
+    def _source_ids(cls, role_ids: set[str]) -> set[str]:
+        """Return distinct source-separation stems among the given roles."""
+        return {cls._source_id(role_id) for role_id in role_ids}
+
+    @staticmethod
+    def _active_source_ids(source_activity: dict[str, bool]) -> set[str]:
+        """Return raw active source names before role mapping can discard a stem."""
+        return {source_id for source_id, is_active in source_activity.items() if is_active}
+
+    def _named_fade_ids(
+        self,
+        role_activity: dict[str, bool],
+        previous_role_activity: dict[str, bool],
+        role_energy: dict[str, float] | None,
+        previous_role_energy: dict[str, float] | None,
+        source_activity: dict[str, bool] | None = None,
+        previous_source_activity: dict[str, bool] | None = None,
+    ) -> set[str]:
+        """Return named staying roles whose RMS fell by the fade ratio."""
+        if role_energy is None or previous_role_energy is None:
+            return set()
+        previous_active = self._active_role_ids(previous_role_activity)
+        current_active = self._active_role_ids(role_activity)
+        previous_source_ids = (
+            self._active_source_ids(previous_source_activity)
+            if previous_source_activity is not None
+            else self._source_ids(previous_active)
+        )
+        current_source_ids = (
+            self._active_source_ids(source_activity)
+            if source_activity is not None
+            else self._source_ids(current_active)
+        )
+        if previous_source_ids != current_source_ids:
+            return set()
+        faded: set[str] = set()
+        for role_id in _NAMED_FADE_ROLE_IDS & current_active & previous_active:
+            previous_rms = float(previous_role_energy.get(role_id, 0.0) or 0.0)
+            current_rms = float(role_energy.get(role_id, 0.0) or 0.0)
+            if previous_rms < _FADE_PREVIOUS_FLOOR:
+                continue
+            if current_rms < _FADE_CURRENT_FLOOR:
+                continue
+            if previous_rms < current_rms * _FADE_RATIO:
+                continue
+            faded.add(role_id)
+        return faded
+
+    def _activity_fade_plan(
+        self,
+        role_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        previous_role_activity: dict[str, bool] | None,
+        role_energy: dict[str, float] | None,
+        previous_role_energy: dict[str, float] | None,
+        source_activity: dict[str, bool] | None = None,
+        previous_source_activity: dict[str, bool] | None = None,
+    ) -> str | None:
+        """Return bounded fade guidance only for a corroborated intensity fall.
+
+        A fade plan is emitted only when real stem activity shows this named
+        part staying while its RMS falls by at least 1.8× after an already
+        audible previous section, the current section stays audible, and the
+        distinct source set does not change. A density fill (drop), a thinning
+        hold (breakdown), a leaving part (dropout), a cutoff to silence, a
+        first-section, heuristic topology, or an accompaniment ``other``
+        landing stay unnamed.
+        """
+        if previous_role_activity is None:
+            return None
+        if role_id in _OTHER_STEM_ROLE_IDS:
+            return None
+        faded = self._named_fade_ids(
+            role_activity,
+            previous_role_activity,
+            role_energy,
+            previous_role_energy,
+            source_activity,
+            previous_source_activity,
+        )
+        if role_id not in faded:
+            return None
+        partners = sorted(faded - {role_id})
+        if not partners:
+            return _FADE_PLAN_SOLO
+        partner_id = partners[0]
+        other_name = next(
+            (role["name"] for role in roles.values() if role["id"] == partner_id),
+            None,
+        )
+        if other_name is None:
+            return None
+        return f"{_FADE_PLAN_PREFIX}{other_name}{_FADE_PLAN_SUFFIX}"
+
     def _build_activity_topology(
         self,
         section_id: str,
         roles: dict[str, RehearsalRole],
         role_activity: dict[str, bool],
         next_role_activity: dict[str, bool] | None,
+        previous_role_activity: dict[str, bool] | None = None,
+        role_energy: dict[str, float] | None = None,
+        previous_role_energy: dict[str, float] | None = None,
+        current_source_activity: dict[str, bool] | None = None,
+        previous_source_activity: dict[str, bool] | None = None,
     ) -> SectionRoleTopology:
         """Build topology from real stem activity detection."""
         handoffs = compute_handoffs(role_activity, next_role_activity)
@@ -357,7 +512,22 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                active_roles.append(roles[role_key])
+                role = roles[role_key]
+                fade_plan = self._activity_fade_plan(
+                    role_id,
+                    roles,
+                    role_activity,
+                    previous_role_activity,
+                    role_energy,
+                    previous_role_energy,
+                    current_source_activity,
+                    previous_source_activity,
+                )
+                if fade_plan is not None:
+                    role = role.copy()
+                    role["fadePlan"] = fade_plan
+                    role["fadePlanSource"] = "model"
+                active_roles.append(role)
 
             part_graph.append(
                 {

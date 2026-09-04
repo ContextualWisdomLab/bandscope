@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -75,4 +75,33 @@ describe("i18n", () => {
       }
     });
   });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes supported section form labels", () => {
+      expect(translateSectionFormLabel("ko", "chorus")).toBe("코러스");
+      expect(translateSectionFormLabel("en", "pre-chorus")).toBe("pre-chorus");
+    });
+
+    it("does not read inherited Object keys as section labels", () => {
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("en", inheritedKey)).toBe("toString");
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
+
+    it("keeps Korean first-fade-plan next-action copy particle-safe and tonally consistent", () => {
+      const t = createTranslator("ko");
+      expect(t("firstFadePlanOpenAction")).toBe("{at} {role} 페이드 열기");
+      expect(t("firstFadePlanBody")).toBe("{at} {section}에서 {role} 파트가 페이드합니다.");
+      expect(t("firstFadePlanArmed")).toBe(
+        "{at}에서 {role} 파트로 함께 페이드하세요. 더 조용하게 내려앉는 게 들리도록 줄이세요."
+      );
+      expect(t("firstFadePlanGeneratedGuidance")).toBe(
+        "{target} 파트와 이 파트를 페이드하세요. 다음 다운비트까지 줄이세요."
+      );
+      expect(t("firstFadePlanGeneratedSoloGuidance")).toBe(
+        "이 파트를 페이드하세요. 다음 다운비트까지 줄이세요."
+      );
+    });
+  });
+
 });

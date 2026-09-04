@@ -26,6 +26,22 @@ ACTIVITY_THRESHOLD = 0.05
 STEM_NAMES = ("vocals", "bass", "drums", "other")
 
 
+def _segment_rms(
+    audio: NDArray[np.floating[Any]] | object,
+    start_sample: int,
+    end_sample: int,
+) -> float | None:
+    """Return RMS for one bounded stem slice, or None when the slice is unusable."""
+    if not isinstance(audio, np.ndarray) or audio.size == 0:
+        return None
+    seg_start = max(0, min(start_sample, audio.size))
+    seg_end = max(0, min(end_sample, audio.size))
+    if seg_end <= seg_start:
+        return None
+    segment = audio[seg_start:seg_end].astype(np.float64)
+    return float(np.sqrt(np.mean(segment**2)))
+
+
 def detect_stem_activity(
     stems: dict[str, NDArray[np.floating[Any]]],
     boundaries: list[tuple[float, float]],
@@ -61,22 +77,11 @@ def detect_stem_activity(
         segment_activity: dict[str, bool] = {}
 
         for stem_name, audio in stems.items():
-            if not isinstance(audio, np.ndarray) or audio.size == 0:
+            segment_rms = _segment_rms(audio, start_sample, end_sample)
+            if segment_rms is None:
                 segment_activity[stem_name] = False
                 continue
 
-            # Extract the segment region
-            seg_start = min(start_sample, audio.size)
-            seg_end = min(end_sample, audio.size)
-
-            if seg_end <= seg_start:
-                segment_activity[stem_name] = False
-                continue
-
-            segment = audio[seg_start:seg_end].astype(np.float64)
-            segment_rms = float(np.sqrt(np.mean(segment**2)))
-
-            # A stem is active if its segment energy exceeds threshold relative to global
             g_rms = global_rms.get(stem_name, 0.0)
             if g_rms > 0:
                 is_active = (segment_rms / g_rms) > ACTIVITY_THRESHOLD
@@ -115,6 +120,60 @@ def map_stems_to_roles(stem_activity: dict[str, bool]) -> dict[str, bool]:
         "keys-right": other_active,
         "lead-vocal": vocals_active,
         "acoustic-guitar": other_active,
+    }
+
+
+def detect_stem_energy(
+    stems: dict[str, NDArray[np.floating[Any]]],
+    boundaries: list[tuple[float, float]],
+    sr: int,
+) -> list[dict[str, float]]:
+    """Return per-segment RMS energy for each stem.
+
+    Args:
+        stems: Dict mapping stem names to audio arrays.
+        boundaries: List of (start_seconds, end_seconds) tuples.
+        sr: Sample rate.
+
+    Returns:
+        List of dicts mapping stem name -> RMS, one per boundary. Missing or
+        unusable slices fail closed as 0.0 so a fade cannot be invented from
+        empty audio.
+    """
+    if not boundaries or not stems:
+        return []
+
+    energy_per_segment: list[dict[str, float]] = []
+    for start_sec, end_sec in boundaries:
+        start_sample = int(start_sec * sr)
+        end_sample = int(end_sec * sr)
+        segment_energy: dict[str, float] = {}
+        for stem_name, audio in stems.items():
+            rms = _segment_rms(audio, start_sample, end_sample)
+            segment_energy[stem_name] = 0.0 if rms is None else rms
+        energy_per_segment.append(segment_energy)
+    return energy_per_segment
+
+
+def map_stems_to_role_energy(stem_energy: dict[str, float]) -> dict[str, float]:
+    """Map stem RMS onto rehearsal roles without inventing a drums landing.
+
+    Args:
+        stem_energy: Dict mapping stem names to RMS energy.
+
+    Returns:
+        Dict mapping role IDs to RMS. Shared accompaniment roles receive the
+        ``other`` stem energy but never own a fade.
+    """
+    vocals = float(stem_energy.get("vocals", 0.0) or 0.0)
+    bass = float(stem_energy.get("bass", 0.0) or 0.0)
+    other = float(stem_energy.get("other", 0.0) or 0.0)
+    return {
+        "bass-guitar": bass,
+        "keys-left": other,
+        "keys-right": other,
+        "lead-vocal": vocals,
+        "acoustic-guitar": other,
     }
 
 
