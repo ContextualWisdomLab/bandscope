@@ -60,6 +60,22 @@ pub fn retain_latest_process_status(
     renderer_status
 }
 
+/// Parse one stdout JSONL line, ignoring only whitespace-only separators.
+///
+/// A non-empty malformed line is a process-contract failure. Returning an error
+/// instead of skipping it prevents an earlier valid envelope from becoming the
+/// apparent final result after corrupted or future producer output.
+pub fn parse_analysis_process_status_line(
+    process_status_line: &str,
+) -> Result<Option<AnalysisProcessStatus>, &'static str> {
+    let trimmed = process_status_line.trim();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        parse_analysis_process_status(trimmed).map(Some)
+    }
+}
+
 /// Parse one JSONL status and isolate its optional native-only artifact reference.
 pub fn parse_analysis_process_status(
     process_status_json: &str,
