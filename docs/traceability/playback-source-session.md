@@ -6,7 +6,7 @@
 - **Protected product source:** `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 - **Canonical Active Player owner:** PR #971 `09bedd835475015379716292e63e6be376fceec9`
 - **Stem publication parent:** PR #1159 `c27f3781ddcbcc013dce07a26c0baf6080e4b2ac`
-- **Current native/UI child source head before this documentation update:** PR #1160 `7cc68bff49cd1bc038ab2da56c04dff5a1bb4bd9`
+- **Current native/UI child source head before this documentation update:** PR #1160 `3fbd43b887262c79b80aee0d873f7c6d67d2bcc8`
 
 ## Problem
 
@@ -87,6 +87,15 @@ The continuity plan carried a sequence, but no production helper owned sequence 
 
 The switch session is renderer-only receipt state. It neither decides native file availability nor creates a second transport or playback authority.
 
+## Issued receipt immutability repair
+
+The switch-session helper made receipt identity monotonic but still returned ordinary mutable JavaScript objects. `PlaybackSourceSwitchPlan` and `PlaybackSourceSwitchSession` could therefore be rewritten by later renderer code between `beginPlaybackSourceSwitch` and `loadedmetadata`. In particular, mutating `targetAuthority`, `seekSeconds`, or `sequence` after issue would silently change the facts that a future media receipt was allowed to restore.
+
+- RED `881e53b5e551ac050aa0d6b347b310937eb5412b` adds a focused regression proving the issued plan and session must reject `Reflect.set` attempts on target authority, seek position, and renderer sequence while remaining admissible under their original values.
+- Causal fix `3fbd43b887262c79b80aee0d873f7c6d67d2bcc8` freezes every issued switch plan and session identity with `Object.freeze`. All receipt fields are scalar values, so shallow freezing is sufficient for this contract; no native capability or additional state owner is introduced.
+
+This is a renderer integrity boundary, not a substitute for target-duration admission. The current target authority, current sequence, and decoded duration must still match in `admitPlaybackSourceSwitchTarget` before transport continuity can be restored.
+
 ## Current acceptance boundary
 
 The renderer-side authority/session and switch-receipt contracts are not the finished selector. `RehearsalPlayer` still uses `audioSourcePath` directly, pauses and reloads when its resolved media URL changes, and does not yet call `discoverPlaybackSourceOptions`, bind `PlaybackSourceSession`, render `Full mix | Vocals | Bass | Drums | Other instruments`, or execute the source-switch plan and receipt through the actual `audio.src` → `load()` → `loadedmetadata` lifecycle.
@@ -99,4 +108,4 @@ Source-level RED→fix lineage is not a substitute for the 14 protected reposito
 
 ## Delivery gate
 
-**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, same-project source-switch authority, source-switch continuity, stale media-receipt rejection, and immediate switch-session receipt invalidation are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
+**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, same-project source-switch authority, source-switch continuity, stale media-receipt rejection, immediate switch-session receipt invalidation, and immutable issued receipt identity are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
