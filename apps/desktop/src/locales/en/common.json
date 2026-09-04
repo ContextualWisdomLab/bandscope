@@ -153,6 +153,11 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstClickTitle": "Tonight's first click",
+  "workspaceFirstClickCheck": "Set the click to {tempo} BPM before the {sectionLabel}.",
+  "workspaceFirstClickUnnamed": "Set the click to {tempo} BPM, then name the first section so the room knows where it starts.",
+  "workspaceFirstClickMissing": "Tonight's first click still needs a tempo. Count the first section in before you start.",
   "sectionRangeLabel": "Range",
-  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
+  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}.",
+  "sectionClickNextAction": "Set the click to {tempo} BPM before {sectionLabel}."
 }

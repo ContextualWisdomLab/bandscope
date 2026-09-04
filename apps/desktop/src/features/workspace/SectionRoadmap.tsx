@@ -2,7 +2,8 @@ import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
 import { useId, useMemo } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
-import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
+import { fillRangeCopy, meaningfulRangeText, playableRange } from "./firstRangeSqueeze";
+import { firstClickPlan, formatTempoBpm } from "./firstClickPlan";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -19,6 +20,10 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const clickTempo = useMemo(() => {
+    const plan = firstClickPlan(song);
+    return plan === null ? null : formatTempoBpm(plan.tempoBpm);
+  }, [song]);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -116,9 +121,19 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 <h3 className="text-lg font-black tracking-tight text-white">{section.label}</h3>
                 <ConfidenceBadge level={section.confidence.level} />
               </div>
-              <div className="flex items-center text-sm font-medium text-slate-300">
-                <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
-                {section.groove}
+              <div className="flex flex-col gap-1 text-sm font-medium text-slate-300">
+                <div className="flex items-center">
+                  <span className="mr-2 text-[0.65rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionGrooveLabel")}</span>
+                  {section.groove}
+                </div>
+                {clickTempo && meaningfulRangeText(section.label) ? (
+                  <p className="text-xs font-medium text-slate-400">
+                    {fillRangeCopy(t("sectionClickNextAction"), {
+                      tempo: clickTempo,
+                      sectionLabel: meaningfulRangeText(section.label) ?? ""
+                    })}
+                  </p>
+                ) : null}
               </div>
             </CardHeader>
 

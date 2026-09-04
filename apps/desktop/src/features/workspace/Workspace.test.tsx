@@ -181,6 +181,41 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first click and the next action to set it", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-click-plan");
+    expect(callout).toHaveTextContent("Tonight's first click");
+    expect(callout).toHaveTextContent("Set the click to 120 BPM before the verse.");
+  });
+
+  it("asks the band to count in when the song has no trusted tempo", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    delete song.tempo;
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-click-plan")).toHaveTextContent(
+      "Tonight's first click still needs a tempo. Count the first section in before you start."
+    );
+  });
+
+  it("keeps the click BPM and asks to name the opening section when labels are missing", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0] = { ...song.sections[0]!, label: " " };
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-click-plan")).toHaveTextContent(
+      "Set the click to 120 BPM, then name the first section so the room knows where it starts."
+    );
+  });
+
   it("asks the player to check a named span when no clash is present", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

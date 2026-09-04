@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstClickPlan, formatTempoBpm } from "./firstClickPlan";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   }, [activeRole, roleMap]);
   const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
   const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
+  const firstClick = useMemo(() => firstClickPlan(song), [song]);
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
         t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
@@ -163,6 +165,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstClickCopy = firstClick
+    ? firstClick.sectionLabel
+      ? fillRangeCopy(t("workspaceFirstClickCheck"), {
+          tempo: formatTempoBpm(firstClick.tempoBpm),
+          sectionLabel: firstClick.sectionLabel
+        })
+      : fillRangeCopy(t("workspaceFirstClickUnnamed"), {
+          tempo: formatTempoBpm(firstClick.tempoBpm)
+        })
+    : t("workspaceFirstClickMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +320,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+
+          <section
+            className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.07] p-4"
+            data-testid="first-click-plan"
+            aria-label={t("workspaceFirstClickTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">{t("workspaceFirstClickTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstClickCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
