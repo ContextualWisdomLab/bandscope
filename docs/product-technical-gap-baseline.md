@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-04
 Evidence capture: live GitHub state is dated at observation; protected refs are revalidated when identified as current
-Protected product truth: `develop@889d782e88b4df28dcbb4ae3cfd6d99ef85d9844`
+Protected product truth: `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 
 ## Purpose
 
@@ -52,7 +52,7 @@ At this census `ContextualWisdomLab/bandscope` had **194 open pull requests** an
 
 The exact 74-repository set for this same capture is enumerated verbatim in `docs/doctoring/product-gap-baseline-2026-09-01.md`; capitalization there is the GitHub repository identity and is not normalized. Because PR creation and closure can occur during a sequential organization census, later counts are historical observations unless a new complete sweep is performed.
 
-A protected-branch read on **2026-09-04** confirms `develop@889d782e88b4df28dcbb4ae3cfd6d99ef85d9844` remains protected with exactly these 16 required contexts: `ci / build-and-test`, `dependency-review`, `security-audit`, `sbom`, `release-preflight`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`. Merge decisions still re-fetch protection because this is capture-time evidence.
+A protected-branch read on **2026-09-04** confirms `develop@314ddeae7b775a4957594b599358c8255617eb2e` is protected with exactly these 14 required contexts after protected PR #1165 consolidated repository-local security backstops: `ci / build-and-test`, `dependency-review`, `sbom`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`. `security-audit` and `release-preflight` are no longer protected required-context names at this capture; their underlying security/release obligations remain product/release acceptance requirements where applicable. Merge decisions still re-fetch protection because this is capture-time evidence.
 
 Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change prevents predecessor review/check receipts from transferring to the successor head; the original historical evidence remains preserved. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
 
@@ -60,12 +60,13 @@ Merge readiness is re-evaluated per unchanged exact PR head; an organization-wid
 
 ## 3. Shipped protected truth
 
-Only behavior reachable from protected `develop@889d782e88b4df28dcbb4ae3cfd6d99ef85d9844` belongs in this section.
+Only behavior reachable from protected `develop@314ddeae7b775a4957594b599358c8255617eb2e` belongs in this section.
 
 - BandScope is a React/Vite desktop workspace hosted by Tauri with local orchestration and a Python analysis service plus Rust/PyO3 numerical kernels.
 - Typed Tauri IPC and bounded local process boundaries are the intended local execution model; ordinary rehearsal analysis does not require a public cloud service.
 - Protected dependency-security repair #783 is already in `develop` ancestry. Open branches must not reframe its historical dependency findings as an unmerged product blocker or suppress them locally.
 - Protected dependency update #1027 advances the independently built Tauri lockfile to `uuid 1.25.0`; branches that predate it must adopt the protected lockfile result rather than overwrite it accidentally while restacking unrelated work.
+- Protected workflow consolidation #1165 removes duplicate repository PR scans and keeps bounded trusted-branch backstops while central required workflows own their PR evidence; product lanes must adopt that control-plane result rather than recreate removed Bandit/CodeQL/Trivy/secret-scan writers locally.
 - The product already renders rehearsal-oriented section/role evidence, but protected truth does **not** yet satisfy the complete active-player, crash-recovery, real-audio acceptance, diagnostics, activation, accessibility-parity, or trusted-distribution contracts below.
 - The latest immutable GitHub Release revalidated in recent delivery evidence is `v0.1.3`, published 2026-04-28. It is historical release evidence, not proof that the current protected head satisfies the commercial release gate.
 
@@ -76,12 +77,12 @@ Active work is not shipped truth until it is normally integrated into protected 
 | Boundary | Canonical live owner / evidence | Current status |
 |---|---|---|
 | Merge-train control plane | Issue #966 with executable queue lane PR #968 | #968 remains Draft; its unique queue machinery must survive every restack and its exact current head is non-passing until hosted/current-head evidence exists |
-| Canonical baseline | PR #1116, this file | Draft; this branch includes the current protected `develop` ancestry and must obtain fresh exact-head evidence after each baseline repair before integration |
+| Canonical baseline | PR #1116, this file | Draft; this branch must contain current protected `develop` ancestry and obtain fresh exact-head evidence after every baseline repair before integration |
 | Workspace role naming | PR #1130 | The **active owner branch** uses `RehearsalRoleOption.roleId`/`roleName` with primary `roleOptions`; the previous `{ id, name }[]` projection exists only as a deprecated component compatibility input there. Protected `develop` is not claimed to contain this projection before integration |
 | Score attachment naming | PR #1092 | Persisted project-format `scoreAttachments` retains compatibility keys `id`/`fileName`, while `trustedScoreAttachment` translates them immediately to workspace-owned `scoreId`/`scoreFileName`; recorded exact-head evidence is historical until re-fetched; no database or persisted-wire migration is introduced |
 | Repository-local Trivy PR-head contract | PR #1119 | Quoted/commented YAML activity-list normalization is repaired on its canonical branch; current-head workflows remain non-passing until fresh terminal evidence exists |
 | Trusted distribution | Issue #960; active release-identity lane PR #1126 | Semantic release-identity naming is active work; Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, and complete version-identity parity remain incomplete as one integrated protected-head receipt |
-| Active rehearsal player | Issue #961; implementation lane #971 | Real authorized local audio playback/seek/stop/loop/rate/cue transport is active work; count-in and any source-backed stem control must converge into one transport state machine |
+| Active rehearsal player | Issue #961; canonical transport #971 with source-to-audible stack #1159 → #1160 | #971 `9c1b20e6df778e303fada3e170c93418c496394b` owns one playback authority/state machine; #1159 `22a9f18d960cc7df93db890b2a5aa9594428c2b4` publishes real PCM16 four-stem artifacts and path-free references; #1160 `91cc5ddecc4d59855811f9d170c1fa55065ed85a` performs strict process/file admission, atomic authority binding and terminal-event buffering. All remain Draft/unshipped. The next buyer gap is the opaque-handle `Full mix | Vocals | Bass | Drums | Other instruments` selector plus interaction, persistence/reload/stale-race, locale and rights-cleared audible desktop evidence |
 | Crash-safe project | Issue #962; implementation lane #970 | Atomic publication, explicit format versioning, recovery, migration, autosave, rollback/export and persisted transport state remain active work, not protected truth |
 | Real-audio science | Issue #770 and active benchmark lanes | Rights-safe decoded-audio MIR acceptance, recognized metrics, uncertainty and reproducible evidence remain incomplete |
 | Resource admission/decode | Issue #781 plus commercial dependency defect #1129 | No synthetic/mock success may substitute for production-path resource/cancellation evidence; the commercially supported decode path must remove the libsndfile-backed LGPL runtime boundary with equivalent real-audio behavior and cross-platform/SBOM proof |
@@ -98,9 +99,9 @@ Backlog convergence is the primary engineering risk because micro-PR fan-out cre
 
 PR #968 owns the unique executable queue machinery needed by #966: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, symlink-safe atomic publication, reviewed dependency/succession metadata, network-independent validation, deterministic human projection/parity, and exact-head artifact preservation. It must not be discarded as stale documentation.
 
-The canonical baseline branch already contains protected `develop@889d782e88b4df28dcbb4ae3cfd6d99ef85d9844` in its ancestry through an ordinary merge parent. PR #968 targets this baseline branch rather than protected `develop` directly. Every #1116 branch advance therefore changes #968's target tip: #968 must be re-resolved against that new base and obtain fresh exact-head checks/reviews before readiness, while preserving its unique queue-control source through ordinary non-force reconciliation. Historical #1116/#968 SHAs remain audit evidence only and are not described as current identities after either branch advances.
+The canonical baseline branch must contain protected `develop@314ddeae7b775a4957594b599358c8255617eb2e` in its ancestry through an ordinary non-force reconciliation. PR #968 targets this baseline branch rather than protected `develop` directly. Every #1116 branch advance therefore changes #968's target tip: #968 must be re-resolved against that new base and obtain fresh exact-head checks/reviews before readiness, while preserving its unique queue-control source through ordinary non-force reconciliation. Historical #1116/#968 SHAs remain audit evidence only and are not described as current identities after either branch advances.
 
-A previously recorded #1117 snapshot was `refactor/temporal-features-api@b98f266d2356d56be624fb617580b5252e85baaa` with then-base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Its visible review threads were independently resolved in that historical capture; that evidence belongs to #1117 and never substitutes for #1116 or #968 evidence. #1117 does not own `docs/product-technical-gap-baseline.md`, and the current protected product tip is now `develop@889d782e88b4df28dcbb4ae3cfd6d99ef85d9844`; any #1117 merge decision must re-fetch its live head/base and evidence rather than reuse this snapshot.
+A previously recorded #1117 snapshot was `refactor/temporal-features-api@b98f266d2356d56be624fb617580b5252e85baaa` with then-base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Its visible review threads were independently resolved in that historical capture; that evidence belongs to #1117 and never substitutes for #1116 or #968 evidence. #1117 does not own `docs/product-technical-gap-baseline.md`, and the current protected product tip is now `develop@314ddeae7b775a4957594b599358c8255617eb2e`; any #1117 merge decision must re-fetch its live head/base and evidence rather than reuse this snapshot.
 
 PR #1007 is the canonical first-part-handoff lane only to the extent that its live semantic diff still preserves mounted selected-role wiring and the scientific prohibition against manufacturing handoffs from heuristic fallback. Any succession decision is rechecked against the independently resolved live head rather than a remembered PR-body SHA.
 
