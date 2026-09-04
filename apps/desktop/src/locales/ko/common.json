@@ -153,6 +153,11 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstLeftoverReturnTitle": "오늘 먼저 남을 쉬는 자리의 복귀",
+  "workspaceFirstLeftoverReturnNamed": "{leftoverRoleName}은 {leftoverSectionLabel}에서 쉰 뒤 {sectionLabel}에서 돌아옵니다. {sectionLabel} 처음부터 {leftoverRoleName}을 들어오게 하세요.",
+  "workspaceFirstLeftoverReturnComeBack": "{leftoverRoleName}은 {leftoverSectionLabel}에서 쉰 뒤 {sectionLabel}부터 들어오세요.",
+  "workspaceFirstLeftoverReturnNone": "남은 파트 복귀 큐가 필요하지 않습니다. 이름이 확인된 모든 파트가 곡 전체에서 계속 연주합니다. 첫 구간부터 별도 복귀 카운트 없이 합주하세요.",
+  "workspaceFirstLeftoverReturnMissing": "오늘 먼저 남을 쉬는 자리의 복귀는 아직 확인이 필요합니다. 남은 쉬는 파트가 언제 들어오는지 첫 구간 전에 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
