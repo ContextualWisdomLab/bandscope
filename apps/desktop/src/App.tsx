@@ -47,6 +47,8 @@ import { createTranslator, detectPreferredLocale, type TranslationKey } from "./
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { RehearsalHelp } from "./features/help/RehearsalHelpDialog";
+import { resolveRehearsalHelpPhase } from "./features/help/rehearsalHelp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -255,6 +257,8 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [analysisFailed, setAnalysisFailed] = useState(false);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
@@ -264,10 +268,19 @@ export function App() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
+  const [helpOpen, setHelpOpen] = useState(false);
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
 
   const analysisInFlight = jobStatus?.state === "queued" || jobStatus?.state === "running";
+  const helpPhase = resolveRehearsalHelpPhase({
+    hasLocalSource: selectedBootstrap !== null,
+    analysisInFlight: analysisInFlight || isStarting || isImporting,
+    // The workspace hides the map behind ErrorState while jobError is set,
+    // so help must not offer it as ready in that state.
+    hasSong: jobResult !== null && jobError === null,
+    hasError: analysisFailed,
+  });
   const selectedRequest: AnalysisJobRequest = selectedBootstrap
     ? {
         sourceKind: "local_audio",
@@ -289,9 +302,11 @@ export function App() {
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
       setJobError(null);
+      setAnalysisFailed(false);
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
+      setAnalysisFailed(true);
       setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
   }, [activeAnalysisBootstrap, t]);
@@ -361,6 +376,7 @@ export function App() {
             return;
           }
           const fallbackMessage = t("analysisCouldNotStart");
+          setAnalysisFailed(true);
           setJobError(fallbackMessage);
           setJobStatus({
             ...jobStatus,
@@ -387,8 +403,14 @@ export function App() {
 
   /** Documented. */
   const handleStartAnalysis = async () => {
+    if (analysisInFlight || isStarting || isImporting || !selectedBootstrap) {
+      return;
+    }
+
     const submittedBootstrap = selectedBootstrap;
+    setAnalysisFailed(false);
     setJobError(null);
+    setSaveError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
     setJobStatus(null);
@@ -407,6 +429,7 @@ export function App() {
     } catch {
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
+      setAnalysisFailed(true);
       setJobError(t("analysisCouldNotStart"));
     } finally {
       setIsStarting(false);
@@ -419,6 +442,13 @@ export function App() {
     setSelectionErrorSource(null);
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
+      setAnalysisFailed(false);
+      setJobError(null);
+      setSaveError(null);
+      setJobResult(null);
+      setJobResultBootstrap(null);
+      setJobStatus(null);
+      setActiveAnalysisBootstrap(null);
       setSelectedBootstrap(selection.bootstrap);
       return;
     }
@@ -450,6 +480,13 @@ export function App() {
     try {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
+        setAnalysisFailed(false);
+        setJobError(null);
+        setSaveError(null);
+        setJobResult(null);
+        setJobResultBootstrap(null);
+        setJobStatus(null);
+        setActiveAnalysisBootstrap(null);
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
       } else {
@@ -477,11 +514,14 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setSaveError(null);
+      setAnalysisFailed(false);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
+        setAnalysisFailed(false);
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
       }
     }
@@ -489,11 +529,12 @@ export function App() {
 
   /** Documented. */
   const handleSaveProject = async () => {
+    setSaveError(null);
     try {
       await saveProject(jobResult!);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
+        setSaveError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
       }
     }
   };
@@ -623,11 +664,12 @@ export function App() {
               </button>
               <button
                 type="button"
-                aria-disabled={true}
-                aria-label={t("helpComingSoon")}
-                title={t("helpComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                aria-label={t("helpOpen")}
+                title={t("helpOpen")}
+                aria-haspopup="dialog"
+                aria-expanded={helpOpen}
+                onClick={() => setHelpOpen(true)}
+                className="inline-flex items-center justify-center rounded-xl p-2 text-cyan-200 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
               >
                 <CircleHelp className="size-5" aria-hidden="true" />
               </button>
@@ -635,7 +677,7 @@ export function App() {
           </div>
         </aside>
 
-        <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
+        <main id="main-content" tabIndex={-1} className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
               const { label, enabled, active, title } = navButtonState(item);
@@ -663,6 +705,18 @@ export function App() {
                 </button>
               );
             })}
+            <button
+              type="button"
+              aria-label={`${t("helpOpen")} ${t("compactViewSuffix")}`}
+              title={t("helpOpen")}
+              aria-haspopup="dialog"
+              aria-expanded={helpOpen}
+              onClick={() => setHelpOpen(true)}
+              className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-xl px-3 text-cyan-200 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            >
+              <CircleHelp className="size-4" aria-hidden="true" />
+              <span className="sr-only">{t("helpOpen")}</span>
+            </button>
           </nav>
 
           <section aria-label={t("sourceControlsAriaLabel")} className="mb-4 rounded-3xl border border-white/10 bg-slate-950/72 p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
@@ -829,6 +883,12 @@ export function App() {
                     {selectionError}
                   </div>
                 )}
+
+                {saveError && (
+                  <div className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                    {saveError}
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -855,6 +915,26 @@ export function App() {
         </main>
       </div>
 
+      <RehearsalHelp
+        open={helpOpen}
+        phase={helpPhase}
+        onOpenChange={setHelpOpen}
+        onChooseLocal={() => {
+          void handleChooseLocalAudio();
+        }}
+        onStartAnalysis={() => {
+          void handleStartAnalysis();
+        }}
+        onShowMap={() => {
+          setActiveView("workspace");
+          /** Focus now for synchronous callers, again after unmount resets focus to <body>. */
+          const focusMainContent = () => {
+            document.getElementById("main-content")?.focus();
+          };
+          focusMainContent();
+          window.setTimeout(focusMainContent, 0);
+        }}
+      />
       <Toaster />
     </div>
   );
