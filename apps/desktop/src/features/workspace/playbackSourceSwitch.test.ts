@@ -136,19 +136,48 @@ describe("playback source switch continuity", () => {
   );
 
   it("admits a target only when its decoded duration and switch receipt still match the active target", () => {
-    const plan = capture("looping", 37.25);
-    expect(plan).not.toBeNull();
+    const begun = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    expect(begun.plan).not.toBeNull();
 
-    expect(admitPlaybackSourceSwitchTarget(plan, 45, vocalsAuthority, 3)).toEqual(plan);
-    expect(admitPlaybackSourceSwitchTarget(plan, 44.999, vocalsAuthority, 3)).toBeNull();
-    expect(admitPlaybackSourceSwitchTarget(plan, 37.25, vocalsAuthority, 3)).toBeNull();
-    expect(admitPlaybackSourceSwitchTarget(plan, Number.NaN, vocalsAuthority, 3)).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(begun.state, begun.plan, 45, vocalsAuthority),
+    ).toBe(begun.plan);
     expect(
       admitPlaybackSourceSwitchTarget(
-        plan,
+        begun.state,
+        begun.plan,
+        44.999,
+        vocalsAuthority,
+      ),
+    ).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        begun.state,
+        begun.plan,
+        37.25,
+        vocalsAuthority,
+      ),
+    ).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        begun.state,
+        begun.plan,
+        Number.NaN,
+        vocalsAuthority,
+      ),
+    ).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        begun.state,
+        begun.plan,
         Number.POSITIVE_INFINITY,
         vocalsAuthority,
-        3,
       ),
     ).toBeNull();
   });
@@ -166,29 +195,62 @@ describe("playback source switch continuity", () => {
 
     expect(
       admitPlaybackSourceSwitchTarget(
+        begun.state,
         copiedPlan,
         45,
         vocalsAuthority,
-        begun.state.sequence,
       ),
     ).toBeNull();
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        begun.state,
+        begun.plan,
+        45,
+        vocalsAuthority,
+      ),
+    ).toBe(begun.plan);
   });
 
   it("rejects stale loadedmetadata receipts after a newer source switch supersedes the target", () => {
-    const stalePlan = capture("looping", 37.25, vocalsAuthority, 3);
-    const currentPlan = capture("looping", 37.25, bassAuthority, 4);
-    expect(stalePlan).not.toBeNull();
-    expect(currentPlan).not.toBeNull();
+    const first = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    const second = beginPlaybackSourceSwitch(
+      first.state,
+      transport("looping"),
+      37.25,
+      fullMixAuthority,
+      bassAuthority,
+    );
 
     expect(
-      admitPlaybackSourceSwitchTarget(stalePlan, 45, bassAuthority, 4),
+      admitPlaybackSourceSwitchTarget(
+        second.state,
+        first.plan,
+        45,
+        vocalsAuthority,
+      ),
     ).toBeNull();
     expect(
-      admitPlaybackSourceSwitchTarget(stalePlan, 45, vocalsAuthority, 4),
+      admitPlaybackSourceSwitchTarget(
+        second.state,
+        first.plan,
+        45,
+        bassAuthority,
+      ),
     ).toBeNull();
     expect(
-      admitPlaybackSourceSwitchTarget(currentPlan, 45, bassAuthority, 4),
-    ).toEqual(currentPlan);
+      admitPlaybackSourceSwitchTarget(
+        second.state,
+        second.plan,
+        45,
+        bassAuthority,
+      ),
+    ).toBe(second.plan);
   });
 
   it("invalidates the prior media receipt as soon as a newer source switch begins", () => {
@@ -209,23 +271,23 @@ describe("playback source switch continuity", () => {
 
     expect(first.plan?.sequence).toBe(1);
     expect(second.plan?.sequence).toBe(2);
-    expect(second.state.activePlan).toEqual(second.plan);
+    expect(second.state.activePlan).toBe(second.plan);
     expect(
       admitPlaybackSourceSwitchTarget(
+        second.state,
         first.plan,
         45,
         vocalsAuthority,
-        second.state.sequence,
       ),
     ).toBeNull();
     expect(
       admitPlaybackSourceSwitchTarget(
+        second.state,
         second.plan,
         45,
         bassAuthority,
-        second.state.sequence,
       ),
-    ).toEqual(second.plan);
+    ).toBe(second.plan);
   });
 
   it("burns a switch identity even when the newer attempt cannot produce a continuity plan", () => {
@@ -249,10 +311,10 @@ describe("playback source switch continuity", () => {
     expect(rejected.state.activePlan).toBeNull();
     expect(
       admitPlaybackSourceSwitchTarget(
+        rejected.state,
         first.plan,
         45,
         vocalsAuthority,
-        rejected.state.sequence,
       ),
     ).toBeNull();
   });
