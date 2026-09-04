@@ -146,7 +146,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    const callout = screen.getByTestId("first-range-squeeze");
+    const callout = screen.getByTestId("ranges-first-span");
     expect(callout).toHaveTextContent("Tonight's first range");
     expect(callout).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Hear that clash on your instrument before the verse."
@@ -164,7 +164,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
+    expect(screen.getByTestId("ranges-first-span")).toHaveTextContent(
       "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section."
     );
   });
@@ -176,7 +176,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
 
-    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
+    expect(screen.getByTestId("ranges-first-span")).toHaveTextContent(
       "Lead Vocal sits G#3–C#5 in verse. Hear that clash on your instrument before the verse."
     );
   });
@@ -191,7 +191,7 @@ describe("Workspace", () => {
 
     render(<Workspace song={song} />);
 
-    expect(screen.getByTestId("first-range-squeeze")).toHaveTextContent(
+    expect(screen.getByTestId("ranges-first-span")).toHaveTextContent(
       "Bass Guitar sits C#2–E3 in verse. Check that span on your instrument before the verse."
     );
   });

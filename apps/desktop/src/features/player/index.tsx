@@ -1,56 +1,100 @@
+import { useMemo } from "react";
 import type { RehearsalSong } from "@bandscope/shared-types";
+import { createTranslator, detectPreferredLocale } from "../../i18n";
+import {
+  fillRangeCopy,
+  isSafeRuntimeValue,
+  meaningfulRangeText,
+  ownDataProperty
+} from "../workspace/firstRangeSqueeze";
 
-/** Documented. */
+/** Tonight's first named section a player should loop from the rehearsal map. */
+export type FirstNamedSection = {
+  id: string;
+  label: string;
+};
+
+/** Return whether an untrusted runtime value is a non-array object record. */
+function isRuntimeObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Pick the first named section window without treating malformed evidence as a loop. */
+export function firstNamedSection(song: RehearsalSong | null | undefined): FirstNamedSection | null {
+  const runtimeSong: unknown = song;
+  if (!isRuntimeObject(runtimeSong) || !isSafeRuntimeValue(runtimeSong)) {
+    return null;
+  }
+  const sections = ownDataProperty(runtimeSong, "sections");
+  if (!Array.isArray(sections)) {
+    return null;
+  }
+  for (const sectionValue of sections) {
+    if (!isRuntimeObject(sectionValue)) {
+      continue;
+    }
+    const id = meaningfulRangeText(ownDataProperty(sectionValue, "id"));
+    const label = meaningfulRangeText(ownDataProperty(sectionValue, "label"));
+    if (!id || !label) {
+      continue;
+    }
+    const timeRange = ownDataProperty(sectionValue, "timeRange");
+    if (!isRuntimeObject(timeRange)) {
+      continue;
+    }
+    const start = ownDataProperty(timeRange, "start");
+    const end = ownDataProperty(timeRange, "end");
+    if (typeof start !== "number" || typeof end !== "number" || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      continue;
+    }
+    return { id, label };
+  }
+  return null;
+}
+
+/** Name the next map loop when this window cannot play local audio yet. */
 export function PlayerFeature(props: { title: string; song?: RehearsalSong | null }) {
   const { title, song } = props;
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const safeSong = useMemo(
+    () => (song && isSafeRuntimeValue(song) ? song : null),
+    [song],
+  );
+  const namedSection = useMemo(() => firstNamedSection(safeSong), [safeSong]);
+  const songTitle = meaningfulRangeText(
+    isRuntimeObject(safeSong) ? ownDataProperty(safeSong, "title") : undefined
+  );
 
   if (!song) {
     return (
-      <section style={{ padding: "24px" }}>
-        <h2>{title}</h2>
-        <p style={{ color: "#999" }}>No song loaded. Start an analysis to use the player.</p>
+      <section className="space-y-4 rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-5 text-slate-100 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
+        <h2 className="text-2xl font-black tracking-tight text-white">{title}</h2>
+        <p className="text-sm leading-6 text-slate-300">{t("playerEmptyState")}</p>
       </section>
     );
   }
 
+  const nextAction = namedSection
+    ? fillRangeCopy(t("playerMapLoopNextAction"), { sectionLabel: namedSection.label })
+    : t("playerMissingSection");
+
   return (
-    <section style={{ padding: "24px" }}>
-      <h2>{title}</h2>
-      <div
-        style={{
-          padding: "16px",
-          backgroundColor: "#fafafa",
-          borderRadius: "8px",
-          border: "1px solid #e8e8e8",
-        }}
+    <section className="space-y-4 text-slate-100">
+      <h2 className="text-2xl font-black tracking-tight text-white">{title}</h2>
+      <section
+        className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+        data-testid="player-next-map-loop"
+        aria-label={t("playerNextMapLoopTitle")}
       >
-        <div style={{ marginBottom: "12px" }}>
-          <strong>{song.title}</strong>
-          <span style={{ color: "#666", marginLeft: "8px" }}>
-            {song.sections.length} {song.sections.length === 1 ? "section" : "sections"}
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-          {song.sections.map((section) => (
-            <span
-              key={section.id}
-              style={{
-                padding: "4px 12px",
-                borderRadius: "16px",
-                backgroundColor: "#fff",
-                border: "1px solid #d9d9d9",
-                fontSize: "0.85em",
-                textTransform: "capitalize",
-              }}
-            >
-              {section.label}
-            </span>
-          ))}
-        </div>
-        <div style={{ marginTop: "16px", color: "#999", fontSize: "0.85em" }}>
-          Audio playback requires the desktop app with a local audio source.
-        </div>
-      </div>
+        <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("playerNextMapLoopTitle")}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-100">{nextAction}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{t("playerNoAudioYet")}</p>
+      </section>
+      {namedSection && songTitle ? (
+        <p className="text-sm font-semibold text-slate-200" data-testid="player-song-title">
+          {songTitle}
+        </p>
+      ) : null}
     </section>
   );
 }

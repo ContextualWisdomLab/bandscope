@@ -34,6 +34,59 @@ function isRuntimeObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Return whether an object graph contains only cloneable own data properties. */
+function hasDataPropertyGraph(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (typeof value !== "object" || value === null) {
+    return true;
+  }
+  if (seen.has(value)) {
+    return true;
+  }
+  seen.add(value);
+
+  let keys: (string | symbol)[];
+  try {
+    keys = Reflect.ownKeys(value);
+  } catch {
+    return false;
+  }
+  for (const key of keys) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      return false;
+    }
+    if (!descriptor || !("value" in descriptor) || !hasDataPropertyGraph(descriptor.value, seen)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Reject accessors and Proxy containers before descriptor reads accept data. */
+export function isSafeRuntimeValue(value: unknown): boolean {
+  if (!hasDataPropertyGraph(value)) {
+    return false;
+  }
+  try {
+    structuredClone(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Read an owned data-property without invoking an accessor or Proxy get trap. */
+export function ownDataProperty(record: Record<string, unknown>, property: string): unknown {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(record, property);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Return trimmed copy that is not a blank or `none` sentinel. */
 export function meaningfulRangeText(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -87,9 +140,9 @@ export function playableRange(
 /**
  * Pick the first playable range a player should check before the next section.
  *
- * Prefers a named span that also carries a clash warning so the board names
- * the squeeze that will waste rehearsal time. Falls back to the first named
- * span when no clash is present. Runtime roots and collection members are
+ * Returns the first named span that passes playable-range validation. Any
+ * warning attached to that span is preserved for copy selection. Runtime
+ * roots and collection members are
  * treated as untrusted; malformed evidence is isolated instead of crashing
  * the buyer-visible workspace or becoming playable-range authority.
  */
@@ -98,42 +151,50 @@ export function firstRangeSqueeze(
   activeRole: string | null = null
 ): FirstRangeSqueeze | null {
   const runtimeSong: unknown = song;
-  if (!isRuntimeObject(runtimeSong) || !Array.isArray(runtimeSong.sections)) {
+  if (!isRuntimeObject(runtimeSong) || !isSafeRuntimeValue(runtimeSong)) {
+    return null;
+  }
+  const sections = isRuntimeObject(runtimeSong) ? ownDataProperty(runtimeSong, "sections") : undefined;
+  if (!Array.isArray(sections)) {
     return null;
   }
 
-  let fallback: FirstRangeSqueeze | null = null;
-
-  for (const sectionValue of runtimeSong.sections) {
-    if (!isRuntimeObject(sectionValue) || !Array.isArray(sectionValue.roles)) {
+  for (const sectionValue of sections) {
+    const roles = isRuntimeObject(sectionValue) ? ownDataProperty(sectionValue, "roles") : undefined;
+    if (!isRuntimeObject(sectionValue) || !Array.isArray(roles)) {
       continue;
     }
-    const sectionLabel = meaningfulRangeText(sectionValue.label);
+    const sectionLabel = meaningfulRangeText(ownDataProperty(sectionValue, "label"));
     if (!sectionLabel) {
       continue;
     }
 
-    for (const roleValue of sectionValue.roles) {
+    for (const roleValue of roles) {
       if (!isRuntimeObject(roleValue)) {
         continue;
       }
-      const roleId = meaningfulRangeText(roleValue.id);
-      const roleName = meaningfulRangeText(roleValue.name);
+      const roleId = meaningfulRangeText(ownDataProperty(roleValue, "id"));
+      const roleName = meaningfulRangeText(ownDataProperty(roleValue, "name"));
       if (!roleId || !roleName || (activeRole && roleId !== activeRole)) {
         continue;
       }
-      if (!isRuntimeObject(roleValue.range)) {
+      const rangeValue = ownDataProperty(roleValue, "range");
+      if (!isRuntimeObject(rangeValue)) {
         continue;
       }
 
-      const range = playableRange(roleValue.range.lowestNote, roleValue.range.highestNote);
+      const range = playableRange(
+        ownDataProperty(rangeValue, "lowestNote"),
+        ownDataProperty(rangeValue, "highestNote")
+      );
       if (!range) {
         continue;
       }
 
       let overlapWarning: string | undefined;
-      if (Array.isArray(roleValue.overlapWarnings)) {
-        for (const warning of roleValue.overlapWarnings) {
+      const overlapWarnings = ownDataProperty(roleValue, "overlapWarnings");
+      if (Array.isArray(overlapWarnings)) {
+        for (const warning of overlapWarnings) {
           const meaningfulWarning = meaningfulRangeText(warning);
           if (meaningfulWarning) {
             overlapWarning = meaningfulWarning;
@@ -149,17 +210,11 @@ export function firstRangeSqueeze(
         overlapWarning
       };
 
-      if (overlapWarning) {
-        return candidate;
-      }
-
-      if (!fallback) {
-        fallback = candidate;
-      }
+      return candidate;
     }
   }
 
-  return fallback;
+  return null;
 }
 
 /** Fill trusted `{token}` placeholders once while keeping rehearsal values literal. */

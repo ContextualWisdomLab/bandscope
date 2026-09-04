@@ -154,5 +154,14 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "rangesEmptyState": "먼저 합주 맵에서 곡을 선택하세요. 분석이 끝나면 음역 화면이 오늘 확인할 음역을 알려 줍니다.",
+  "rangesUnnamedSpan": "연주 가능한 음역으로 보기 전에 최저음과 최고음을 귀로 확인해 보세요.",
+  "rangesOneNoteToCheck": "악기로 기보된 음 {count}개를 확인해 보세요.",
+  "rangesNotesToCheck": "악기로 기보된 음 {count}개를 확인해 보세요.",
+  "playerEmptyState": "먼저 합주 맵에서 곡을 선택하세요. 이 화면은 아직 오디오를 재생하지 않습니다.",
+  "playerNextMapLoopTitle": "오늘 먼저 감을 루프",
+  "playerMapLoopNextAction": "오늘 첫 구간은 {sectionLabel}입니다. 합주 맵에서 그 구간을 열어 오늘 루프를 정하세요.",
+  "playerNoAudioYet": "이 화면은 아직 오디오를 재생하지 않습니다.",
+  "playerMissingSection": "오늘 첫 구간은 합주 맵에 이름 있는 구간이 생긴 뒤에 정할 수 있습니다."
 }
