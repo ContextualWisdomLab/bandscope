@@ -34,7 +34,7 @@ def test_cue_anchor_kind_enum() -> None:
 
 
 def test_role_extractor_basic() -> None:
-    """Test that RoleExtractor returns a valid topology structure."""
+    """Test that heuristic RoleExtractor output does not invent handoffs."""
     extractor = RoleExtractor()
 
     sections = [{"id": "intro"}, {"id": "verse-1"}]
@@ -43,6 +43,9 @@ def test_role_extractor_basic() -> None:
 
     assert "topologies" in result
     assert "extraction_notes" in result
+    assert result["extraction_notes"] == (
+        "Extracted roles using heuristic fallback; handoffs unavailable."
+    )
     assert len(result["topologies"]) == 2
 
     # Check intro section
@@ -61,9 +64,9 @@ def test_role_extractor_basic() -> None:
     intro_graph = intro_topology["part_graph"]
     graph_by_role = {n["role_id"]: n for n in intro_graph}
 
-    # Check handoff relation
-    assert "lead-vocal" in graph_by_role["bass-guitar"]["handoff_to"]
-    assert "bass-guitar" in graph_by_role["lead-vocal"]["handoff_from"]
+    # Heuristic fallback cannot prove a cross-section transition.
+    assert graph_by_role["bass-guitar"]["handoff_to"] == []
+    assert graph_by_role["lead-vocal"]["handoff_from"] == []
 
     # Check verse-1 section (only bass)
     verse_topology = result["topologies"][1]

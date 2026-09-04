@@ -1,10 +1,11 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-24
 
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- The mounted workspace copy for tonight's first corroborated part-to-part handoff must treat `partGraph.handoff_to` as a transition from the current source section into the immediately following destination section: name the active giving role from the source, corroborate the receiver with source `handoff_from`, require the giver to deactivate and receiver to activate in the destination, and show the destination label/start time. Open moves to that rendered destination section. Do not invent a pass from a one-section same-state graph, groove, cue, simplification, overlap, range, chord labels, function labels, setup notes, confirmed overrides, harmonic explanations, confidence notes, transposition plans, or a labeled `handoff` form. Distinct from labeled-form handoff (#937) and Part Handoff Map visualization (#850).
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
 ## Security source
@@ -80,7 +81,7 @@ Last updated: 2026-03-11
 
 - Core rehearsal artifacts should include:
   - likely harmony by section and by role
-  - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
+  - section roadmap with entries, dropouts, pickups, stops, tags, labeled form handoffs, and corroborated part-to-part handoffs
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
   - simplification, transposition, capo, tuning, or setup cues where applicable
