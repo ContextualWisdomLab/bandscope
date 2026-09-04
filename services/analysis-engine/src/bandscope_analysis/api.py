@@ -18,7 +18,13 @@ from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
-from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.separation import (
+    CANONICAL_PLAYBACK_STEM_KINDS,
+    AudioStemSeparator,
+    PlayableStemArtifactSetReference,
+    build_playable_stem_artifact_set_reference,
+    materialize_playable_stem_artifact_set,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +92,7 @@ class RangePayload(TypedDict):
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal results."""
+    """Typed harmony payload nested inside rehearsal roles."""
 
     chord: str
     functionLabel: str
@@ -128,7 +134,7 @@ class PartGraphNodePayload(TypedDict):
 
 
 class SectionTimeRangePayload(TypedDict):
-    """Typed timing range payload nested inside rehearsal sections."""
+    """Typed timing payload nested inside rehearsal sections."""
 
     start: int
     end: int
@@ -177,6 +183,7 @@ class AnalysisJobStatus(TypedDict):
     cacheStatus: NotRequired[AnalysisCacheStatus]
     result: NotRequired[RehearsalSong]
     error: NotRequired[AnalysisJobError]
+    playableStemArtifactSet: NotRequired[PlayableStemArtifactSetReference]
 
 
 class CachedAnalysisPayload(TypedDict):
@@ -1039,6 +1046,79 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
     }
 
 
+def _playable_stem_artifact_set_id(
+    request: AnalysisJobRequest,
+    audio_features: dict[str, Any],
+) -> str:
+    """Derive a deterministic identity from project scope and exact separated samples."""
+    stems = audio_features.get("stems")
+    sample_rate = audio_features.get("sr")
+    project_id = request.get("projectId")
+    if not isinstance(stems, dict):
+        raise ValueError("Invalid playable stem features.")
+    if not isinstance(sample_rate, int) or isinstance(sample_rate, bool):
+        raise ValueError("Invalid playable stem features.")
+    if not isinstance(project_id, str) or not project_id:
+        raise ValueError("Invalid playable stem project identity.")
+
+    digest = hashlib.sha256()
+    digest.update(b"bandscope-playable-stems-v1\0")
+    digest.update(project_id.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(str(sample_rate).encode("ascii"))
+    for stem_kind in CANONICAL_PLAYBACK_STEM_KINDS:
+        stem_array = stems.get(stem_kind)
+        if not isinstance(stem_array, np.ndarray):
+            raise ValueError("Invalid playable stem features.")
+        contiguous_stem = np.ascontiguousarray(stem_array)
+        digest.update(b"\0")
+        digest.update(stem_kind.encode("ascii"))
+        digest.update(b"\0")
+        digest.update(contiguous_stem.dtype.str.encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(contiguous_stem.shape).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(contiguous_stem.tobytes(order="C"))
+    return digest.hexdigest()
+
+
+def _materialize_playable_stem_artifact_reference(
+    request: AnalysisJobRequest,
+    audio_features: dict[str, Any],
+) -> PlayableStemArtifactSetReference | None:
+    """Publish local stem media and return only path-free status metadata."""
+    if request["sourceKind"] != "local_audio":
+        return None
+    temp_root = request.get("tempRoot")
+    if not temp_root:
+        return None
+
+    try:
+        native_artifact_set = materialize_playable_stem_artifact_set(
+            stem_arrays=audio_features.get("stems", {}),
+            sample_rate_hz=audio_features.get("sr"),
+            artifact_root=temp_root,
+            artifact_set_id=_playable_stem_artifact_set_id(request, audio_features),
+        )
+    except (KeyError, OSError, TypeError, ValueError):
+        logger.warning("Playable stem artifact publication failed; stems remain unavailable.")
+        return None
+    return build_playable_stem_artifact_set_reference(native_artifact_set)
+
+
+def _load_cached_playable_stem_artifact_reference(
+    request: AnalysisJobRequest,
+) -> PlayableStemArtifactSetReference | None:
+    """Rebuild playable media from reusable feature cache without rerunning separation."""
+    feature_cache_paths = _feature_cache_paths(request)
+    if feature_cache_paths is None:
+        return None
+    cached_features = _load_cached_local_audio_features(*feature_cache_paths)
+    if cached_features is None:
+        return None
+    return _materialize_playable_stem_artifact_reference(request, cached_features)
+
+
 def run_analysis_job_updates(
     job_id: str,
     payload: object,
@@ -1065,6 +1145,19 @@ def run_analysis_job_updates(
     if cache_path is not None:
         cached_result = _load_cached_analysis(cache_path)
         if cached_result is not None:
+            cached_final_status = _build_job_status(
+                job_id=job_id,
+                state="succeeded",
+                requested_at=requested_at,
+                progress_label=f"Analysis ready for {request['sourceLabel']}",
+                progress_stage="ready",
+                progress_percent=100,
+                cache_status="hit",
+                result=cached_result,
+            )
+            cached_artifact_reference = _load_cached_playable_stem_artifact_reference(request)
+            if cached_artifact_reference is not None:
+                cached_final_status["playableStemArtifactSet"] = cached_artifact_reference
             return [
                 _build_job_status(
                     job_id=job_id,
@@ -1075,16 +1168,7 @@ def run_analysis_job_updates(
                     progress_percent=95,
                     cache_status="hit",
                 ),
-                _build_job_status(
-                    job_id=job_id,
-                    state="succeeded",
-                    requested_at=requested_at,
-                    progress_label=f"Analysis ready for {request['sourceLabel']}",
-                    progress_stage="ready",
-                    progress_percent=100,
-                    cache_status="hit",
-                    result=cached_result,
-                ),
+                cached_final_status,
             ]
 
     decode_label = (
@@ -1213,18 +1297,21 @@ def run_analysis_job_updates(
         final_cache_status = (
             "stored" if _store_cached_analysis(cache_path, request, result) else "miss"
         )
-    updates.append(
-        _build_job_status(
-            job_id=job_id,
-            state="succeeded",
-            requested_at=requested_at,
-            progress_label=f"Analysis ready for {request['sourceLabel']}",
-            progress_stage="ready",
-            progress_percent=100,
-            cache_status=final_cache_status,
-            result=result,
-        )
+    final_status = _build_job_status(
+        job_id=job_id,
+        state="succeeded",
+        requested_at=requested_at,
+        progress_label=f"Analysis ready for {request['sourceLabel']}",
+        progress_stage="ready",
+        progress_percent=100,
+        cache_status=final_cache_status,
+        result=result,
     )
+    if audio_features is not None:
+        artifact_reference = _materialize_playable_stem_artifact_reference(request, audio_features)
+        if artifact_reference is not None:
+            final_status["playableStemArtifactSet"] = artifact_reference
+    updates.append(final_status)
     return updates
 
 
