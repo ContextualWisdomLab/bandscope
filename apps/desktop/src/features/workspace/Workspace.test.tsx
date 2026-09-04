@@ -140,6 +140,132 @@ describe("Workspace", () => {
     expect(screen.getByText(/Verse harmony pass/i)).toBeTruthy();
   });
 
+  it("names tonight's first leftover last-return after remaining leftover", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-leftover-last-return");
+    expect(callout).toHaveTextContent("Tonight's first final re-entry");
+    expect(callout).toHaveTextContent(
+      "Lead Vocal is the last part back at outro; the others started returning at bridge. Count Lead Vocal in from the top of outro."
+    );
+  });
+
+  it("tells the leftover last-return to come in from the leftover last-return", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    const verse = song.sections[0]!;
+    song.sections = [
+      {
+        ...verse,
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "bass-guitar" ||
+          node.role_id === "keys-right" ||
+          node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "chorus-1",
+        label: "chorus",
+        timeRange: { start: verse.timeRange.end, end: verse.timeRange.end + 20 },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "keys-right" || node.role_id === "lead-vocal"
+            ? { ...node, is_active: false }
+            : node
+        )
+      },
+      {
+        ...verse,
+        id: "bridge-1",
+        label: "bridge",
+        timeRange: {
+          start: verse.timeRange.end + 20,
+          end: verse.timeRange.end + 40
+        },
+        partGraph: verse.partGraph.map((node) =>
+          node.role_id === "lead-vocal" ? { ...node, is_active: false } : node
+        )
+      },
+      {
+        ...verse,
+        id: "outro-1",
+        label: "outro",
+        timeRange: {
+          start: verse.timeRange.end + 40,
+          end: verse.timeRange.end + 60
+        }
+      }
+    ];
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    expect(screen.getByTestId("first-leftover-last-return")).toHaveTextContent(
+      "Lead Vocal is the last part back at outro; the others started returning at bridge. Come in from the top of outro."
+    );
+  });
+
+  it("asks the player to confirm the leftover last-return when every part stays active", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    expect(screen.getByTestId("first-leftover-last-return")).toHaveTextContent(
+      "No final re-entry is confirmed yet. Before the first section, check which part returns last after the band begins coming back in."
+    );
+  });
+
   it("names tonight's first playable range and the next instrument check", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

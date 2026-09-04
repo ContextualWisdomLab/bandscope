@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}입니다. {sectionLabel} 들어가기 전에 그 음역을 악기로 확인해 보세요.",
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
+  "workspaceFirstLeftoverLastReturnTitle": "오늘 먼저 볼 마지막 재진입",
+  "workspaceFirstLeftoverLastReturnNamed": "{remainingSectionLabel}에서 일부 파트가 먼저 돌아온 뒤 {lastRoleName}은 {sectionLabel}에서 마지막으로 합류합니다. {sectionLabel} 첫 박부터 {lastRoleName}을 넣으세요.",
+  "workspaceFirstLeftoverLastReturnComeIn": "{remainingSectionLabel}에서 일부 파트가 먼저 돌아온 뒤 {lastRoleName}은 {sectionLabel}에서 마지막으로 합류합니다. {sectionLabel} 첫 박부터 들어오세요.",
+  "workspaceFirstLeftoverLastReturnMissing": "아직 마지막 재진입을 확정하지 못했습니다. 첫 구간 전에 다른 파트들이 돌아오기 시작한 뒤 누가 마지막으로 합류하는지 확인하세요.",
   "sectionRangeLabel": "음역",
   "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
 }
