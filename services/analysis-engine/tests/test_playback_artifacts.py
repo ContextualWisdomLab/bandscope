@@ -132,7 +132,7 @@ def test_materializer_rejects_invalid_sample_rate(
     with pytest.raises(ValueError, match=expected_message):
         materialize_playable_stem_artifact_set(
             stem_arrays=sample_stem_arrays(),
-            sample_rate_hz=invalid_sample_rate,  # type: ignore[arg-type]
+            sample_rate_hz=invalid_sample_rate,
             artifact_root=tmp_path,
             artifact_set_id=ARTIFACT_SET_ID,
         )
@@ -323,3 +323,176 @@ def test_materializer_removes_staging_directory_when_publication_fails(
 
     version_directory = tmp_path / "playable-stems-v1"
     assert list(version_directory.iterdir()) == []
+
+
+def test_materializer_rejects_version_path_that_is_not_a_directory(tmp_path: Path) -> None:
+    """The fixed version component cannot be pre-created as a regular file."""
+    version_path = tmp_path / "playable-stems-v1"
+    version_path.write_text("not a directory", encoding="utf-8")
+    with pytest.raises(ValueError, match="artifact root"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=tmp_path,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
+
+
+def test_materializer_contains_artifact_root_status_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Filesystem status failures stay behind the stable artifact-root error."""
+    artifact_root = tmp_path / "artifact-root"
+    original_lstat = Path.lstat
+
+    def failing_root_lstat(directory_path: Path) -> os.stat_result:
+        """Inject one status failure for the requested root only."""
+        if directory_path == artifact_root:
+            raise OSError("injected status failure")
+        return original_lstat(directory_path)
+
+    monkeypatch.setattr(Path, "lstat", failing_root_lstat)
+    with pytest.raises(ValueError, match="artifact root"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=artifact_root,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
+
+
+def test_materializer_contains_wave_encoding_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WAV encoder failures remove the staging directory and publish no set."""
+    from bandscope_analysis.separation import playback_artifacts
+
+    def failing_wave_open(*_arguments: object, **_keywords: object) -> None:
+        """Inject a stable encoding failure before a target is published."""
+        raise wave.Error("injected encoding failure")
+
+    monkeypatch.setattr(playback_artifacts.wave, "open", failing_wave_open)
+    with pytest.raises(ValueError, match="create playable stem artifacts"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=tmp_path,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
+    assert list((tmp_path / "playable-stems-v1").iterdir()) == []
+
+
+def test_materializer_accepts_matching_publish_race(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A concurrent identical publication is reused after the local rename loses."""
+    import shutil
+
+    original_replace = os.replace
+
+    def racing_directory_replace(source_path: str | bytes, target_path: str | bytes) -> None:
+        """Publish an identical competing directory and report the local race as lost."""
+        source_candidate = Path(source_path)
+        target_candidate = Path(target_path)
+        if source_candidate.is_dir():
+            shutil.copytree(source_candidate, target_candidate)
+            raise OSError("injected publication race")
+        original_replace(source_path, target_path)
+
+    monkeypatch.setattr(os, "replace", racing_directory_replace)
+    artifact_result = materialize_playable_stem_artifact_set(
+        stem_arrays=sample_stem_arrays(),
+        sample_rate_hz=SAMPLE_RATE_HZ,
+        artifact_root=tmp_path,
+        artifact_set_id=ARTIFACT_SET_ID,
+    )
+    assert len(artifact_result["stemArtifacts"]) == 4
+    version_directory = tmp_path / "playable-stems-v1"
+    assert [child_path.name for child_path in version_directory.iterdir()] == [ARTIFACT_SET_ID]
+
+
+def test_materializer_rejects_existing_set_with_unexpected_entry(tmp_path: Path) -> None:
+    """An existing set with an extra file cannot be reused as canonical evidence."""
+    first_result = materialize_playable_stem_artifact_set(
+        stem_arrays=sample_stem_arrays(),
+        sample_rate_hz=SAMPLE_RATE_HZ,
+        artifact_root=tmp_path,
+        artifact_set_id=ARTIFACT_SET_ID,
+    )
+    artifact_directory = Path(first_result["stemArtifacts"][0]["nativeFilePath"]).parent
+    (artifact_directory / "unexpected.wav").write_bytes(b"unexpected")
+    with pytest.raises(ValueError, match="identity collision"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=tmp_path,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
+
+
+def test_materializer_rejects_existing_set_with_non_regular_stem(tmp_path: Path) -> None:
+    """Every expected artifact must remain a regular non-symlink file."""
+    first_result = materialize_playable_stem_artifact_set(
+        stem_arrays=sample_stem_arrays(),
+        sample_rate_hz=SAMPLE_RATE_HZ,
+        artifact_root=tmp_path,
+        artifact_set_id=ARTIFACT_SET_ID,
+    )
+    vocal_path = Path(first_result["stemArtifacts"][0]["nativeFilePath"])
+    vocal_path.unlink()
+    vocal_path.mkdir()
+    with pytest.raises(ValueError, match="identity collision"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=tmp_path,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
+
+
+def test_materializer_rejects_existing_set_with_same_size_hash_mismatch(
+    tmp_path: Path,
+) -> None:
+    """Equal byte length is not accepted when the published content hash differs."""
+    first_result = materialize_playable_stem_artifact_set(
+        stem_arrays=sample_stem_arrays(),
+        sample_rate_hz=SAMPLE_RATE_HZ,
+        artifact_root=tmp_path,
+        artifact_set_id=ARTIFACT_SET_ID,
+    )
+    vocal_path = Path(first_result["stemArtifacts"][0]["nativeFilePath"])
+    original_bytes = bytearray(vocal_path.read_bytes())
+    original_bytes[-1] ^= 0x01
+    vocal_path.write_bytes(original_bytes)
+    with pytest.raises(ValueError, match="identity collision"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=tmp_path,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="symbolic links are unavailable")
+def test_materializer_rejects_existing_artifact_directory_symlink(tmp_path: Path) -> None:
+    """A previously published identity cannot be redirected to another directory."""
+    first_result = materialize_playable_stem_artifact_set(
+        stem_arrays=sample_stem_arrays(),
+        sample_rate_hz=SAMPLE_RATE_HZ,
+        artifact_root=tmp_path,
+        artifact_set_id=ARTIFACT_SET_ID,
+    )
+    artifact_directory = Path(first_result["stemArtifacts"][0]["nativeFilePath"]).parent
+    relocated_directory = tmp_path / "relocated-artifacts"
+    artifact_directory.rename(relocated_directory)
+    artifact_directory.symlink_to(relocated_directory, target_is_directory=True)
+    with pytest.raises(ValueError, match="identity collision"):
+        materialize_playable_stem_artifact_set(
+            stem_arrays=sample_stem_arrays(),
+            sample_rate_hz=SAMPLE_RATE_HZ,
+            artifact_root=tmp_path,
+            artifact_set_id=ARTIFACT_SET_ID,
+        )
