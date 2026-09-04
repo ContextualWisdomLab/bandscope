@@ -56,6 +56,7 @@ interface RehearsalPlayerProps {
 
 const PLAYBACK_AUTHORITY_PREFIX = "bandscope-project://";
 const PLAYBACK_PROJECT_ID = /^project-[0-9]+-[0-9]+$/;
+const PLAYBACK_SOURCE_SUFFIX = /^(?:\/stem\/(?:vocals|bass|drums|other))?$/;
 
 /** Convert an opaque current-project authority into BandScope's native media URL. */
 function resolveAudioSourceUrl(
@@ -64,12 +65,22 @@ function resolveAudioSourceUrl(
   if (!sourcePath?.startsWith(PLAYBACK_AUTHORITY_PREFIX)) {
     return null;
   }
-  const projectId = sourcePath.slice(PLAYBACK_AUTHORITY_PREFIX.length);
-  if (!PLAYBACK_PROJECT_ID.test(projectId)) {
+  const authorityToken = sourcePath.slice(PLAYBACK_AUTHORITY_PREFIX.length);
+  const separatorIndex = authorityToken.indexOf("/");
+  const projectId =
+    separatorIndex === -1
+      ? authorityToken
+      : authorityToken.slice(0, separatorIndex);
+  const sourceSuffix =
+    separatorIndex === -1 ? "" : authorityToken.slice(separatorIndex);
+  if (
+    !PLAYBACK_PROJECT_ID.test(projectId) ||
+    !PLAYBACK_SOURCE_SUFFIX.test(sourceSuffix)
+  ) {
     return null;
   }
   try {
-    return convertFileSrc(projectId, "bandscope-playback");
+    return convertFileSrc(`${projectId}${sourceSuffix}`, "bandscope-playback");
   } catch {
     return null;
   }
