@@ -16,6 +16,12 @@ workflow `GITHUB_TOKEN`, depending on which credential can perform the guarded r
 The local repository may keep product CI, security, release, and build workflows. It must not restore
 repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or their `scripts/ci` helper implementations.
 
+Local developer OpenCode (`opencode.jsonc`) is a separate trust boundary from those central
+review workflows. It uses NVIDIA NIM only, binds `{env:NVIDIA_API_KEY}` at
+`https://integrate.api.nvidia.com/v1`, and must not restore GitHub Models, Copilot tokens, or
+review-agent secrets. The organization secret name remains `NVIDIA_NIM_API_KEY`; CI maps that
+secret onto `NVIDIA_API_KEY` for the OpenCode client.
+
 ## Behavior
 
 - Inspect non-draft PRs targeting the repository default branch, currently `develop`.
@@ -44,8 +50,8 @@ repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or 
 
 ## Security Notes
 
-- Attack surface: organization required workflows with write access to PR comments, PR branch updates, and normal merges.
-- Trust boundary touched: GitHub repository governance, PR review state, status checks, and CodeRabbit review requests.
+- Attack surface: organization required workflows with write access to PR comments, PR branch updates, and normal merges. Local developer OpenCode (`opencode.jsonc`) is a separate HTTPS client to NVIDIA NIM and is not invoked by this scheduler.
+- Trust boundary touched: GitHub repository governance, PR review state, status checks, and CodeRabbit review requests. The local OpenCode provider allowlist (`nvidia-nim` + `{env:NVIDIA_API_KEY}`) is recorded here so agents do not restore GitHub Models or review-agent secrets into this repository.
 - Realistic threats: spammed review comments, merging a PR with unresolved conversations, merging without required checks, or hiding conflicts behind automation.
 - Mitigations: central required workflow source pinning, idempotent per-head review comment marker,
   explicit unresolved-thread check, retry-bounded GitHub API reads, required-check verification
@@ -53,5 +59,6 @@ repo-local copies of `opencode-review.yml`, `pr-review-merge-scheduler.yml`, or 
 - Remaining risk: CodeRabbit and GitHub check state can be delayed or stale; the scheduler therefore only advances eligible PRs and leaves code-fix work to agents or maintainers.
 - Test points: organization ruleset inheritance, current-head OpenCode approval, unresolved review
   thread count, required-check rollup, approved behind PR, approved conflict-free PR, approved dirty PR,
-  external failed-check classification, provider/runtime failure summary, and Strix evidence lookup
-  scope diagnostics.
+  external failed-check classification, provider/runtime failure summary, Strix evidence lookup
+  scope diagnostics, and the separate local `opencode.jsonc` NIM-only contract (`small_model`,
+  `{env:NVIDIA_API_KEY}`, no `reasoningEffort`, no GitHub Models / Copilot leftovers).

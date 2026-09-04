@@ -98,3 +98,11 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Do not justify risky debug defaults as temporary shortcuts.
 - Do not defer dependency review, SBOM generation, or supply-chain checks to a later phase.
 - Do not defer Windows or macOS build enforcement to a later phase.
+
+## Local OpenCode contract
+- Root `opencode.jsonc` is NVIDIA NIM only: `enabled_providers` is `["nvidia-nim"]`.
+- The provider binds `{env:NVIDIA_API_KEY}` to `https://integrate.api.nvidia.com/v1`. That env name is the NVIDIA/OpenCode client contract.
+- The organization GitHub secret is `NVIDIA_NIM_API_KEY`. CI maps that secret onto process env `NVIDIA_API_KEY`. Do not rename the local OpenCode binding to `{env:NVIDIA_NIM_API_KEY}`.
+- Never introduce `COPILOT_GITHUB_TOKEN`, `github-models`, or `STRIX_GITHUB_MODELS_TOKEN` in `opencode.jsonc`.
+- Do not set OpenAI-style `reasoningEffort` on `nvidia/llama-3.3-nemotron-super-49b-v1.5`. NIM uses `chat_template_kwargs` for that model (see `docs/doctoring/opencode-nvidia-nim-contract.md`).
+- Do not change existing review-agent credential names or routing. Central OpenCode Review and the PR review/merge scheduler stay in `ContextualWisdomLab/.github`.
