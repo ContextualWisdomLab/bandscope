@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillDalSegnoCopy, firstDalSegnoPlan } from "./firstDalSegno";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,20 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstDalSegno = useMemo(() => firstDalSegnoPlan(song), [song]);
+  const firstDalSegnoCopy = firstDalSegno
+    ? fillDalSegnoCopy(
+        t(
+          firstDalSegno.sectionLabel
+            ? "workspaceFirstDalSegnoReady"
+            : "workspaceFirstDalSegnoReadyNoSection"
+        ),
+        {
+          label: firstDalSegno.label,
+          sectionLabel: firstDalSegno.sectionLabel ?? ""
+        }
+      )
+    : t("workspaceFirstDalSegnoMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +323,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-sky-300/20 bg-sky-300/[0.07] p-4"
+            data-testid="first-dalsegno"
+            aria-label={t("workspaceFirstDalSegnoTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-sky-200">{t("workspaceFirstDalSegnoTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstDalSegnoCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
