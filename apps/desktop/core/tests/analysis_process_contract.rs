@@ -84,7 +84,7 @@ fn final_process_status_must_be_terminal() {
 
     let succeeded = parse(status("succeeded")).expect("succeeded status should parse");
     assert!(matches!(
-        validate_final_analysis_process_status(Some(&succeeded), JOB_ID)
+        &validate_final_analysis_process_status(Some(&succeeded), JOB_ID)
             .expect("succeeded status is terminal")
             .renderer_status()
             .state,
@@ -93,7 +93,7 @@ fn final_process_status_must_be_terminal() {
 
     let failed = parse(status("failed")).expect("failed status should parse");
     assert!(matches!(
-        validate_final_analysis_process_status(Some(&failed), JOB_ID)
+        &validate_final_analysis_process_status(Some(&failed), JOB_ID)
             .expect("failed status is terminal")
             .renderer_status()
             .state,
