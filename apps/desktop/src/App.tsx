@@ -59,6 +59,7 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 type RehearsalView = "workspace" | "score";
+type WorkspaceJobErrorKind = "analysis" | "project";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
@@ -255,6 +256,7 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [jobErrorKind, setJobErrorKind] = useState<WorkspaceJobErrorKind | null>(null);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
@@ -289,10 +291,12 @@ export function App() {
       setJobResultBootstrap(activeAnalysisBootstrap);
       setActiveAnalysisBootstrap(null);
       setJobError(null);
+      setJobErrorKind(null);
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
       setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
+      setJobErrorKind("analysis");
     }
   }, [activeAnalysisBootstrap, t]);
 
@@ -361,7 +365,9 @@ export function App() {
             return;
           }
           const fallbackMessage = t("analysisCouldNotStart");
+          setActiveAnalysisBootstrap(null);
           setJobError(fallbackMessage);
+          setJobErrorKind("analysis");
           setJobStatus({
             ...jobStatus,
             state: "failed",
@@ -389,6 +395,7 @@ export function App() {
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
+    setJobErrorKind(null);
     setJobResult(null);
     setJobResultBootstrap(null);
     setJobStatus(null);
@@ -408,6 +415,7 @@ export function App() {
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
       setJobError(t("analysisCouldNotStart"));
+      setJobErrorKind("analysis");
     } finally {
       setIsStarting(false);
     }
@@ -420,12 +428,23 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
+      setJobError(null);
+      setJobErrorKind(null);
+      setJobStatus(null);
+      setActiveAnalysisBootstrap(null);
       return;
     }
 
-    setSelectedBootstrap(null);
+    if (isUserCancellation(selection.error.message)) {
+      return;
+    }
+
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setSelectionErrorSource("local");
+    if (jobErrorKind === "analysis") {
+      return;
+    }
+    setSelectedBootstrap(null);
     setJobStatus(null);
   };
 
@@ -452,6 +471,10 @@ export function App() {
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
+        setJobError(null);
+        setJobErrorKind(null);
+        setJobStatus(null);
+        setActiveAnalysisBootstrap(null);
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
         setSelectionErrorSource("youtube");
@@ -477,12 +500,14 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setJobErrorKind(null);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
+        setJobErrorKind("project");
       }
     }
   };
@@ -494,6 +519,7 @@ export function App() {
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
+        setJobErrorKind("project");
       }
     }
   };
@@ -506,7 +532,16 @@ export function App() {
   /** Documented. */
   const renderWorkspaceState = () => {
     if (jobError) {
-      return <ErrorState error={jobError} />;
+      const analysisRecovery = jobErrorKind === "analysis";
+      return (
+        <ErrorState
+          error={jobError}
+          canRetry={analysisRecovery && selectedBootstrap !== null}
+          onRetry={analysisRecovery ? () => { void handleStartAnalysis(); } : undefined}
+          onChooseAnotherSong={analysisRecovery ? () => { void handleChooseLocalAudio(); } : undefined}
+          actionsDisabled={analysisInFlight || isStarting || isImporting}
+        />
+      );
     }
     if (analysisInFlight || isStarting) {
       return <LoadingState />;

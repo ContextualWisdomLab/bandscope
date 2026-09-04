@@ -641,7 +641,7 @@ fn select_local_audio_source(
     let path = FileDialog::new()
         .add_filter("Audio", &AUDIO_EXTENSIONS)
         .pick_file()
-        .ok_or_else(|| "Choose a WAV, MP3, FLAC, or M4A file to start analysis.".to_string())?;
+        .ok_or_else(|| "User cancelled".to_string())?;
     let source = normalize_local_audio_source(&path)?;
     let project_id = next_project_id(&state);
     let project_root = app_owned_root(&app, "projects", &project_id)?;

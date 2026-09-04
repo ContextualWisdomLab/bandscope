@@ -37,6 +37,7 @@ const BROWSER_PROGRESS_STEPS = [
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
+  "User cancelled",
   "Could not read the selected audio file.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
@@ -231,13 +232,14 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : typeof error === "string" ? error : null;
     return {
       ok: false,
       error: {
         code: "invalid_request",
         message:
-          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
-            ? error.message
+          rawMessage && SAFE_LOCAL_AUDIO_MESSAGES.has(rawMessage)
+            ? rawMessage
             : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
       }
     };
