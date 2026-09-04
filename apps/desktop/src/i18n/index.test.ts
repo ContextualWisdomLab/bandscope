@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, translateSectionFormLabel } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,36 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("translateSectionFormLabel", () => {
+    it("localizes Korean section form labels without treating inherited keys as labels", () => {
+      expect(translateSectionFormLabel("ko", "verse")).toBe("벌스");
+      expect(translateSectionFormLabel("ko", "pre-chorus")).toBe("프리코러스");
+      expect(translateSectionFormLabel("en", "verse")).toBe("verse");
+      const inheritedKey = "toString" as never;
+      expect(translateSectionFormLabel("ko", inheritedKey)).toBe("toString");
+    });
+
+    it("keeps Korean first-approval next-action copy particle-safe", () => {
+      const t = createTranslator("ko");
+      expect(t("firstApprovalOpenAction")).toBe("{at} {section} 승인 위치 열기");
+      expect(t("firstApprovalBody")).toBe("{owner}님이 {at} {section}의 {scope} 승인을 기다리고 있습니다.");
+      expect(t("firstApprovalArmed")).toBe("{at} {section}에서 {scope} 승인을 이어서 하세요.");
+    });
+
+    it("never attaches the Korean object particle directly to the free-text approval scope", () => {
+      const t = createTranslator("ko");
+      // The scope is owner-supplied free text whose final character can end in
+      // either a vowel or a consonant, so object particles attach to a fixed
+      // Korean noun instead of the interpolated scope.
+      expect(t("firstApprovalBodyChanges")).toBe(
+        "{owner}님이 {at} {section}의 {scope} 부분을 다시 봐 달라고 했습니다."
+      );
+      expect(t("firstApprovalBodyChangesBand")).toBe(
+        "{owner}님이 {scope} 부분을 다시 봐 달라고 했습니다."
+      );
     });
   });
 });

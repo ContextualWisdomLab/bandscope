@@ -1,11 +1,12 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-23
 
 ## Brand source
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- The mounted workspace copy for tonight's first pending approval must name the owner, the owned scope, and the uniquely named labeled section and time so the next action is obvious. Open moves to the matching rendered map section. Do not invent a sign-off from assignments, comments, or already-approved scopes.
 
 ## Security source
 
