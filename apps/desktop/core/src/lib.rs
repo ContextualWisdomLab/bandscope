@@ -122,10 +122,60 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_repeat",
+        skip_serializing_if = "Option::is_none"
+    )]
+    repeat: Option<RepeatPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepeatPayload {
+    label: String,
+}
+
+impl<'de> Deserialize<'de> for RepeatPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawRepeatPayload {
+            label: String,
+        }
+
+        let raw = RawRepeatPayload::deserialize(deserializer)?;
+        if !is_trusted_repeat_label(&raw.label) {
+            return Err(serde::de::Error::custom(
+                "repeat label must be |:, :|, or x2–x9",
+            ));
+        }
+
+        Ok(Self { label: raw.label })
+    }
+}
+
+fn is_trusted_repeat_label(label: &str) -> bool {
+    matches!(
+        label,
+        "|:" | ":|" | "x2" | "x3" | "x4" | "x5" | "x6" | "x7" | "x8" | "x9"
+    )
+}
+
+fn deserialize_optional_repeat<'de, D>(deserializer: D) -> Result<Option<RepeatPayload>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Option::<RepeatPayload>::deserialize(deserializer)?
+        .map(Some)
+        .ok_or_else(|| serde::de::Error::custom("repeat must be an object when present"))
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -787,6 +837,73 @@ mod tests {
     }
 
     #[test]
+    fn rehearsal_song_payload_round_trips_optional_repeat() {
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["repeat"] = json!({ "label": ":|" });
+
+        let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+            .expect("song payload with a repeat should deserialize");
+        let repeat = parsed
+            .repeat
+            .as_ref()
+            .expect("repeat should survive deserialization");
+        assert_eq!(repeat.label, ":|");
+
+        let serialized =
+            serde_json::to_value(&parsed).expect("marked song payload should serialize back");
+        assert_eq!(serialized["repeat"], json!({ "label": ":|" }));
+
+        let loaded = project_payload_from_content(
+            &serde_json::to_string(&serialized).expect("marked payload should encode"),
+        )
+        .expect("marked project should load");
+        assert_eq!(
+            loaded.repeat.as_ref().map(|value| value.label.as_str()),
+            Some(":|")
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_round_trips_trusted_repeat_labels() {
+        for label in ["|:", ":|", "x2", "x9"] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["repeat"] = json!({ "label": label });
+
+            let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+                .unwrap_or_else(|_| panic!("trusted repeat {label} should deserialize"));
+            assert_eq!(
+                parsed.repeat.as_ref().map(|value| value.label.as_str()),
+                Some(label)
+            );
+        }
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_repeat() {
+        for repeat in [
+            json!({ "label": "repeat" }),
+            json!({ "label": "Repeat" }),
+            json!({ "label": "2x" }),
+            json!({ "label": "×2" }),
+            json!({ "label": "x1" }),
+            json!({ "label": "x10" }),
+            json!({ "label": ":||" }),
+            json!({ "label": "||:" }),
+            json!({ "label": "D.C." }),
+            json!({ "label": "D.S." }),
+            json!({ "label": "Fine" }),
+            json!({ "label": "" }),
+            json!({ "label": ":|", "confidence": "high" }),
+            json!({ "text": ":|" }),
+            Value::Null,
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["repeat"] = repeat;
+            assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+        }
+    }
+
+    #[test]
     fn rehearsal_song_payload_round_trips_score_attachments() {
         let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         payload["scoreAttachments"] = json!([
@@ -817,9 +934,11 @@ mod tests {
             .expect("legacy payload without score attachments should deserialize");
 
         assert!(parsed.score_attachments.is_none());
+        assert!(parsed.repeat.is_none());
         let serialized =
             serde_json::to_value(&parsed).expect("legacy payload should serialize back to JSON");
         assert!(serialized.get("scoreAttachments").is_none());
+        assert!(serialized.get("repeat").is_none());
     }
 
     #[test]
