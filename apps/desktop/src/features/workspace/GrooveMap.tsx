@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
+import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -13,6 +14,7 @@ interface GrooveMapProps {
 
 /** Documented. */
 function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
   const renderedNotes = notes ?? EMPTY_NOTES;
 
   // Find max offset to determine timeline width
@@ -44,10 +46,10 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
       >
         <span className="flex items-center font-medium text-teal-100">
           <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-          Checking the bass line... 45%
+          {t("grooveLoadingLabel")}
         </span>
-        <Button variant="outline" size="sm" className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white">
-          Cancel
+        <Button variant="outline" size="sm" aria-label={t("grooveCancelLabel")} className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white">
+          {t("grooveCancelLabel")}
         </Button>
       </div>
     );
@@ -58,7 +60,7 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
       <div
         className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-400"
       >
-        No bass line transcription yet. Use it when you want to check the groove before rehearsal.
+        {t("grooveEmptyHint")}
       </div>
     );
   }
@@ -68,13 +70,13 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
       className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       role="region"
       tabIndex={0}
-      aria-label="Bass transcription groove map"
+      aria-label={t("grooveMapAriaLabel")}
     >
       <div className="sr-only">
-        Transcription complete. {renderedNotes.length} notes analyzed.
+        {t("grooveCompleteSrLabel").replace("{count}", String(renderedNotes.length))}
       </div>
       <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-        {renderedNotes.length} notes mapped for rehearsal
+        {t("grooveNotesMappedLabel").replace("{count}", String(renderedNotes.length))}
       </p>
       
       <div style={{ position: "relative", minWidth: "100%", height: `${uniquePitches.length * 40}px` }}>

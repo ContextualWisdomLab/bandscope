@@ -32,7 +32,7 @@ export function ConfidenceBadge({ level }: ConfidenceBadgeProps) {
     <Badge
       variant="outline"
       className={`px-1.5 py-0 h-5 text-[0.65rem] font-bold uppercase tracking-wider ${colorClass}`}
-      title={`Confidence: ${level}`}
+      title={`${t("roleConfidence")}: ${label}`}
     >
       {label}
     </Badge>

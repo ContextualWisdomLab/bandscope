@@ -299,7 +299,7 @@ describe("App", () => {
       expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
     });
     expect(screen.getByText(/Roles & Harmony/i)).toBeTruthy();
-    expect(screen.getByText(/Stems/i)).toBeTruthy();
+    expect(screen.getByText("Stems")).toBeTruthy();
     expect(screen.getByText(/Rehearsal Priorities/i)).toBeTruthy();
     expect(screen.getByText(/Export Cue Sheet/i)).toBeTruthy();
   });
@@ -453,7 +453,7 @@ describe("App", () => {
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
-  it("preserves safe file-read failure copy from the intake bridge", async () => {
+  it("localizes safe file-read failure copy from the intake bridge", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("Could not read the selected audio file."));
 
     render(<App />);
@@ -461,8 +461,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/could not read the selected audio file/i)).toBeTruthy();
+      expect(screen.getByText(/selected audio file could not be read.*choose the file again/i)).toBeTruthy();
     });
+    expect(screen.queryByText(/^Could not read the selected audio file\.$/i)).toBeNull();
     expect(screen.queryByText(/analysis failed during execution/i)).toBeNull();
   });
 
@@ -644,7 +645,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert").textContent).toMatch(/analysis could not start/i);
     });
-    expect(screen.getAllByRole("status").some((status) => /analysis failed during execution/i.test(status.textContent ?? ""))).toBe(true);
+    expect(screen.getAllByRole("status").some((status) => /stopped partway through/i.test(status.textContent ?? ""))).toBe(true);
   });
 
   it("holds a terminal progress value immediately for pushed failed statuses", async () => {
@@ -1150,7 +1151,7 @@ describe("App", () => {
     expect(input).not.toHaveAttribute("aria-describedby");
   });
 
-  it("handles YouTube import failure with a message", async () => {
+  it("redacts bridge detail when YouTube import fails after URL admission", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("This video is age restricted."));
 
     render(<App />);
@@ -1163,14 +1164,15 @@ describe("App", () => {
 
     await waitFor(() => {
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(/This video is age restricted/i);
+      expect(alert).toHaveTextContent(/Failed to import YouTube URL/i);
+      expect(alert).not.toHaveTextContent(/This video is age restricted/i);
       expect(alert).toHaveAttribute("id", "selection-error");
       expect(input).toHaveAttribute("aria-invalid", "true");
       expect(input).toHaveAttribute("aria-describedby", alert.id);
     });
   });
 
-  it("handles generic exception during YouTube import", async () => {
+  it("redacts generic bridge exceptions during YouTube import", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("Network Error"));
 
     render(<App />);
@@ -1182,7 +1184,9 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Network Error/i)).toBeTruthy();
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent(/Failed to import YouTube URL/i);
+      expect(alert).not.toHaveTextContent(/Network Error/i);
     });
   });
 
@@ -1197,7 +1201,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
   });
 
@@ -1209,7 +1213,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
   });
 
@@ -1221,7 +1225,7 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
   });
 
@@ -1233,7 +1237,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
@@ -1246,7 +1250,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });
@@ -1259,7 +1263,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByText(/Use a standard YouTube video link \(youtube\.com\/watch or youtu\.be\)\./i)).toBeTruthy();
     });
     expect(tauriInvoke).not.toHaveBeenCalled();
   });

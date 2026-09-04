@@ -96,9 +96,29 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const transcribeButton = screen.getByRole("button", { name: "Transcribe Bass" }) as HTMLButtonElement;
+    const transcribeButton = screen.getByRole("button", { name: "Map bass notes" }) as HTMLButtonElement;
     expect(transcribeButton.disabled).toBe(false);
-    expect(transcribeButton.title).toBe("Transcribe part");
+    expect(transcribeButton.title).toBe("Show this part's bass notes on the groove map.");
+  });
+
+  it("labels unavailable transcription for the selected non-bass role instead of bass", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      id: "lead-vocal",
+      name: "Lead Vocal"
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Lead Vocal" }));
+
+    const pendingButton = screen.getByRole("button", { name: "Lead Vocal · Coming soon" });
+    expect(pendingButton.textContent).toBe("Lead Vocal · Coming soon");
+    expect(pendingButton.textContent).not.toContain("Map bass notes");
+    expect(pendingButton.getAttribute("title")).toBe(
+      "Lead Vocal part is coming soon — bass is ready first."
+    );
   });
 
   it("renders bass transcription in the dark rehearsal cockpit system", () => {
@@ -115,7 +135,7 @@ describe("Workspace", () => {
     render(<Workspace song={song} />);
     fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
 
-    const grooveMap = screen.getByRole("region", { name: /bass transcription groove map/i });
+    const grooveMap = screen.getByRole("region", { name: /bass groove map/i });
     expect(grooveMap.className).toContain("bg-slate-950");
     expect(screen.getByText("E2")).toBeTruthy();
     expect(screen.getByText("G2")).toBeTruthy();

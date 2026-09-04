@@ -59,7 +59,7 @@ describe("i18n", () => {
     it("translates to Korean explicitly", () => {
       const t = createTranslator("ko");
       expect(t("appTitle")).toBe("BandScope");
-      expect(t("appSubtitle")).toBe("합주 준비를 위한 로컬-퍼스트 분석 도구");
+      expect(t("appSubtitle")).toBe("합주 준비를 도와주는 밴드 메이트");
     });
 
     it("falls back to English when a Korean translation is missing", () => {
@@ -69,7 +69,7 @@ describe("i18n", () => {
       delete koDictionary.appSubtitle;
 
       try {
-        expect(t("appSubtitle")).toBe("Local-first desktop analysis tool for rehearsal prep");
+        expect(t("appSubtitle")).toBe("Your band mate for rehearsal prep");
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }

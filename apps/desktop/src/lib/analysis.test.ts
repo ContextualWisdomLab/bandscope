@@ -56,7 +56,7 @@ describe("analysis bridge", () => {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
       }
     });
   });
@@ -71,7 +71,7 @@ describe("analysis bridge", () => {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
       }
     });
   });
@@ -130,14 +130,14 @@ describe("analysis bridge", () => {
     const running = await getAnalysisJobStatus(queued.jobId);
     expect(running).toMatchObject({
       state: "running",
-      progressLabel: "Decoding audio",
+      progressLabel: "Reading your track",
       progressStage: "decode",
       progressPercent: 20
     });
 
     expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
       state: "running",
-      progressLabel: "Separating stems... (45%)",
+      progressLabel: "Separating stems",
       progressStage: "separate",
       progressPercent: 45
     });
@@ -149,7 +149,7 @@ describe("analysis bridge", () => {
     });
     expect(await getAnalysisJobStatus(queued.jobId)).toMatchObject({
       state: "running",
-      progressLabel: "Saving reusable features",
+      progressLabel: "Preparing results for next time",
       progressStage: "persist",
       progressPercent: 90
     });
@@ -181,7 +181,7 @@ describe("analysis bridge", () => {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
       }
     });
   });
@@ -196,7 +196,7 @@ describe("analysis bridge", () => {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
       }
     });
   });
@@ -213,7 +213,7 @@ describe("analysis bridge", () => {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
       }
     });
   });
@@ -233,7 +233,7 @@ describe("analysis bridge", () => {
       ok: false,
       error: {
         code: "invalid_request",
-        message: "Only standard YouTube URLs are supported."
+        message: "Use a standard YouTube video link (youtube.com/watch or youtu.be)."
       }
     });
   });

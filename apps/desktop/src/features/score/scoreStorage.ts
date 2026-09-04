@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { ScoreAttachment } from "@bandscope/shared-types";
+import { createTranslator, detectPreferredLocale, type TranslationKey } from "../../i18n";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -14,8 +15,13 @@ type TauriBridgeWindow = Window & {
  */
 export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
-const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
-const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const BRIDGE_UNAVAILABLE_KEY = "scoreDesktopOnly" satisfies TranslationKey;
+const INVALID_RESPONSE_KEY = "scoreInvalidResponse" satisfies TranslationKey;
+
+/** Resolve a buyer-visible score-storage message in the currently selected locale. */
+function scoreMessage(key: TranslationKey): string {
+  return createTranslator(detectPreferredLocale())(key);
+}
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as
@@ -41,12 +47,12 @@ function getInvoke(): TauriInvoke | null {
 
 /**
  * Invoke a score storage command on the desktop bridge, failing closed with
- * a stable error when no bridge is available (browser preview builds).
+ * a stable localized error when no bridge is available (browser preview builds).
  */
 async function invokeScoreCommand(command: string, args: Record<string, unknown>): Promise<unknown> {
   const invokeCommand = getInvoke();
   if (!invokeCommand) {
-    throw new Error(BRIDGE_UNAVAILABLE_MESSAGE);
+    throw new Error(scoreMessage(BRIDGE_UNAVAILABLE_KEY));
   }
 
   return invokeCommand(command, args);
@@ -67,7 +73,7 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
     typeof (response as Record<string, unknown>).fileName !== "string" ||
     typeof (response as Record<string, unknown>).fileSizeBytes !== "number"
   ) {
-    throw new Error(INVALID_RESPONSE_MESSAGE);
+    throw new Error(scoreMessage(INVALID_RESPONSE_KEY));
   }
 
   const payload = response as { scoreId: string; fileName: string; fileSizeBytes: number };
@@ -95,7 +101,7 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
     return Uint8Array.from(response as number[]);
   }
 
-  throw new Error(INVALID_RESPONSE_MESSAGE);
+  throw new Error(scoreMessage(INVALID_RESPONSE_KEY));
 }
 
 /**
@@ -105,7 +111,7 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
 export async function removeScorePdf(projectId: string, scoreId: string): Promise<boolean> {
   const response = await invokeScoreCommand("remove_score_pdf", { projectId, scoreId });
   if (typeof response !== "boolean") {
-    throw new Error(INVALID_RESPONSE_MESSAGE);
+    throw new Error(scoreMessage(INVALID_RESPONSE_KEY));
   }
 
   return response;

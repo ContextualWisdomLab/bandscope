@@ -84,7 +84,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
         role="region"
         tabIndex={0}
         className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-        aria-label="Scrollable song structure timeline"
+        aria-label={t("songStructureTimelineAriaLabel")}
       >
         <div
           className="grid min-w-[720px]"
@@ -225,6 +225,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+  const sectionCount = song.sections.length;
+  const sectionLabel = t(sectionCount === 1 ? "metricConfidenceSectionSingular" : "metricConfidenceSectionPlural");
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -276,7 +278,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 className="min-h-10 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 shadow-[0_10px_30px_rgba(34,211,238,0.16)] hover:bg-cyan-300/20 hover:text-white"
             >
                 <Download className="mr-2 size-4 text-cyan-200" aria-hidden="true" />
-              Export Cue Sheet (CSV)
+              {t("exportCueSheetButton")}
             </Button>
             <Button
               variant="outline"
@@ -285,7 +287,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 className="min-h-10 border-white/10 bg-white/5 font-semibold text-slate-100 shadow-sm hover:bg-white/10 hover:text-white"
             >
                 <Download className="mr-2 size-4 text-slate-300" aria-hidden="true" />
-              Export Chart (JSON)
+              {t("exportChartButton")}
             </Button>
             <Button
               variant="outline"
@@ -294,7 +296,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               className="min-h-10 border-teal-300/25 bg-teal-300/10 font-semibold text-teal-50 shadow-sm hover:bg-teal-300/20 hover:text-white"
             >
               <Download className="mr-2 size-4 text-teal-200" aria-hidden="true" />
-              Export Handoff (JSON)
+              {t("exportHandoffButton")}
             </Button>
           </div>
           </div>
@@ -314,7 +316,9 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <section className="rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-4 md:col-span-2">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-300">{t("workspaceSongTimelineLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                {song.sections.length} section{song.sections.length === 1 ? "" : "s"} mapped with groove, role cues, and chord confidence notes.
+                {t("songTimelineSummary")
+                  .replace("{count}", String(sectionCount))
+                  .replace("{section}", sectionLabel)}
               </p>
             </section>
 
@@ -342,13 +346,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
             <section className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-violet-200">{t("workspaceStemsLabel")}</p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">Stem lanes will appear when separation results are available.</p>
+              <p className="mt-2 text-sm leading-6 text-slate-300">{t("stemsEmptyHint")}</p>
             </section>
 
             <section className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4">
               <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceRehearsalPrioritiesLabel")}</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                Focus: {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || "first pass"}.
+                {t("rehearsalFocusPrefix")} {song.exportSummary?.focusSections?.join(", ") || song.sections[0]?.label || t("rehearsalFocusFallback")}.
               </p>
             </section>
           </div>
@@ -359,7 +363,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-300">{t("workspaceRolesHarmonyLabel")}</p>
-                <p className="mt-1 text-sm text-slate-400">Filter the board by player or vocal role without losing the full form context.</p>
+                <p className="mt-1 text-sm text-slate-400">{t("rolesHarmonyHint")}</p>
               </div>
               <RoleSwitcher
                 roles={allRoles}
@@ -370,61 +374,61 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
             {activeRole && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">{t("stemPlayerTitle")}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Play stem coming soon"
-                    title="Play stem coming soon"
+                    aria-label={`${t("stemPlayLabel")} · ${t("comingSoon")}`}
+                    title={`${t("stemPlayLabel")} · ${t("comingSoon")}`}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Play stem
+                    {t("stemPlayLabel")}
                   </Button>
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
+                    aria-label={`${t("stemLoopLabel")} · ${t("comingSoon")}`}
+                    title={`${t("stemLoopLabel")} · ${t("comingSoon")}`}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Loop section
+                    {t("stemLoopLabel")}
                   </Button>
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Solo / mute others coming soon"
-                    title="Solo / mute others coming soon"
+                    aria-label={`${t("stemSoloMuteLabel")} · ${t("comingSoon")}`}
+                    title={`${t("stemSoloMuteLabel")} · ${t("comingSoon")}`}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Solo / mute others
+                    {t("stemSoloMuteLabel")}
                   </Button>
                   {canTranscribeBass ? (
                     <Button
                       type="button"
-                      title="Transcribe part"
+                      title={t("transcribeBassHint")}
                       variant="outline"
                       className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
                     >
-                      Transcribe Bass
+                      {t("transcribeBassLabel")}
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      title={`${activeRoleDetails?.name ?? ""} ${t("transcribeRolePendingSuffix")}`.trim()}
                       onClick={preventUnavailableAction}
                       variant="outline"
                       className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
                     >
-                      Transcribe Bass
+                      {`${activeRoleDetails?.name ?? activeRole} · ${t("comingSoon")}`}
                     </Button>
                   )}
                 </div>
