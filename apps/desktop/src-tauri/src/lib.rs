@@ -5,3 +5,4 @@
 
 pub mod native_file_identity;
 pub mod playable_stem_admission;
+pub mod playback_source_availability;
