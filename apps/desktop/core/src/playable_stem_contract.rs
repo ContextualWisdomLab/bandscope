@@ -195,7 +195,7 @@ impl PlayableStemArtifactSetReference {
     }
 
     /// Derive the only permitted path for one artifact from a native-owned root.
-    pub fn artifact_relative_path(
+    pub fn derive_artifact_path(
         &self,
         project_temp_root: &Path,
         stem_kind: PlaybackStemKind,
