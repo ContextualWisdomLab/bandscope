@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from bandscope_analysis.api import (
+    StemSeparationTimedOut,
     _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
@@ -1303,6 +1304,56 @@ def test_stem_separation_process_helper_handles_empty_worker_exit() -> None:
             assert "ended without a result" in str(error)
         else:
             raise AssertionError("Expected RuntimeError")
+
+
+def test_stem_separation_process_helper_raises_timeout() -> None:
+    """Ensure a worker that exceeds the time limit raises StemSeparationTimedOut."""
+
+    class SleepingQueue:
+        def get(self, timeout: float) -> tuple[str, object]:
+            raise queue.Empty
+
+        def close(self) -> None:
+            pass
+
+        def join_thread(self) -> None:
+            pass
+
+    class SleepingProcess:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def start(self) -> None:
+            pass
+
+        def is_alive(self) -> bool:
+            return True
+
+        def terminate(self) -> None:
+            pass
+
+        def kill(self) -> None:
+            pass
+
+        def join(self, timeout: float | None = None) -> None:
+            pass
+
+    class SleepingContext:
+        Process = SleepingProcess
+
+        def Queue(self, maxsize: int) -> SleepingQueue:
+            return SleepingQueue()
+
+    with (
+        patch("bandscope_analysis.api._multiprocessing_context", return_value=SleepingContext()),
+        patch("bandscope_analysis.api.time.monotonic", side_effect=[0, 1000, 1000]),
+    ):
+        try:
+            _run_stem_separation_with_timeout("/tmp/audio.wav", timeout_seconds=1.0)
+        except StemSeparationTimedOut as error:
+            assert "exceeded 1s" in str(error)
+        else:
+            raise AssertionError("Expected StemSeparationTimedOut")
 
 
 def test_stop_process_kills_stubborn_worker() -> None:
