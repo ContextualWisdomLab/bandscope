@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createDemoRehearsalSong, type ProjectBootstrapSummary, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Workspace } from "./Workspace";
@@ -219,6 +219,82 @@ describe("Workspace", () => {
 
     expect(screen.getByText("vi pedal anchor")).toBeTruthy();
     expect(screen.getAllByText("Stay on roots if the chorus entrance gets muddy.").length).toBeGreaterThan(0);
+  });
+
+  it("shows normalized setup, simplification, and ordered overlap actions in the active workspace", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Bass Guitar",
+      setupNote: "  Lower the keyboard stand before the count-in.  ",
+      simplification: "  Hold roots on beats one and three.  ",
+      overlapWarnings: [
+        " ",
+        "  Leave the pickup to the lead vocal.  ",
+        "Leave the pickup to the lead vocal.",
+        "LEAVE THE PICKUP TO THE LEAD VOCAL.",
+        "NONE",
+        "Double only after the chorus entrance."
+      ]
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const guidance = screen.getByRole("region", { name: "Actionable rehearsal guidance" });
+    expect(within(guidance).getByText("Set up before the take")).toBeTruthy();
+    expect(within(guidance).getByText("Lower the keyboard stand before the count-in.")).toBeTruthy();
+    expect(within(guidance).getByText("Simplify if the pass breaks down")).toBeTruthy();
+    expect(within(guidance).getByText("Hold roots on beats one and three.")).toBeTruthy();
+    expect(within(guidance).getByText("Resolve these overlaps")).toBeTruthy();
+
+    const warnings = within(guidance).getByRole("list", { name: "Resolve these overlaps" });
+    expect(within(warnings).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Leave the pickup to the lead vocal.",
+      "Double only after the chorus entrance."
+    ]);
+    expect(within(guidance).queryByText(/^none$/i)).toBeNull();
+  });
+
+  it("does not infer rehearsal guidance from blank or legacy sentinel evidence", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Bass Guitar",
+      transpositionPlan: " none ",
+      setupNote: " NONE ",
+      simplification: "   ",
+      overlapWarnings: ["", " none ", "   "]
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    expect(screen.queryByRole("region", { name: "Actionable rehearsal guidance" })).toBeNull();
+  });
+
+  it("localizes actionable rehearsal guidance in Korean", () => {
+    setNavigatorLanguage("ko-KR");
+    const song = createDemoRehearsalSong();
+    song.sections[0]!.roles[0] = {
+      ...song.sections[0]!.roles[0]!,
+      name: "Bass Guitar",
+      setupNote: "앰프 게인을 먼저 낮추세요.",
+      simplification: "첫 박의 근음만 유지하세요.",
+      overlapWarnings: ["보컬 픽업과 겹치지 않게 쉬세요."]
+    };
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+
+    const guidance = screen.getByRole("region", { name: "실행 가능한 합주 가이드" });
+    expect(within(guidance).getByText("연주 전에 준비하세요")).toBeTruthy();
+    expect(within(guidance).getByText("합주가 흔들리면 이렇게 단순화하세요")).toBeTruthy();
+    expect(within(guidance).getByText("이 겹침을 먼저 해결하세요")).toBeTruthy();
+    const warnings = within(guidance).getByRole("list", { name: "이 겹침을 먼저 해결하세요" });
+    expect(within(warnings).getByText("보컬 픽업과 겹치지 않게 쉬세요.")).toBeTruthy();
   });
 
   it("exports a metadata-only handoff artifact from the workspace", async () => {

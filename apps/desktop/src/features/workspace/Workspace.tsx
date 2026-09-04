@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useId, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -52,10 +52,37 @@ function formatStatusLabel(status: string): string {
   return status.replaceAll("_", " ");
 }
 
-/** Documented. */
+/** Return trimmed source text when the analysis supplied nonblank evidence. */
 function nonBlankText(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+/**
+ * Return buyer-visible guidance only when the producer supplied meaningful evidence.
+ *
+ * Historical analysis payloads used case-insensitive `none` text as an absence
+ * sentinel. The active Workspace must not turn that missing evidence into an
+ * instruction, warning, or transposition plan.
+ */
+function actionableGuidanceText(value: string | undefined): string | undefined {
+  const normalized = nonBlankText(value);
+  return normalized?.toLowerCase() === "none" ? undefined : normalized;
+}
+
+/** Preserve unique meaningful overlap-warning order without mutating analysis output. */
+function actionableOverlapWarnings(values: readonly string[]): string[] {
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const normalized = actionableGuidanceText(value);
+    const dedupeKey = normalized?.toLowerCase();
+    if (normalized && dedupeKey && !seen.has(dedupeKey)) {
+      seen.add(dedupeKey);
+      warnings.push(normalized);
+    }
+  }
+  return warnings;
 }
 
 /** Documented. */
@@ -122,6 +149,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const overlapWarningsHeadingId = useId();
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -222,9 +250,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     nonBlankText(activeRoleDetails?.harmonicExplanation) ??
     nonBlankText(activeRoleDetails?.harmony.functionLabel) ??
     t("workspaceHarmonyExplainFallback");
-  const roleTranspositionPlan =
-    nonBlankText(activeRoleDetails?.transpositionPlan) ??
-    nonBlankText(activeRoleDetails?.simplification);
+  const roleTranspositionPlan = actionableGuidanceText(activeRoleDetails?.transpositionPlan);
+  const roleSetupNote = actionableGuidanceText(activeRoleDetails?.setupNote);
+  const roleSimplification = actionableGuidanceText(activeRoleDetails?.simplification);
+  const roleOverlapWarnings = actionableOverlapWarnings(activeRoleDetails?.overlapWarnings ?? []);
+  const hasActionableGuidance = Boolean(
+    roleSetupNote || roleSimplification || roleOverlapWarnings.length > 0
+  );
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -438,16 +470,62 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                       {roleHarmonicExplanation}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
-                    <div className="flex items-center gap-2 text-indigo-100">
-                      <ClipboardList className="size-4" aria-hidden="true" />
-                      <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
+                  {roleTranspositionPlan && (
+                    <div className="rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-3">
+                      <div className="flex items-center gap-2 text-indigo-100">
+                        <ClipboardList className="size-4" aria-hidden="true" />
+                        <p className="text-[0.7rem] font-black uppercase tracking-[0.22em]">{t("workspaceTranspositionLabel")}</p>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-200">
+                        {roleTranspositionPlan}
+                      </p>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-200">
-                      {roleTranspositionPlan}
-                    </p>
-                  </div>
+                  )}
                 </div>
+                {hasActionableGuidance && (
+                  <section
+                    role="region"
+                    aria-label={t("workspaceGuidanceRegionLabel")}
+                    className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.05] p-3"
+                  >
+                    <div className="grid gap-3 lg:grid-cols-3">
+                      {roleSetupNote && (
+                        <article className="rounded-xl border border-teal-300/20 bg-teal-300/[0.07] p-3">
+                          <h4 className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-teal-100">
+                            {t("workspaceSetupLabel")}
+                          </h4>
+                          <p className="mt-2 text-sm leading-6 text-slate-100">{roleSetupNote}</p>
+                        </article>
+                      )}
+                      {roleSimplification && (
+                        <article className="rounded-xl border border-violet-300/20 bg-violet-300/[0.07] p-3">
+                          <h4 className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-violet-100">
+                            {t("workspaceSimplificationLabel")}
+                          </h4>
+                          <p className="mt-2 text-sm leading-6 text-slate-100">{roleSimplification}</p>
+                        </article>
+                      )}
+                      {roleOverlapWarnings.length > 0 && (
+                        <article className="rounded-xl border border-rose-300/20 bg-rose-300/[0.07] p-3">
+                          <h4
+                            id={overlapWarningsHeadingId}
+                            className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-rose-100"
+                          >
+                            {t("workspaceOverlapWarningsLabel")}
+                          </h4>
+                          <ul
+                            aria-labelledby={overlapWarningsHeadingId}
+                            className="mt-2 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-100"
+                          >
+                            {roleOverlapWarnings.map((warning, warningIndex) => (
+                              <li key={`${activeRole}-${warningIndex}-${warning}`}>{warning}</li>
+                            ))}
+                          </ul>
+                        </article>
+                      )}
+                    </div>
+                  </section>
+                )}
                 {song.collaboration && (
                   <div className="mt-4 grid gap-3 xl:grid-cols-3">
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
