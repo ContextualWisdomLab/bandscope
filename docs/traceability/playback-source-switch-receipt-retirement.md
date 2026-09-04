@@ -9,11 +9,13 @@
 
 ## Problem
 
-`PlaybackSourceSwitchSession` already invalidates older `loadedmetadata` receipts when a newer source switch begins, and `admitPlaybackSourceSwitchTarget` admits only the exact current target, renderer sequence and decoded duration. The lifecycle still lacked one explicit terminal transition: after a target receipt is admitted and transport continuity is restored, the admitted `activePlan` remained stored in the session.
+`PlaybackSourceSwitchSession` invalidates older `loadedmetadata` receipts when a newer source switch begins, and `admitPlaybackSourceSwitchTarget` admits only the exact current target, renderer sequence and decoded duration. Two terminal paths need explicit ownership: successful continuity restoration and failed target load/admission.
 
-Leaving a completed receipt active is not itself permission to read native bytes, but it unnecessarily extends restoration authority across later media-element events. A repeated `loadedmetadata` event for the same target/sequence could remain admissible, and a future mounted player would have to mutate or replace renderer session state ad hoc to retire the receipt. That is incompatible with the single-writer, immutable-receipt boundary already established for source switching.
+Without success retirement, an admitted `activePlan` remains stored after its authority has been consumed. Without failure retirement, a short/malformed target or media-load failure can leave the issued plan alive long enough for a later metadata event from the same mutable media element to satisfy admission and restore transport after the switch was already considered failed.
 
-## Test-first evidence
+Neither case creates permission to read native bytes, but both unnecessarily extend renderer restoration authority. A mounted player must be able to terminate the exact issued receipt on either outcome without resetting sequence identity or allowing a copied/stale plan to affect a newer switch.
+
+## Successful completion: test-first evidence
 
 RED commit `a2222a42a175a1196c32544c6e7bd521992a42a4` adds `playbackSourceSwitchCompletion.test.ts` before a production completion transition exists. It requires:
 
@@ -24,18 +26,27 @@ RED commit `a2222a42a175a1196c32544c6e7bd521992a42a4` adds `playbackSourceSwitch
 
 The predecessor production module had no `completePlaybackSourceSwitch` export, so this is a source-level RED contract rather than a claim of hosted execution.
 
-## Causal fix
-
 GREEN source commit `73b0e47d112e5baa52e19ffb98640eda271df9af` adds `completePlaybackSourceSwitch`. It retires a receipt only when the caller supplies the exact object currently stored in `state.activePlan` and the sequence still matches. Success returns the existing frozen-session representation with the same sequence and `activePlan: null`; copied, stale, null or sequence-mismatched plans return the current session unchanged.
 
-The helper does not create playback authority, mutate native availability, reset the sequence, or infer filesystem identity. It is intentionally narrower than a general state setter. The caller must first pass target metadata through `admitPlaybackSourceSwitchTarget`; premature retirement can only remove restoration authority and therefore fails safe rather than granting playback authority.
+## Failed target: test-first evidence
 
-## Alternatives considered
+RED commit `77a708e28b64a73abd5e49133cbdc59449c1f937` extends the same completion regression before a failure transition exists. A target whose decoded duration is shorter than the selected loop must fail admission, after which the exact issued plan must be retireable. A copied look-alike plan must not retire it, and an older failed plan must not clear a newer active switch.
 
-Keeping the active plan until the next switch was rejected because completion should terminate authority as soon as it is consumed, not at some unrelated future selection. Resetting the renderer sequence to zero was rejected because sequence reuse would weaken stale-receipt rejection. Allowing structural equality was rejected for the same reason as discovery-receipt impersonation: a copied JavaScript object must not acquire the authority of the exact immutable receipt issued by the current session.
+Causal fix `ba06f0c0427a33f93a1e01b01e8043c983dc3679` adds `abortPlaybackSourceSwitch`. Successful completion and failure abort share one private exact-plan retirement primitive so the identity rule cannot drift between terminal paths. The public functions remain separate because their caller preconditions differ: `completePlaybackSourceSwitch` follows successful target admission and continuity restoration; `abortPlaybackSourceSwitch` follows failed loading or failed admission.
+
+A focused TypeScript 5.8.3 `--strict` / Node 22.16.0 harness exercised the current production function against exact-plan failure retirement, copied-plan rejection, stale-plan rejection, and the existing successful completion path. It passed. This is focused causal GREEN only; it is not repository exact-head CI evidence.
+
+## Authority and alternatives
+
+The terminal helpers do not create playback authority, mutate native availability, reset renderer sequence identity, or infer filesystem identity. Exact issued-object identity remains the narrowest renderer-local cancellation/retirement token because these plans are not serialized across IPC.
+
+Keeping failed or completed plans until the next selection was rejected because termination should occur at the outcome that consumes or rejects the receipt, not at an unrelated future action. Resetting the sequence was rejected because reuse weakens stale-event rejection. Structural equality was rejected because a reconstructed JavaScript object must not acquire the authority of the immutable plan stored by the current session. A second native receipt owner was rejected because `PlaybackAuthority` remains the sole owner of playable bytes.
 
 ## Remaining buyer gap
 
-This closes a lifecycle prerequisite, not the source selector. `RehearsalPlayer` still needs one mounted transaction owner that refreshes native availability, displays only the current `Full mix | Vocals | Bass | Drums | Other instruments` options, calls `beginPlaybackSourceSwitch` before changing `audio.src`, admits the exact target/sequence/duration on `loadedmetadata`, restores seek/playback rate/resume intent, then immediately retires that admitted plan with `completePlaybackSourceSwitch`.
+This closes the terminal receipt prerequisite, not the source selector. `RehearsalPlayer` still needs one mounted transaction owner that refreshes native availability, displays only the current `Full mix | Vocals | Bass | Drums | Other instruments` options, calls `beginPlaybackSourceSwitch` before changing `audio.src`, and then follows exactly one terminal path:
 
-Project rotation, native revocation, malformed or short target media, persistence/reload, pointer/touch/keyboard/screen-reader behavior, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, and rights-cleared Windows/macOS audible acceptance remain open. Source-level RED→fix evidence is not a substitute for the protected exact-head CI, security, coverage, build, review or release gates.
+- successful load: exact target/sequence/duration admission → restore seek/playback rate/resume intent → `completePlaybackSourceSwitch`;
+- failed load/admission: keep transport non-playing → `abortPlaybackSourceSwitch` before any later media event can reuse the failed receipt.
+
+Project rotation, native revocation, persistence/reload, pointer/touch/keyboard/screen-reader behavior, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, and rights-cleared Windows/macOS audible acceptance remain open. Source-level RED→fix and focused verification are not substitutes for protected exact-head CI, security, coverage, build, review or release gates.
