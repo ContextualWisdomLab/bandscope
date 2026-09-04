@@ -636,8 +636,9 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "message": "Stem separation failed",
     }
     assert "/Users/test/Music" not in str(updates[-1]["error"])
-    logger.exception.assert_called_once_with(
-        "Stem separation failed before analysis job completion."
+    logger.error.assert_called_once_with(
+        "Stem separation failed before analysis job completion. (%s)",
+        "ValueError",
     )
 
 
@@ -1031,7 +1032,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
         assert fake_queue.items == [(expected_kind, expected_message)]
         assert "/secret" not in str(fake_queue.items)
-        logger.exception.assert_called_once_with(expected_log_message)
+        logger.error.assert_called_once_with("%s (%s)", expected_log_message, type(error).__name__)
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -1154,42 +1155,46 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
         "bandscope_analysis.api._multiprocessing_context",
         return_value=FakeContext(("ok_file", file_payload)),
     ):
-        loaded = _run_stem_separation_with_timeout("/tmp/audio.wav")
+        loaded = _run_stem_separation_with_timeout("/tmp/audio.wav", arrays_path=arrays_path)
     assert loaded["sr"] == 22050
     assert loaded["stems"]["bass"].shape == (4,)
     assert loaded["stem_role_types"] == {"bass": "instrument"}
     assert not arrays_path.with_suffix(".json").exists()
 
+    missing_parent_arrays = tmp_path / "missing-parent" / "worker-stems.npz"
+    missing_arrays = tmp_path / "missing-arrays.npz"
     invalid_file_payloads = [
-        ("not-a-dict", "Stem separation returned invalid metadata."),
+        ("not-a-dict", "Stem separation returned invalid metadata.", None),
         (
             {
-                "arraysPath": str(tmp_path / "missing-parent" / "worker-stems.npz"),
+                "arraysPath": str(missing_parent_arrays),
                 "sampleRate": 22050,
                 "separation": {},
                 "stemKeys": ["bass"],
                 "stemRoleTypes": {"bass": "instrument"},
             },
             "Stem separation returned invalid stem arrays.",
+            missing_parent_arrays,
         ),
         (
             {
-                "arraysPath": str(tmp_path / "missing-arrays.npz"),
+                "arraysPath": str(missing_arrays),
                 "sampleRate": 22050,
                 "separation": {},
                 "stemKeys": ["bass"],
                 "stemRoleTypes": {"bass": "instrument"},
             },
             "Stem separation returned invalid stem arrays.",
+            missing_arrays,
         ),
     ]
-    for payload, expected_message in invalid_file_payloads:
+    for payload, expected_message, authorized_path in invalid_file_payloads:
         with patch(
             "bandscope_analysis.api._multiprocessing_context",
             return_value=FakeContext(("ok_file", payload)),
         ):
             try:
-                _run_stem_separation_with_timeout("/tmp/audio.wav")
+                _run_stem_separation_with_timeout("/tmp/audio.wav", arrays_path=authorized_path)
             except RuntimeError as error:
                 assert expected_message in str(error)
             else:

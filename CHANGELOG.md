@@ -16,6 +16,7 @@
 ### Fixed
 
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
+- Hardened local analysis filesystem authority so source/cache/temp inputs reject ambiguous, foreign-host absolute, homogeneous or mixed-separator network/device namespaces, Win32 console-device aliases (`CONIN$`/`CONOUT$`), traversal, Win32 leading/trailing ASCII-space or trailing-period normalization, direct-symlink, non-directory writable-root, pre-existing derived-child, exact feature-cache file, atomic-write temporary-file, and stem-work `{digest}.json` sidecar symlink escape cases before repository-owned I/O. The parent helper now binds stem-work sidecar writes to the authorized arrays path rather than a worker-supplied `arraysPath`, and late path-authority failures stay `invalid_request` instead of `engine_unavailable`.
 
 ## [0.1.3] - 2026-04-29
 
