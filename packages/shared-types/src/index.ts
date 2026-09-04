@@ -139,6 +139,9 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  cutoffPlan?: string;
+  /** Identifies whether cutoffPlan came from the analysis model or a user. */
+  cutoffPlanSource?: ProvenanceSource;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -474,6 +477,8 @@ const demoRehearsalSongSeed: RehearsalSong = {
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
+          cutoffPlan: "Cut this off with Lead Vocal on the verse last beat; don't linger past the pickup.",
+          cutoffPlanSource: "model",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1497,6 +1502,8 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "cutoffPlan",
+      "cutoffPlanSource",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1558,18 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.cutoffPlan !== undefined && typeof value.cutoffPlan !== "string") {
+    return invalidField(`${path}.cutoffPlan`);
+  }
+  if (value.cutoffPlanSource !== undefined && !isOneOf(PROVENANCE_SOURCES, value.cutoffPlanSource)) {
+    return invalidField(`${path}.cutoffPlanSource`);
+  }
+  if (value.cutoffPlan !== undefined && value.cutoffPlanSource === undefined) {
+    return invalidField(`${path}.cutoffPlanSource`);
+  }
+  if (value.cutoffPlanSource !== undefined && value.cutoffPlan === undefined) {
+    return invalidField(`${path}.cutoffPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

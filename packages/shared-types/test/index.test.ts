@@ -738,6 +738,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[0]?.cutoffPlan).toContain("verse last beat");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -858,6 +859,15 @@ describe("shared type helpers", () => {
       ...song,
       scoreAttachments: [{ id: attachment.id, fileName: "" }]
     })).toThrow("scoreAttachments[0].fileName");
+  });
+
+  it("rejects cutoff provenance without cutoff text", () => {
+    const song = createDemoRehearsalSong();
+    delete song.sections[0]!.roles[0]!.cutoffPlan;
+    song.sections[0]!.roles[0]!.cutoffPlanSource = "model";
+
+    expect(isRehearsalSong(song)).toBe(false);
+    expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].cutoffPlan");
   });
 
   it("reports the first invalid field path for nested contract failures", () => {
@@ -1255,6 +1265,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].cutoffPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.cutoffPlan = 2 as never;
         })
       },
       {
