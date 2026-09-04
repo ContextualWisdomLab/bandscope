@@ -154,5 +154,10 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "firstSimplificationLabel": "오늘 첫 쉬운 패스",
+  "firstSimplificationOpenAction": "{at} {role} 쉬운 패스 위치 열기",
+  "firstSimplificationBody": "{at} {section}에서 {role} 파트가 더 쉽게 칠 수 있습니다.",
+  "firstSimplificationArmed": "{at}에서 {role} 파트와 함께 쉬운 패스로 넘기세요. 같이 통과하세요.",
+  "firstSimplificationUnavailable": "아직 쉬운 패스가 없습니다. 파트가 더 쉬운 연주를 표시할 때까지 오늘 지도에 머무르세요."
 }

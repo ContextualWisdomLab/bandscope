@@ -6,6 +6,7 @@ Last updated: 2026-03-11
 
 - Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
 - Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
+- The mounted workspace copy for tonight's first simpler take must name the owning part, the labeled section, and the time so the next action is obvious. Open moves to the matching rendered map section. Do not invent a simpler take from setup notes, cues, overlap warnings, or unlabeled fields.
 
 ## Security source
 

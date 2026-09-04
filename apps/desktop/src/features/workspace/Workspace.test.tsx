@@ -326,4 +326,31 @@ describe("Workspace", () => {
     expect(screen.getByText("합주 우선순위")).toBeTruthy();
     expect(screen.getByText("역할과 화성")).toBeTruthy();
   });
+
+  it("names tonight's first simpler take as workspace navigation", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const target = screen.getByTestId("song-structure-grid").children.item(0);
+    expect(target).toBeTruthy();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(target!, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView
+    });
+
+    const action = screen.getByRole("button", {
+      name: "Open Bass Guitar simpler take at 0:10"
+    });
+    expect(action).toBeTruthy();
+    fireEvent.click(action);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    expect(
+      screen.getByText(/Use the simpler take with Bass Guitar at 0:10. Get through it together./)
+    ).toBeTruthy();
+    expect(document.getElementById("workspace-surface-simplification")?.textContent).toContain(
+      "Stay on roots if the chorus entrance gets muddy."
+    );
+  });
 });
