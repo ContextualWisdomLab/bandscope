@@ -189,6 +189,8 @@ pub struct RehearsalRolePayload {
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fill_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
 }
@@ -529,7 +531,7 @@ pub fn is_youtube_video_id(value: &str) -> bool {
 
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_fill_plan(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +549,60 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_fill_plan(parsed)
+}
+
+/// Mirrors the shared-types plan whitespace policy, including BOM and NEL.
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Reject blank or Unicode line-separated fill guidance without normalizing user text.
+fn is_valid_fill_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
+fn validate_fill_plan(payload: RehearsalSongPayload) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role
+                .fill_plan
+                .as_deref()
+                .is_some_and(|fill_plan| !is_valid_fill_plan(fill_plan))
+            {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -752,6 +807,7 @@ mod tests {
                             "rehearsalPriority": "high",
                             "simplification": "Stay on roots if the chorus entrance gets muddy.",
                             "setupNote": "Keep the attack short so the verse breathes.",
+                            "fillPlan": "Walk eight notes into the chorus downbeat; leave the vocal pickup empty.",
                             "manualOverrides": [],
                             "overlapWarnings": [
                                 "Density warning: competing with Keyboard Left Hand in low register."
@@ -784,6 +840,10 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+        assert_eq!(
+            parsed.sections[0].roles[0].fill_plan.as_deref(),
+            Some("Walk eight notes into the chorus downbeat; leave the vocal pickup empty.")
+        );
     }
 
     #[test]
@@ -892,6 +952,32 @@ mod tests {
             project_payload_from_content(r#"{"sections":[{"timeRange":{"start":0,"end":1}}]}"#)
                 .expect_err("timed but incomplete payload should fail closed");
         assert_eq!(error, "Invalid project file format");
+    }
+
+    #[test]
+    fn project_payload_from_content_rejects_invalid_fill_plan() {
+        for fill_plan in [
+            "",
+            "   ",
+            "\u{FEFF}",
+            "\u{0085}",
+            "fill here\nthen move",
+            "fill here\rthen move",
+            "fill here\u{0085}then move",
+            "fill here\u{2028}then move",
+            "fill here\u{2029}then move",
+        ] {
+            let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+            payload["sections"][0]["roles"][0]["fillPlan"] = json!(fill_plan);
+            let content = serde_json::to_string(&payload).expect("payload should serialize");
+
+            assert!(project_payload_from_content(&content).is_err());
+        }
+
+        let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        payload["sections"][0]["roles"][0]["fillPlan"] = json!("\u{FEFF}Fill the string\u{FEFF}");
+        let content = serde_json::to_string(&payload).expect("payload should serialize");
+        assert!(project_payload_from_content(&content).is_ok());
     }
 
     #[test]
