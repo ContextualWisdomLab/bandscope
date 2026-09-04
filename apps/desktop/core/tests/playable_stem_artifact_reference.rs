@@ -76,22 +76,25 @@ fn stem_artifact_object_mut(
 
 #[test]
 fn parses_complete_path_free_reference_and_exposes_metadata() {
-    let reference =
+    let artifact_reference =
         parse_reference(valid_reference_value()).expect("valid reference should parse");
 
-    assert_eq!(reference.artifact_set_id(), ARTIFACT_SET_ID);
-    assert_eq!(reference.format_version(), PLAYABLE_STEM_ARTIFACT_VERSION);
-    assert_eq!(reference.sample_rate(), 8000);
-    assert_eq!(reference.channel_count(), 1);
-    assert_eq!(reference.sample_count(), 64);
-    assert_eq!(reference.duration_seconds(), 0.008);
-    assert_eq!(reference.applied_gain(), 1.0);
+    assert_eq!(artifact_reference.artifact_set_id(), ARTIFACT_SET_ID);
+    assert_eq!(
+        artifact_reference.format_version(),
+        PLAYABLE_STEM_ARTIFACT_VERSION
+    );
+    assert_eq!(artifact_reference.sample_rate(), 8000);
+    assert_eq!(artifact_reference.channel_count(), 1);
+    assert_eq!(artifact_reference.sample_count(), 64);
+    assert_eq!(artifact_reference.duration_seconds(), 0.008);
+    assert_eq!(artifact_reference.applied_gain(), 1.0);
 
-    let stem_artifacts = reference.stem_artifacts();
+    let stem_artifacts = artifact_reference.stem_artifacts();
     assert_eq!(
         stem_artifacts
             .iter()
-            .map(|artifact| artifact.stem_kind())
+            .map(|stem_artifact| stem_artifact.stem_kind())
             .collect::<Vec<_>>(),
         vec![
             PlaybackStemKind::Vocals,
@@ -109,26 +112,35 @@ fn parses_complete_path_free_reference_and_exposes_metadata() {
     assert_eq!(vocal_artifact.channel_count(), 1);
     assert_eq!(vocal_artifact.sample_count(), 64);
     assert_eq!(vocal_artifact.duration_seconds(), 0.008);
-    assert_eq!(
-        reference.derive_artifact_path(Path::new("/app/temp"), PlaybackStemKind::Bass),
-        Path::new("/app/temp")
-            .join("playable-stems-v1")
-            .join(ARTIFACT_SET_ID)
-            .join("bass.wav")
-    );
+
+    for (stem_kind, file_name) in [
+        (PlaybackStemKind::Vocals, "vocals.wav"),
+        (PlaybackStemKind::Bass, "bass.wav"),
+        (PlaybackStemKind::Drums, "drums.wav"),
+        (PlaybackStemKind::Other, "other.wav"),
+    ] {
+        assert_eq!(
+            artifact_reference.derive_artifact_path(Path::new("/app/temp"), stem_kind),
+            Path::new("/app/temp")
+                .join("playable-stems-v1")
+                .join(ARTIFACT_SET_ID)
+                .join(file_name)
+        );
+    }
 }
 
 #[test]
 fn serialized_reference_never_contains_a_native_path() {
-    let reference =
+    let artifact_reference =
         parse_reference(valid_reference_value()).expect("valid reference should parse");
-    let serialized = serde_json::to_string(&reference).expect("reference should serialize");
+    let serialized_reference =
+        serde_json::to_string(&artifact_reference).expect("reference should serialize");
 
-    assert!(!serialized.to_ascii_lowercase().contains("path"));
-    assert!(!serialized.contains("/app/temp"));
-    let reparsed: PlayableStemArtifactSetReference =
-        serde_json::from_str(&serialized).expect("serialized reference should parse");
-    assert_eq!(reparsed, reference);
+    assert!(!serialized_reference.to_ascii_lowercase().contains("path"));
+    assert!(!serialized_reference.contains("/app/temp"));
+    let reparsed_reference: PlayableStemArtifactSetReference =
+        serde_json::from_str(&serialized_reference).expect("serialized reference should parse");
+    assert_eq!(reparsed_reference, artifact_reference);
 }
 
 #[test]
@@ -138,10 +150,10 @@ fn rejects_unknown_path_and_storage_fields() {
         ("artifactRoot", "/secret"),
         ("sourcePath", "C:\\secret\\audio.wav"),
     ] {
-        let mut malformed = valid_reference_value();
-        stem_artifact_object_mut(&mut malformed, 0)
+        let mut malformed_reference = valid_reference_value();
+        stem_artifact_object_mut(&mut malformed_reference, 0)
             .insert(field_name.to_string(), json!(field_value));
-        assert!(parse_reference(malformed).is_err());
+        assert!(parse_reference(malformed_reference).is_err());
     }
 
     let mut malformed_set = valid_reference_value();
@@ -172,35 +184,40 @@ fn rejects_invalid_set_artifact_and_hash_identifiers() {
     stem_artifact_object_mut(&mut malformed_hash_length, 0)
         .insert("contentHashSha256".to_string(), json!("b".repeat(63)));
 
-    for malformed in [
+    for malformed_reference in [
         malformed_set_case,
         malformed_set_path,
         malformed_artifact_id,
         malformed_hash_case,
         malformed_hash_length,
     ] {
-        assert!(parse_reference(malformed).is_err());
+        assert!(parse_reference(malformed_reference).is_err());
     }
 }
 
 #[test]
 fn rejects_missing_duplicate_reordered_or_unknown_stems() {
-    let mut missing = valid_reference_value();
-    stem_artifacts_mut(&mut missing).remove(0);
+    let mut missing_reference = valid_reference_value();
+    stem_artifacts_mut(&mut missing_reference).remove(0);
 
-    let mut duplicate = valid_reference_value();
-    let duplicate_artifact = stem_artifacts_mut(&mut duplicate)[0].clone();
-    stem_artifacts_mut(&mut duplicate).push(duplicate_artifact);
+    let mut duplicate_reference = valid_reference_value();
+    let duplicate_artifact = stem_artifacts_mut(&mut duplicate_reference)[0].clone();
+    stem_artifacts_mut(&mut duplicate_reference).push(duplicate_artifact);
 
-    let mut reordered = valid_reference_value();
-    stem_artifacts_mut(&mut reordered).swap(0, 1);
+    let mut reordered_reference = valid_reference_value();
+    stem_artifacts_mut(&mut reordered_reference).swap(0, 1);
 
-    let mut unknown = valid_reference_value();
-    stem_artifact_object_mut(&mut unknown, 3)
+    let mut unknown_reference = valid_reference_value();
+    stem_artifact_object_mut(&mut unknown_reference, 3)
         .insert("stemKind".to_string(), json!("guitar"));
 
-    for malformed in [missing, duplicate, reordered, unknown] {
-        assert!(parse_reference(malformed).is_err());
+    for malformed_reference in [
+        missing_reference,
+        duplicate_reference,
+        reordered_reference,
+        unknown_reference,
+    ] {
+        assert!(parse_reference(malformed_reference).is_err());
     }
 }
 
@@ -218,11 +235,13 @@ fn rejects_set_level_version_media_and_alignment_mismatch() {
     reference_object_mut(&mut high_sample_rate)
         .insert("sampleRate".to_string(), json!(192001));
 
-    let mut stereo = valid_reference_value();
-    reference_object_mut(&mut stereo).insert("channelCount".to_string(), json!(2));
+    let mut stereo_reference = valid_reference_value();
+    reference_object_mut(&mut stereo_reference)
+        .insert("channelCount".to_string(), json!(2));
 
-    let mut empty = valid_reference_value();
-    reference_object_mut(&mut empty).insert("sampleCount".to_string(), json!(0));
+    let mut empty_reference = valid_reference_value();
+    reference_object_mut(&mut empty_reference)
+        .insert("sampleCount".to_string(), json!(0));
 
     let mut duration_mismatch = valid_reference_value();
     reference_object_mut(&mut duration_mismatch)
@@ -235,31 +254,31 @@ fn rejects_set_level_version_media_and_alignment_mismatch() {
     reference_object_mut(&mut excessive_gain)
         .insert("appliedGain".to_string(), json!(1.1));
 
-    for malformed in [
+    for malformed_reference in [
         unsupported_version,
         low_sample_rate,
         high_sample_rate,
-        stereo,
-        empty,
+        stereo_reference,
+        empty_reference,
         duration_mismatch,
         zero_gain,
         excessive_gain,
     ] {
-        assert!(parse_reference(malformed).is_err());
+        assert!(parse_reference(malformed_reference).is_err());
     }
 }
 
 #[test]
 fn rejects_file_size_overflow_before_accepting_artifacts() {
-    let mut malformed = valid_reference_value();
+    let mut malformed_reference = valid_reference_value();
     let oversized_sample_count = u64::MAX;
     let oversized_duration = oversized_sample_count as f64 / 8000.0;
-    reference_object_mut(&mut malformed)
+    reference_object_mut(&mut malformed_reference)
         .insert("sampleCount".to_string(), json!(oversized_sample_count));
-    reference_object_mut(&mut malformed)
+    reference_object_mut(&mut malformed_reference)
         .insert("durationSeconds".to_string(), json!(oversized_duration));
 
-    assert!(parse_reference(malformed).is_err());
+    assert!(parse_reference(malformed_reference).is_err());
 }
 
 #[test]
@@ -288,7 +307,7 @@ fn rejects_each_per_stem_metadata_mismatch() {
     stem_artifact_object_mut(&mut duration_mismatch, 0)
         .insert("durationSeconds".to_string(), json!(0.007));
 
-    for malformed in [
+    for malformed_reference in [
         size_mismatch,
         media_type_mismatch,
         sample_rate_mismatch,
@@ -296,6 +315,6 @@ fn rejects_each_per_stem_metadata_mismatch() {
         sample_count_mismatch,
         duration_mismatch,
     ] {
-        assert!(parse_reference(malformed).is_err());
+        assert!(parse_reference(malformed_reference).is_err());
     }
 }
