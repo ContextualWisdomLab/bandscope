@@ -115,6 +115,7 @@ Last updated: 2026-03-11
 - Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
 - Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
+- Project load and save failures keep the current rehearsal map when one exists and name **Choose another project** or **Try saving again** instead of replacing the workspace with the analysis error card.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.
 
 ## Verification model

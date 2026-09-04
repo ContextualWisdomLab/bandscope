@@ -35,7 +35,8 @@ Out of scope for this handoff: new routes, cloud sharing, account settings, live
 | Workspace Home | No analyzed song and no active job | Choose local audio or import YouTube | Brand shell, source controls, pending metrics, actionable empty card | Empty card must explain next action; never show a blank canvas. |
 | Source Selected | Valid local or YouTube source exists | Start Analysis | Selected source pill, enabled start button, pending metrics | Invalid source messages stay in the source-control band. |
 | Analyzing | `isStarting`, queued, or running job | Wait; progress is informational | Loading card plus progress label/percent when available | Loading card uses live-region semantics. |
-| Error | Job, import, load, or validation error | Choose another source, retry analysis, or load project | Safe redacted error copy | Error state uses alert semantics and must not leak local paths, URLs, or secrets. |
+| Error | Job or validation error | Choose another source or retry analysis | Safe redacted error copy | Error state uses alert semantics and must not leak local paths, URLs, or secrets. |
+| Project persistence error | Load or save of a project file failed | **Choose another project** or **Try saving again** | Keep the current rehearsal map when one exists | Do not reuse the analysis error card; recovery reuses the existing load/save pickers. |
 | Ready Workspace | `jobResult` exists | Review and export rehearsal output | Song header, export group, timeline, role switcher, groove map, section roadmap | Missing optional collaboration data uses copy, not empty modules. |
 
 ## Key Screens
@@ -43,7 +44,7 @@ Out of scope for this handoff: new routes, cloud sharing, account settings, live
 1. `Workspace Home` is the first screen and must prioritize source controls above metrics on mobile and desktop.
 2. `Analyzing` must confirm work is in progress through both the workspace state card and the compact progress region when progress exists.
 3. `Ready Workspace` is the production handoff screen for players and publishers; exports stay in the song header, not hidden below analysis modules.
-4. `Error` is a recovery screen; the user must still see the source controls above it.
+4. `Error` is a recovery screen; the user must still see the source controls above it. Project load/save failures use a dedicated recovery card and keep an open rehearsal map visible.
 
 ## Wireframes
 

@@ -46,7 +46,7 @@ import {
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import { EmptyState, ErrorState, LoadingState, ProjectPersistenceError } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -59,6 +59,10 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 type RehearsalView = "workspace" | "score";
+type ProjectPersistenceFailure = {
+  kind: "load" | "save";
+  message: string;
+};
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
@@ -261,6 +265,7 @@ export function App() {
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
+  const [projectError, setProjectError] = useState<ProjectPersistenceFailure | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
@@ -389,6 +394,7 @@ export function App() {
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
     setJobError(null);
+    setProjectError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
     setJobStatus(null);
@@ -420,6 +426,7 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
+      setProjectError(null);
       return;
     }
 
@@ -452,6 +459,7 @@ export function App() {
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
         setYoutubeUrl("");
+        setProjectError(null);
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
         setSelectionErrorSource("youtube");
@@ -477,12 +485,17 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setProjectError(null);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
+        setJobError(null);
+        setProjectError({
+          kind: "load",
+          message: `${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`
+        });
       }
     }
   };
@@ -491,9 +504,13 @@ export function App() {
   const handleSaveProject = async () => {
     try {
       await saveProject(jobResult!);
+      setProjectError(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
+        setProjectError({
+          kind: "save",
+          message: `${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`
+        });
       }
     }
   };
@@ -502,6 +519,21 @@ export function App() {
   const handleSongUpdate = (updatedSong: RehearsalSong) => {
     setJobResult(updatedSong);
   };
+
+  /**
+   * Shared persistence-recovery banner so a failed save or load stays visible
+   * in every view that keeps the persistence controls reachable, including the
+   * Score view where renderWorkspaceState is bypassed.
+   */
+  const persistenceErrorBanner = projectError ? (
+    <div className="mb-4">
+      <ProjectPersistenceError
+        kind={projectError.kind}
+        detail={projectError.message}
+        onRetry={projectError.kind === "save" ? handleSaveProject : handleLoadProject}
+      />
+    </div>
+  ) : null;
 
   /** Documented. */
   const renderWorkspaceState = () => {
@@ -512,7 +544,21 @@ export function App() {
       return <LoadingState />;
     }
     if (jobResult) {
-      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
+      return (
+        <>
+          {persistenceErrorBanner}
+          <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />
+        </>
+      );
+    }
+    if (projectError?.kind === "load") {
+      return (
+        <ProjectPersistenceError
+          kind="load"
+          detail={projectError.message}
+          onRetry={handleLoadProject}
+        />
+      );
     }
     return <EmptyState />;
   };
@@ -843,11 +889,14 @@ export function App() {
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {currentView === "score" && jobResult ? (
-              <ScoreView
-                song={jobResult}
-                projectId={jobResultBootstrap?.projectId ?? null}
-                onSongUpdate={handleSongUpdate}
-              />
+              <>
+                {persistenceErrorBanner}
+                <ScoreView
+                  song={jobResult}
+                  projectId={jobResultBootstrap?.projectId ?? null}
+                  onSongUpdate={handleSongUpdate}
+                />
+              </>
             ) : (
               renderWorkspaceState()
             )}

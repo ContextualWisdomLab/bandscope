@@ -34,7 +34,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 | Groove Map | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-526 | `apps/desktop/src/features/workspace/GrooveMap.tsx` | Use `notes?: TranscriptionNote[]` and `isLoading?: boolean`; preserve scrollable region semantics and note labels. |
 | Source Control Stack | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-655 | `apps/desktop/src/App.tsx` | Feature-local source controls for local audio, YouTube URL import, project actions, and Start Analysis; keep before metrics at 375px. |
 | Export Action Group | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=19-731 | `apps/desktop/src/features/workspace/Workspace.tsx` | Feature-local export buttons call `handleExportCueSheet`, `handleExportChart`, and `handleExportHandoff`. |
-| Workspace State Matrix | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=99-560 | `apps/desktop/src/features/workspace/WorkspaceStates.tsx`, `apps/desktop/src/App.tsx` | Whole-workspace empty, loading, error, and ready state routing; use before changing `renderWorkspaceState()`. |
+| Workspace State Matrix | https://www.figma.com/design/zthWmqfNKUgJBECvv002Qk/Bandscope-Design-System-v1?node-id=99-560 | `apps/desktop/src/features/workspace/WorkspaceStates.tsx`, `apps/desktop/src/App.tsx` | Whole-workspace empty, loading, analysis-error, project persistence-error, and ready state routing; use before changing `renderWorkspaceState()`. |
 
 ## Prop And State Mapping
 
@@ -76,7 +76,7 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 ### Workspace States
 
 - Figma page `34 Workspace State Matrix` maps `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates.
-- `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
+- `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace` (a project save-failure recovery banner renders above `Workspace` while analyzed content stays visible), a load-only `projectError` -> `ProjectPersistenceError` recovery card, otherwise `EmptyState`.
 - `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
 - `ErrorState` keeps `role="alert"`, `aria-live="assertive"`, and visible safe error detail copy.
 - `EmptyState` must remain an actionable state card, not a blank placeholder panel.

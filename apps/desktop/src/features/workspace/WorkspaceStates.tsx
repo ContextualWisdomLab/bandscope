@@ -1,5 +1,6 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Loader2, Music, AlertCircle } from "lucide-react";
 
 /** Documented. */
@@ -49,6 +50,46 @@ export function ErrorState({ error }: { error?: string }) {
         </div>
         <h3 className="mb-2 text-lg font-black text-rose-100">{t("workspaceErrorState")}</h3>
         {error && <p className="mt-2 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{error}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Documented. */
+export function ProjectPersistenceError({
+  kind,
+  detail,
+  onRetry
+}: {
+  kind: "load" | "save";
+  detail: string;
+  onRetry: () => void;
+}) {
+  const t = createTranslator(detectPreferredLocale());
+  const title = kind === "load" ? t("projectLoadFailedTitle") : t("projectSaveFailedTitle");
+  const action = kind === "load" ? t("projectLoadFailedNextAction") : t("projectSaveFailedNextAction");
+
+  return (
+    <Card
+      className="border-rose-300/30 bg-rose-950/40 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
+      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200 shadow-sm">
+          <AlertCircle className="size-8" aria-hidden="true" />
+        </div>
+        <h3 className="mb-2 text-lg font-black text-rose-100">{title}</h3>
+        <p className="mt-2 max-w-lg rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{detail}</p>
+        <Button
+          type="button"
+          onClick={onRetry}
+          className="mt-6 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+          aria-label={action}
+        >
+          {action}
+        </Button>
       </CardContent>
     </Card>
   );
