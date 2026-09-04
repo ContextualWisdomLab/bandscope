@@ -153,6 +153,10 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceFirstLeftoverLastDropoutRemainingTitle": "Tonight's first leftover last-dropout remaining",
+  "workspaceFirstLeftoverLastDropoutRemainingNamed": "{remainingRoleName} stays out at {sectionLabel} while {returningRoleName} comes back from leftover last-dropout at {dropoutSectionLabel}. Count {remainingRoleName} out from the top of {sectionLabel}.",
+  "workspaceFirstLeftoverLastDropoutRemainingStayOut": "{remainingRoleName} stays out at {sectionLabel} while {returningRoleName} comes back from leftover last-dropout at {dropoutSectionLabel}. Stay out from the top of {sectionLabel}.",
+  "workspaceFirstLeftoverLastDropoutRemainingMissing": "Tonight's first leftover last-dropout remaining still needs a named leftover last-dropout cohort and a later leftover last-dropout return that leaves someone out. Confirm who stays out after leftover last-dropout before the first section.",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
