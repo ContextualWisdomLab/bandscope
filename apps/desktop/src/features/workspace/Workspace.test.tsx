@@ -153,6 +153,26 @@ describe("Workspace", () => {
     );
   });
 
+  it("offers a tap tempo when the song has no trusted BPM", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+    song.tempo = undefined;
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("tap-tempo");
+    expect(callout).toHaveTextContent("Tonight's tap tempo");
+    expect(callout).toHaveTextContent(
+      "Tonight's first count-in still needs a tempo. Tap a steady groove at least four times, then count in at that tempo and check the first range."
+    );
+  });
+
+  it("hides tap tempo when the song already has a trusted BPM", () => {
+    setNavigatorLanguage("en-US");
+    render(<Workspace song={createDemoRehearsalSong()} />);
+    expect(screen.queryByTestId("tap-tempo")).toBeNull();
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();

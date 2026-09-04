@@ -153,6 +153,14 @@
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
+  "workspaceTapTempoTitle": "Tonight's tap tempo",
+  "workspaceTapTempoNeed": "Tonight's first count-in still needs a tempo. Tap a steady groove at least four times, then count in at that tempo and check the first range.",
+  "workspaceTapTempoKeep": "Keep tapping a steady groove. Four taps unlock tonight's count-in tempo.",
+  "workspaceTapTempoReady": "{tempo} BPM from {taps} taps. Count in 4 at {tempo} BPM, then check tonight's first range.",
+  "workspaceTapTempoAction": "Tap",
+  "workspaceTapTempoActionLabel": "Tap the groove to set tonight's tempo",
+  "workspaceTapTempoReset": "Reset taps",
+  "workspaceTapTempoResetLabel": "Reset tonight's tap tempo",
   "sectionRangeLabel": "Range",
   "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
 }
