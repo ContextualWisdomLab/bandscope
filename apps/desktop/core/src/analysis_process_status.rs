@@ -60,6 +60,35 @@ pub fn retain_latest_process_status(
     renderer_status
 }
 
+/// Require a process envelope to belong to the native job that requested it.
+pub fn validate_analysis_process_status_for_job(
+    process_status: &AnalysisProcessStatus,
+    expected_job_id: &str,
+) -> Result<(), &'static str> {
+    if process_status.renderer_status.job_id == expected_job_id {
+        Ok(())
+    } else {
+        Err(PROCESS_STATUS_ERROR)
+    }
+}
+
+/// Require the process's final retained envelope to be terminal and job-local.
+pub fn validate_final_analysis_process_status<'a>(
+    process_status: Option<&'a AnalysisProcessStatus>,
+    expected_job_id: &str,
+) -> Result<&'a AnalysisProcessStatus, &'static str> {
+    let process_status = process_status.ok_or(PROCESS_STATUS_ERROR)?;
+    validate_analysis_process_status_for_job(process_status, expected_job_id)?;
+    if matches!(
+        &process_status.renderer_status.state,
+        AnalysisJobState::Succeeded | AnalysisJobState::Failed
+    ) {
+        Ok(process_status)
+    } else {
+        Err(PROCESS_STATUS_ERROR)
+    }
+}
+
 /// Parse one stdout JSONL line, ignoring only whitespace-only separators.
 ///
 /// A non-empty malformed line is a process-contract failure. Returning an error
@@ -95,10 +124,19 @@ pub fn parse_analysis_process_status(
         .transpose()
         .map_err(|_| PROCESS_STATUS_ERROR)?;
 
+    let state_payload_is_valid = match &renderer_status.state {
+        AnalysisJobState::Succeeded => renderer_status.result.is_some() && renderer_status.error.is_none(),
+        AnalysisJobState::Failed => renderer_status.result.is_none() && renderer_status.error.is_some(),
+        AnalysisJobState::Queued | AnalysisJobState::Running => {
+            renderer_status.result.is_none() && renderer_status.error.is_none()
+        }
+    };
+    if !state_payload_is_valid {
+        return Err(PROCESS_STATUS_ERROR);
+    }
+
     if playable_stem_artifact_set.is_some()
-        && (!matches!(&renderer_status.state, AnalysisJobState::Succeeded)
-            || renderer_status.result.is_none()
-            || renderer_status.error.is_some())
+        && !matches!(&renderer_status.state, AnalysisJobState::Succeeded)
     {
         return Err(PROCESS_STATUS_ERROR);
     }
