@@ -108,6 +108,9 @@ export function createPlaybackSourceSession(
  *
  * Native stem authority is revocable. Keeping old options visible while an async
  * refresh runs would let a stale button outlive the authority snapshot that created it.
+ * Request identities never wrap: after the safe-integer sequence is exhausted the
+ * session stays full-mix-only until a new session is created, so an ancient receipt
+ * cannot become current again by colliding with a reused sequence number.
  */
 export function beginPlaybackSourceDiscovery(
   state: PlaybackSourceSession,
@@ -116,16 +119,33 @@ export function beginPlaybackSourceDiscovery(
   state: PlaybackSourceSession;
   request: PlaybackSourceDiscoveryRequest | null;
 } {
+  const currentSequence =
+    Number.isSafeInteger(state.requestSequence) && state.requestSequence >= 0
+      ? state.requestSequence
+      : Number.MAX_SAFE_INTEGER;
   const nextSequence =
-    state.requestSequence >= Number.MAX_SAFE_INTEGER ? 1 : state.requestSequence + 1;
+    currentSequence < Number.MAX_SAFE_INTEGER ? currentSequence + 1 : null;
   if (!isValidFullMixAuthority(currentFullMixAuthority)) {
     return {
       state: {
         fullMixAuthority: null,
         options: [],
         pendingRequest: null,
-        requestSequence: nextSequence,
+        requestSequence: nextSequence ?? currentSequence,
         selectedAuthority: null,
+      },
+      request: null,
+    };
+  }
+
+  if (nextSequence === null) {
+    return {
+      state: {
+        fullMixAuthority: currentFullMixAuthority,
+        options: fullMixOnly(currentFullMixAuthority),
+        pendingRequest: null,
+        requestSequence: currentSequence,
+        selectedAuthority: currentFullMixAuthority,
       },
       request: null,
     };
