@@ -8,6 +8,7 @@ const meta = {
   parameters: { layout: "centered" },
   args: {
     defaultValue: 50,
+    "aria-label": "Playback position",
     className: "w-[60vw]"
   },
 } satisfies Meta<typeof Slider>
