@@ -18,6 +18,9 @@ import { listen } from "@tauri-apps/api/event";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
+type AudioSourceSuccess = { ok: true; bootstrap: ProjectBootstrapSummary };
+type AudioSourceFailure = { ok: false; error: AnalysisJobError };
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: {
@@ -35,6 +38,7 @@ const BROWSER_PROGRESS_STEPS = [
   { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const LOCAL_AUDIO_USER_CANCELLED_MESSAGE = "User cancelled";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
@@ -47,10 +51,14 @@ const MAX_YOUTUBE_URL_LENGTH = 2000;
 
 export { MAX_YOUTUBE_URL_LENGTH };
 
-/** Documented. */
+/** Local-picker result; only this boundary can report native picker cancellation. */
 export type LocalAudioSelectionResult =
-  | { ok: true; bootstrap: ProjectBootstrapSummary }
-  | { ok: false; error: AnalysisJobError };
+  | AudioSourceSuccess
+  | { ok: false; cancelled: true }
+  | AudioSourceFailure;
+
+/** YouTube import result; this boundary has no native-picker cancellation state. */
+export type YoutubeImportResult = AudioSourceSuccess | AudioSourceFailure;
 
 /** Documented. */
 function getInvoke(): TauriInvoke | null {
@@ -211,7 +219,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
 async function invokeAnalysis(command: string, args?: Record<string, unknown>): Promise<unknown> {
   const invokeCommand = getInvoke();
   if (invokeCommand) {
-    return invokeCommand(command, args);
+    return args === undefined ? invokeCommand(command) : invokeCommand(command, args);
   }
 
   return browserFallback(command, args);
@@ -223,6 +231,17 @@ export function createDefaultAnalysisRequest(): AnalysisJobRequest {
 }
 
 /** Documented. */
+function localAudioCancellationMessage(error: unknown): string | null {
+  if (typeof error === "string") {
+    return error.trim() === LOCAL_AUDIO_USER_CANCELLED_MESSAGE ? error.trim() : null;
+  }
+  if (error instanceof Error && error.message.trim() === LOCAL_AUDIO_USER_CANCELLED_MESSAGE) {
+    return error.message.trim();
+  }
+  return null;
+}
+
+/** Documented. */
 export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResult> {
   try {
     const response = await invokeAnalysis("select_local_audio_source");
@@ -231,6 +250,9 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
+    if (localAudioCancellationMessage(error)) {
+      return { ok: false, cancelled: true };
+    }
     return {
       ok: false,
       error: {
@@ -313,7 +335,7 @@ export async function subscribeToAnalysisJobUpdates(
 }
 
 /** Documented. */
-export async function importYoutubeUrl(url: string): Promise<LocalAudioSelectionResult> {
+export async function importYoutubeUrl(url: string): Promise<YoutubeImportResult> {
   if (!isSupportedYoutubeUrl(url)) {
     return {
       ok: false,

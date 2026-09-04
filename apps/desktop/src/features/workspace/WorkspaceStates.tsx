@@ -1,6 +1,7 @@
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, Music, AlertCircle } from "lucide-react";
+import { Loader2, Music, AlertCircle, Upload } from "lucide-react";
 
 /** Documented. */
 export function EmptyState() {
@@ -38,8 +39,25 @@ export function LoadingState() {
   );
 }
 
-/** Documented. */
-export function ErrorState({ error }: { error?: string }) {
+/** Recovery action for a workspace error that still has a next rehearsal step. */
+export interface ErrorStateProps {
+  error?: string;
+  title?: string;
+  guidance?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  actionDisabled?: boolean;
+}
+
+/** Render a workspace failure and name the next rehearsal action when one exists. */
+export function ErrorState({
+  error,
+  title,
+  guidance,
+  actionLabel,
+  onAction,
+  actionDisabled = false
+}: ErrorStateProps) {
   const t = createTranslator(detectPreferredLocale());
   return (
     <Card className="border-rose-300/30 bg-rose-950/40 shadow-[0_18px_70px_rgba(0,0,0,0.25)] backdrop-blur-xl" role="alert" aria-live="assertive" aria-atomic="true">
@@ -47,8 +65,21 @@ export function ErrorState({ error }: { error?: string }) {
         <div className="mb-4 rounded-full border border-rose-300/30 bg-rose-300/10 p-4 text-rose-200 shadow-sm">
           <AlertCircle className="size-8" aria-hidden="true" />
         </div>
-        <h3 className="mb-2 text-lg font-black text-rose-100">{t("workspaceErrorState")}</h3>
+        <h3 className="mb-2 text-lg font-black text-rose-100">{title ?? t("workspaceErrorState")}</h3>
         {error && <p className="mt-2 rounded-md bg-rose-300/10 px-4 py-2 text-sm font-medium text-rose-100">{error}</p>}
+        {guidance && <p className="mt-3 max-w-md text-sm text-rose-100/80">{guidance}</p>}
+        {onAction && actionLabel && (
+          <Button
+            type="button"
+            onClick={onAction}
+            disabled={actionDisabled}
+            className="mt-8 min-h-11 bg-gradient-to-r from-cyan-400 to-violet-500 font-black text-slate-950 shadow-[0_14px_38px_rgba(34,211,238,0.28)] hover:from-cyan-300 hover:to-violet-400"
+            aria-label={actionLabel}
+          >
+            <Upload className="mr-2 size-4" aria-hidden="true" />
+            {actionLabel}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

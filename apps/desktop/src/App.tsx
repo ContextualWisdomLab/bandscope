@@ -263,6 +263,7 @@ export function App() {
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const [isChoosingLocalAudio, setIsChoosingLocalAudio] = useState(false);
   const [activeView, setActiveView] = useState<RehearsalView>("workspace");
   const activeJobIdRef = useRef<string | null>(null);
   const youtubeInputRef = useRef<HTMLInputElement | null>(null);
@@ -415,18 +416,35 @@ export function App() {
 
   /** Documented. */
   const handleChooseLocalAudio = async () => {
-    setSelectionError(null);
-    setSelectionErrorSource(null);
-    const selection = await selectLocalAudioSource();
-    if (selection.ok) {
-      setSelectedBootstrap(selection.bootstrap);
+    if (isChoosingLocalAudio) {
       return;
     }
 
-    setSelectedBootstrap(null);
-    setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
-    setSelectionErrorSource("local");
-    setJobStatus(null);
+    setIsChoosingLocalAudio(true);
+    try {
+      const selection = await selectLocalAudioSource();
+      if (selection.ok) {
+        setJobError(null);
+        setSelectionError(null);
+        setSelectionErrorSource(null);
+        setSelectedBootstrap(selection.bootstrap);
+        return;
+      }
+
+      if ("cancelled" in selection) {
+        return;
+      }
+
+      setJobError(null);
+      setSelectedBootstrap(null);
+      setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
+      setSelectionErrorSource("local");
+      // Recovery lives on the workspace surface; leave Score so the failure is never silent.
+      setActiveView("workspace");
+      setJobStatus(null);
+    } finally {
+      setIsChoosingLocalAudio(false);
+    }
   };
 
   /** Documented. */
@@ -477,6 +495,8 @@ export function App() {
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
+      setSelectionError(null);
+      setSelectionErrorSource(null);
       setSelectedBootstrap(null);
       setActiveAnalysisBootstrap(null);
       setJobStatus(null);
@@ -510,6 +530,20 @@ export function App() {
     }
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
+    }
+    if (selectionError && selectionErrorSource === "local") {
+      return (
+        <ErrorState
+          title={t("localSelectionFailureTitle")}
+          error={selectionError}
+          guidance={t("localSelectionFailureGuidance")}
+          actionLabel={t("chooseAnotherSong")}
+          onAction={() => {
+            void handleChooseLocalAudio();
+          }}
+          actionDisabled={isChoosingLocalAudio}
+        />
+      );
     }
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
@@ -682,7 +716,7 @@ export function App() {
               <div className="grid min-w-0 gap-3 xl:grid-cols-[auto_minmax(0,1fr)] xl:items-center">
                 <Button
                   onClick={handleChooseLocalAudio}
-                  disabled={analysisInFlight || isStarting || isImporting}
+                  disabled={analysisInFlight || isStarting || isImporting || isChoosingLocalAudio}
                   variant="secondary"
                   className="min-h-11 w-full border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 xl:w-auto"
                   aria-label={t("chooseLocalAudio")}
@@ -824,8 +858,8 @@ export function App() {
                   </div>
                 )}
 
-                {selectionError && (
-                  <div id={selectionErrorSource === "youtube" ? "selection-error" : undefined} className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
+                {selectionError && selectionErrorSource === "youtube" && (
+                  <div id="selection-error" className="rounded-full border border-rose-300/25 bg-rose-400/10 px-3 py-1 font-semibold text-rose-100" role="alert" aria-live="assertive" aria-atomic="true">
                     {selectionError}
                   </div>
                 )}
