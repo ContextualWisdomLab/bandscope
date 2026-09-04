@@ -13,7 +13,9 @@ const meta = {
   },
 } satisfies Meta<typeof Slider>
 
+/** Storybook metadata for the reusable horizontal slider. */
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** Default single-value slider interaction. */
 export const Default: Story = {}
