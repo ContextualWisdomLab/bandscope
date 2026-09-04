@@ -2,7 +2,8 @@
 
 use bandscope_desktop_core::{
     analysis_process_status::{
-        parse_analysis_process_status, retain_latest_process_status, AnalysisProcessStatus,
+        parse_analysis_process_status, parse_analysis_process_status_line,
+        retain_latest_process_status, AnalysisProcessStatus,
     },
     AnalysisJobState,
 };
@@ -187,6 +188,27 @@ fn final_process_status_replaces_an_earlier_stem_reference() {
         .expect("the final process envelope should be retained")
         .playable_stem_artifact_set()
         .is_none());
+}
+
+#[test]
+fn process_status_line_parser_ignores_only_blank_lines() {
+    assert!(parse_analysis_process_status_line("  \n\t")
+        .expect("blank JSONL line should be ignorable")
+        .is_none());
+
+    let malformed_error = parse_analysis_process_status_line("not-json")
+        .expect_err("non-empty malformed JSONL must fail closed");
+    assert_eq!(malformed_error, PROCESS_STATUS_ERROR);
+
+    let valid_status_json = serde_json::to_string(&succeeded_status())
+        .expect("process status fixture should serialize");
+    let valid_status = parse_analysis_process_status_line(&valid_status_json)
+        .expect("valid non-empty JSONL should parse")
+        .expect("valid non-empty JSONL should produce an envelope");
+    assert!(matches!(
+        valid_status.renderer_status().state,
+        AnalysisJobState::Succeeded
+    ));
 }
 
 #[test]
