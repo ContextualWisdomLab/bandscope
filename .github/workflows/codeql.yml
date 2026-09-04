@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: codeql-${{ github.repository }}-${{ github.ref }}
+  group: codeql-${{ github.repository }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

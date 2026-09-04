@@ -1283,6 +1283,8 @@ def test_local_security_workflows_cancel_superseded_runs_with_read_only_defaults
         assert "contents: read" in workflow or "permissions: read-all" in workflow, (
             workflow_name
         )
+        if workflow_name in {"bandit.yml", "codeql.yml", "ossf-scorecard.yml"}:
+            assert "github.event_name" in workflow, workflow_name
 
 
 def test_opencode_review_declares_top_level_token_permissions() -> None:
