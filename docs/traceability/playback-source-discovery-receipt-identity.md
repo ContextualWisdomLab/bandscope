@@ -20,6 +20,12 @@ RED commit `616cae06745b24ea2d947cba724135b1568ea0dc` adds a regression that beg
 
 GREEN commit `c51437976fb2daa134000393d3ef70d8c07d8a92` adds object-identity admission (`state.pendingRequest === request`) before the existing scalar/project checks. `beginPlaybackSourceDiscovery` stores and returns the same frozen request object, so legitimate async completion keeps working without a compatibility alias or second receipt format.
 
+## Focused verification
+
+The exact repaired `playbackSourceSession.ts` and its current `playbackSourceSelection.ts` dependency compile under TypeScript 5.8.3 with `--strict`, targeting ES2022. A focused Node 22.16.0 runtime harness verifies both sides of the receipt boundary: a copied look-alike request leaves the original pending full-mix-only session unchanged, while the exact issued frozen request admits the canonical five-source response and clears the pending request. The admitted session, option array and every emitted option remain frozen.
+
+This is focused verification of the causal slice only. It is not a substitute for repository Vitest/coverage, cross-platform build, security, review or release evidence on the unchanged PR head.
+
 ## Alternatives considered
 
 Using only the monotonic sequence was rejected because a renderer-local caller can copy the current sequence. Adding a random nonce was also rejected: the request never crosses a process boundary, so the already-issued frozen object is the narrower authority token and avoids a second identity mechanism. Moving discovery receipts into native state was rejected because it would duplicate renderer lifecycle ownership and expand the IPC contract without solving a native authority problem.
