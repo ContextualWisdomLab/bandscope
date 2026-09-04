@@ -217,7 +217,11 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /^Workspace$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Import$/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Export$/i })).toBeTruthy();
-    expect(fireEvent.click(screen.getByRole("button", { name: /settings coming soon/i }))).toBe(false);
+    const settingsButtons = screen.getAllByRole("button", { name: /See which audio this device can open/i });
+    expect(settingsButtons).toHaveLength(3);
+    for (const settingsButton of settingsButtons) {
+      expect(settingsButton).not.toHaveAttribute("aria-disabled");
+    }
     expect(fireEvent.click(screen.getByRole("button", { name: /help coming soon/i }))).toBe(false);
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     const activePrimaryNavButton = within(primaryNav).getByRole("button", { name: "Workspace" });
@@ -1536,6 +1540,20 @@ describe("App", () => {
     expect(mockSaveProject).not.toHaveBeenCalled();
   });
 
+  it("opens Settings from the compact rehearsal navigation", () => {
+    render(<App />);
+
+    const compactNav = screen.getByRole("navigation", { name: /compact rehearsal views/i });
+    const settingsButton = within(compactNav).getByRole("button", {
+      name: /See which audio this device can open compact view/i
+    });
+
+    fireEvent.click(settingsButton);
+
+    expect(settingsButton).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Tonight's audio")).toBeTruthy();
+  });
+
   it("handles exception thrown by importYoutubeUrl itself", async () => {
     mockImportYoutubeUrlError = true;
 
@@ -1553,14 +1571,122 @@ describe("App", () => {
   });
 
 
-  it("renders Settings and Help as focusable aria-disabled controls", () => {
+  it("keeps Help coming soon while Settings names the next audio action", () => {
     render(<App />);
-    const settingsButton = screen.getByRole("button", { name: "Settings coming soon" });
+    const settingsButtons = screen.getAllByRole("button", { name: /See which audio this device can open/i });
     const helpButton = screen.getByRole("button", { name: "Help coming soon" });
-    expect(settingsButton).toHaveAttribute("aria-disabled", "true");
-    expect(settingsButton).not.toHaveAttribute("disabled");
+    expect(settingsButtons).toHaveLength(3);
+    for (const settingsButton of settingsButtons) {
+      expect(settingsButton).not.toHaveAttribute("aria-disabled");
+      expect(settingsButton).not.toHaveAttribute("disabled");
+    }
+    fireEvent.click(screen.getByRole("button", { name: /See which audio this device can open.*compact/i }));
+    expect(screen.getByRole("button", { name: /See which audio this device can open.*compact/i })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
     expect(helpButton).toHaveAttribute("aria-disabled", "true");
     expect(helpButton).not.toHaveAttribute("disabled");
+  });
+
+  it("opens Settings to name admitted formats and start the local-audio picker", async () => {
+    tauriInvoke.mockResolvedValueOnce(bootstrapResponse());
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    expect(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Tonight's audio")).toBeTruthy();
+    expect(screen.getByText(".wav")).toBeTruthy();
+    expect(screen.getByText(".m4a")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Choose a supported file/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
+    });
+    expect(screen.getByRole("heading", { name: /Workspace Home/i })).toBeTruthy();
+    expect(screen.queryByText("Tonight's audio")).toBeNull();
+  });
+
+  it.each(["queued", "running"] as const)("keeps the Settings chooser disabled while analysis is %s", async (state) => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockResolvedValueOnce(jobStatusResponse({ state }));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    mockLocalAudioSelectionResult = { ok: true, bootstrap: bootstrapResponse({ source: { fileName: "replacement.wav" } }) };
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    const settingsChooseButton = await screen.findByRole("button", { name: /Choose a supported file/i });
+    await waitFor(() => expect(settingsChooseButton).toBeDisabled());
+    fireEvent.click(settingsChooseButton);
+
+    expect(screen.getByTitle("late-night-set.wav")).toBeTruthy();
+    expect(screen.queryByText("replacement.wav")).toBeNull();
+  });
+
+  it("keeps the Settings chooser disabled while analysis startup is pending", async () => {
+    tauriInvoke
+      .mockResolvedValueOnce(bootstrapResponse())
+      .mockImplementationOnce(() => new Promise(() => undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    mockLocalAudioSelectionResult = { ok: true, bootstrap: bootstrapResponse({ source: { fileName: "replacement.wav" } }) };
+
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    const settingsChooseButton = await screen.findByRole("button", { name: /Choose a supported file/i });
+    await waitFor(() => expect(settingsChooseButton).toBeDisabled());
+    fireEvent.click(settingsChooseButton);
+
+    expect(screen.getByTitle("late-night-set.wav")).toBeTruthy();
+    expect(screen.queryByText("replacement.wav")).toBeNull();
+  });
+
+  it("keeps the Settings chooser disabled while YouTube import is pending", async () => {
+    tauriInvoke.mockImplementation(() => new Promise(() => undefined));
+    render(<App />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+    fireEvent.change(screen.getByPlaceholderText(/YouTube URL/i), {
+      target: { value: "https://youtube.com/watch?v=abc123DEF45" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Import YouTube/i }));
+
+    const settingsChooseButton = await screen.findByRole("button", { name: /Choose a supported file/i });
+    await waitFor(() => expect(settingsChooseButton).toBeDisabled());
+  });
+
+  it("returns from Settings to tonight's rehearsal map after a song is ready", async () => {
+    mockLoadProject.mockResolvedValueOnce(succeededResult().result);
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      render(<App />);
+
+      fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+      });
+
+      fireEvent.click(screen.getAllByRole("button", { name: /See which audio this device can open/i })[0]!);
+      expect(screen.getByText(/Tonight's map is ready/i)).toBeTruthy();
+      expect(screen.queryByText(/Song Timeline/i)).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: /Open tonight's rehearsal map/i }));
+      await waitFor(() => {
+        expect(screen.getByText(/Song Timeline/i)).toBeTruthy();
+      });
+      expect(document.getElementById("main-content")).toHaveFocus();
+      expect(scrollIntoView).toHaveBeenCalled();
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 
   it("keeps the Score view disabled until a song is loaded", () => {
