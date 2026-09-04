@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstHandPart } from "./firstHandPart";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const firstHand = useMemo(() => firstHandPart(song, activeRole), [activeRole, song]);
+  const firstHandCopy = firstHand
+    ? fillRangeCopy(
+        t(firstHand.overlapWarning ? "workspaceFirstHandClash" : "workspaceFirstHandCheck"),
+        {
+          roleName: firstHand.roleName,
+          sectionLabel: firstHand.sectionLabel
+        }
+      )
+    : t("workspaceFirstHandMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +319,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+
+          <section
+            className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+            data-testid="first-hand-part"
+            aria-label={t("workspaceFirstHandTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceFirstHandTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{firstHandCopy}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
