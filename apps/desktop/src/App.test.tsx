@@ -280,6 +280,28 @@ describe("App", () => {
     expect(sourceControls).toHaveTextContent(/Import YouTube/i);
   });
 
+  it("lets the empty workspace card start a local-audio pick", async () => {
+    mockLocalAudioSelectionResult = {
+      ok: true,
+      bootstrap: {
+        projectId: "proj-empty-next",
+        source: {
+          sourceKind: "local-audio",
+          sourceMode: "reference",
+          fileName: "rehearsal-take.wav",
+          format: "wav"
+        }
+      }
+    };
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose a local audio file" }));
+
+    await waitFor(() => {
+      expect(screen.getByTitle("rehearsal-take.wav")).toBeTruthy();
+    });
+  });
+
   it("caps the YouTube URL input before import-path validation", () => {
     render(<App />);
 
@@ -400,7 +422,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
@@ -425,7 +447,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
@@ -445,7 +467,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/choose a wav, mp3, flac, or m4a file/i)).toBeTruthy();
@@ -458,7 +480,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/could not read the selected audio file/i)).toBeTruthy();
@@ -478,7 +500,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
     });
@@ -518,7 +540,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
     });
@@ -552,7 +574,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -585,7 +607,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -622,7 +644,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -659,7 +681,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -714,7 +736,7 @@ describe("App", () => {
 
     const { unmount } = render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -749,7 +771,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -774,7 +796,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -809,7 +831,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -838,7 +860,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => {
       expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy();
     });
@@ -912,7 +934,7 @@ describe("App", () => {
     try {
       render(<App />);
 
-      fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
       await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
       fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -920,7 +942,7 @@ describe("App", () => {
         expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
       });
 
-      fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
       await waitFor(() => expect(screen.getByText(/next-song\.wav/i)).toBeTruthy());
 
       fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
@@ -956,7 +978,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -983,7 +1005,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -1006,7 +1028,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -1029,7 +1051,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -1046,7 +1068,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -1066,7 +1088,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -1083,7 +1105,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => expect(screen.getByText(/late-night-set\.wav/i)).toBeTruthy());
 
     fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
@@ -1130,7 +1152,7 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Choose local audio$/i }));
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
     });

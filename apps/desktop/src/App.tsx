@@ -46,7 +46,12 @@ import {
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
-import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  type WorkspaceFailureKind
+} from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -145,6 +150,23 @@ function safeErrorDetail(error: unknown, fallback: string): string {
     : redacted;
 }
 
+/** Map validated engine status to a stable buyer-visible failure category. */
+function workspaceFailureKind(status: AnalysisJobStatus | null): WorkspaceFailureKind {
+  if (status?.state !== "failed") {
+    return "generic";
+  }
+  if (status.progressStage === "decode") {
+    return "decode";
+  }
+  if (status.progressStage === "separate") {
+    return "separate";
+  }
+  if (status.error?.code === "engine_unavailable") {
+    return "engine";
+  }
+  return "generic";
+}
+
 /** Documented. */
 function BandScopeMark({ ariaLabel }: { ariaLabel: string }) {
   return (
@@ -219,7 +241,7 @@ function ConfidenceMetric({ song, t }: { song: RehearsalSong | null; t: ReturnTy
       if (!lowestConfidence || confidenceOrder[section.confidence.level] < confidenceOrder[lowestConfidence]) {
         lowestConfidence = section.confidence.level;
         if (lowestConfidence === "low") {
-          break; // Short-circuit early since "low" is the lowest possible confidence bound
+          break;
         }
       }
     }
@@ -465,6 +487,21 @@ export function App() {
   };
 
   /** Documented. */
+  const handleFocusYoutubeUrl = () => {
+    youtubeInputRef.current?.focus();
+  };
+
+  /** Documented. */
+  const handleStartOverAfterError = () => {
+    setJobError(null);
+    setJobStatus(null);
+    setSelectedBootstrap(null);
+    setActiveAnalysisBootstrap(null);
+    setSelectionError(null);
+    setSelectionErrorSource(null);
+  };
+
+  /** Documented. */
   const handleClearYoutubeUrl = () => {
     youtubeInputRef.current?.focus();
     setYoutubeUrl("");
@@ -506,7 +543,16 @@ export function App() {
   /** Documented. */
   const renderWorkspaceState = () => {
     if (jobError) {
-      return <ErrorState error={jobError} />;
+      return (
+        <ErrorState
+          error={jobError}
+          kind={workspaceFailureKind(jobStatus)}
+          onChooseLocalAudio={() => {
+            void handleChooseLocalAudio();
+          }}
+          onStartOver={handleStartOverAfterError}
+        />
+      );
     }
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
@@ -514,7 +560,14 @@ export function App() {
     if (jobResult) {
       return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return <EmptyState />;
+    return (
+      <EmptyState
+        onChooseLocalAudio={() => {
+          void handleChooseLocalAudio();
+        }}
+        onFocusYoutube={handleFocusYoutubeUrl}
+      />
+    );
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
