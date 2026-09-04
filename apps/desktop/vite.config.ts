@@ -25,7 +25,10 @@ export default defineConfig({
         "src/i18n/index.ts",
         "src/features/score/ScoreViewer.tsx",
         "src/features/score/ScoreView.tsx",
-        "src/features/score/scoreStorage.ts"
+        "src/features/score/scoreStorage.ts",
+        "src/features/workspace/firstCountIn.ts",
+        "src/features/workspace/countInClickEngine.ts",
+        "src/features/workspace/CountInClick.tsx"
       ],
       thresholds: {
         lines: 90,

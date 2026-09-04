@@ -153,6 +153,19 @@ describe("Workspace", () => {
     );
   });
 
+  it("names tonight's first count-in and the next range check", () => {
+    setNavigatorLanguage("en-US");
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    const callout = screen.getByTestId("first-count-in");
+    expect(callout).toHaveTextContent("Tonight's first count-in");
+    expect(callout).toHaveTextContent(
+      "Count in 4 at 120 BPM, then check tonight's first range before the verse."
+    );
+  });
+
   it("asks for an ear check when the selected part has no named span", () => {
     setNavigatorLanguage("en-US");
     const song = createDemoRehearsalSong();
