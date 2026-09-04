@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod playback_protocol;
+mod playback_source_availability_command;
 
 use bandscope_desktop::playable_stem_admission::preflight_playable_stem_set;
 use bandscope_desktop_core::*;
@@ -963,6 +964,7 @@ fn main() {
             import_youtube_url,
             start_analysis_job,
             get_analysis_job_status,
+            playback_source_availability_command::get_playback_source_availability,
             save_project,
             load_project,
             attach_score_pdf,
