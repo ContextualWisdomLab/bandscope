@@ -23,6 +23,34 @@ function fullMixOnly(authority: string): PlaybackSourceOption[] {
   return [{ kind: "full_mix", authority }];
 }
 
+function freezePlaybackSourceOptions(
+  options: PlaybackSourceOption[],
+): PlaybackSourceOption[] {
+  const frozenOptions = options.map((option) =>
+    Object.freeze({ kind: option.kind, authority: option.authority }),
+  );
+  return Object.freeze(frozenOptions) as PlaybackSourceOption[];
+}
+
+function freezePlaybackSourceDiscoveryRequest(
+  request: PlaybackSourceDiscoveryRequest | null,
+): PlaybackSourceDiscoveryRequest | null {
+  if (request === null || Object.isFrozen(request)) {
+    return request;
+  }
+  return Object.freeze({ ...request });
+}
+
+function freezePlaybackSourceSession(
+  state: PlaybackSourceSession,
+): PlaybackSourceSession {
+  return Object.freeze({
+    ...state,
+    options: freezePlaybackSourceOptions(state.options),
+    pendingRequest: freezePlaybackSourceDiscoveryRequest(state.pendingRequest),
+  }) as PlaybackSourceSession;
+}
+
 function isValidFullMixAuthority(authority: string | null | undefined): authority is string {
   return (
     typeof authority === "string" &&
@@ -86,21 +114,21 @@ export function createPlaybackSourceSession(
   fullMixAuthority: string | null | undefined,
 ): PlaybackSourceSession {
   if (!isValidFullMixAuthority(fullMixAuthority)) {
-    return {
+    return freezePlaybackSourceSession({
       fullMixAuthority: null,
       options: [],
       pendingRequest: null,
       requestSequence: 0,
       selectedAuthority: null,
-    };
+    });
   }
-  return {
+  return freezePlaybackSourceSession({
     fullMixAuthority,
     options: fullMixOnly(fullMixAuthority),
     pendingRequest: null,
     requestSequence: 0,
     selectedAuthority: fullMixAuthority,
-  };
+  });
 }
 
 /**
@@ -127,42 +155,42 @@ export function beginPlaybackSourceDiscovery(
     currentSequence < Number.MAX_SAFE_INTEGER ? currentSequence + 1 : null;
   if (!isValidFullMixAuthority(currentFullMixAuthority)) {
     return {
-      state: {
+      state: freezePlaybackSourceSession({
         fullMixAuthority: null,
         options: [],
         pendingRequest: null,
         requestSequence: nextSequence ?? currentSequence,
         selectedAuthority: null,
-      },
+      }),
       request: null,
     };
   }
 
   if (nextSequence === null) {
     return {
-      state: {
+      state: freezePlaybackSourceSession({
         fullMixAuthority: currentFullMixAuthority,
         options: fullMixOnly(currentFullMixAuthority),
         pendingRequest: null,
         requestSequence: currentSequence,
         selectedAuthority: currentFullMixAuthority,
-      },
+      }),
       request: null,
     };
   }
 
-  const request = {
+  const request = Object.freeze({
     fullMixAuthority: currentFullMixAuthority,
     sequence: nextSequence,
-  } satisfies PlaybackSourceDiscoveryRequest;
+  }) satisfies PlaybackSourceDiscoveryRequest;
   return {
-    state: {
+    state: freezePlaybackSourceSession({
       fullMixAuthority: currentFullMixAuthority,
       options: fullMixOnly(currentFullMixAuthority),
       pendingRequest: request,
       requestSequence: nextSequence,
       selectedAuthority: currentFullMixAuthority,
-    },
+    }),
     request,
   };
 }
@@ -198,12 +226,12 @@ export function completePlaybackSourceDiscovery(
     ? state.selectedAuthority
     : request.fullMixAuthority;
 
-  return {
+  return freezePlaybackSourceSession({
     ...state,
     options,
     pendingRequest: null,
     selectedAuthority,
-  };
+  });
 }
 
 /** Select only an authority present in the current canonical option snapshot. */
@@ -212,10 +240,10 @@ export function selectPlaybackSource(
   authority: string,
 ): PlaybackSourceSession {
   if (state.options.some((option) => option.authority === authority)) {
-    return { ...state, selectedAuthority: authority };
+    return freezePlaybackSourceSession({ ...state, selectedAuthority: authority });
   }
-  return {
+  return freezePlaybackSourceSession({
     ...state,
     selectedAuthority: state.fullMixAuthority,
-  };
+  });
 }
