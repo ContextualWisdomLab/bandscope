@@ -4,8 +4,10 @@
 
 ### Added
 
+- Tonight's rehearsal player now arms the first valid section loop, runs a tempo count-in, and plays validated local audio through a scoped Tauri asset URL in the browser media element; the React layer does not decode audio bytes itself, and admitted section timing and picker copy use the same descriptor-snapshotted transport window.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
+- Move between playable section cues with Left and Right Arrow and keep the selected cue focused.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
 
 ### Changed
@@ -15,6 +17,8 @@
 
 ### Fixed
 
+- Kept the rehearsal player section picker aligned with the selected player or
+  vocal role while preserving the full song-form roadmap.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
@@ -49,7 +53,6 @@
 - Resolve npm audit vulnerabilities
 - Fix ruff import sorting and formatting errors
 - Add missing docstrings to tests
-- Fix test configuration and typing issues
 
 ## [0.1.0] - 2026-03-27
 

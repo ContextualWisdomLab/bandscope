@@ -1,0 +1,285 @@
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { describe, expect, it } from "vitest";
+import {
+  beatDurationMs,
+  createIdleTransportState,
+  createLoopWindow,
+  fillRehearsalCopy,
+  formatRehearsalClock,
+  isRehearsalPlaybackRate,
+  isPlayableLoopSection,
+  nextActionTemplateKey,
+  nextActionValues,
+  rehearsalPlaybackRates,
+  reduceRehearsalTransport,
+  resolveLoopWindow,
+  resolveLoopWindows,
+  resolveRehearsalTempo,
+  wrapPlayhead,
+} from "./rehearsalTransport";
+
+describe("rehearsalTransport", () => {
+  it("rejects blank, inverted, and non-finite section windows before arming a loop", () => {
+    const song = createDemoRehearsalSong();
+    expect(isPlayableLoopSection(song.sections[0])).toBe(true);
+    expect(isPlayableLoopSection(undefined)).toBe(false);
+    song.sections[0]!.timeRange = { start: Number.NaN, end: 30 };
+    expect(createLoopWindow(song.sections[0]!, song.tempo)).toBeNull();
+    song.sections[0]!.timeRange = { start: 40, end: 10 };
+    expect(isPlayableLoopSection(song.sections[0])).toBe(false);
+    song.sections[0]!.timeRange = { start: 4_294_967_295, end: 4_294_967_296 };
+    expect(isPlayableLoopSection(song.sections[0])).toBe(false);
+  });
+
+  it("arms the first valid section and skips a requested invalid id", () => {
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections.push(chorus);
+    song.sections[0]!.timeRange = { start: Number.POSITIVE_INFINITY, end: 30 };
+    const window = resolveLoopWindow(song, "missing-section");
+    expect(window?.sectionId).toBe("chorus-1");
+    expect(window?.startSeconds).toBe(40);
+    expect(window?.endSeconds).toBe(64);
+  });
+
+  it("skips malformed section entries before requested-id lookup and fallback", () => {
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    song.sections = [null as never, chorus];
+
+    const window = resolveLoopWindow(song, "missing-section");
+
+    expect(window?.sectionId).toBe("chorus-1");
+    expect(window?.startSeconds).toBe(40);
+    expect(window?.endSeconds).toBe(64);
+  });
+
+  it("filters loop windows to sections containing the selected role", () => {
+    const song = createDemoRehearsalSong();
+    const chorus = structuredClone(song.sections[0]!);
+    chorus.id = "chorus-1";
+    chorus.label = "chorus";
+    chorus.timeRange = { start: 40, end: 64 };
+    chorus.roles = chorus.roles.filter((role) => role.id !== "lead-vocal");
+    song.sections.push(chorus);
+
+    expect(
+      resolveLoopWindows(song, "lead-vocal").map((window) => window.sectionId),
+    ).toEqual(["verse-1"]);
+    expect(
+      resolveLoopWindows(song, "bass-guitar").map((window) => window.sectionId),
+    ).toEqual(["verse-1", "chorus-1"]);
+    expect(resolveLoopWindows(song).map((window) => window.sectionId)).toEqual([
+      "verse-1",
+      "chorus-1",
+    ]);
+  });
+
+  it("rejects a sparse hostile section array without scanning its declared length", () => {
+    const song = createDemoRehearsalSong();
+    song.sections = new Array(0xffffffff) as typeof song.sections;
+
+    expect(resolveLoopWindow(song)).toBeNull();
+  });
+
+  it("assumes 120 BPM when tempo is missing and keeps published tempo in range", () => {
+    expect(resolveRehearsalTempo(undefined)).toEqual({
+      tempoBpm: 120,
+      tempoAssumed: true,
+    });
+    expect(resolveRehearsalTempo(0)).toEqual({
+      tempoBpm: 120,
+      tempoAssumed: true,
+    });
+    expect(resolveRehearsalTempo(96)).toEqual({
+      tempoBpm: 96,
+      tempoAssumed: false,
+    });
+    expect(beatDurationMs(120)).toBe(500);
+  });
+
+  it("keeps playback speed inside the supported media contract", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const armed = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+
+    expect(rehearsalPlaybackRates()).toEqual([0.75, 1, 1.25]);
+    expect(isRehearsalPlaybackRate(0.75)).toBe(true);
+    expect(isRehearsalPlaybackRate(2)).toBe(false);
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "set-playback-rate",
+        rate: 0.75,
+      }).playbackRate,
+    ).toBe(0.75);
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "set-playback-rate",
+        rate: 2 as never,
+      }),
+    ).toBe(armed);
+  });
+
+  it("counts in four beats then wraps the playhead inside the section", () => {
+    const song = createDemoRehearsalSong();
+    const loop = resolveLoopWindow(song);
+    expect(loop).not.toBeNull();
+    let state = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+    expect(nextActionTemplateKey(state, false)).toBe(
+      "workspaceLoopArmedNoAudio",
+    );
+    state = reduceRehearsalTransport(state, { type: "start" });
+    expect(state.phase).toBe("counting-in");
+    expect(state.countInRemainingBeats).toBe(4);
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    expect(state.phase).toBe("looping");
+    expect(state.playheadSeconds).toBe(loop!.startSeconds);
+    state = reduceRehearsalTransport(state, {
+      type: "tick",
+      deltaSeconds: loop!.endSeconds - loop!.startSeconds + 1.5,
+    });
+    expect(state.playheadSeconds).toBeCloseTo(loop!.startSeconds + 1.5);
+    expect(wrapPlayhead(loop!.endSeconds, loop!)).toBe(loop!.startSeconds);
+  });
+
+  it("syncs the map clock from an admitted media playhead", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const looping = {
+      ...reduceRehearsalTransport(createIdleTransportState(), {
+        type: "arm",
+        loop,
+      }),
+      phase: "looping" as const,
+      countInRemainingBeats: 0,
+    };
+
+    const synced = reduceRehearsalTransport(looping, {
+      type: "sync",
+      playheadSeconds: 17.25,
+    });
+
+    expect(synced.playheadSeconds).toBe(17.25);
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "sync",
+        playheadSeconds: Number.NaN,
+      }).playheadSeconds,
+    ).toBe(loop!.startSeconds);
+  });
+
+  it("clamps seek to the loop and rejects it during count-in", () => {
+    const loop = resolveLoopWindow(createDemoRehearsalSong());
+    const armed = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+    expect(
+      reduceRehearsalTransport(armed, {
+        type: "seek",
+        playheadSeconds: 15,
+      }),
+    ).toBe(armed);
+
+    const looping = {
+      ...armed,
+      phase: "looping" as const,
+      countInRemainingBeats: 0,
+    };
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "seek",
+        playheadSeconds: -1,
+      }).playheadSeconds,
+    ).toBe(loop!.startSeconds);
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "seek",
+        playheadSeconds: loop!.endSeconds + 1,
+      }).playheadSeconds,
+    ).toBe(loop!.startSeconds);
+    expect(
+      reduceRehearsalTransport(looping, {
+        type: "seek",
+        playheadSeconds: 17.5,
+      }).playheadSeconds,
+    ).toBe(17.5);
+  });
+
+  it("resumes the remaining count-in beats after pausing during count-in", () => {
+    const song = createDemoRehearsalSong();
+    const loop = resolveLoopWindow(song);
+    let state = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+    state = reduceRehearsalTransport(state, { type: "start" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    expect(state.countInRemainingBeats).toBe(3);
+    state = reduceRehearsalTransport(state, { type: "pause" });
+    expect(state.phase).toBe("paused");
+
+    state = reduceRehearsalTransport(state, { type: "start" });
+
+    expect(state.phase).toBe("counting-in");
+    expect(state.countInRemainingBeats).toBe(3);
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    state = reduceRehearsalTransport(state, { type: "beat" });
+    expect(state.phase).toBe("looping");
+  });
+
+  it("pauses a live loop and names the next play action", () => {
+    const song = createDemoRehearsalSong();
+    const loop = resolveLoopWindow(song, song.sections[0]!.id);
+    let state = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop,
+    });
+    state = reduceRehearsalTransport(state, { type: "start" });
+    state = reduceRehearsalTransport(
+      { ...state, phase: "looping", countInRemainingBeats: 0 },
+      { type: "pause" },
+    );
+    expect(state.phase).toBe("paused");
+    expect(nextActionTemplateKey(state, true)).toBe("workspaceLoopPaused");
+    expect(
+      fillRehearsalCopy(
+        "Loop {section} from {start}–{end}.",
+        nextActionValues(state),
+      ),
+    ).toContain(song.sections[0]!.label);
+    state = reduceRehearsalTransport(state, { type: "stop" });
+    expect(state.phase).toBe("armed");
+    expect(state.playheadSeconds).toBe(loop!.startSeconds);
+  });
+
+  it("formats a safe clock and stays idle when no playable section exists", () => {
+    expect(formatRehearsalClock(Number.NaN)).toBe("0:00");
+    expect(formatRehearsalClock(125)).toBe("2:05");
+    const song = createDemoRehearsalSong();
+    song.sections = [];
+    expect(resolveLoopWindow(song)).toBeNull();
+    const idle = reduceRehearsalTransport(createIdleTransportState(), {
+      type: "arm",
+      loop: null,
+    });
+    expect(nextActionTemplateKey(idle, true)).toBe("workspaceLoopIdle");
+    expect(reduceRehearsalTransport(idle, { type: "start" }).phase).toBe(
+      "idle",
+    );
+  });
+});
