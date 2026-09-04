@@ -158,6 +158,7 @@ fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, 
     if !metadata.is_file() || metadata.len() == 0 {
         return Err("Could not read the selected audio file.".into());
     }
+    validate_audio_file_size(metadata.len())?;
     let file_name = canonical
         .file_name()
         .and_then(|value| value.to_str())

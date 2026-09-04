@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -12,18 +11,23 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from bandscope_analysis.audio_decode import decode_mono_audio
+from bandscope_analysis.audio_resource_policy import (
+    MAX_DURATION_SECONDS,
+    MAX_ENCODED_FILE_BYTES,
+    TARGET_SAMPLING_RATE_HZ,
+    AudioResourcePolicyError,
+    policy_rejection_message,
+)
+
 from .model import TemporalFeatures
 
 logger = logging.getLogger(__name__)
 
-# Standard sample rate for BandScope analysis
-TARGET_SR = 44100
-MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
-MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
-KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
-    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
-    (FutureWarning, r".*Numba.*", r".*numba.*"),
-)
+MAX_ANALYSIS_DURATION_SECONDS = MAX_DURATION_SECONDS
+MAX_AUDIO_FILE_BYTES = MAX_ENCODED_FILE_BYTES
+TARGET_SR = TARGET_SAMPLING_RATE_HZ
+
 # ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
 BEATS_PER_BAR = 4
 
@@ -78,40 +82,18 @@ class TemporalAnalyzer:
         try:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
+                # MAX_AUDIO_FILE_BYTES remains monkeypatchable for tests.
                 if file_size > MAX_AUDIO_FILE_BYTES:
-                    raise ValueError(
-                        f"Audio file is too large for temporal analysis: {file_size} bytes "
-                        f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
+                    raise AudioResourcePolicyError(
+                        "encoded_file_too_large",
+                        policy_rejection_message("encoded_file_too_large"),
                     )
 
-                with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
-                    warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
-
-                    # Keep the loader's known third-party churn quiet without hiding
-                    # unrelated decoder warnings that tests and callers should see.
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    # Load audio, converting to mono and standardizing sample rate
-                    y, sr = librosa.load(
-                        fileobj,
-                        sr=TARGET_SR,
-                        mono=True,
-                        duration=MAX_ANALYSIS_DURATION_SECONDS,
-                    )
-
-            # Ensure it's a 1D float array for librosa
-            if not isinstance(y, np.ndarray):
-                raise ValueError("Expected numpy array from librosa.load")
-
-            y_array: NDArray[np.floating[Any]] = y
+            y_array, sr = decode_mono_audio(
+                path,
+                target_sample_rate_hz=TARGET_SR,
+                max_duration_seconds=MAX_ANALYSIS_DURATION_SECONDS,
+            )
             duration = float(librosa.get_duration(y=y_array, sr=sr))
 
             logger.info("Extracting tempo and beat tracking...")
@@ -139,6 +121,15 @@ class TemporalAnalyzer:
                 "audio_path": path_str,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+        except AudioResourcePolicyError as policy_error:
+            logger.info(
+                "Rejected audio against resource policy version %s (%s)",
+                policy_error.policy_version,
+                policy_error.rejection_reason,
+            )
+            raise
+        except ValueError:
+            raise
+        except Exception as analysis_error:
+            logger.error(f"Failed to analyze audio {path_str}: {analysis_error}")
+            raise ValueError(f"Temporal analysis failed: {analysis_error}") from analysis_error

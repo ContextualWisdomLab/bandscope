@@ -83,7 +83,7 @@ def test_temporal_analyzer_directory_does_not_call_decoder(
 
 
 def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Ensure temporal analyzer raises ValueError if librosa returns non-ndarray."""
+    """Malformed decoder output is contained behind the resource-policy boundary."""
     import librosa
 
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
@@ -91,12 +91,15 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
     def fake_load(*args, **kwargs):
         return "not-an-array", 22050
 
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_decode.preflight_audio_metadata", lambda _fileobj, _policy: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
     test_wav.write_bytes(b"dummy")
 
-    with pytest.raises(ValueError, match="Expected numpy array"):
+    with pytest.raises(ValueError, match="could not be read as audio"):
         TemporalAnalyzer().analyze(test_wav)
 
 
@@ -104,7 +107,7 @@ def test_temporal_analyzer_exception_handling(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Ensure temporal analyzer catches general exceptions and raises ValueError."""
+    """Third-party decoder details are contained behind payload-free policy copy."""
     import librosa
 
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
@@ -112,12 +115,15 @@ def test_temporal_analyzer_exception_handling(
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         raise Exception("Mocked general error")
 
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_decode.preflight_audio_metadata", lambda _fileobj, _policy: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
 
     test_wav = tmp_path / "test.wav"
     test_wav.write_bytes(b"dummy")
 
-    with pytest.raises(ValueError, match="Temporal analysis failed: Mocked general error"):
+    with pytest.raises(ValueError, match="could not be read as audio"):
         TemporalAnalyzer().analyze(test_wav)
 
 
@@ -138,12 +144,12 @@ def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(librosa, "load", fake_load)
 
     analyzer = TemporalAnalyzer()
-    with pytest.raises(ValueError, match="too large"):
+    with pytest.raises(ValueError, match="Choose a shorter or smaller song file to start analysis"):
         analyzer.analyze(test_wav)
 
 
 def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> None:
-    """Ensure librosa.load receives bounded duration for safer decode behavior."""
+    """Ensure the owned decode port receives the bounded analysis duration."""
     import librosa
 
     test_wav = tmp_path / "bounded.wav"
@@ -154,6 +160,9 @@ def test_temporal_analyzer_uses_duration_limit(monkeypatch, tmp_path: Path) -> N
         captured_kwargs.update(kwargs)
         return np.zeros(44100, dtype=float), 44100
 
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_decode.preflight_audio_metadata", lambda _fileobj, _policy: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
 
     def fake_beat_track(y, sr):
@@ -182,8 +191,11 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)
-        return np.zeros(1024, dtype=float), 44100
+        return np.zeros(44100, dtype=float), 44100
 
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_decode.preflight_audio_metadata", lambda _fileobj, _policy: None
+    )
     monkeypatch.setattr(librosa, "load", fake_load)
     monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)
     monkeypatch.setattr(

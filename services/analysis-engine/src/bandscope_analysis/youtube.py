@@ -14,6 +14,12 @@ from typing import Any, Dict, Optional
 
 import yt_dlp  # type: ignore
 
+from bandscope_analysis.audio_resource_policy import (
+    AudioResourcePolicyError,
+    validate_duration_seconds,
+    validate_encoded_file_bytes,
+)
+
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MAX_YOUTUBE_URL_LENGTH = 2000
 SUPPORTED_AUDIO_EXTENSIONS = (".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")
@@ -138,14 +144,17 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             if info is None:
                 raise Exception("Failed to extract info")
             duration = info.get("duration")
-            if duration is not None and duration > 15 * 60:
-                return {
-                    "ok": False,
-                    "error": {
-                        "code": "duration_exceeded",
-                        "message": "Video exceeds the 15-minute limit.",
-                    },
-                }
+            if duration is not None:
+                try:
+                    validate_duration_seconds(duration)
+                except AudioResourcePolicyError as policy_error:
+                    return {
+                        "ok": False,
+                        "error": {
+                            "code": policy_error.rejection_reason,
+                            "message": policy_error.safe_message,
+                        },
+                    }
 
             info = ydl.extract_info(url, download=True)
             if info is None:
@@ -163,16 +172,23 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                     },
                 }
 
-            if (
-                os.path.exists(actual_filepath)
-                and os.path.getsize(actual_filepath) > 50 * 1024 * 1024
-            ):
+            if not os.path.exists(actual_filepath):
+                return {
+                    "ok": False,
+                    "error": {
+                        "code": "file_not_found",
+                        "message": "Downloaded file could not be found.",
+                    },
+                }
+            try:
+                validate_encoded_file_bytes(os.path.getsize(actual_filepath))
+            except AudioResourcePolicyError as policy_error:
                 os.remove(actual_filepath)
                 return {
                     "ok": False,
                     "error": {
-                        "code": "size_exceeded",
-                        "message": "Downloaded file exceeds the 50MB limit.",
+                        "code": policy_error.rejection_reason,
+                        "message": policy_error.safe_message,
                     },
                 }
             return {

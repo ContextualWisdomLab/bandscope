@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 import io
-import warnings
 from dataclasses import dataclass
 
 import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-TARGET_SR = 22050
-MAX_STEM_BYTES = 50 * 1024 * 1024
-MAX_TRANSCRIPTION_DURATION_SECONDS = 120
+from bandscope_analysis.audio_decode import decode_mono_audio
+from bandscope_analysis.audio_resource_policy import (
+    MAX_DURATION_SECONDS,
+    MAX_ENCODED_FILE_BYTES,
+    AudioResourcePolicyError,
+    policy_rejection_message,
+)
+
+TARGET_SR = 22050  # pYIN feature DSP rate after canonical resource validation
+MAX_STEM_BYTES = MAX_ENCODED_FILE_BYTES
+MAX_TRANSCRIPTION_DURATION_SECONDS = MAX_DURATION_SECONDS
 FRAME_LENGTH = 2048
 HOP_LENGTH = 512
 MIN_NOTE_DURATION_SECONDS = 0.05
@@ -40,18 +47,17 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
     if not stem_data:
         return []
     if len(stem_data) > MAX_STEM_BYTES:
-        raise ValueError("Stem data is too large for transcription.")
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
-        y, sr = librosa.load(
-            io.BytesIO(stem_data),
-            sr=TARGET_SR,
-            mono=True,
-            duration=MAX_TRANSCRIPTION_DURATION_SECONDS,
+        raise AudioResourcePolicyError(
+            "encoded_file_too_large",
+            policy_rejection_message("encoded_file_too_large"),
         )
 
-    y_array = np.asarray(y, dtype=np.float32)
+    y_array, sr = decode_mono_audio(
+        io.BytesIO(stem_data),
+        target_sample_rate_hz=TARGET_SR,
+        max_duration_seconds=MAX_TRANSCRIPTION_DURATION_SECONDS,
+    )
+
     if y_array.size == 0 or float(np.max(np.abs(y_array))) < MIN_SIGNAL_PEAK:
         return []
 
@@ -154,7 +160,7 @@ def _contiguous_regions(mask: NDArray[np.bool_]) -> list[tuple[int, int]]:
 
 
 def _merge_adjacent_equal_pitches(events: list[NoteEvent]) -> list[NoteEvent]:
-    """Merge short pitch-equivalent fragments split by frame-level voicing gaps."""
+    """Merge note fragments when pYIN briefly drops voicing."""
     merged: list[NoteEvent] = []
     for event in events:
         if not merged:

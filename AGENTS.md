@@ -72,6 +72,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - `docs/operations/deploy-runbook.md`
 - `docs/brand-story.md`
 - `docs/security/app-security.md`
+- `docs/doctoring/audio-resource-policy.md`
 - `docs/security/dependency-policy.md`
 - `docs/security/cross-platform-build-policy.md`
 - `docs/workflow/github-bootstrap-execution-policy.md`
@@ -90,6 +91,7 @@ This section applies to any agent (Claude, Codex, Cursor, opencode, ...) working
 - Do not add network-dependent runtime paths for local analysis.
 - Treat YouTube import as policy-constrained and fallback-friendly.
 - Treat files, URLs, metadata, model artifacts, and project files as untrusted input.
+- Apply the canonical audio resource policy in `bandscope_analysis.audio_resource_policy` (15 minutes / 100 MiB / mono-stereo / 44.1 kHz target) before decode or feature DSP. Do not invent a five-minute cap or a silent 120-second transcription window. Rejection copy must name the next rehearsal action and stay payload-free.
 - Do not add generic exec/read/write APIs.
 - Use `shell=False`-style subprocess invocation with argument arrays only.
 - Keep local backend access on allowlisted IPC or `127.0.0.1` only, with strict schema validation.

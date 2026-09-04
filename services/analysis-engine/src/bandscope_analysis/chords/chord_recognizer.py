@@ -7,6 +7,7 @@ import librosa
 import numpy as np
 
 from .._native import HAVE_RUST, _viterbi_decode_rust
+from ..audio_resource_policy import validate_decoded_audio
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,9 @@ class ChordRecognizer:
     Security Notes:
     - Processes untrusted audio arrays from stem separation.
     - No file I/O, network access, or shell execution.
-    - Bounded computation: frame count capped by input duration.
+    - Revalidates decoded layout, sampling rate, duration, and memory against
+      the canonical audio resource policy before DSP allocation.
+    - Bounded computation: frame count capped by the admitted input duration.
     - Safe failure: exceptions in DSP steps return empty results.
     """
 
@@ -396,8 +399,10 @@ class ChordRecognizer:
         Returns:
             List of TrackedChord dicts with start_time, end_time, chord, and confidence.
         """
-        if len(y) == 0:
+        if y.size == 0:
             return []
+
+        validate_decoded_audio(y, sr)
 
         y_harmonic = self._separate_harmonic(y)
         chromagram = self._extract_chromagram(y_harmonic, sr)

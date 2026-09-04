@@ -454,7 +454,7 @@ def test_audio_stem_separator_rejects_oversized_audio_file(tmp_path) -> None:
     separator = AudioStemSeparator(
         AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=8)
     )
-    with pytest.raises(ValueError, match="Audio file is too large for stem separation"):
+    with pytest.raises(ValueError, match="Choose a shorter or smaller song file to start analysis"):
         separator.separate(audio_path)
 
 
@@ -465,6 +465,10 @@ def test_audio_stem_separator_rejects_empty_decoder_output(
     """Ensure empty decoder output fails safely."""
     audio_path = tmp_path / "empty.wav"
     audio_path.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda _fileobj: None,
+    )
     monkeypatch.setattr(
         "bandscope_analysis.separation.audio_separator.librosa.load",
         lambda *args, **kwargs: (np.array([], dtype=np.float32), 8_000),
@@ -485,6 +489,10 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
     def fail_decode(*args, **kwargs):
         raise RuntimeError(f"decoder failed under {tmp_path}")
 
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        lambda _fileobj: None,
+    )
     monkeypatch.setattr(
         "bandscope_analysis.separation.audio_separator.librosa.load",
         fail_decode,

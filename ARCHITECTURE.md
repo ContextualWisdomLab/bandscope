@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-23
 
 ## Brand source
 
@@ -54,6 +54,15 @@ Last updated: 2026-03-11
 - Prefer local processing, predictable storage locations, and minimal network use.
 - Split privilege where feasible across UI, analysis workers, subprocesses, model delivery, and updater behavior.
 - Fail safely when a link, file, artifact, or boundary cannot be validated.
+
+## Canonical audio resource policy
+
+- Local audio admission is versioned in `services/analysis-engine/src/bandscope_analysis/audio_resource_policy.py` and documented in `docs/doctoring/audio-resource-policy.md`.
+- Policy version 1 admits one rehearsal recording up to 15 minutes, 100 MiB encoded, mono or stereo, with source rates from 8 kHz through 192 kHz and a 44.1 kHz analysis target.
+- Feature analyzers must not invent a shorter silent cap (including the former 120-second transcription window or a five-minute chord guard). Feature DSP resampling happens after canonical validation.
+- Encoded size is checked before decode; decoded layout, sample count, duration, and memory are revalidated because container metadata is untrusted.
+- Size conversions use checked arithmetic and fail closed on overflow or non-finite metadata. User-facing copy is payload-free and names the next file-selection action.
+- YouTube import uses the same 15-minute / 100 MiB ceiling as local files.
 
 ## Repository map
 

@@ -31,16 +31,24 @@ from typing import Any, cast
 import librosa
 import numpy as np
 
-from bandscope_analysis.temporal.analyzer import (
-    KNOWN_LIBROSA_NUMBA_WARNING_FILTERS,
-    MAX_ANALYSIS_DURATION_SECONDS,
-    MAX_AUDIO_FILE_BYTES,
-    TARGET_SR,
+from bandscope_analysis.audio_decode import KNOWN_LIBROSA_NUMBA_WARNING_FILTERS
+from bandscope_analysis.audio_metadata import preflight_audio_metadata
+from bandscope_analysis.audio_resource_policy import (
+    MAX_DURATION_SECONDS,
+    MAX_ENCODED_FILE_BYTES,
+    TARGET_SAMPLING_RATE_HZ,
+    AudioResourcePolicyError,
+    policy_rejection_message,
+    validate_decoded_audio,
 )
 
 from .model import AudioSeparationResult, AudioStemArray, AudioStemName, AudioStemPayload
 
 logger = logging.getLogger(__name__)
+
+MAX_ANALYSIS_DURATION_SECONDS = MAX_DURATION_SECONDS
+MAX_AUDIO_FILE_BYTES = MAX_ENCODED_FILE_BYTES
+TARGET_SR = TARGET_SAMPLING_RATE_HZ
 
 # Demucs htdemucs emits these four sources; this is the canonical stem set.
 _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
@@ -83,8 +91,6 @@ class AudioStemSeparator:
         """Separate local audio into vocals, bass, drums, and other stems."""
         path = self._resolve_audio_file(audio_path)
         audio, sample_rate = self._load_audio(path)
-        if audio.size == 0:
-            raise ValueError(f"Stem separation decode failed for {path.name}")
 
         stem_arrays = self._separate_signal(audio, sample_rate)
         stems: AudioStemPayload = {
@@ -195,10 +201,12 @@ class AudioStemSeparator:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
                 if file_size > self.config.max_file_bytes:
-                    raise ValueError(
-                        "Audio file is too large for stem separation: "
-                        f"{file_size} bytes (max {self.config.max_file_bytes} bytes)"
+                    raise AudioResourcePolicyError(
+                        "encoded_file_too_large",
+                        policy_rejection_message("encoded_file_too_large"),
                     )
+
+                preflight_audio_metadata(path)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
@@ -213,7 +221,7 @@ class AudioStemSeparator:
                             module=module,
                         )
                     y, sr = librosa.load(
-                        fileobj,
+                        path,
                         sr=self.config.target_sample_rate,
                         mono=True,
                         duration=self.config.max_duration_seconds,
@@ -223,7 +231,11 @@ class AudioStemSeparator:
         except Exception as error:
             raise ValueError(f"Stem separation decode failed for {path.name}") from error
 
-        return _as_float_array(y), int(sr)
+        decoded = np.ravel(np.asarray(y, dtype=np.float32))
+        if decoded.size == 0:
+            raise ValueError(f"Stem separation decode failed for {path.name}")
+        validate_decoded_audio(decoded, int(sr))
+        return _as_float_array(decoded), int(sr)
 
     def _fit_length(self, audio: AudioStemArray, target_length: int) -> AudioStemArray:
         """Trim or pad a stem to match the source length exactly."""

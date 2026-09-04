@@ -3,7 +3,9 @@
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
+from bandscope_analysis.audio_resource_policy import policy_rejection_message
 from bandscope_analysis.chords.chord_recognizer import (
     ChordRecognizer,
     _confidence_rank,
@@ -18,6 +20,14 @@ def test_chord_recognizer_empty_audio() -> None:
     recognizer = ChordRecognizer()
     result = recognizer.recognize(np.array([]), sr=22050)
     assert result == []
+
+
+def test_chord_recognizer_rejects_unsupported_channel_layout() -> None:
+    """Downstream chord DSP must not invent a layout outside the canonical policy."""
+    recognizer = ChordRecognizer()
+    audio = np.zeros((8, SAMPLE_RATE), dtype=np.float32)
+    with pytest.raises(ValueError, match=policy_rejection_message("channel_count_unsupported")):
+        recognizer.recognize(audio, sr=SAMPLE_RATE)
 
 
 def test_chord_recognizer_unvoiced_audio() -> None:

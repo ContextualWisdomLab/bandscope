@@ -40,6 +40,12 @@ pub const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 
 pub const AUDIO_EXTENSIONS: [&str; 4] = ["wav", "mp3", "flac", "m4a"];
 
+/// Canonical encoded-audio ceiling shared by desktop intake and the engine.
+pub const MAX_AUDIO_FILE_BYTES: u64 = 100 * 1024 * 1024;
+
+pub const AUDIO_FILE_TOO_LARGE_MESSAGE: &str =
+    "Choose a shorter or smaller song file to start analysis.";
+
 pub const MISSING_ANALYSIS_PYTHON: &str = "__bandscope_missing_analysis_python__";
 
 pub const YOUTUBE_IMPORT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -296,6 +302,14 @@ pub struct ProjectBootstrapSummaryPayload {
     pub source: LocalAudioSourcePayload,
 }
 
+/// Reject an encoded audio file that exceeds the canonical resource ceiling.
+pub fn validate_audio_file_size(file_size_bytes: u64) -> Result<(), String> {
+    if file_size_bytes > MAX_AUDIO_FILE_BYTES {
+        return Err(AUDIO_FILE_TOO_LARGE_MESSAGE.to_string());
+    }
+    Ok(())
+}
+
 pub fn next_project_id(state: &AppState) -> String {
     format!(
         "project-{}-{}",
@@ -344,6 +358,7 @@ pub fn youtube_source_from_metadata(
     if !file_metadata.is_file() || file_metadata.len() == 0 {
         return Err("YouTube import returned an invalid audio file.".to_string());
     }
+    validate_audio_file_size(file_metadata.len())?;
 
     let extension = canonical
         .extension()
@@ -841,6 +856,15 @@ mod tests {
         let payload = shared_contract_payload(json!({ "start": 30, "end": 10 }));
 
         assert!(serde_json::from_value::<RehearsalSongPayload>(payload).is_err());
+    }
+
+    #[test]
+    fn audio_file_size_uses_the_canonical_resource_ceiling() {
+        assert!(validate_audio_file_size(MAX_AUDIO_FILE_BYTES).is_ok());
+        assert_eq!(
+            validate_audio_file_size(MAX_AUDIO_FILE_BYTES + 1),
+            Err(AUDIO_FILE_TOO_LARGE_MESSAGE.to_string())
+        );
     }
 
     #[test]
