@@ -738,6 +738,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[0]?.riffPlan).toContain("verse riff");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -831,6 +832,30 @@ describe("shared type helpers", () => {
         headline: "oops"
       }
     })).toThrow("exportSummary.format");
+  });
+
+  it("keeps optional riff plans aligned with Rust project loading", () => {
+    for (const riffPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "Keep the riff\nthen move",
+      "Keep the riff\rthen move",
+      "Keep the riff\u0085then move",
+      "Keep the riff\u2028then move",
+      "Keep the riff\u2029then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.riffPlan = riffPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].riffPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[0]!.riffPlan = "\uFEFF Keep the riff \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 
   it("round-trips score attachment metadata and rejects malformed entries", () => {
@@ -1255,6 +1280,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].riffPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.riffPlan = 2 as never;
         })
       },
       {
