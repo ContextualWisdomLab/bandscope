@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { derivePlaybackSourceOptions } from "./playbackSourceSelection";
+import {
+  derivePlaybackSourceOptions,
+  playbackSourceProjectId,
+} from "./playbackSourceSelection";
 
 const fullMix = "bandscope-project://project-100-1";
 const stems = {
@@ -64,5 +67,19 @@ describe("playback source selection authority", () => {
         stems.other,
       ]),
     ).toBeNull();
+  });
+
+  it("extracts project identity only from canonical opaque playback authorities", () => {
+    expect(playbackSourceProjectId(fullMix)).toBe("project-100-1");
+    expect(playbackSourceProjectId(stems.other)).toBe("project-100-1");
+    for (const invalid of [
+      null,
+      42,
+      "file:///private/source.wav",
+      "bandscope-project://project-100-1/stem/guitar",
+      `${stems.vocals}/../private.wav`,
+    ]) {
+      expect(playbackSourceProjectId(invalid)).toBeNull();
+    }
   });
 });
