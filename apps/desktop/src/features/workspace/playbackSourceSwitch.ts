@@ -175,3 +175,24 @@ export function admitPlaybackSourceSwitchTarget(
   }
   return plan;
 }
+
+/**
+ * Retire one admitted media-switch receipt without letting a stale or copied plan
+ * clear a newer target. The caller may invoke this only after target admission;
+ * premature retirement fails safe by removing restoration authority, never by
+ * granting playback authority.
+ */
+export function completePlaybackSourceSwitch(
+  state: PlaybackSourceSwitchSession,
+  admittedPlan: PlaybackSourceSwitchPlan | null,
+): PlaybackSourceSwitchSession {
+  if (
+    admittedPlan === null ||
+    state.activePlan === null ||
+    state.activePlan !== admittedPlan ||
+    state.sequence !== admittedPlan.sequence
+  ) {
+    return state;
+  }
+  return freezePlaybackSourceSwitchSession(state.sequence, null);
+}
