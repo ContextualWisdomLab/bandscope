@@ -4,6 +4,7 @@ import type {
   RehearsalTransportState,
 } from "./rehearsalTransport";
 import {
+  abortPlaybackSourceSwitch,
   admitPlaybackSourceSwitchTarget,
   beginPlaybackSourceSwitch,
   completePlaybackSourceSwitch,
@@ -85,6 +86,52 @@ describe("playback source switch completion", () => {
     expect(completePlaybackSourceSwitch(second.state, staleAdmitted)).toBe(
       second.state,
     );
+    expect(second.state.activePlan).toBe(second.plan);
+  });
+
+  it("retires only the exact active receipt when target metadata fails admission", () => {
+    const begun = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport,
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    expect(
+      admitPlaybackSourceSwitchTarget(
+        begun.plan,
+        40,
+        vocalsAuthority,
+        begun.state.sequence,
+      ),
+    ).toBeNull();
+
+    const aborted = abortPlaybackSourceSwitch(begun.state, begun.plan);
+
+    expect(aborted).toEqual({ sequence: 1, activePlan: null });
+    expect(Object.isFrozen(aborted)).toBe(true);
+    expect(abortPlaybackSourceSwitch(begun.state, { ...begun.plan! })).toBe(
+      begun.state,
+    );
+  });
+
+  it("does not let a stale failed receipt clear a newer active switch", () => {
+    const first = beginPlaybackSourceSwitch(
+      createPlaybackSourceSwitchSession(),
+      transport,
+      37.25,
+      fullMixAuthority,
+      vocalsAuthority,
+    );
+    const second = beginPlaybackSourceSwitch(
+      first.state,
+      transport,
+      37.25,
+      vocalsAuthority,
+      bassAuthority,
+    );
+
+    expect(abortPlaybackSourceSwitch(second.state, first.plan)).toBe(second.state);
     expect(second.state.activePlan).toBe(second.plan);
   });
 });
