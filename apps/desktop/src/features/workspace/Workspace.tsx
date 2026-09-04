@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { firstLeftoverLastDropoutRemainingLastReturn } from "./firstLeftoverLastDropoutRemainingLastReturn";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -163,6 +164,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         }
       )
     : t("workspaceFirstRangeMissing");
+  const namedLeftoverLastDropoutRemainingLastReturn = useMemo(
+    () => firstLeftoverLastDropoutRemainingLastReturn(song, activeRole),
+    [activeRole, song]
+  );
+  const firstLeftoverLastDropoutRemainingLastReturnCopy = namedLeftoverLastDropoutRemainingLastReturn
+    ? fillRangeCopy(
+        t(
+          activeRole && activeRole === namedLeftoverLastDropoutRemainingLastReturn.remainingRoleId
+            ? "workspaceFirstLeftoverLastDropoutRemainingLastReturnComeIn"
+            : "workspaceFirstLeftoverLastDropoutRemainingLastReturnNamed"
+        ),
+        {
+          remainingRoleName: namedLeftoverLastDropoutRemainingLastReturn.remainingRoleName,
+          sectionLabel: namedLeftoverLastDropoutRemainingLastReturn.sectionLabel,
+          remainingSectionLabel: namedLeftoverLastDropoutRemainingLastReturn.remainingSectionLabel
+        }
+      )
+    : t("workspaceFirstLeftoverLastDropoutRemainingLastReturnMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
@@ -308,6 +327,18 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+          <section
+            className="rounded-2xl border border-rose-300/20 bg-rose-300/[0.07] p-4"
+            data-testid="first-leftover-last-dropout-remaining-last-return"
+            aria-label={t("workspaceFirstLeftoverLastDropoutRemainingLastReturnTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-rose-200">
+              {t("workspaceFirstLeftoverLastDropoutRemainingLastReturnTitle")}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">
+              {firstLeftoverLastDropoutRemainingLastReturnCopy}
+            </p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
