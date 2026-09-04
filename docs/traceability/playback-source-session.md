@@ -4,9 +4,9 @@
 - **Date:** 2026-09-05
 - **Bounded context:** Active Player / renderer playback-source session and media-switch continuity
 - **Protected product source:** `develop@314ddeae7b775a4957594b599358c8255617eb2e`
-- **Canonical Active Player owner:** PR #971 `9c1b20e6df778e303fada3e170c93418c496394b`
-- **Stem publication parent:** PR #1159 `22a9f18d960cc7df93db890b2a5aa9594428c2b4`
-- **Current native/UI child source head before this documentation update:** PR #1160 `799c6b6e25a0fa290fba61f7ebdd303350f87888`
+- **Canonical Active Player owner:** PR #971 `09bedd835475015379716292e63e6be376fceec9`
+- **Stem publication parent:** PR #1159 `c27f3781ddcbcc013dce07a26c0baf6080e4b2ac`
+- **Current native/UI child source head before this documentation update:** PR #1160 `8a9484424783a3950f4c3deb0c0e2ee6f33e2bc0`
 
 ## Problem
 
@@ -45,6 +45,15 @@ The initial normalizer still had one fail-closed hole: an object with an own thr
 
 The catch is deliberately confined to untrusted discovery-payload normalization. It does not swallow unrelated player/media failures or weaken the canonical source projector.
 
+## Discovery identity exhaustion repair
+
+The first session implementation wrapped `requestSequence` from `Number.MAX_SAFE_INTEGER` back to `1`. Request matching is intentionally value-based on `{ fullMixAuthority, sequence }`, so a long-lived renderer session could eventually make an ancient sequence-1 receipt indistinguishable from a newly wrapped sequence-1 request for the same project. The practical counter horizon is extremely large, but reusing an authority receipt identity violates the stale-response invariant and is unnecessary.
+
+- RED `c899df46860921f74691ffb65351949f77e449bc` requires the session never to reuse a discovery identity after safe-integer exhaustion and proves an ancient `{ sequence: 1 }` receipt remains inadmissible.
+- Causal fix `8a9484424783a3950f4c3deb0c0e2ee6f33e2bc0` removes sequence wraparound. An exhausted or corrupted sequence fails closed to full-mix-only state with no pending native discovery. A new mounted `PlaybackSourceSession` is required before discovery can resume.
+
+This does not broaden authority or introduce another session owner. It makes the existing monotonic request identity actually monotonic for the lifetime of the renderer session.
+
 ## Source-switch continuity and stale media-receipt repair
 
 The branch had already adopted a source-switch continuity contract:
@@ -71,4 +80,4 @@ Fresh Actions lookup on the preceding exact source heads returned no pull-reques
 
 ## Delivery gate
 
-**FAIL.** Stale/hostile discovery-session admission, source-switch continuity, and stale media-receipt rejection are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
+**FAIL.** Stale/hostile discovery-session admission, non-reused discovery identity, source-switch continuity, and stale media-receipt rejection are represented in source. The mounted selector, actual media-switch transaction, current-head required CI/security/coverage/build evidence, eight-locale UI evidence and rights-cleared real-audio desktop acceptance are not complete.
