@@ -72,6 +72,18 @@ pub fn validate_analysis_process_status_for_job(
     }
 }
 
+/// Return whether a validated status is safe to expose as in-flight progress.
+///
+/// Producer terminal states are withheld until the subprocess exits and the
+/// complete JSONL stream is known to be valid. This prevents an early succeeded
+/// event from being observed before a later malformed line fails the process.
+pub fn is_analysis_process_progress_status(process_status: &AnalysisProcessStatus) -> bool {
+    matches!(
+        &process_status.renderer_status.state,
+        AnalysisJobState::Queued | AnalysisJobState::Running
+    )
+}
+
 /// Require the process's final retained envelope to be terminal and job-local.
 pub fn validate_final_analysis_process_status<'a>(
     process_status: Option<&'a AnalysisProcessStatus>,
