@@ -161,28 +161,30 @@ export function beginPlaybackSourceSwitch(
 }
 
 /**
- * Admit the decoded target only when it still belongs to the active switch receipt
- * and can cover the selected loop and captured position.
+ * Admit decoded target metadata only for the exact active switch receipt.
  *
  * `loadedmetadata` belongs to a mutable media element rather than to the source that
- * initiated the event. Matching both the target authority and monotonic renderer
- * sequence prevents a late receipt from an older load from restoring stale transport
- * state after a newer source selection has already superseded it.
+ * initiated the event. The caller therefore supplies the current renderer switch
+ * session, and admission requires exact issued-plan identity as well as target,
+ * sequence, and duration coverage. A frozen look-alike object with identical scalar
+ * fields is not authority and cannot restore transport state.
  */
 export function admitPlaybackSourceSwitchTarget(
+  state: PlaybackSourceSwitchSession,
   plan: PlaybackSourceSwitchPlan | null,
   targetDurationSeconds: number,
   currentTargetAuthority: string,
-  currentSequence: number,
 ): PlaybackSourceSwitchPlan | null {
   if (
     !plan ||
+    state.activePlan === null ||
+    state.activePlan !== plan ||
+    state.sequence !== plan.sequence ||
     !Number.isFinite(targetDurationSeconds) ||
     targetDurationSeconds <= 0 ||
     plan.targetAuthority !== currentTargetAuthority ||
-    plan.sequence !== currentSequence ||
-    !Number.isSafeInteger(currentSequence) ||
-    currentSequence <= 0 ||
+    !Number.isSafeInteger(state.sequence) ||
+    state.sequence <= 0 ||
     plan.seekSeconds >= targetDurationSeconds ||
     plan.loopEndSeconds > targetDurationSeconds
   ) {
