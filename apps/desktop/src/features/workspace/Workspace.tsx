@@ -4,6 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { FirstDropoutCallout } from "./FirstDropoutCallout";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -91,8 +92,8 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
+          {sections.map((section, sectionIndex) => (
+            <div key={`${section.id}-${sectionIndex}`} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
               <p className="text-sm font-black text-white">
                 {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
               </p>
@@ -352,6 +353,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               </p>
             </section>
           </div>
+
+          <FirstDropoutCallout song={song} />
 
           <SongStructure sections={song.sections} t={t} />
 
