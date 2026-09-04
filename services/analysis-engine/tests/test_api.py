@@ -9,6 +9,7 @@ import numpy as np
 from bandscope_analysis.api import (
     _build_local_audio_features,
     _feature_cache_paths,
+    _legacy_feature_cache_paths,
     _load_cached_analysis,
     _load_cached_local_audio_features,
     _run_stem_separation_with_timeout,
@@ -582,9 +583,10 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
             ("succeeded", "ready", 100),
         ]
         assert updates[-1]["cacheStatus"] == "stored"
-        cache_files = list((tmp_path / "cache" / "analysis-cache-v1").glob("*.json"))
-        assert len([path for path in cache_files if not path.name.endswith(".features.json")]) == 1
-        assert len([path for path in cache_files if path.name.endswith(".features.json")]) == 1
+        analysis_cache_files = list((tmp_path / "cache" / "analysis-cache-v2").glob("*.json"))
+        feature_cache_files = list((tmp_path / "cache" / "feature-cache-v1").glob("*"))
+        assert len(analysis_cache_files) == 1
+        assert len(feature_cache_files) == 2
 
         cached_updates = list(
             run_analysis_job_updates("job-cache-2", payload, "2026-03-12T00:00:00Z")
@@ -649,6 +651,7 @@ def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
         "[]",
         '{"schemaVersion": 999, "result": {}}',
         '{"schemaVersion": 1, "result": []}',
+        '{"schemaVersion": 2, "result": []}',
     ):
         cache_path.write_text(content, encoding="utf-8")
         assert _load_cached_analysis(cache_path) is None
@@ -768,6 +771,57 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
     assert updates[-1]["state"] == "succeeded"
     separator_class.return_value.separate.assert_not_called()
     store_features.assert_not_called()
+
+
+def test_local_feature_cache_reuses_v1_files_after_analysis_schema_bump(tmp_path) -> None:
+    """Keep reading v1 feature files after the final analysis cache moves to v2."""
+    request = validate_analysis_job_request(
+        {
+            "sourceKind": "local_audio",
+            "projectId": "project-cache",
+            "sourceLabel": "late-night-set.wav",
+            "roleFocus": ["bass-guitar"],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+            "cacheRoot": str(tmp_path / "cache"),
+        }
+    )
+    current_paths = _feature_cache_paths(request)
+    legacy_paths = _legacy_feature_cache_paths(request)
+    assert current_paths is not None
+    assert legacy_paths is not None
+    assert current_paths != legacy_paths
+
+    features = {
+        "stems": {"vocals": np.zeros(256), "bass": np.zeros(256)},
+        "sr": 22050,
+        "stem_role_types": {"vocals": "vocal", "bass": "instrument"},
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "v1"},
+    }
+    assert _store_cached_local_audio_features(*legacy_paths, request, features) is True
+
+    with (
+        patch("bandscope_analysis.api._load_cached_analysis", return_value=None),
+        patch(
+            "bandscope_analysis.api._build_local_audio_features",
+            side_effect=AssertionError("legacy feature cache should be reused"),
+        ),
+        patch("bandscope_analysis.api._store_cached_analysis", return_value=True),
+        patch("bandscope_analysis.api.AudioStemSeparator"),
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        updates = list(run_analysis_job_updates("job-feature-v1", request, "2026-03-12T00:00:00Z"))
+
+    assert updates[1]["progressLabel"] == "Loaded reusable stems... (45%)"
+    assert updates[-1]["state"] == "succeeded"
 
 
 def test_stem_work_arrays_path_requires_local_temp_root(tmp_path) -> None:

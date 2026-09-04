@@ -178,19 +178,47 @@ pub struct ManualOverridePayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum DropPlanSourcePayload {
+    Model,
+    User,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    practice_progress: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drop_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drop_plan_source: Option<DropPlanSourcePayload>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -527,9 +555,73 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Mirrors shared-types plan validation without normalizing persisted text.
+fn is_valid_drop_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
+fn validate_drop_plan_provenance(
+    payload: RehearsalSongPayload,
+) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role
+                .practice_progress
+                .is_some_and(|progress| progress > 100)
+            {
+                return Err("Invalid project file format".to_string());
+            }
+            if role
+                .drop_plan
+                .as_deref()
+                .is_some_and(|drop_plan| !is_valid_drop_plan(drop_plan))
+            {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.drop_plan.is_none() && role.drop_plan_source.is_some() {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.drop_plan.is_some() && role.drop_plan_source.is_none() {
+                return Err("Invalid project file format".to_string());
+            }
+        }
+    }
+    Ok(payload)
+}
+
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_drop_plan_provenance(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +639,9 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_drop_plan_provenance(parsed)
 }
 
 #[derive(Clone, Debug, Serialize)]

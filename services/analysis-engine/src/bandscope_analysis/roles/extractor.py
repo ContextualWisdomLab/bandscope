@@ -22,6 +22,11 @@ from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_DROP_PLAN_SOLO = "Hit this drop; come in together when the texture fills."
+_DROP_PLAN_PREFIX = "Hit this drop with "
+_DROP_PLAN_SUFFIX = "; come in together when the texture fills."
+
 
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
@@ -71,8 +76,13 @@ class RoleExtractor:
                 # Real activity-based topology
                 current_activity = activity_maps[i]
                 next_activity = activity_maps[i + 1] if i + 1 < len(activity_maps) else None
+                previous_activity = activity_maps[i - 1] if i > 0 else None
                 topology = self._build_activity_topology(
-                    section_id, roles, current_activity, next_activity
+                    section_id,
+                    roles,
+                    current_activity,
+                    next_activity,
+                    previous_activity,
                 )
             else:
                 # Fallback to heuristic-based topology
@@ -330,12 +340,80 @@ class RoleExtractor:
             "acoustic_guitar": acoustic_guitar_role,
         }
 
+    @staticmethod
+    def _source_id(role_id: str) -> str:
+        """Collapse accompaniment stems onto one rehearsal source."""
+        return "other" if role_id in _OTHER_STEM_ROLE_IDS else role_id
+
+    @staticmethod
+    def _active_role_ids(role_activity: dict[str, bool]) -> set[str]:
+        """Return role ids whose activity flag is explicitly true."""
+        return {role_id for role_id, is_active in role_activity.items() if is_active}
+
+    @classmethod
+    def _source_count(cls, role_ids: set[str]) -> int:
+        """Count distinct source-separation stems among the given roles."""
+        return len({cls._source_id(role_id) for role_id in role_ids})
+
+    def _activity_drop_plan(
+        self,
+        role_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        previous_role_activity: dict[str, bool] | None,
+    ) -> str | None:
+        """Return bounded drop guidance only for a corroborated density fill.
+
+        A drop plan is emitted only when real stem activity shows this role
+        entering after a thin texture: the previous section had one or two
+        distinct sources, the current section holds at least three, every
+        previous source stays, and at least one new source enters. Heuristic
+        fallback topology and first-section (no previous activity) produce no
+        plan. A density drop is not a drop plan. The shared ``other`` stem may
+        corroborate density but never proves which keyboard or guitar part owns
+        the landing.
+        """
+        if previous_role_activity is None:
+            return None
+        previous_active = self._active_role_ids(previous_role_activity)
+        current_active = self._active_role_ids(role_activity)
+        if role_id not in current_active or role_id in previous_active:
+            return None
+        if role_id in _OTHER_STEM_ROLE_IDS:
+            return None
+        previous_source_ids = {self._source_id(candidate_id) for candidate_id in previous_active}
+        current_source_ids = {self._source_id(candidate_id) for candidate_id in current_active}
+        if previous_source_ids - current_source_ids:
+            return None
+        entered = current_active - previous_active
+        previous_sources = self._source_count(previous_active)
+        current_sources = self._source_count(current_active)
+        if previous_sources < 1 or previous_sources > 2 or current_sources < 3:
+            return None
+
+        named_entered = entered - _OTHER_STEM_ROLE_IDS
+        if named_entered == {role_id}:
+            return _DROP_PLAN_SOLO
+
+        partners = sorted(named_entered - {role_id})
+        if len(partners) != 1:
+            return None
+        partner_id = partners[0]
+        other_name = next(
+            (role["name"] for role in roles.values() if role["id"] == partner_id),
+            None,
+        )
+        if other_name is None:
+            return None
+        return f"{_DROP_PLAN_PREFIX}{other_name}{_DROP_PLAN_SUFFIX}"
+
     def _build_activity_topology(
         self,
         section_id: str,
         roles: dict[str, RehearsalRole],
         role_activity: dict[str, bool],
         next_role_activity: dict[str, bool] | None,
+        previous_role_activity: dict[str, bool] | None = None,
     ) -> SectionRoleTopology:
         """Build topology from real stem activity detection."""
         handoffs = compute_handoffs(role_activity, next_role_activity)
@@ -357,7 +435,18 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                active_roles.append(roles[role_key])
+                role = roles[role_key]
+                drop_plan = self._activity_drop_plan(
+                    role_id,
+                    roles,
+                    role_activity,
+                    previous_role_activity,
+                )
+                if drop_plan is not None:
+                    role = role.copy()
+                    role["dropPlan"] = drop_plan
+                    role["dropPlanSource"] = "model"
+                active_roles.append(role)
 
             part_graph.append(
                 {
