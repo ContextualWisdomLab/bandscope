@@ -1,7 +1,9 @@
 //! Process-boundary tests for native-only playable-stem status metadata.
 
 use bandscope_desktop_core::{
-    analysis_process_status::{parse_analysis_process_status, AnalysisProcessStatus},
+    analysis_process_status::{
+        parse_analysis_process_status, retain_latest_process_status, AnalysisProcessStatus,
+    },
     AnalysisJobState,
 };
 use serde_json::{json, Value};
@@ -145,6 +147,46 @@ fn isolates_native_artifact_reference_from_renderer_status() {
             .len(),
         4
     );
+}
+
+#[test]
+fn final_process_status_replaces_an_earlier_stem_reference() {
+    let mut succeeded_with_stems = succeeded_status();
+    succeeded_with_stems
+        .as_object_mut()
+        .expect("status fixture must remain an object")
+        .insert(
+            "playableStemArtifactSet".to_string(),
+            playable_stem_artifact_set(),
+        );
+    let first_process_status = parse_status_value(succeeded_with_stems)
+        .expect("succeeded status with a complete stem set should parse");
+    let final_process_status = parse_status_value(succeeded_status())
+        .expect("a later succeeded status without stems should parse");
+
+    let mut latest_process_status = None;
+    let first_renderer_status =
+        retain_latest_process_status(&mut latest_process_status, first_process_status);
+    assert!(matches!(
+        first_renderer_status.state,
+        AnalysisJobState::Succeeded
+    ));
+    assert!(latest_process_status
+        .as_ref()
+        .and_then(AnalysisProcessStatus::playable_stem_artifact_set)
+        .is_some());
+
+    let final_renderer_status =
+        retain_latest_process_status(&mut latest_process_status, final_process_status);
+    assert!(matches!(
+        final_renderer_status.state,
+        AnalysisJobState::Succeeded
+    ));
+    assert!(latest_process_status
+        .as_ref()
+        .expect("the final process envelope should be retained")
+        .playable_stem_artifact_set()
+        .is_none());
 }
 
 #[test]
