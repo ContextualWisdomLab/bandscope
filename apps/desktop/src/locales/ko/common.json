@@ -154,5 +154,13 @@
   "workspaceFirstRangeClash": "{sectionLabel}의 {roleName}은 {lowestNote}–{highestNote}이고 다른 파트와 겹칩니다. {sectionLabel} 들어가기 전에 그 충돌을 악기로 들어 보세요.",
   "workspaceFirstRangeMissing": "오늘 먼저 볼 음역은 아직 귀로 확인이 필요합니다. 선택한 파트의 최저·최고음을 첫 구간 전에 확인해 보세요.",
   "sectionRangeLabel": "음역",
-  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요."
+  "sectionRangeNextAction": "{sectionLabel} 들어가기 전에 이 음역을 악기로 확인해 보세요.",
+  "firstBreakdownPlanLabel": "오늘 첫 브레이크다운 계획",
+  "firstBreakdownPlanOpenAction": "{at} {role} 브레이크다운 열기",
+  "firstBreakdownPlanBody": "{at} {section}에서 {role} 파트가 브레이크다운을 유지합니다.",
+  "firstBreakdownPlanArmed": "{at}에서 {role} 파트로 브레이크다운을 유지하세요. 드롭 전까지 얇게 가십시오.",
+  "firstBreakdownPlanGeneratedGuidance": "{target} 파트와 이 브레이크다운을 유지하세요. 드롭 전까지 얇게 가십시오.",
+  "firstBreakdownPlanGeneratedSoloGuidance": "이 브레이크다운을 유지하세요. 드롭 전까지 얇게 가십시오.",
+  "firstBreakdownPlanUnavailable": "사용 가능한 브레이크다운 계획이 없습니다. 다음 합주 큐를 위해 오늘 맵에 머무르세요.",
+  "firstBreakdownPlanNavigationFailed": "곡 맵에서 이 브레이크다운을 열 수 없습니다. 아래 맵에서 해당 구간을 찾아주세요."
 }

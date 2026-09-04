@@ -154,5 +154,13 @@
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeMissing": "Tonight's first range still needs an ear check. Confirm the high and low notes on the selected part before the first section.",
   "sectionRangeLabel": "Range",
-  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}."
+  "sectionRangeNextAction": "Check this span on your instrument before {sectionLabel}.",
+  "firstBreakdownPlanLabel": "Tonight's first breakdown plan",
+  "firstBreakdownPlanOpenAction": "Open {role} breakdown at {at}",
+  "firstBreakdownPlanBody": "{role} holds the {section} breakdown at {at}.",
+  "firstBreakdownPlanArmed": "Keep {role} sparse at {at} until the drop.",
+  "firstBreakdownPlanGeneratedGuidance": "Hold this breakdown with {target}; keep it sparse until the drop.",
+  "firstBreakdownPlanGeneratedSoloGuidance": "Hold this breakdown; keep it sparse until the drop.",
+  "firstBreakdownPlanUnavailable": "No breakdown plan is available. Stay on tonight's map for the next rehearsal cue.",
+  "firstBreakdownPlanNavigationFailed": "Could not open this breakdown on the song map. Use the map below to find the section."
 }

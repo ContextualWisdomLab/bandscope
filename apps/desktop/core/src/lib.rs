@@ -177,6 +177,13 @@ pub struct ManualOverridePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum BreakdownPlanSource {
+    Model,
+    User,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
@@ -191,6 +198,10 @@ pub struct RehearsalRolePayload {
     setup_note: String,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    breakdown_plan: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    breakdown_plan_source: Option<BreakdownPlanSource>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -527,9 +538,67 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
+fn is_plan_whitespace(value: char) -> bool {
+    matches!(
+        value,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{0085}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
+/// Mirrors shared-types plan validation without normalizing persisted text.
+fn is_valid_breakdown_plan(value: &str) -> bool {
+    let mut has_non_whitespace = false;
+    for character in value.chars() {
+        if matches!(
+            character,
+            '\n' | '\r' | '\u{0085}' | '\u{2028}' | '\u{2029}'
+        ) {
+            return false;
+        }
+        if !is_plan_whitespace(character) {
+            has_non_whitespace = true;
+        }
+    }
+    has_non_whitespace
+}
+
+pub fn validate_breakdown_plan_provenance(
+    payload: RehearsalSongPayload,
+) -> Result<RehearsalSongPayload, String> {
+    for section in &payload.sections {
+        for role in &section.roles {
+            if role
+                .breakdown_plan
+                .as_deref()
+                .is_some_and(|breakdown_plan| !is_valid_breakdown_plan(breakdown_plan))
+            {
+                return Err("Invalid project file format".to_string());
+            }
+            if role.breakdown_plan_source.is_some() && role.breakdown_plan.is_none() {
+                return Err("Invalid breakdown plan provenance".to_string());
+            }
+            if role.breakdown_plan.is_some() && role.breakdown_plan_source.is_none() {
+                return Err("Invalid breakdown plan provenance".to_string());
+            }
+        }
+    }
+    Ok(payload)
+}
+
 pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     if let Ok(parsed) = serde_json::from_str::<RehearsalSongPayload>(content) {
-        return Ok(parsed);
+        return validate_breakdown_plan_provenance(parsed);
     }
 
     let payload = serde_json::from_str::<Value>(content)
@@ -547,7 +616,9 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         }
     }
 
-    serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
+    let parsed =
+        serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())?;
+    validate_breakdown_plan_provenance(parsed)
 }
 
 #[derive(Clone, Debug, Serialize)]
