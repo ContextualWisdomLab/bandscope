@@ -2,6 +2,7 @@
 
 mod playback_protocol;
 
+use bandscope_desktop::playable_stem_admission::preflight_playable_stem_set;
 use bandscope_desktop_core::*;
 use playback_protocol::{playback_authority_uri, PlaybackAuthority, PLAYBACK_SCHEME};
 use rfd::FileDialog;
@@ -344,6 +345,7 @@ fn drain_analysis_status_updates(
 fn run_analysis_engine(
     state: AppState,
     app: tauri::AppHandle<impl Runtime>,
+    playback_authority: Arc<PlaybackAuthority>,
     job_id: String,
     request: AnalysisJobRequest,
     requested_at: String,
@@ -379,6 +381,9 @@ fn run_analysis_engine(
         }
     };
 
+    let playback_project_id = request.project_id.clone();
+    let playback_temp_root = request.temp_root.clone();
+    let playback_job_id = job_id.clone();
     let payload = json!({
         "jobId": job_id.clone(),
         "request": request,
@@ -404,6 +409,8 @@ fn run_analysis_engine(
         );
     };
     let (status_tx, status_rx) = mpsc::channel::<AnalysisJobStatus>();
+    let (stem_tx, stem_rx) =
+        mpsc::channel::<playable_stem_contract::PlayableStemArtifactSetReference>();
     let stdout_reader = thread::spawn(move || {
         let reader = BufReader::new(stdout);
         let mut last_status = None;
@@ -418,8 +425,11 @@ fn run_analysis_engine(
             if let Ok(process_status) =
                 analysis_process_status::parse_analysis_process_status(trimmed)
             {
-                // Native stem metadata is validated here but remains outside renderer state
-                // until playback admission verifies the actual WAV files.
+                if let Some(playable_stem_artifact_set) =
+                    process_status.playable_stem_artifact_set().cloned()
+                {
+                    let _ = stem_tx.send(playable_stem_artifact_set);
+                }
                 let status = process_status.renderer_status().clone();
                 last_status = Some(status.clone());
                 if status_tx.send(status).is_err() {
@@ -518,7 +528,7 @@ fn run_analysis_engine(
         );
     }
 
-    last_status.unwrap_or_else(|| {
+    let finished = last_status.unwrap_or_else(|| {
         failed_status(
             payload["jobId"]
                 .as_str()
@@ -528,7 +538,21 @@ fn run_analysis_engine(
             AnalysisJobErrorCode::EngineUnavailable,
             "Analysis engine returned an invalid response.",
         )
-    })
+    });
+    if matches!(finished.state, AnalysisJobState::Succeeded) {
+        if let (Some(project_id), Some(temp_root), Some(artifact_set)) = (
+            playback_project_id.as_deref(),
+            playback_temp_root.as_deref(),
+            stem_rx.try_iter().last(),
+        ) {
+            if let Ok(preflight) =
+                preflight_playable_stem_set(Path::new(temp_root), &artifact_set)
+            {
+                let _ = playback_authority.activate_stems(project_id, &playback_job_id, &preflight);
+            }
+        }
+    }
+    finished
 }
 
 #[tauri::command]
@@ -536,6 +560,7 @@ fn start_analysis_job(
     request: Value,
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    playback_authority: tauri::State<'_, Arc<PlaybackAuthority>>,
 ) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
     let mut parsed_request = match parse_request_payload(request) {
@@ -585,6 +610,9 @@ fn start_analysis_job(
             "Analysis queue is full. Please wait for a running job to finish.",
         );
     }
+    if let Some(project_id) = parsed_request.project_id.as_deref() {
+        let _ = playback_authority.begin_stem_analysis(project_id, &job_id);
+    }
     let queued = AnalysisJobStatus {
         job_id: job_id.clone(),
         state: AnalysisJobState::Queued,
@@ -601,6 +629,7 @@ fn start_analysis_job(
 
     let app_state = state.inner().clone();
     let worker_app_handle = app.clone();
+    let worker_playback_authority = playback_authority.inner().clone();
     std::thread::spawn(move || {
         store_status_and_emit(
             &app_state,
@@ -621,6 +650,7 @@ fn start_analysis_job(
         let finished = run_analysis_engine(
             app_state.clone(),
             worker_app_handle.clone(),
+            worker_playback_authority,
             job_id,
             parsed_request,
             requested_at,

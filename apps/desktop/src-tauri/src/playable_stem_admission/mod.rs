@@ -8,6 +8,7 @@
 
 mod sha256;
 
+use crate::native_file_identity::{native_file_identity, NativeFileIdentity};
 use bandscope_desktop_core::playable_stem_contract::{
     PlaybackStemKind, PlayableStemArtifactReference, PlayableStemArtifactSetReference,
 };
@@ -60,14 +61,16 @@ impl std::error::Error for PlayableStemAdmissionError {}
 
 /// One actual file that passed native path/layout/byte/header/hash preflight.
 ///
-/// The type intentionally does not implement `Serialize`; the canonical path is
-/// trusted-process state, not a renderer contract or playback handle.
+/// The type intentionally does not implement `Serialize`; the canonical path and
+/// native file identity are trusted-process state, not a renderer contract or
+/// playback handle.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreflightPlayableStemFile {
     stem_kind: PlaybackStemKind,
     native_path: PathBuf,
     file_size_bytes: u64,
     content_hash_sha256: String,
+    file_identity: NativeFileIdentity,
 }
 
 impl PreflightPlayableStemFile {
@@ -89,6 +92,11 @@ impl PreflightPlayableStemFile {
     /// Return the SHA-256 recomputed across the complete opened file.
     pub fn content_hash_sha256(&self) -> &str {
         &self.content_hash_sha256
+    }
+
+    /// Return the identity captured from the same opened file after hash validation.
+    pub fn file_identity(&self) -> &NativeFileIdentity {
+        &self.file_identity
     }
 }
 
@@ -113,9 +121,9 @@ impl PreflightPlayableStemSet {
 
 /// Verify actual generated stem bytes without granting playback authority.
 ///
-/// The caller must still bind the returned files to the current project using
-/// #971's revocable native file-identity/serving boundary before exposing an
-/// opaque source handle.
+/// The native identity is captured from the same file handle whose complete bytes
+/// were hashed. A later playback open must match that identity, closing the
+/// preflight-to-authority replacement gap without accepting a producer path.
 pub fn preflight_playable_stem_set(
     project_temp_root: &Path,
     artifact_set: &PlayableStemArtifactSetReference,
@@ -229,7 +237,8 @@ fn preflight_artifact(
         .canonicalize()
         .map_err(|_| PlayableStemAdmissionError::InvalidArtifactFile)?;
     if canonical_path.parent() != Some(artifact_set_root)
-        || canonical_path.file_name() != Some(OsString::from(artifact.stem_kind().file_name()).as_os_str())
+        || canonical_path.file_name()
+            != Some(OsString::from(artifact.stem_kind().file_name()).as_os_str())
     {
         return Err(PlayableStemAdmissionError::InvalidArtifactFile);
     }
@@ -258,12 +267,15 @@ fn preflight_artifact(
     if !final_metadata.is_file() || final_metadata.len() != opened_metadata.len() {
         return Err(PlayableStemAdmissionError::InvalidArtifactFile);
     }
+    let file_identity = native_file_identity(&file)
+        .map_err(|_| PlayableStemAdmissionError::InvalidArtifactFile)?;
 
     Ok(PreflightPlayableStemFile {
         stem_kind: artifact.stem_kind(),
         native_path: canonical_path,
         file_size_bytes: final_metadata.len(),
         content_hash_sha256,
+        file_identity,
     })
 }
 
@@ -469,6 +481,9 @@ mod tests {
             .files()
             .iter()
             .all(|file| file.native_path().starts_with(&root)));
+        for file in preflight.files() {
+            assert_eq!(file.file_identity(), file.file_identity());
+        }
         let _ = fs::remove_dir_all(root);
     }
 

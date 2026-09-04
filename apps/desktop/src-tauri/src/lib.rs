@@ -3,4 +3,5 @@
 //! Keeping filesystem admission logic here lets BandScope test hostile local media
 //! without granting the renderer path or playback authority.
 
+pub mod native_file_identity;
 pub mod playable_stem_admission;
