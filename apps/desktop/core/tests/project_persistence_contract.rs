@@ -140,3 +140,24 @@ fn project_persistence_rejects_invalid_shared_collaboration_states_and_progress(
     invalid_practice_progress["sections"][0]["roles"][0]["practiceProgress"] = json!(101);
     assert!(project_payload_from_content(&invalid_practice_progress.to_string()).is_err());
 }
+
+#[test]
+fn project_persistence_rejects_explicit_null_for_optional_shared_fields() {
+    let mut null_collaboration = current_rehearsal_song();
+    null_collaboration["collaboration"] = Value::Null;
+    assert!(project_payload_from_content(&null_collaboration.to_string()).is_err());
+
+    let mut null_assignment_role = current_rehearsal_song();
+    null_assignment_role["collaboration"]["assignments"][0]["roleId"] = Value::Null;
+    assert!(project_payload_from_content(&null_assignment_role.to_string()).is_err());
+
+    let mut null_comment_role = current_rehearsal_song();
+    null_comment_role["collaboration"]["comments"][0]["roleId"] = Value::Null;
+    assert!(project_payload_from_content(&null_comment_role.to_string()).is_err());
+
+    for field in ["harmonicExplanation", "transpositionPlan", "transcription"] {
+        let mut null_role_field = current_rehearsal_song();
+        null_role_field["sections"][0]["roles"][0][field] = Value::Null;
+        assert!(project_payload_from_content(&null_role_field.to_string()).is_err());
+    }
+}
