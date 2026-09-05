@@ -88,6 +88,12 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
 
     expect(audio.currentTime).toBe(17.5);
     expect(play).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    play.mockClear();
+    fireEvent.loadedMetadata(audio);
+    expect(play).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("aborts a target that cannot cover the active loop and never reuses its receipt", async () => {
