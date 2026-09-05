@@ -225,6 +225,14 @@ async function invokeAnalysis(command: string, args?: Record<string, unknown>): 
   return browserFallback(command, args);
 }
 
+/** Preserve only the bounded native intake messages approved for buyer-visible diagnostics. */
+function localAudioErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : null;
+  return message && SAFE_LOCAL_AUDIO_MESSAGES.has(message)
+    ? message
+    : UNSUPPORTED_LOCAL_AUDIO_MESSAGE;
+}
+
 /** Documented. */
 export function createDefaultAnalysisRequest(): AnalysisJobRequest {
   return createDemoAnalysisJobRequest();
@@ -243,10 +251,7 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       ok: false,
       error: {
         code: "invalid_request",
-        message:
-          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
-            ? error.message
-            : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
+        message: localAudioErrorMessage(error)
       }
     };
   }
