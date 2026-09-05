@@ -7,7 +7,7 @@
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
-- Write project files through the versioned `projectFormatVersion: 1` envelope and retain validated tempo values across save/load, with explicit legacy and unsupported-version handling.
+- Evolve local project writes to `projectFormatVersion: 3`: retain deterministic legacy/v1/v2 migration, persist the closed Active Player source preference, and optionally store a path-free app-owned audio `sourceReference` for process-restart re-admission.
 
 ### Changed
 
@@ -24,6 +24,7 @@
 - Preserve first-save crash safety on filesystems without hard-link support by publishing the fully synced staging file with an OS-native atomic no-replace rename, so a crash cannot leave an empty reserved final path.
 - Reject a stale existing-project replacement when the selected target changes file identity while replacement bytes are staged; native exchange/backup publication restores the competing target instead of clobbering it.
 - Recover an interrupted existing-project replacement from a bounded, same-directory identity journal when the target is selected again, while leaving mismatched files untouched.
+- Keep renderer project admission passive and path-free: custom prototypes, enumeration/descriptor traps, accessors, runtime playback authorities, unknown fields, invalid app-owned source references, and unsafe byte-size values fail closed before persistence IPC.
 
 ## [0.1.3] - 2026-04-29
 
