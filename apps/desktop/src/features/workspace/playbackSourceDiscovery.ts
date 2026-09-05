@@ -9,6 +9,47 @@ export type PlaybackSourceInvoke = (
   args?: Record<string, unknown>,
 ) => Promise<unknown>;
 
+/** Buyer-relevant result of one native source-availability lookup. */
+export type PlaybackSourceDiscoveryOutcome =
+  | { status: "ready"; options: PlaybackSourceOption[] }
+  | { status: "empty"; options: PlaybackSourceOption[] }
+  | { status: "error"; options: null };
+
+/**
+ * Discover the currently registered playback sources and preserve the reason a
+ * selector is absent without exposing native error details to the renderer.
+ */
+export async function discoverPlaybackSourceOutcome(
+  currentFullMixAuthority: string | null | undefined,
+  invokeCommand: PlaybackSourceInvoke,
+): Promise<PlaybackSourceDiscoveryOutcome> {
+  if (
+    derivePlaybackSourceOptions(currentFullMixAuthority, [currentFullMixAuthority]) ===
+    null
+  ) {
+    return { status: "error", options: null };
+  }
+
+  try {
+    const availableAuthorities = await invokeCommand(
+      "get_playback_source_availability",
+      { currentFullMixAuthority },
+    );
+    const options = derivePlaybackSourceOptions(
+      currentFullMixAuthority,
+      availableAuthorities,
+    );
+    if (options === null) {
+      return { status: "error", options: null };
+    }
+    return options.length > 1
+      ? { status: "ready", options }
+      : { status: "empty", options };
+  } catch {
+    return { status: "error", options: null };
+  }
+}
+
 /**
  * Discover the currently registered playback sources without creating authority.
  *
@@ -20,23 +61,7 @@ export async function discoverPlaybackSourceOptions(
   currentFullMixAuthority: string | null | undefined,
   invokeCommand: PlaybackSourceInvoke,
 ): Promise<PlaybackSourceOption[] | null> {
-  if (
-    derivePlaybackSourceOptions(currentFullMixAuthority, [currentFullMixAuthority]) ===
-    null
-  ) {
-    return null;
-  }
-
-  try {
-    const availableAuthorities = await invokeCommand(
-      "get_playback_source_availability",
-      { currentFullMixAuthority },
-    );
-    return derivePlaybackSourceOptions(
-      currentFullMixAuthority,
-      availableAuthorities,
-    );
-  } catch {
-    return null;
-  }
+  return (
+    await discoverPlaybackSourceOutcome(currentFullMixAuthority, invokeCommand)
+  ).options;
 }
