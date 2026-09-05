@@ -6,6 +6,13 @@ on:
       - develop
       - main
     paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/tests/project_persistence*.rs"
+      - "apps/desktop/core/testdata/project-*.json"
+      - "apps/desktop/src-tauri/Cargo.toml"
+      - "apps/desktop/src-tauri/Cargo.lock"
+      - "apps/desktop/src-tauri/src/main.rs"
       - "apps/desktop/src-tauri/src/project_persistence.rs"
       - "apps/desktop/src-tauri/tests/project_persistence*.rs"
       - ".github/workflows/project-persistence-windows.yml"
@@ -14,6 +21,13 @@ on:
       - develop
       - main
     paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/tests/project_persistence*.rs"
+      - "apps/desktop/core/testdata/project-*.json"
+      - "apps/desktop/src-tauri/Cargo.toml"
+      - "apps/desktop/src-tauri/Cargo.lock"
+      - "apps/desktop/src-tauri/src/main.rs"
       - "apps/desktop/src-tauri/src/project_persistence.rs"
       - "apps/desktop/src-tauri/tests/project_persistence*.rs"
       - ".github/workflows/project-persistence-windows.yml"
