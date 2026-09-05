@@ -10,9 +10,11 @@ import {
   type SyntheticEvent,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { detectPreferredLocale } from "../../i18n";
 import {
   RehearsalPlayer as RehearsalPlayerCore,
 } from "./RehearsalPlayerCore";
+import { createPlaybackSourceCopy } from "./playbackSourceCopy";
 import { discoverPlaybackSourceOptions, type PlaybackSourceInvoke } from "./playbackSourceDiscovery";
 import {
   beginPlaybackSourceDiscovery,
@@ -32,13 +34,13 @@ export type RehearsalPlayerProps = RehearsalPlayerCoreProps & {
   playbackSourceInvoke?: PlaybackSourceInvoke;
 };
 
-const PLAYBACK_SOURCE_LABEL: Readonly<Record<PlaybackSourceKind, string>> = {
-  full_mix: "Full mix",
-  vocals: "Vocals",
-  bass: "Bass",
-  drums: "Drums",
-  other: "Other instruments",
-};
+const PLAYBACK_SOURCE_COPY_KEY = {
+  full_mix: "fullMix",
+  vocals: "vocals",
+  bass: "bass",
+  drums: "drums",
+  other: "other",
+} as const satisfies Readonly<Record<PlaybackSourceKind, string>>;
 
 function commitPlaybackSourceSession(
   sessionRef: { current: PlaybackSourceSession },
@@ -62,6 +64,10 @@ export function RehearsalPlayer({
   ...coreProps
 }: RehearsalPlayerProps): ReactElement {
   const sourceGroupName = useId();
+  const playbackSourceCopy = useMemo(
+    () => createPlaybackSourceCopy(detectPreferredLocale()),
+    [],
+  );
   const invokePlaybackSource = useMemo<PlaybackSourceInvoke>(
     () =>
       playbackSourceInvoke ??
@@ -175,7 +181,7 @@ export function RehearsalPlayer({
       {hasStemChoices ? (
         <fieldset className="mb-3 border-b border-white/10 pb-3">
           <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">
-            Playback source
+            {playbackSourceCopy("legend")}
           </legend>
           <div className="mt-2 flex flex-wrap gap-2">
             {visibleOptions.map((option) => (
@@ -191,7 +197,9 @@ export function RehearsalPlayer({
                   type="radio"
                   value={option.authority}
                 />
-                <span>{PLAYBACK_SOURCE_LABEL[option.kind]}</span>
+                <span>
+                  {playbackSourceCopy(PLAYBACK_SOURCE_COPY_KEY[option.kind])}
+                </span>
               </label>
             ))}
           </div>
