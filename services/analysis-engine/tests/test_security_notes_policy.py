@@ -25,6 +25,20 @@ def test_security_notes_section_stops_at_next_peer_heading() -> None:
     assert "remaining risk" not in section
 
 
+def test_security_notes_section_stops_when_parent_section_resumes() -> None:
+    """Keep a nested Security Notes section from consuming a later parent section."""
+    document = """# Example\n\n## Design\n\n### Security Notes\n\nAttack surface and trust boundary are defined here.\n\n## Operations\n\nMitigations, test points, realistic threats, and remaining risk are documented elsewhere.\n"""
+
+    section = security_notes_section(document)
+
+    assert "attack surface" in section
+    assert "trust boundary" in section
+    assert "mitigations" not in section
+    assert "test points" not in section
+    assert "realistic threats" not in section
+    assert "remaining risk" not in section
+
+
 def test_local_project_format_uses_required_security_notes_heading() -> None:
     """Keep the project-format security section under the repository-mandated heading."""
     project_format = (REPO_ROOT / "docs" / "engineering" / "local-project-format.md").read_text(
