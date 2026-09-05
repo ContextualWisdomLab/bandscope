@@ -223,3 +223,29 @@ fn failed_windows_replace_removes_the_candidate_stage() {
         .expect("the fixture should restore write permission before cleanup");
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
+
+#[test]
+fn oversized_project_error_names_the_binary_limit_as_mib() {
+    let root = test_dir("oversize-unit-copy");
+    let target = root.join("setlist.bscope");
+    let oversized = vec![b'x'; 5 * 1024 * 1024 + 1];
+
+    let save_error = project_persistence::publish_new_project_file(&target, &oversized)
+        .expect_err("a project above the binary 5 MiB ceiling must be rejected");
+    assert_eq!(
+        save_error,
+        "Project file is too large (exceeds 5 MiB limit)",
+        "the buyer-visible error must name the 5 * 1024 * 1024 byte ceiling as MiB, not decimal MB"
+    );
+
+    let existing = fs::File::create(&target).expect("oversize load fixture should be created");
+    existing
+        .set_len((5 * 1024 * 1024 + 1) as u64)
+        .expect("oversize load fixture should be sized");
+    drop(existing);
+    let load_error = project_persistence::read_project_file(&target)
+        .expect_err("the bounded reader must reject the same binary ceiling");
+    assert_eq!(load_error, "Project file is too large (exceeds 5 MiB limit)");
+
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
