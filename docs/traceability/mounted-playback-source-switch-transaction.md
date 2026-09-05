@@ -16,6 +16,7 @@ The media mutation therefore needed one transport-owned transaction without intr
 - The switch receipt must be issued before `audio.src` changes, must be exact-object/sequence/target/duration admitted, and must be single-use.
 - Count-in and paused-count-in continuity remain fail-closed under the existing source-switch contract.
 - Project rotation or otherwise non-continuable source replacement may load safely, but must not inherit transport continuity from a different project.
+- An unresolved `HTMLMediaElement.play()` result belongs to the exact media resource that issued it; source replacement must retire that result before it can report an error against the next target.
 
 ## Test-first contract
 
@@ -53,9 +54,17 @@ Test-first commit `a2de609d4f5b10120b51582da2aeff03f10a1beb` requires project au
 
 Causal fix `0b01c3e72a948a2f07992d946ccd2ecfa94be0c2` keys `RehearsalPlayerCore` by the mounted full-mix authority supplied by the parent, not by the currently selected stem. Stem changes inside one project therefore keep the same core and use the continuity receipt; project/generation rotation remounts the transport and its renderer-local switch session instead of inheriting phase or receipts from the prior authority. No native owner, path, database record, or cross-project continuity rule is added.
 
+## Stale play-promise finding and repair
+
+A fresh review of the mounted transaction found a second asynchronous identity channel outside `PlaybackSourceSwitchSession`: each `audio.play()` request captures `playRequestSequenceRef`, but the source-replacement effect previously changed `audio.src` without invalidating an unresolved `play()` result from the previous resource. During the metadata-pending window, a delayed non-`AbortError` rejection from that old source could still have the current request sequence, call the normal playback-error path, stop the logical transport, and prevent the otherwise valid target from resuming after admission.
+
+Test-first commit `29d902644586e131d11864decdecefc461b002e0` keeps the real 10–30 s demo loop at 17.5 s, leaves the old source's `play()` promise unresolved, selects `Vocals`, then rejects the old promise with `NotSupportedError` while target metadata is still pending. The target must remain error-free and, after 120 s metadata admission, restore 17.5 s and issue exactly one new `play()` request.
+
+Causal fix `b5c760eb232b1b43dce091b7506842b55956b978` advances the existing renderer-local play-request sequence immediately before every media-source replacement makes playback intent inactive and mutates the resource. The change does not classify arbitrary errors as benign and does not weaken the current-source playback error path; it only prevents a promise created by the previous media resource from retaining error authority after source replacement.
+
 ## Rejected alternatives
 
-Keeping the direct source-change effect and merely delaying `play()` was rejected because metadata would still have no exact receipt identity. Clamping seek or loop boundaries to a short target was rejected because it would silently rewrite rehearsal truth. Creating a second native playback-generation or authority registry was rejected because native `PlaybackAuthority` already owns playable bytes. Forcing the logical transport into `paused` during same-project loading was rejected because that would mutate rehearsal phase semantics solely to accommodate a media-element transaction; pending admission instead gates media actions while preserving the captured transport state. Allowing cross-project continuity with another receipt was rejected because a project/generation rotation must not inherit renderer transport state from the previous playback authority.
+Keeping the direct source-change effect and merely delaying `play()` was rejected because metadata would still have no exact receipt identity. Clamping seek or loop boundaries to a short target was rejected because it would silently rewrite rehearsal truth. Creating a second native playback-generation or authority registry was rejected because native `PlaybackAuthority` already owns playable bytes. Forcing the logical transport into `paused` during same-project loading was rejected because that would mutate rehearsal phase semantics solely to accommodate a media-element transaction; pending admission instead gates media actions while preserving the captured transport state. Allowing cross-project continuity with another receipt was rejected because a project/generation rotation must not inherit renderer transport state from the previous playback authority. Treating every rejection while playback intent is inactive as benign was rejected because it would hide genuine current-resource decoder or policy failures; exact request-sequence retirement preserves those failures while discarding only stale outcomes.
 
 ## Verification boundary
 
@@ -63,6 +72,6 @@ The new mounted regressions are committed, and the production delta is bounded t
 
 ## Remaining buyer gaps
 
-The media transaction closes the direct selector-to-`<audio>` continuity gap and project rotation no longer inherits the previous transport. Commercial delivery remains incomplete. Selected-source persistence/reload, mounted native revocation behavior, translation-ledger integration for source labels, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, responsive/browser and screen-reader E2E, and rights-cleared audible Windows/macOS acceptance are still required. Current protected CI, security, build, coverage, review, signing/notarization, SBOM/provenance, updater/rollback, and immutable release evidence must also pass on one exact release head.
+The media transaction closes the direct selector-to-`<audio>` continuity gap, project rotation no longer inherits the previous transport, and late play-promise failures from a replaced source no longer own the next target's transport state. Commercial delivery remains incomplete. Selected-source persistence/reload, mounted native revocation behavior, translation-ledger integration for source labels, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, responsive/browser and screen-reader E2E, and rights-cleared audible Windows/macOS acceptance are still required. Current protected CI, security, build, coverage, review, signing/notarization, SBOM/provenance, updater/rollback, and immutable release evidence must also pass on one exact release head.
 
 UI Delivery Gate: **FAIL** until those remaining interaction, locale, desktop real-audio, and exact-head protected-gate requirements are satisfied.
