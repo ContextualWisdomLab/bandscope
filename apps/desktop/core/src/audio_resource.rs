@@ -302,4 +302,24 @@ mod tests {
         assert_eq!(error, LOCAL_AUDIO_WRITE_ERROR);
         assert_eq!(published.bytes_read, 5);
     }
+
+    #[test]
+    fn publication_verification_rejects_impossible_expected_lengths_without_reading() {
+        for file_size_bytes in [0, MAX_LOCAL_AUDIO_FILE_BYTES + 1] {
+            let expected = LocalAudioCopyReceipt {
+                file_size_bytes,
+                content_sha256: "00".repeat(32),
+            };
+            let mut published = CountingReader {
+                bytes: Cursor::new(vec![1_u8, 2, 3, 4]),
+                bytes_read: 0,
+            };
+
+            let error = verify_local_audio_publication_receipt(&mut published, &expected)
+                .expect_err("an impossible native receipt length must fail before reading");
+
+            assert_eq!(error, LOCAL_AUDIO_WRITE_ERROR);
+            assert_eq!(published.bytes_read, 0);
+        }
+    }
 }
