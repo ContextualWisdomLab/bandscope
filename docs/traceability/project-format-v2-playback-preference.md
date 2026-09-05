@@ -20,6 +20,7 @@ The Active Player has a stable source semantic (`full_mix | vocals | bass | drum
 - Review-surface repair `e95b1db4495df5d9c721271f9b8edc54840eb004` removes the temporary large source move. `apps/desktop/core/src/lib.rs` is restored byte-for-byte at its historical path; `src/crate_root.rs` includes it as the `core` module and re-exports the current v2 Project Persistence API. `Cargo.toml` changes only the library entry path. The net semantic delta from the predecessor is therefore the small crate-root adapter plus `project_format`, fixtures, tests, and documentation—not a copied 1,600-line implementation.
 - Golden fixture `4aa18fa8cbe5e59cf3f1e195f9a20e51c36e4da7` adds `project-v2.json` with an explicit `vocals` preference. Fixture contract `73dc9a7314c0e20938fc767c207e4102e1bbf106` verifies that current-format round trips preserve it.
 - Documentation alignment `9518d84eb621b03211a4ad5a164969268ae68cdd` updates `docs/engineering/local-project-format.md` to the version-2 envelope, ordered v1 migration, golden fixtures, runtime-authority separation, and remaining consumer/recovery gaps.
+- Evidence-trigger RED `770942f006c80724a5cac970d17acae6da4a9d5b` proves the Windows Project Persistence lane would not run for `crate_root.rs`, `project_format.rs`, or the new `project_format*.rs` integration contracts. Causal workflow fix `72434d1026fe0a409bf291d91ead64d8b13f7959` adds those exact paths to both pull-request and protected-branch triggers without removing any prior input or reducing the Rust test command.
 
 ## Decision
 
@@ -47,6 +48,7 @@ On reopen, the stored semantic is not sufficient authority to play audio. The co
 - **Infer the most recently generated stem during v1 migration** — rejected because the v1 artifact has no durable evidence for that claim. Deterministic `full_mix` is the only non-fabricated migration.
 - **Create a WebView persistence store until the project format catches up** — rejected because it would establish a second writer and could disagree with the crash-safe project artifact after Save As, reopen, or recovery.
 - **Keep the temporary `lib.rs` → `core.rs` file move** — rejected after reviewing the resulting diff. Although byte-equivalent, it expanded the review surface by roughly the whole historical core source without adding product behavior. The ordinary descendant repair keeps the source at its original path and uses a small crate-root adapter instead.
+- **Rely on general cross-platform build checks while omitting the focused Windows persistence trigger** — rejected because #962 already owns a focused Windows evidence lane and format-contract changes must not silently skip it due to stale path filters.
 
 ## Effect
 
@@ -68,7 +70,7 @@ Migration errors are bounded format/version errors. They do not need to echo pro
 
 ### Test points
 
-The RED/fix suite covers v1 migration, legacy migration, every valid source token, unknown tokens, a realistic revocable playback URL, typed construction without runtime authority, and the checked-in v2 golden fixture. Existing Project Persistence tests continue to own bounded I/O, symlink/reparse checks, native identity, atomic publication/recovery, permission normalization, and the 5 MiB ceiling.
+The RED/fix suite covers v1 migration, legacy migration, every valid source token, unknown tokens, a realistic revocable playback URL, typed construction without runtime authority, and the checked-in v2 golden fixture. Existing Project Persistence tests continue to own bounded I/O, symlink/reparse checks, native identity, atomic publication/recovery, permission normalization, and the 5 MiB ceiling. The focused Windows workflow policy test also pins every Rust format source, format integration test, golden fixture, Tauri persistence source, and manifest/lock input that must wake the platform-specific persistence lane.
 
 ### Remaining risk
 
