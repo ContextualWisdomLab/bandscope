@@ -117,3 +117,26 @@ fn project_persistence_round_trips_current_shared_song_fields() {
     assert_eq!(round_trip["sections"][0]["roles"][0]["practiceProgress"], json!(45));
     assert_eq!(round_trip["collaboration"]["assignments"][0]["roleId"], json!("bass-guitar"));
 }
+
+#[test]
+fn project_persistence_rejects_invalid_shared_collaboration_states_and_progress() {
+    let mut invalid_sync_mode = current_rehearsal_song();
+    invalid_sync_mode["collaboration"]["syncMode"] = json!("cloud_now");
+    assert!(project_payload_from_content(&invalid_sync_mode.to_string()).is_err());
+
+    let mut invalid_assignment_status = current_rehearsal_song();
+    invalid_assignment_status["collaboration"]["assignments"][0]["status"] = json!("done");
+    assert!(project_payload_from_content(&invalid_assignment_status.to_string()).is_err());
+
+    let mut invalid_comment_status = current_rehearsal_song();
+    invalid_comment_status["collaboration"]["comments"][0]["status"] = json!("archived");
+    assert!(project_payload_from_content(&invalid_comment_status.to_string()).is_err());
+
+    let mut invalid_approval_status = current_rehearsal_song();
+    invalid_approval_status["collaboration"]["approvals"][0]["status"] = json!("rejected");
+    assert!(project_payload_from_content(&invalid_approval_status.to_string()).is_err());
+
+    let mut invalid_practice_progress = current_rehearsal_song();
+    invalid_practice_progress["sections"][0]["roles"][0]["practiceProgress"] = json!(101);
+    assert!(project_payload_from_content(&invalid_practice_progress.to_string()).is_err());
+}
