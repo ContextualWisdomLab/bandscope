@@ -169,6 +169,8 @@ export function RehearsalPlayer({
     : hasLocalAudio
       ? audioSourcePath
       : null;
+  const sourceDiscoveryPending =
+    sessionMatchesMountedProject && sourceSession.pendingRequest !== null;
   const hasStemChoices = visibleOptions.length > 1;
   // A new full-mix authority is a new project/generation boundary; it must not
   // inherit transport phase or a renderer-local source-switch receipt.
@@ -178,6 +180,11 @@ export function RehearsalPlayer({
 
   return (
     <div className="contents" onErrorCapture={handlePlaybackSourceErrorCapture}>
+      {sourceDiscoveryPending ? (
+        <p className="mb-3 text-sm text-slate-300" role="status">
+          {playbackSourceCopy("loading")}
+        </p>
+      ) : null}
       {hasStemChoices ? (
         <fieldset className="mb-3 border-b border-white/10 pb-3">
           <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">

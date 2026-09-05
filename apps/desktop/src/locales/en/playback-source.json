@@ -1,5 +1,6 @@
 {
   "legend": "Playback source",
+  "loading": "Checking playback sources…",
   "fullMix": "Full mix",
   "vocals": "Vocals",
   "bass": "Bass",
