@@ -1,9 +1,9 @@
-"""Verify that design-plan documents include a complete Security Notes section."""
+"""Verify that security-sensitive design and traceability documents include Security Notes."""
 
 from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
-PLAN_DIR = Path("docs/plans")
+SECURITY_NOTE_DIRS = (Path("docs/plans"), Path("docs/traceability"))
 REQUIRED_SUBSECTIONS = [
     "attack surface",
     "trust boundary",
@@ -15,7 +15,7 @@ REQUIRED_SUBSECTIONS = [
 
 
 def security_notes_section(content: str) -> str:
-    """Extract the lowercased Security Notes section from a plan document."""
+    """Extract the lowercased Security Notes section from a governed document."""
     lowered = content.lower()
     marker = SECURITY_NOTES_TEXT.lower()
     start = lowered.find(marker)
@@ -34,10 +34,19 @@ def security_notes_section(content: str) -> str:
     return lowered[start : min(end_candidates)]
 
 
+def governed_documents() -> list[Path]:
+    """Return plan and traceability documents governed by the Security Notes contract."""
+    return [
+        path
+        for directory in SECURITY_NOTE_DIRS
+        for path in sorted(directory.glob("*.md"))
+    ]
+
+
 def main() -> int:
     """Return a failing exit code when Security Notes or required subsections are missing."""
     missing: list[str] = []
-    for path in sorted(PLAN_DIR.glob("*.md")):
+    for path in governed_documents():
         content = path.read_text(encoding="utf-8")
         if SECURITY_NOTES_TEXT not in content:
             missing.append(str(path))

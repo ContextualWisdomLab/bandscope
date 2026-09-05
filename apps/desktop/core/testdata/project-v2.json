@@ -1,0 +1,70 @@
+{
+  "projectFormatVersion": 2,
+  "song": {
+    "id": "fixture-song",
+    "title": "Fixture Rehearsal",
+    "tempo": 96,
+    "sections": [
+      {
+        "id": "verse-1",
+        "label": "verse",
+        "groove": "Straight eighths",
+        "timeRange": {
+          "start": 0,
+          "end": 4
+        },
+        "confidence": {
+          "level": "medium",
+          "source": "model",
+          "notes": "Check the entrance."
+        },
+        "roles": [
+          {
+            "id": "bass-guitar",
+            "name": "Bass Guitar",
+            "roleType": "instrument",
+            "harmony": {
+              "chord": "C",
+              "functionLabel": "tonic",
+              "source": "model"
+            },
+            "cue": {
+              "kind": "transition",
+              "value": "Enter on the downbeat."
+            },
+            "range": {
+              "lowestNote": "C2",
+              "highestNote": "G3"
+            },
+            "confidence": {
+              "level": "medium",
+              "source": "model",
+              "notes": ""
+            },
+            "rehearsalPriority": "high",
+            "simplification": "Play roots.",
+            "setupNote": "Keep the attack short.",
+            "manualOverrides": [],
+            "overlapWarnings": []
+          }
+        ],
+        "partGraph": [
+          {
+            "role_id": "bass-guitar",
+            "is_active": true,
+            "handoff_to": [],
+            "handoff_from": []
+          }
+        ]
+      }
+    ],
+    "exportSummary": {
+      "format": "cue-sheet",
+      "headline": "Start with the verse.",
+      "focusSections": ["verse-1"]
+    }
+  },
+  "preferences": {
+    "selectedPlaybackSource": "vocals"
+  }
+}

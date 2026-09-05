@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod project_persistence;
+
 use bandscope_desktop_core::*;
 use rfd::FileDialog;
 use serde_json::{json, Value};
@@ -740,7 +742,7 @@ async fn import_youtube_url(
 
 #[tauri::command]
 fn save_project(payload: Value) -> Result<(), String> {
-    let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+    let parsed = project_document_from_value(payload)
         .map_err(|_| "Invalid project payload".to_string())?;
 
     let path = FileDialog::new()
@@ -748,27 +750,23 @@ fn save_project(payload: Value) -> Result<(), String> {
         .save_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
-    let content = serde_json::to_string_pretty(&parsed)
-        .map_err(|_| "Failed to serialize project".to_string())?;
-    std::fs::write(path, content).map_err(|_| "Failed to write file".to_string())?;
+    let content = project_content_for_document(&parsed)?;
+    project_persistence::recover_project_publication(&path)?;
+    project_persistence::publish_new_project_file(&path, content.as_bytes())?;
 
     Ok(())
 }
 
 #[tauri::command]
-fn load_project() -> Result<RehearsalSongPayload, String> {
+fn load_project() -> Result<ProjectDocumentPayload, String> {
     let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])
         .pick_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
-    let metadata = std::fs::metadata(&path).map_err(|_| "Failed to read file".to_string())?;
-    if metadata.len() > 5 * 1024 * 1024 {
-        return Err("Project file is too large (exceeds 5MB limit)".to_string());
-    }
-
-    let content = std::fs::read_to_string(path).map_err(|_| "Failed to read file".to_string())?;
-    project_payload_from_content(&content)
+    project_persistence::recover_project_publication(&path)?;
+    let content = project_persistence::read_project_file(&path)?;
+    project_document_from_content(&content)
 }
 
 fn scores_root_for_project<R: Runtime>(

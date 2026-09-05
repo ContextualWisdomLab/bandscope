@@ -15,6 +15,14 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
+import {
+  createProjectDocument,
+  parseProjectDocument,
+  type ProjectDocument,
+  type SelectedPlaybackSource
+} from "./projectDocument";
+
+export type { ProjectDocument, SelectedPlaybackSource } from "./projectDocument";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -342,14 +350,27 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
   }
 }
 
-/** Documented. */
-export async function saveProject(song: RehearsalSong): Promise<void> {
-  const parsedSong = parseRehearsalSong(song);
-  await invokeAnalysis("save_project", { payload: parsedSong });
+/** Persist one current v2 project document through the native Project Persistence owner. */
+export async function saveProjectDocument(projectDocument: ProjectDocument): Promise<void> {
+  const parsedDocument = parseProjectDocument(projectDocument);
+  await invokeAnalysis("save_project", { payload: parsedDocument });
 }
 
-/** Documented. */
-export async function loadProject(): Promise<RehearsalSong> {
+/** Reopen one current v2 project document, including stable Active Player preferences. */
+export async function loadProjectDocument(): Promise<ProjectDocument> {
   const response = await invokeAnalysis("load_project");
-  return parseRehearsalSong(response);
+  return parseProjectDocument(response);
+}
+
+/** Compatibility save for callers that do not yet own a playback-source preference. */
+export async function saveProject(
+  song: RehearsalSong,
+  selectedPlaybackSource: SelectedPlaybackSource = "full_mix"
+): Promise<void> {
+  await saveProjectDocument(createProjectDocument(song, selectedPlaybackSource));
+}
+
+/** Compatibility load for existing song-only consumers while #1160 adopts the v2 document. */
+export async function loadProject(): Promise<RehearsalSong> {
+  return (await loadProjectDocument()).song;
 }
