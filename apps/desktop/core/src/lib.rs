@@ -130,9 +130,17 @@ pub struct RehearsalSongPayload {
     tempo: Option<f64>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     collaboration: Option<RehearsalCollaborationPayload>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
 }
 
@@ -152,6 +160,14 @@ where
             "project tempo must be a finite positive number",
         )),
     }
+}
+
+fn deserialize_present_optional<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -192,7 +208,11 @@ pub struct RehearsalAssignmentPayload {
     assignee: String,
     summary: String,
     section_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     role_id: Option<String>,
     status: RehearsalAssignmentStatusPayload,
 }
@@ -204,7 +224,11 @@ pub struct RehearsalCommentPayload {
     author: String,
     body: String,
     section_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     role_id: Option<String>,
     status: RehearsalCommentStatusPayload,
 }
@@ -323,7 +347,11 @@ pub struct RehearsalRolePayload {
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
@@ -331,11 +359,19 @@ pub struct RehearsalRolePayload {
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     transposition_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     transcription: Option<Vec<TranscriptionNotePayload>>,
     #[serde(
         default,
