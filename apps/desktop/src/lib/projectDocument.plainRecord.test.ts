@@ -27,6 +27,38 @@ describe("project document plain-record admission", () => {
     ).toThrow("Invalid project document");
   });
 
+  it("fails closed when prototype inspection itself throws", () => {
+    const trappedDocument = new Proxy(
+      {
+        song: createDemoRehearsalSong(),
+        preferences: { selectedPlaybackSource: "vocals" }
+      },
+      {
+        getPrototypeOf() {
+          throw new Error("prototype trap");
+        }
+      }
+    );
+
+    expect(() => parseProjectDocument(trappedDocument)).toThrow("Invalid project document");
+  });
+
+  it("admits null-prototype JSON records without widening the durable field set", () => {
+    const song = createDemoRehearsalSong();
+    const preferences = Object.assign(Object.create(null) as Record<string, unknown>, {
+      selectedPlaybackSource: "bass"
+    });
+    const document = Object.assign(Object.create(null) as Record<string, unknown>, {
+      song,
+      preferences
+    });
+
+    expect(parseProjectDocument(document)).toEqual({
+      song,
+      preferences: { selectedPlaybackSource: "bass" }
+    });
+  });
+
   it("continues to admit ordinary JSON-shaped project documents", () => {
     const song = createDemoRehearsalSong();
     expect(
