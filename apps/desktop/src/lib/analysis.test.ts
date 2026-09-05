@@ -4,6 +4,7 @@ import {
   MAX_YOUTUBE_URL_LENGTH,
   getAnalysisJobStatus,
   importYoutubeUrl,
+  selectLocalAudioSource,
   startAnalysisJob
 } from "./analysis";
 
@@ -97,6 +98,37 @@ describe("analysis bridge", () => {
       url: "https://youtu.be/4ozX4yFUC34"
     });
     expect(selection.ok).toBe(true);
+  });
+
+  it.each([
+    "Could not read the selected audio file.",
+    "Could not prepare the local project workspace.",
+    "Could not prepare the local cache workspace.",
+    "Could not prepare the local temp workspace."
+  ])("preserves an approved native local-audio string error: %s", async (message) => {
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockRejectedValue(message);
+
+    await expect(selectLocalAudioSource()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message
+      }
+    });
+  });
+
+  it("redacts an unapproved native local-audio string error", async () => {
+    tauriWindow.__TAURI_INVOKE__ = vi
+      .fn()
+      .mockRejectedValue("Could not read /Users/example/Music/private-demo.wav");
+
+    await expect(selectLocalAudioSource()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "invalid_request",
+        message: "Choose a WAV, MP3, FLAC, or M4A file to start analysis."
+      }
+    });
   });
 
   it("normalizes legacy analysis job status responses before returning them", async () => {
