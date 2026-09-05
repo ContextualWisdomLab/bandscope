@@ -110,6 +110,30 @@ describe("playback source switch continuity", () => {
   );
 
   it.each([
+    { startSeconds: Number.NaN, endSeconds: 45 },
+    { startSeconds: 30, endSeconds: Number.NaN },
+    { startSeconds: Number.NEGATIVE_INFINITY, endSeconds: 45 },
+    { startSeconds: -1, endSeconds: 45 },
+    { startSeconds: 45, endSeconds: 45 },
+    { startSeconds: 46, endSeconds: 45 },
+  ])(
+    "rejects malformed loop timing before issuing restoration authority: %o",
+    ({ startSeconds, endSeconds }) => {
+      const malformedTransport: RehearsalTransportState = {
+        ...transport("looping"),
+        loop: { ...loop, startSeconds, endSeconds },
+      };
+      expect(
+        capturePlaybackSourceSwitch(malformedTransport, 37.25, {
+          sourceAuthority: fullMixAuthority,
+          targetAuthority: vocalsAuthority,
+          sequence: 3,
+        }),
+      ).toBeNull();
+    },
+  );
+
+  it.each([
     { targetAuthority: fullMixAuthority, sequence: 3 },
     { targetAuthority: vocalsAuthority, sequence: 0 },
     { targetAuthority: vocalsAuthority, sequence: Number.MAX_SAFE_INTEGER + 1 },
