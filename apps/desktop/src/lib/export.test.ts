@@ -67,6 +67,8 @@ describe("export sanitization", () => {
       expect(escapeCsvField("\t+SUM(A1)")).toBe("'\t+SUM(A1)");
       expect(escapeCsvField("\n-100")).toBe("\"'\n-100\"");
       expect(escapeCsvField("\r@cmd")).toBe("\"'\r@cmd\"");
+      expect(escapeCsvField("\x00=1+2")).toBe("'\x00=1+2");
+      expect(escapeCsvField("\x1B+SUM(A1)")).toBe("'\x1B+SUM(A1)");
     });
 
     it("handles combined scenarios: formula injection with structural characters", () => {
