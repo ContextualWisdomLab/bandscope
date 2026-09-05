@@ -178,6 +178,19 @@ mod tests {
         }
     }
 
+    struct CountingReader {
+        bytes: Cursor<Vec<u8>>,
+        bytes_read: usize,
+    }
+
+    impl Read for CountingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let read = self.bytes.read(buffer)?;
+            self.bytes_read += read;
+            Ok(read)
+        }
+    }
+
     #[test]
     fn bounded_copy_rejects_stream_growth_without_staging_bytes_past_the_limit() {
         let input = Cursor::new(vec![1_u8, 2, 3, 4, 5]);
@@ -261,5 +274,25 @@ mod tests {
             .expect_err("published artifact read failure must be a workspace failure");
 
         assert_eq!(error, LOCAL_AUDIO_WRITE_ERROR);
+    }
+
+    #[test]
+    fn publication_verification_stops_after_expected_size_plus_one_probe_byte() {
+        let expected = LocalAudioCopyReceipt {
+            file_size_bytes: 4,
+            content_sha256:
+                "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a"
+                    .to_string(),
+        };
+        let mut published = CountingReader {
+            bytes: Cursor::new(vec![1_u8, 2, 3, 4, 5, 6, 7, 8]),
+            bytes_read: 0,
+        };
+
+        let error = verify_local_audio_publication_receipt(&mut published, &expected)
+            .expect_err("a grown published artifact must fail without scanning unrelated tail bytes");
+
+        assert_eq!(error, LOCAL_AUDIO_WRITE_ERROR);
+        assert_eq!(published.bytes_read, 5);
     }
 }
