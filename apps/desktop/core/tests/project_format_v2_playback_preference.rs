@@ -1,7 +1,7 @@
 use bandscope_desktop_core::{
     project_content_for_document, project_document_from_content, project_document_from_value,
     project_payload_from_content, ProjectDocumentPayload, ProjectPreferencesPayload,
-    SelectedPlaybackSourcePayload,
+    SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
 };
 use serde_json::{json, Value};
 
@@ -10,7 +10,7 @@ fn v1_fixture() -> &'static str {
 }
 
 #[test]
-fn v1_migrates_to_v2_with_full_mix_as_the_explicit_default() {
+fn v1_migrates_to_current_with_full_mix_as_the_explicit_default() {
     let document = project_document_from_content(v1_fixture())
         .expect("the supported v1 fixture should migrate to the current project document");
     let serialized = project_content_for_document(&document)
@@ -18,15 +18,19 @@ fn v1_migrates_to_v2_with_full_mix_as_the_explicit_default() {
     let value: Value = serde_json::from_str(&serialized)
         .expect("the current project document should remain valid JSON");
 
-    assert_eq!(value["projectFormatVersion"], json!(2));
+    assert_eq!(
+        value["projectFormatVersion"],
+        json!(CURRENT_PROJECT_FORMAT_VERSION)
+    );
     assert_eq!(
         value["preferences"]["selectedPlaybackSource"],
         json!("full_mix")
     );
+    assert!(value.get("sourceReference").is_none());
 }
 
 #[test]
-fn v2_preserves_each_stable_playback_source_semantic() {
+fn v2_preserves_each_stable_playback_source_semantic_when_migrated_to_current() {
     let v1: Value = serde_json::from_str(v1_fixture()).expect("v1 fixture should parse");
     let song = v1["song"].clone();
 
@@ -43,13 +47,18 @@ fn v2_preserves_each_stable_playback_source_semantic() {
         let document = project_document_from_content(&content)
             .expect("every stable playback-source semantic should load");
         let round_trip = project_content_for_document(&document)
-            .expect("a valid v2 document should serialize");
+            .expect("a valid v2 document should serialize as the current version");
         let round_trip_value: Value = serde_json::from_str(&round_trip)
-            .expect("the serialized v2 document should remain valid JSON");
+            .expect("the serialized current document should remain valid JSON");
+        assert_eq!(
+            round_trip_value["projectFormatVersion"],
+            json!(CURRENT_PROJECT_FORMAT_VERSION)
+        );
         assert_eq!(
             round_trip_value["preferences"]["selectedPlaybackSource"],
             json!(selected_source)
         );
+        assert!(round_trip_value.get("sourceReference").is_none());
     }
 }
 
@@ -90,11 +99,15 @@ fn legacy_song_compatibility_also_migrates_to_full_mix() {
     let value: Value = serde_json::from_str(&serialized)
         .expect("the migrated project should remain valid JSON");
 
-    assert_eq!(value["projectFormatVersion"], json!(2));
+    assert_eq!(
+        value["projectFormatVersion"],
+        json!(CURRENT_PROJECT_FORMAT_VERSION)
+    );
     assert_eq!(
         value["preferences"]["selectedPlaybackSource"],
         json!("full_mix")
     );
+    assert!(value.get("sourceReference").is_none());
 
     // Existing callers that consume only the song view must remain source-compatible.
     assert!(project_payload_from_content(&legacy_song).is_ok());
@@ -108,15 +121,21 @@ fn document_constructor_does_not_require_a_revocable_runtime_authority() {
         preferences: ProjectPreferencesPayload {
             selected_playback_source: SelectedPlaybackSourcePayload::Drums,
         },
+        source_reference: None,
     };
 
     let serialized = project_content_for_document(&document)
         .expect("typed project preferences should serialize without a playback URL");
-    let value: Value = serde_json::from_str(&serialized).expect("v2 JSON should parse");
+    let value: Value = serde_json::from_str(&serialized).expect("current project JSON should parse");
+    assert_eq!(
+        value["projectFormatVersion"],
+        json!(CURRENT_PROJECT_FORMAT_VERSION)
+    );
     assert_eq!(
         value["preferences"]["selectedPlaybackSource"],
         json!("drums")
     );
+    assert!(value.get("sourceReference").is_none());
     assert!(!serialized.contains("bandscope-playback://"));
 }
 
@@ -135,8 +154,12 @@ fn ipc_document_payload_accepts_only_stable_project_preferences() {
         .expect("the IPC document boundary should accept every stable source semantic");
 
         let serialized = project_content_for_document(&document)
-            .expect("an admitted IPC document should serialize to the durable v2 envelope");
-        let value: Value = serde_json::from_str(&serialized).expect("v2 JSON should parse");
+            .expect("an admitted IPC document should serialize to the current durable envelope");
+        let value: Value = serde_json::from_str(&serialized).expect("current JSON should parse");
+        assert_eq!(
+            value["projectFormatVersion"],
+            json!(CURRENT_PROJECT_FORMAT_VERSION)
+        );
         assert_eq!(
             value["preferences"]["selectedPlaybackSource"],
             json!(selected_source)
