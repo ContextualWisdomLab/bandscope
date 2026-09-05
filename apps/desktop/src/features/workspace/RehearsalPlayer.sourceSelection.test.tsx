@@ -55,9 +55,9 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
       />,
     );
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Checking playback sources…",
-    );
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Checking playback sources…");
+    expect(status).toHaveAttribute("aria-atomic", "true");
     expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
 
     discovery.resolve([fullMixAuthority, ...stemAuthorities]);
