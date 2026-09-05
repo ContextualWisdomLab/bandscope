@@ -350,13 +350,13 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
   }
 }
 
-/** Persist one current v2 project document through the native Project Persistence owner. */
+/** Persist one current versioned project document through the native Project Persistence owner. */
 export async function saveProjectDocument(projectDocument: ProjectDocument): Promise<void> {
   const parsedDocument = parseProjectDocument(projectDocument);
   await invokeAnalysis("save_project", { payload: parsedDocument });
 }
 
-/** Reopen one current v2 project document, including stable Active Player preferences. */
+/** Reopen one current versioned project document, including durable Project Persistence state. */
 export async function loadProjectDocument(): Promise<ProjectDocument> {
   const response = await invokeAnalysis("load_project");
   return parseProjectDocument(response);
@@ -370,7 +370,7 @@ export async function saveProject(
   await saveProjectDocument(createProjectDocument(song, selectedPlaybackSource));
 }
 
-/** Compatibility load for existing song-only consumers while #1160 adopts the v2 document. */
+/** Compatibility load for existing song-only consumers while mounted reopen composition remains #962/#1160 work. */
 export async function loadProject(): Promise<RehearsalSong> {
   return (await loadProjectDocument()).song;
 }
