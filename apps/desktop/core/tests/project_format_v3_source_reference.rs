@@ -4,6 +4,8 @@ use bandscope_desktop_core::{
 };
 use serde_json::{json, Value};
 
+const CONTENT_SHA256: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 fn v2_song() -> Value {
     let fixture: Value = serde_json::from_str(include_str!("../testdata/project-v2.json"))
         .expect("the checked-in v2 fixture should remain valid JSON");
@@ -20,7 +22,8 @@ fn current_project_round_trips_an_app_owned_source_reference_without_a_filesyste
             "projectId": "project-400-4",
             "artifactName": "source.wav",
             "extension": "wav",
-            "fileSizeBytes": 4096
+            "fileSizeBytes": 4096,
+            "contentSha256": CONTENT_SHA256
         }
     })
     .to_string();
@@ -34,6 +37,7 @@ fn current_project_round_trips_an_app_owned_source_reference_without_a_filesyste
             artifact_name: "source.wav".to_string(),
             extension: "wav".to_string(),
             file_size_bytes: 4096,
+            content_sha256: CONTENT_SHA256.to_string(),
         })
     );
 
@@ -44,6 +48,7 @@ fn current_project_round_trips_an_app_owned_source_reference_without_a_filesyste
     assert_eq!(value["projectFormatVersion"], json!(CURRENT_PROJECT_FORMAT_VERSION));
     assert_eq!(value["sourceReference"]["projectId"], json!("project-400-4"));
     assert_eq!(value["sourceReference"]["artifactName"], json!("source.wav"));
+    assert_eq!(value["sourceReference"]["contentSha256"], json!(CONTENT_SHA256));
     assert!(serialized.find("sourcePath").is_none());
     assert!(serialized.find("bandscope-playback://").is_none());
 }
@@ -69,38 +74,71 @@ fn current_project_rejects_paths_and_untrusted_source_reference_shapes() {
             "projectId": "../escape",
             "artifactName": "source.wav",
             "extension": "wav",
-            "fileSizeBytes": 4096
+            "fileSizeBytes": 4096,
+            "contentSha256": CONTENT_SHA256
         }),
         json!({
             "projectId": "project-400-4",
             "artifactName": "../source.wav",
             "extension": "wav",
-            "fileSizeBytes": 4096
+            "fileSizeBytes": 4096,
+            "contentSha256": CONTENT_SHA256
         }),
         json!({
             "projectId": "project-400-4",
             "artifactName": "source.mp3",
             "extension": "wav",
-            "fileSizeBytes": 4096
+            "fileSizeBytes": 4096,
+            "contentSha256": CONTENT_SHA256
         }),
         json!({
             "projectId": "project-400-4",
             "artifactName": "source.wav",
             "extension": "exe",
-            "fileSizeBytes": 4096
+            "fileSizeBytes": 4096,
+            "contentSha256": CONTENT_SHA256
         }),
         json!({
             "projectId": "project-400-4",
             "artifactName": "source.wav",
             "extension": "wav",
-            "fileSizeBytes": 0
+            "fileSizeBytes": 0,
+            "contentSha256": CONTENT_SHA256
         }),
         json!({
             "projectId": "project-400-4",
             "artifactName": "source.wav",
             "extension": "wav",
             "fileSizeBytes": 4096,
+            "contentSha256": CONTENT_SHA256,
             "sourcePath": "/Users/example/Music/private.wav"
+        }),
+        json!({
+            "projectId": "project-400-4",
+            "artifactName": "source.wav",
+            "extension": "wav",
+            "fileSizeBytes": 4096
+        }),
+        json!({
+            "projectId": "project-400-4",
+            "artifactName": "source.wav",
+            "extension": "wav",
+            "fileSizeBytes": 4096,
+            "contentSha256": "0123456789abcdef"
+        }),
+        json!({
+            "projectId": "project-400-4",
+            "artifactName": "source.wav",
+            "extension": "wav",
+            "fileSizeBytes": 4096,
+            "contentSha256": "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"
+        }),
+        json!({
+            "projectId": "project-400-4",
+            "artifactName": "source.wav",
+            "extension": "wav",
+            "fileSizeBytes": 4096,
+            "contentSha256": "g123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
         }),
     ] {
         let content = json!({
@@ -113,28 +151,7 @@ fn current_project_rejects_paths_and_untrusted_source_reference_shapes() {
 
         assert!(
             project_document_from_content(&content).is_err(),
-            "unsafe source reference must fail closed"
+            "unsafe or ambiguous source reference must fail closed"
         );
     }
-}
-
-#[test]
-fn current_project_rejects_a_source_reference_without_content_identity() {
-    let content = json!({
-        "projectFormatVersion": 3,
-        "song": v2_song(),
-        "preferences": { "selectedPlaybackSource": "full_mix" },
-        "sourceReference": {
-            "projectId": "project-400-4",
-            "artifactName": "source.wav",
-            "extension": "wav",
-            "fileSizeBytes": 4096
-        }
-    })
-    .to_string();
-
-    assert!(
-        project_document_from_content(&content).is_err(),
-        "a durable source reference must carry content identity, not byte length alone"
-    );
 }
