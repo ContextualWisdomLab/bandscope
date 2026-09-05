@@ -23,6 +23,7 @@ The desktop shared contract already permits collaboration data and role-level re
 - Closed-domain RED: `2b0a47e6305b7b7a3e87857335d0f36dfabc9712` adds a current-song fixture with a valid user-owned harmony override and proves that invalid section labels, confidence levels/provenance, role types, harmony provenance, cue kinds, rehearsal priorities, export formats, and manual-override field/authority tokens must fail closed.
 - Closed-domain fix: `96d66ed6f5fad918b0ddef8a1e6494b76f8bafd0` replaces those unrestricted native strings with serde enums that serialize to the exact shared values. Manual overrides use a dedicated user-only harmony payload so an outer `source: "user"` cannot mask a nested model-owned override value.
 - Positive-domain coverage: `f8c30150375b39d54e1775d941f6515d2686410c` exercises every currently valid section-form, confidence, provenance, role-type, cue-kind, rehearsal-priority, and export-format token. This guards the serde rename rules, including `pre-chorus`, `cue-sheet`, and `chart-summary`, against a repair that rejects legitimate existing projects.
+- Security-note contract RED: `d7886876b285f16ceda83ff5e0dd848e31cf7f97` extends the repository Security Notes verifier from plans to traceability records. The previous version of this document has no `Security Notes` section, so the governed check fails until the boundary below is explicit.
 
 The shared renderer authority is `packages/shared-types/src/index.ts` on protected `develop`. Its relevant domains are: section form label `intro | verse | pre-chorus | chorus | bridge | outro | tag | pickup | stop | handoff`; confidence `low | medium | high`; provenance `model | user`; cue kind `lyric | count | transition`; role type `instrument | vocal | hand`; rehearsal priority `low | medium | high`; export format `cue-sheet | chart-summary`; manual override field `harmony` with both outer and value provenance fixed to `user`; collaboration sync `local_only | planned_cloud`; assignment status `todo | in_progress | ready | blocked`; comment status `open | resolved`; approval status `pending | approved | changes_requested`; and `practiceProgress`, when present, an integer from 0 through 100. Optional fields test `!== undefined` before validating the concrete declared type, so explicit `null` is invalid rather than another spelling of absence.
 
@@ -40,3 +41,33 @@ The shared renderer authority is `packages/shared-types/src/index.ts` on protect
 A current shared rehearsal song can now cross the native Project Persistence boundary without dropping the newly covered fields. Collaboration/progress states, omission-versus-null semantics, and the renderer's closed section/role/confidence/provenance/cue/export/manual-override domains are represented by native typed values rather than arbitrary strings. This does not complete #962. Transcription-number semantics and other legacy invariants still need evidence-driven cross-language comparison; the shared validator currently type-checks `onset`, `offset`, and `velocity` as JavaScript numbers rather than defining rehearsal-specific numeric bounds, so persistence must not invent such bounds without a product/scientific contract. Autosave, backup rotation, global startup recovery, deterministic migrations beyond v1, fault injection, and selected-playback-source persistence/reload remain open.
 
 Selected playback source persistence must use a stable semantic (`full_mix | vocals | bass | drums | other`) and resolve a fresh native playback authority on reopen; a missing source must fail closed to Full mix.
+
+## Security Notes
+
+### Attack surface
+
+`.bscope` content is untrusted local file input, and save targets, recovery journals, staged files, backup/displaced files, file metadata, collaboration payloads, role-level rehearsal data, and renderer-provided project JSON all cross trust boundaries. Project files can therefore exercise parser, filesystem, recovery, and local-privacy failure modes even though BandScope remains local-first and this slice adds no network authority.
+
+### Trust boundary
+
+The renderer may submit only the shared `RehearsalSong` contract. Native Project Persistence is the storage authority: it admits the versioned envelope, applies `deny_unknown_fields`, validates finite-positive tempo and closed-domain enums, rejects explicit `null` where omission is the only absent form, and keeps volatile `bandscope-playback` authorities out of durable project state. Filesystem authority remains confined to the user-selected target plus BandScope-owned same-parent staging/recovery names after parent-chain, final-component, regular-file, native-identity, size, and platform checks.
+
+### Mitigations
+
+Validation uses explicit allowlists for the project envelope and current shared domains instead of `serde_json::Value` bags or permissive strings. Reads are bounded to the 5 MiB project limit and use no-follow/native-identity checks. Saves stage and sync complete bytes before publication, preserve data-file permissions without executable/special bits, and use target-scoped prepared recovery journals plus parent-directory synchronization around replacement and cleanup. Recovery acts only on the exact target and BandScope-owned candidate/displaced identities; mismatched or ambiguous state fails closed rather than deleting or following arbitrary paths.
+
+### Safe failure and logging/privacy
+
+Malformed envelopes, unsupported versions, invalid shared-domain tokens, explicit-null drift, unsafe paths, identity mismatches, oversized files, and unrecoverable journal states return bounded product errors without echoing project contents, local paths, collaboration text, credentials, or secret-shaped values into logs. Failure must retain known-good project data or retryable recovery state whenever mutation has begun; it must not silently coerce corrupt values, fabricate a source selection, or fall back to direct non-atomic overwrite.
+
+### Test points
+
+Executable coverage includes shared-song parse/serialize parity, closed-domain positive and negative cases, omission-versus-null behavior, progress bounds, v1 fixture compatibility, bounded read/write size, symlink/reparse and ancestor checks, native file identity, first-save/no-clobber behavior, existing-target replacement, stage cleanup, permission normalization, Windows replacement/recovery, macOS/Windows case-alias recovery, completed rollback, and stale-journal cleanup. `scripts/checks/verify_security_notes.py` now also treats traceability records as governed Security Notes documents so later edits cannot silently drop this boundary.
+
+### Realistic threats
+
+The realistic threats are malformed or future project payloads being accepted as current truth; a local directory participant racing or pre-creating recovery names; link/reparse redirection; file replacement between preflight and publication; interruption during replacement/rollback; permissive file modes exposing rehearsal data to another local account; and stale runtime playback authorities being mistaken for durable project truth. The controls are scoped to local project persistence and do not claim protection against a fully compromised operating system or an attacker with equivalent account authority.
+
+### Remaining risk
+
+Parent authority is still path-based after lexical validation, so concurrent ancestor replacement is not yet descriptor-bound. Recovery is target-scoped and normally runs when that project path is selected rather than through a global startup scan. Autosave, backup rotation, deterministic migrations beyond v1, exhaustive power-loss/fault injection, and selected-playback-source persistence/reload remain #962 work. Those gaps must stay explicit and must not be described as crash-safe or shipped until current-head cross-platform evidence proves the corresponding implementation.
