@@ -131,6 +131,8 @@ pub struct RehearsalSongPayload {
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    collaboration: Option<RehearsalCollaborationPayload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
 }
 
@@ -150,6 +152,49 @@ where
             "project tempo must be a finite positive number",
         )),
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RehearsalAssignmentPayload {
+    id: String,
+    assignee: String,
+    summary: String,
+    section_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    role_id: Option<String>,
+    status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RehearsalCommentPayload {
+    id: String,
+    author: String,
+    body: String,
+    section_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    role_id: Option<String>,
+    status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RehearsalApprovalPayload {
+    id: String,
+    scope: String,
+    owner: String,
+    status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RehearsalCollaborationPayload {
+    sync_mode: String,
+    sync_note: String,
+    assignments: Vec<RehearsalAssignmentPayload>,
+    comments: Vec<RehearsalCommentPayload>,
+    approvals: Vec<RehearsalApprovalPayload>,
 }
 
 /// Current on-disk project format version, independent of the app version.
@@ -215,19 +260,36 @@ pub struct ManualOverridePayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TranscriptionNotePayload {
+    pitch: String,
+    onset: f64,
+    offset: f64,
+    velocity: f64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
     name: String,
     role_type: String,
     harmony: HarmonyPayload,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    harmonic_explanation: Option<String>,
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
     rehearsal_priority: String,
     simplification: String,
     setup_note: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transposition_plan: Option<String>,
     manual_overrides: Vec<ManualOverridePayload>,
     overlap_warnings: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    transcription: Option<Vec<TranscriptionNotePayload>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    practice_progress: Option<u8>,
 }
 
 #[derive(Clone, Debug, Serialize)]
