@@ -126,6 +126,8 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
         audioSourcePath={nextFullMixAuthority}
       />,
     );
+    expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
+
     second.resolve([
       nextStems[2],
       nextFullMixAuthority,
@@ -147,5 +149,47 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
 
     await waitFor(() => expect(screen.getByRole("radio", { name: "Vocals" })).toHaveValue(nextStems[0]));
     expect(screen.queryByDisplayValue(stemAuthorities[0])).not.toBeInTheDocument();
+  });
+
+  it("keeps radio selection independent across separately mounted rehearsal players", async () => {
+    const secondFullMixAuthority = "bandscope-project://project-300-3";
+    const secondStems = [
+      `${secondFullMixAuthority}/stem/vocals`,
+      `${secondFullMixAuthority}/stem/bass`,
+      `${secondFullMixAuthority}/stem/drums`,
+      `${secondFullMixAuthority}/stem/other`,
+    ] as const;
+    vi.mocked(invoke).mockImplementation(async (_command, args) => {
+      const current = args?.currentFullMixAuthority;
+      return current === secondFullMixAuthority
+        ? [secondFullMixAuthority, ...secondStems]
+        : [fullMixAuthority, ...stemAuthorities];
+    });
+
+    const song = createDemoRehearsalSong();
+    render(
+      <>
+        <RehearsalPlayer
+          song={song}
+          hasLocalAudio={true}
+          audioSourcePath={fullMixAuthority}
+        />
+        <RehearsalPlayer
+          song={song}
+          hasLocalAudio={true}
+          audioSourcePath={secondFullMixAuthority}
+        />
+      </>,
+    );
+
+    const fullMixRadios = await screen.findAllByRole("radio", { name: "Full mix" });
+    const vocalsRadios = screen.getAllByRole("radio", { name: "Vocals" });
+    expect(fullMixRadios[0]).toBeChecked();
+    expect(fullMixRadios[1]).toBeChecked();
+
+    fireEvent.click(vocalsRadios[1]);
+
+    await waitFor(() => expect(vocalsRadios[1]).toBeChecked());
+    expect(fullMixRadios[0]).toBeChecked();
   });
 });
