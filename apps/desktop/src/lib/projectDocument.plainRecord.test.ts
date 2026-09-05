@@ -96,6 +96,49 @@ describe("project document plain-record admission", () => {
     expect(getterCalls).toBe(0);
   });
 
+  it("rejects an accessor-backed source reference without invoking the accessor", () => {
+    let getterCalls = 0;
+    const document = {
+      song: createDemoRehearsalSong(),
+      preferences: { selectedPlaybackSource: "vocals" }
+    } as Record<string, unknown>;
+    Object.defineProperty(document, "sourceReference", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("source reference getter must not run");
+      }
+    });
+
+    expect(() => parseProjectDocument(document)).toThrow("Invalid project document");
+    expect(getterCalls).toBe(0);
+  });
+
+  it("fails closed when optional source-reference descriptor inspection throws", () => {
+    const document = new Proxy(
+      {
+        song: createDemoRehearsalSong(),
+        preferences: { selectedPlaybackSource: "vocals" },
+        sourceReference: {
+          projectId: "project-400-4",
+          artifactName: "source.wav",
+          extension: "wav",
+          fileSizeBytes: 4096
+        }
+      },
+      {
+        getOwnPropertyDescriptor(target, property) {
+          if (property === "sourceReference") {
+            throw new Error("source reference descriptor trap");
+          }
+          return Reflect.getOwnPropertyDescriptor(target, property);
+        }
+      }
+    );
+
+    expect(() => parseProjectDocument(document)).toThrow("Invalid project document");
+  });
+
   it("admits null-prototype JSON records without widening the durable field set", () => {
     const song = createDemoRehearsalSong();
     const preferences = Object.assign(Object.create(null) as Record<string, unknown>, {
