@@ -153,6 +153,73 @@ fn project_persistence_rejects_invalid_shared_collaboration_states_and_progress(
 }
 
 #[test]
+fn project_persistence_accepts_all_shared_closed_domain_tokens() {
+    for label in [
+        "intro",
+        "verse",
+        "pre-chorus",
+        "chorus",
+        "bridge",
+        "outro",
+        "tag",
+        "pickup",
+        "stop",
+        "handoff",
+    ] {
+        let mut song = current_rehearsal_song();
+        song["sections"][0]["label"] = json!(label);
+        assert!(
+            project_payload_from_content(&song.to_string()).is_ok(),
+            "shared section label {label} should remain loadable"
+        );
+    }
+
+    for level in ["low", "medium", "high"] {
+        let mut section_song = current_rehearsal_song();
+        section_song["sections"][0]["confidence"]["level"] = json!(level);
+        assert!(project_payload_from_content(&section_song.to_string()).is_ok());
+
+        let mut role_song = current_rehearsal_song();
+        role_song["sections"][0]["roles"][0]["confidence"]["level"] = json!(level);
+        assert!(project_payload_from_content(&role_song.to_string()).is_ok());
+    }
+
+    for source in ["model", "user"] {
+        let mut confidence_song = current_rehearsal_song();
+        confidence_song["sections"][0]["confidence"]["source"] = json!(source);
+        assert!(project_payload_from_content(&confidence_song.to_string()).is_ok());
+
+        let mut harmony_song = current_rehearsal_song();
+        harmony_song["sections"][0]["roles"][0]["harmony"]["source"] = json!(source);
+        assert!(project_payload_from_content(&harmony_song.to_string()).is_ok());
+    }
+
+    for role_type in ["instrument", "vocal", "hand"] {
+        let mut song = current_rehearsal_song();
+        song["sections"][0]["roles"][0]["roleType"] = json!(role_type);
+        assert!(project_payload_from_content(&song.to_string()).is_ok());
+    }
+
+    for cue_kind in ["lyric", "count", "transition"] {
+        let mut song = current_rehearsal_song();
+        song["sections"][0]["roles"][0]["cue"]["kind"] = json!(cue_kind);
+        assert!(project_payload_from_content(&song.to_string()).is_ok());
+    }
+
+    for priority in ["low", "medium", "high"] {
+        let mut song = current_rehearsal_song();
+        song["sections"][0]["roles"][0]["rehearsalPriority"] = json!(priority);
+        assert!(project_payload_from_content(&song.to_string()).is_ok());
+    }
+
+    for format in ["cue-sheet", "chart-summary"] {
+        let mut song = current_rehearsal_song();
+        song["exportSummary"]["format"] = json!(format);
+        assert!(project_payload_from_content(&song.to_string()).is_ok());
+    }
+}
+
+#[test]
 fn project_persistence_rejects_invalid_shared_closed_domains() {
     let mut invalid_section_label = current_rehearsal_song();
     invalid_section_label["sections"][0]["label"] = json!("solo");
