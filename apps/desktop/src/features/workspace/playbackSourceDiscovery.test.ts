@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { discoverPlaybackSourceOptions } from "./playbackSourceDiscovery";
+import {
+  discoverPlaybackSourceOptions,
+  discoverPlaybackSourceOutcome,
+} from "./playbackSourceDiscovery";
 
 const fullMix = "bandscope-project://project-100-1";
 const stems = [
@@ -43,6 +46,17 @@ describe("playback source native discovery", () => {
     ).resolves.toEqual([{ kind: "full_mix", authority: fullMix }]);
   });
 
+  it("classifies a verified full-mix-only response as an empty stem state", async () => {
+    const invokeCommand = vi.fn().mockResolvedValue([fullMix]);
+
+    await expect(
+      discoverPlaybackSourceOutcome(fullMix, invokeCommand),
+    ).resolves.toEqual({
+      status: "empty",
+      options: [{ kind: "full_mix", authority: fullMix }],
+    });
+  });
+
   it.each([
     ["partial stem set", [fullMix, stems[0], stems[1]]],
     ["stale project", ["bandscope-project://project-101-2"]],
@@ -64,6 +78,16 @@ describe("playback source native discovery", () => {
     await expect(
       discoverPlaybackSourceOptions(fullMix, invokeCommand),
     ).resolves.toBeNull();
+  });
+
+  it("classifies native invocation failure without exposing the native error", async () => {
+    const invokeCommand = vi
+      .fn()
+      .mockRejectedValue(new Error("/private/tmp/secret-source.wav"));
+
+    await expect(
+      discoverPlaybackSourceOutcome(fullMix, invokeCommand),
+    ).resolves.toEqual({ status: "error", options: null });
   });
 
   it.each([null, undefined, "file:///private/tmp/source.wav", `${fullMix}/stem/vocals`])(
