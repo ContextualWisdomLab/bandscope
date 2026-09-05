@@ -76,6 +76,26 @@ describe("project document plain-record admission", () => {
     expect(getterCalls).toBe(0);
   });
 
+  it("rejects accessor-backed selected-source fields without invoking the accessor", () => {
+    let getterCalls = 0;
+    const preferences = {} as Record<string, unknown>;
+    Object.defineProperty(preferences, "selectedPlaybackSource", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("selected source getter must not run");
+      }
+    });
+
+    expect(() =>
+      parseProjectDocument({
+        song: createDemoRehearsalSong(),
+        preferences
+      })
+    ).toThrow("Invalid project document");
+    expect(getterCalls).toBe(0);
+  });
+
   it("admits null-prototype JSON records without widening the durable field set", () => {
     const song = createDemoRehearsalSong();
     const preferences = Object.assign(Object.create(null) as Record<string, unknown>, {
