@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RehearsalPlayer } from "./RehearsalPlayer";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -18,6 +18,10 @@ const stemAuthorities = [
   `${fullMixAuthority}/stem/drums`,
   `${fullMixAuthority}/stem/other`,
 ] as const;
+const originalNavigatorLanguageDescriptor = Object.getOwnPropertyDescriptor(
+  navigator,
+  "language",
+);
 
 describe("RehearsalPlayer playback-source locale copy", () => {
   beforeEach(() => {
@@ -26,6 +30,18 @@ describe("RehearsalPlayer playback-source locale copy", () => {
       configurable: true,
       value: "en-US",
     });
+  });
+
+  afterEach(() => {
+    if (originalNavigatorLanguageDescriptor === undefined) {
+      delete (navigator as { language?: string }).language;
+      return;
+    }
+    Object.defineProperty(
+      navigator,
+      "language",
+      originalNavigatorLanguageDescriptor,
+    );
   });
 
   it("renders Korean playback-source copy while preserving opaque authority values", async () => {
