@@ -38,6 +38,15 @@ import {
   type RehearsalLoopWindow,
   type RehearsalTransportState,
 } from "./rehearsalTransport";
+import {
+  abortPlaybackSourceSwitch,
+  admitPlaybackSourceSwitchTarget,
+  beginPlaybackSourceSwitch,
+  completePlaybackSourceSwitch,
+  createPlaybackSourceSwitchSession,
+  type PlaybackSourceSwitchPlan,
+  type PlaybackSourceSwitchSession,
+} from "./playbackSourceSwitch";
 
 interface RehearsalPlayerProps {
   song: RehearsalSong;
@@ -252,6 +261,10 @@ export function RehearsalPlayer({
       loop: playableLoops[0] ?? null,
     }),
   );
+  const transportRef = useRef(transport);
+  useEffect(() => {
+    transportRef.current = transport;
+  }, [transport]);
   const countInClickEngine = useMemo<RehearsalCountInClickEngine>(
     () => createRehearsalCountInClickEngine(),
     [],
@@ -268,6 +281,12 @@ export function RehearsalPlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const playbackIntentRef = useRef<"active" | "inactive">("inactive");
   const playRequestSequenceRef = useRef(0);
+  const playbackSourceSwitchSessionRef = useRef<PlaybackSourceSwitchSession>(
+    createPlaybackSourceSwitchSession(),
+  );
+  const loadedPlaybackAuthorityRef = useRef<string | null>(null);
+  const sourceSwitchPendingRef = useRef(false);
+  const [sourceSwitchPending, setSourceSwitchPending] = useState(false);
   const audioSourceUrl = useMemo(
     () => resolveAudioSourceUrl(audioSourcePath),
     [audioSourcePath],
@@ -355,6 +374,118 @@ export function RehearsalPlayer({
     if (!audio) {
       return undefined;
     }
+
+    const targetAuthority =
+      hasLocalAudio && audioSourceUrl !== null ? audioSourcePath : null;
+    const sourceAuthority = loadedPlaybackAuthorityRef.current;
+    let plan: PlaybackSourceSwitchPlan | null = null;
+
+    if (
+      sourceAuthority !== null &&
+      targetAuthority !== null &&
+      sourceAuthority !== targetAuthority
+    ) {
+      const started = beginPlaybackSourceSwitch(
+        playbackSourceSwitchSessionRef.current,
+        transportRef.current,
+        audio.currentTime,
+        sourceAuthority,
+        targetAuthority,
+      );
+      playbackSourceSwitchSessionRef.current = started.state;
+      plan = started.plan;
+    } else if (playbackSourceSwitchSessionRef.current.activePlan !== null) {
+      playbackSourceSwitchSessionRef.current = abortPlaybackSourceSwitch(
+        playbackSourceSwitchSessionRef.current,
+        playbackSourceSwitchSessionRef.current.activePlan,
+      );
+    }
+
+    const pending = plan !== null;
+    sourceSwitchPendingRef.current = pending;
+    setSourceSwitchPending(pending);
+    if (sourceAuthority !== targetAuthority && plan === null) {
+      loadedPlaybackAuthorityRef.current = null;
+    }
+
+    const retireFailedPlan = (reportPlaybackError: boolean): void => {
+      if (plan !== null) {
+        playbackSourceSwitchSessionRef.current = abortPlaybackSourceSwitch(
+          playbackSourceSwitchSessionRef.current,
+          plan,
+        );
+      }
+      loadedPlaybackAuthorityRef.current = null;
+      sourceSwitchPendingRef.current = false;
+      setSourceSwitchPending(false);
+      setMediaDurationSeconds(null);
+      if (reportPlaybackError) {
+        handlePlaybackError();
+      }
+    };
+
+    /** Admit metadata only for the exact source mutation owned by this effect. */
+    const admitLoadedSource = (): void => {
+      const duration = audio.duration;
+      if (
+        targetAuthority === null ||
+        !Number.isFinite(duration) ||
+        duration <= 0
+      ) {
+        retireFailedPlan(true);
+        return;
+      }
+
+      if (plan === null) {
+        loadedPlaybackAuthorityRef.current = targetAuthority;
+        setMediaDurationSeconds(duration);
+        setPlaybackError(false);
+        return;
+      }
+
+      const admittedPlan = admitPlaybackSourceSwitchTarget(
+        playbackSourceSwitchSessionRef.current,
+        plan,
+        duration,
+        targetAuthority,
+      );
+      if (admittedPlan === null) {
+        retireFailedPlan(true);
+        return;
+      }
+
+      try {
+        audio.currentTime = admittedPlan.seekSeconds;
+        audio.playbackRate = admittedPlan.playbackRate;
+        if ("preservesPitch" in audio) {
+          audio.preservesPitch = true;
+        }
+        if (admittedPlan.sourcePhase === "looping") {
+          setTransport((current) =>
+            reduceRehearsalTransport(current, {
+              type: "sync",
+              playheadSeconds: admittedPlan.seekSeconds,
+            }),
+          );
+        }
+        loadedPlaybackAuthorityRef.current = admittedPlan.targetAuthority;
+        setMediaDurationSeconds(duration);
+        setPlaybackError(false);
+        playbackSourceSwitchSessionRef.current = completePlaybackSourceSwitch(
+          playbackSourceSwitchSessionRef.current,
+          admittedPlan,
+        );
+        sourceSwitchPendingRef.current = false;
+        setSourceSwitchPending(false);
+      } catch {
+        retireFailedPlan(true);
+      }
+    };
+
+    const failLoadedSource = (): void => retireFailedPlan(true);
+    audio.addEventListener("loadedmetadata", admitLoadedSource);
+    audio.addEventListener("error", failLoadedSource);
+
     playbackIntentRef.current = "inactive";
     setMediaDurationSeconds(null);
     if (!audio.paused) {
@@ -365,24 +496,35 @@ export function RehearsalPlayer({
       audio.src = audioSourceUrl;
       audio.load();
     } else {
+      loadedPlaybackAuthorityRef.current = null;
+      sourceSwitchPendingRef.current = false;
+      setSourceSwitchPending(false);
       audio.removeAttribute("src");
     }
     setPlaybackError(hasNativeAudioConversionError);
+
     return () => {
+      audio.removeEventListener("loadedmetadata", admitLoadedSource);
+      audio.removeEventListener("error", failLoadedSource);
+      if (plan !== null) {
+        playbackSourceSwitchSessionRef.current = abortPlaybackSourceSwitch(
+          playbackSourceSwitchSessionRef.current,
+          plan,
+        );
+      }
+      sourceSwitchPendingRef.current = false;
       playbackIntentRef.current = "inactive";
       if (!audio.paused) {
         audio.pause();
       }
     };
-  }, [audioSourceUrl, hasNativeAudioConversionError]);
-
-  /** Admit only a finite positive duration from the currently loaded local source. */
-  const handleLoadedMetadata = useCallback(() => {
-    const duration = audioRef.current?.duration ?? Number.NaN;
-    setMediaDurationSeconds(
-      Number.isFinite(duration) && duration > 0 ? duration : null,
-    );
-  }, []);
+  }, [
+    audioSourcePath,
+    audioSourceUrl,
+    handlePlaybackError,
+    hasLocalAudio,
+    hasNativeAudioConversionError,
+  ]);
 
   useEffect(() => {
     setTransport((current) => {
@@ -452,6 +594,9 @@ export function RehearsalPlayer({
   ]);
 
   useEffect(() => {
+    if (sourceSwitchPending) {
+      return;
+    }
     const transportLoopCovered =
       transport.loop === null ||
       loopFitsAdmittedMedia(transport.loop, mediaDurationSeconds);
@@ -465,7 +610,12 @@ export function RehearsalPlayer({
       }
       return reduceRehearsalTransport(current, { type: "stop" });
     });
-  }, [hasPlayableAudio, mediaDurationSeconds, transport.loop]);
+  }, [
+    hasPlayableAudio,
+    mediaDurationSeconds,
+    sourceSwitchPending,
+    transport.loop,
+  ]);
 
   useEffect(() => {
     if (transport.phase !== "counting-in" || !transport.loop) {
@@ -545,7 +695,11 @@ export function RehearsalPlayer({
   ]);
 
   useEffect(() => {
-    if (!audioSourceUrl || !transport.loop) {
+    if (
+      !audioSourceUrl ||
+      !transport.loop ||
+      sourceSwitchPendingRef.current
+    ) {
       return undefined;
     }
     const audio = audioRef.current;
@@ -586,12 +740,18 @@ export function RehearsalPlayer({
     audioSourceUrl,
     handlePlaybackError,
     handlePlayRejection,
+    sourceSwitchPending,
     transport.phase,
     transport.loop,
   ]);
 
   useEffect(() => {
-    if (!audioSourceUrl || transport.phase !== "looping" || !transport.loop) {
+    if (
+      !audioSourceUrl ||
+      sourceSwitchPendingRef.current ||
+      transport.phase !== "looping" ||
+      !transport.loop
+    ) {
       return undefined;
     }
     const audio = audioRef.current;
@@ -681,6 +841,7 @@ export function RehearsalPlayer({
     audioSourceUrl,
     handlePlaybackError,
     handlePlayRejection,
+    sourceSwitchPending,
     transport.phase,
     transport.loop,
     transport.playbackRate,
@@ -702,13 +863,16 @@ export function RehearsalPlayer({
       })
     : t("workspaceLoopSectionPickerLabel");
   const canStart =
+    !sourceSwitchPending &&
     transport.loop !== null &&
     hasPlayableAudio &&
     loopFitsAdmittedMedia(transport.loop, mediaDurationSeconds) &&
     (transport.phase === "armed" || transport.phase === "paused");
   const canPause =
-    transport.phase === "counting-in" || transport.phase === "looping";
-  const canStop = transport.phase !== "idle" && transport.loop !== null;
+    !sourceSwitchPending &&
+    (transport.phase === "counting-in" || transport.phase === "looping");
+  const canStop =
+    !sourceSwitchPending && transport.phase !== "idle" && transport.loop !== null;
   const startLabel =
     transport.phase === "paused"
       ? t("workspaceLoopResume")
@@ -810,6 +974,7 @@ export function RehearsalPlayer({
     ],
   );
   const canSeek =
+    !sourceSwitchPending &&
     transport.loop !== null &&
     hasPlayableAudio &&
     loopFitsAdmittedMedia(transport.loop, mediaDurationSeconds) &&
@@ -1190,8 +1355,6 @@ export function RehearsalPlayer({
         data-testid="rehearsal-loop-audio"
         preload="metadata"
         aria-hidden="true"
-        onDurationChange={handleLoadedMetadata}
-        onLoadedMetadata={handleLoadedMetadata}
         tabIndex={-1}
       />
     </section>
