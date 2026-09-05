@@ -19,6 +19,17 @@ const stemAuthorities = [
   `${fullMixAuthority}/stem/other`,
 ] as const;
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe("RehearsalPlayer mounted playback-source selection", () => {
   beforeEach(() => {
     vi.mocked(convertFileSrc).mockClear();
@@ -83,5 +94,58 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
     await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Vocals" })).not.toBeInTheDocument();
+  });
+
+  it("does not let a late discovery result from the previous project repopulate the selector", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    const nextFullMixAuthority = "bandscope-project://project-200-2";
+    const nextStems = [
+      `${nextFullMixAuthority}/stem/vocals`,
+      `${nextFullMixAuthority}/stem/bass`,
+      `${nextFullMixAuthority}/stem/drums`,
+      `${nextFullMixAuthority}/stem/other`,
+    ] as const;
+    vi.mocked(invoke)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const song = createDemoRehearsalSong();
+    const { rerender } = render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    rerender(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={nextFullMixAuthority}
+      />,
+    );
+    second.resolve([
+      nextStems[2],
+      nextFullMixAuthority,
+      nextStems[0],
+      nextStems[3],
+      nextStems[1],
+    ]);
+
+    const nextVocals = await screen.findByRole("radio", { name: "Vocals" });
+    expect(nextVocals).toHaveValue(nextStems[0]);
+
+    first.resolve([
+      fullMixAuthority,
+      stemAuthorities[0],
+      stemAuthorities[1],
+      stemAuthorities[2],
+      stemAuthorities[3],
+    ]);
+
+    await waitFor(() => expect(screen.getByRole("radio", { name: "Vocals" })).toHaveValue(nextStems[0]));
+    expect(screen.queryByDisplayValue(stemAuthorities[0])).not.toBeInTheDocument();
   });
 });
