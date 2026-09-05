@@ -19,6 +19,7 @@ The desktop shared contract already permits collaboration data and role-level re
 - `ed61d1c5f10e2baa4290fb40d692b82fb7dde500` proves explicit `null` is not omission for collaboration, collaboration `roleId`, and role explanation/transposition/transcription fields. `8b4ae848ec360a5af42b50076af15b643ae5275e` implements present-value deserialization; `ed9abedf0e5069fa93780fa3440ca91500cbdd93` extends it to optional `scoreAttachments`.
 - `2b0a47e6305b7b7a3e87857335d0f36dfabc9712` adds negative closed-domain cases; `96d66ed6f5fad918b0ddef8a1e6494b76f8bafd0` replaces unrestricted strings with exact serde enums. Manual overrides use a user-only harmony payload so outer `source: "user"` cannot mask model-owned nested provenance. `f8c30150375b39d54e1775d941f6515d2686410c` exercises every valid section-form, confidence, provenance, role-type, cue-kind, rehearsal-priority, and export-format token.
 - `d7886876b285f16ceda83ff5e0dd848e31cf7f97` extends the repository Security Notes verifier from plans to traceability records; `0185267ab819dd4b9ac1352f5fce1df8e2a7a782` adds the required Project Persistence security boundary.
+- Governance RED `45037f9fe5aa7c265d28c0da33fdedcf26f3ac49` proves a later peer section cannot supply missing Security Notes evidence and requires the project-format document to use the canonical heading. `907f3a7f70db0ac9fce11839ee215600cec15abe` bounds extraction at the next same-level heading; `65e422cd4d39014f2586ca86616f25b4b17e5e82` adds the nested-heading case and `d1ba145d9cdd7126df240a02d0c07f253a80d3c3` closes the remaining parent-heading escape without excluding legitimate nested subsections. `3883f342ac427fbed35fe2a88c4c6e7dd2f6a499` keeps the verifier Ruff import ordering canonical.
 - `a7c86be8e20895e3baebee44d33ef765e0837b5f` requires the buyer-visible limit to name the exact `5 * 1024 * 1024` ceiling as 5 MiB. `04e19ef6d19aced87e22015e4ec165cbce89f1d0` fixes the native diagnostic and `73d6a80183c19166b75be05f9286bee3769069e0` aligns the engineering format documentation without changing the byte threshold.
 - Later project-format work preserves these shared-song rules while advancing current writes to version 3. `ace91a29e540919d02716dd492e290f9743422a8` repairs stale v2-output assertions so legacy/v1/v2 remain predecessor compatibility inputs rather than being mistaken for current output.
 
@@ -33,6 +34,7 @@ The shared renderer authority is `packages/shared-types/src/index.ts` on protect
 - **Clamp invalid practice progress:** silent coercion hides corruption or contract drift.
 - **Treat explicit `null` as omission:** the renderer does not, so doing so natively creates cross-language disagreement.
 - **Keep `5MB` for a binary ceiling:** 5 × 1024 × 1024 bytes is 5 MiB; buyer-visible diagnostics must name the actual unit.
+- **Search for Security Notes keywords until end-of-file:** unrelated later sections could make an incomplete security record pass the verifier. Extraction must respect Markdown section hierarchy.
 
 ## Current effect
 
@@ -40,33 +42,35 @@ A current shared rehearsal song crosses Project Persistence without dropping the
 
 Current `.bscope` writes are now `projectFormatVersion: 3`, not v1. V3 retains the closed stable playback preference and adds an optional path-free app-owned `sourceReference`; legacy raw-song, v1, and v2 inputs migrate deterministically without inventing source evidence. The source-reference schema is separate from shared-song MIR/rehearsal truth.
 
+The Security Notes verifier now treats the requested heading as a real Markdown section: nested subsections remain inside it, while the next peer or parent heading terminates the evidence window. A later Operations/Decision section therefore cannot satisfy missing mitigation/test/risk requirements by keyword coincidence.
+
 Transcription-number semantics still require an evidence-driven cross-language contract: the shared validator currently type-checks `onset`, `offset`, and `velocity` as JavaScript numbers rather than defining rehearsal-specific numeric bounds, so persistence must not invent such bounds without product/scientific evidence.
 
 ## Security Notes
 
 ### Attack surface
 
-`.bscope` content is untrusted local file input. Save targets, recovery journals, staged/backup/displaced files, file metadata, collaboration payloads, role-level rehearsal data, renderer project JSON, and the optional app-owned source reference cross trust boundaries. This remains local-first and adds no network authority.
+`.bscope` content is untrusted local file input. Save targets, recovery journals, staged/backup/displaced files, file metadata, collaboration payloads, role-level rehearsal data, renderer project JSON, and the optional app-owned source reference cross trust boundaries. Documentation evidence itself is also a governance input: a permissive parser could misclassify incomplete Security Notes as compliant. This remains local-first and adds no network authority.
 
 ### Trust boundary
 
-Native Project Persistence is the durable storage authority. It admits the versioned envelope, applies `deny_unknown_fields`, validates finite-positive tempo and closed domains, rejects explicit `null` where omission is required, and keeps volatile playback capabilities and user paths out of durable truth. Resource Admission—not Project Persistence—owns the future derivation/re-admission of an app-owned audio artifact from a validated v3 source reference.
+Native Project Persistence is the durable storage authority. It admits the versioned envelope, applies `deny_unknown_fields`, validates finite-positive tempo and closed domains, rejects explicit `null` where omission is required, and keeps volatile playback capabilities and user paths out of durable truth. Resource Admission—not Project Persistence—owns the future derivation/re-admission of an app-owned audio artifact from a validated v3 source reference. The repository verifier owns only documentation-policy evidence and must not infer required content from outside the actual Security Notes section.
 
 ### Mitigations
 
-Typed allowlists are used instead of arbitrary JSON/string bags. Reads are bounded to 5 MiB and use no-follow/native-identity checks. Saves stage and sync complete bytes before publication, preserve data-file permissions without executable/special bits, and use target-scoped recovery journals plus parent-directory synchronization. Current source references are path-free and limited to a BandScope project id, fixed `source.<extension>` artifact name, admitted extension, and positive byte evidence; malformed references fail before publication.
+Typed allowlists are used instead of arbitrary JSON/string bags. Reads are bounded to 5 MiB and use no-follow/native-identity checks. Saves stage and sync complete bytes before publication, preserve data-file permissions without executable/special bits, and use target-scoped recovery journals plus parent-directory synchronization. Current source references are path-free and limited to a BandScope project id, fixed `source.<extension>` artifact name, admitted extension, and positive byte evidence; malformed references fail before publication. Security Notes extraction stops at the next heading whose level is the same as or higher than the Security Notes heading, preserving legitimate nested subsections while excluding unrelated later evidence.
 
 ### Safe failure and logging/privacy
 
-Malformed/unsupported envelopes, invalid shared-domain tokens, explicit-null drift, unsafe paths, source-reference mismatch, identity mismatch, oversized files, and ambiguous recovery state return bounded product errors without echoing project content, local paths, collaboration text, credentials, or secret-shaped values. Failure must retain known-good data or retryable recovery state once mutation begins; it must not coerce corrupt values, fabricate source evidence, or fall back to direct overwrite.
+Malformed/unsupported envelopes, invalid shared-domain tokens, explicit-null drift, unsafe paths, source-reference mismatch, identity mismatch, oversized files, and ambiguous recovery state return bounded product errors without echoing project content, local paths, collaboration text, credentials, or secret-shaped values. Failure must retain known-good data or retryable recovery state once mutation begins; it must not coerce corrupt values, fabricate source evidence, or fall back to direct overwrite. A malformed or incomplete documentation section fails verification instead of borrowing keywords from later content.
 
 ### Test points
 
-Executable coverage includes shared-song parse/serialize parity, closed-domain positive/negative cases, omission-versus-null behavior, progress bounds, legacy/v1/v2 migration, v3 source-reference round trip/rejection, exact 5 MiB diagnostics, symlink/reparse and ancestor checks, native file identity, first-save/no-clobber behavior, existing-target replacement, stage cleanup, permission normalization, Windows replacement/recovery, macOS/Windows case-alias recovery, completed rollback, stale-journal cleanup, and passive renderer object admission. `scripts/checks/verify_security_notes.py` treats traceability records as governed Security Notes documents.
+Executable coverage includes shared-song parse/serialize parity, closed-domain positive/negative cases, omission-versus-null behavior, progress bounds, legacy/v1/v2 migration, v3 source-reference round trip/rejection, exact 5 MiB diagnostics, symlink/reparse and ancestor checks, native file identity, first-save/no-clobber behavior, existing-target replacement, stage cleanup, permission normalization, Windows replacement/recovery, macOS/Windows case-alias recovery, completed rollback, stale-journal cleanup, and passive renderer object admission. `scripts/checks/verify_security_notes.py` treats traceability records as governed Security Notes documents; regression coverage proves both peer-heading and parent-heading boundaries and the canonical `## Security Notes` heading in the project-format document.
 
 ### Realistic threats
 
-Relevant threats are malformed/future project payloads being treated as current truth; a local directory participant racing or pre-creating recovery names; link/reparse redirection; file replacement between preflight and publication; interruption during replacement/rollback; permissive modes exposing rehearsal data to another local account; executable renderer object shapes crossing the adapter; and stale playback/user-path authority being persisted as project truth. These controls do not claim protection against a fully compromised OS or attacker with equivalent account authority.
+Relevant threats are malformed/future project payloads being treated as current truth; a local directory participant racing or pre-creating recovery names; link/reparse redirection; file replacement between preflight and publication; interruption during replacement/rollback; permissive modes exposing rehearsal data to another local account; executable renderer object shapes crossing the adapter; stale playback/user-path authority being persisted as project truth; and incomplete security documentation being accepted because required words appear later in an unrelated section. These controls do not claim protection against a fully compromised OS or attacker with equivalent account authority.
 
 ### Remaining risk
 
