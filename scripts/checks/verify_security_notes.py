@@ -38,7 +38,7 @@ def security_notes_section(content: str) -> str:
     end_index = len(lines)
     for index in range(start_index + 1, len(lines)):
         match = MARKDOWN_HEADING.match(lines[index].strip())
-        if match is not None and len(match.group(1)) == heading_level:
+        if match is not None and len(match.group(1)) <= heading_level:
             end_index = index
             break
 
