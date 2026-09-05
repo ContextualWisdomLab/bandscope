@@ -121,10 +121,17 @@ export function RehearsalPlayer({
     commitPlaybackSourceSession(sourceSessionRef, setSourceSession, selected);
   }, []);
 
-  const selectedAuthority =
-    sourceSession.selectedAuthority ??
-    (hasLocalAudio ? audioSourcePath : null);
-  const hasStemChoices = sourceSession.options.length > 1;
+  const sessionMatchesMountedProject =
+    hasLocalAudio && sourceSession.fullMixAuthority === audioSourcePath;
+  const visibleOptions = sessionMatchesMountedProject
+    ? sourceSession.options
+    : [];
+  const selectedAuthority = sessionMatchesMountedProject
+    ? sourceSession.selectedAuthority ?? audioSourcePath
+    : hasLocalAudio
+      ? audioSourcePath
+      : null;
+  const hasStemChoices = visibleOptions.length > 1;
 
   return (
     <>
@@ -134,7 +141,7 @@ export function RehearsalPlayer({
             Playback source
           </legend>
           <div className="mt-2 flex flex-wrap gap-2">
-            {sourceSession.options.map((option) => (
+            {visibleOptions.map((option) => (
               <label
                 key={option.authority}
                 className="flex min-h-11 cursor-pointer items-center gap-2 px-2 text-sm font-semibold text-slate-100 focus-within:outline-none focus-within:ring-2 focus-within:ring-cyan-300"
