@@ -91,7 +91,7 @@ By retaining `manualOverrides`, BandScope can distinguish between original model
 ## Security Constraints
 
 When loading `.bscope` files from disk, BandScope applies the following constraints:
-1. **Size Limits**: The project file must not exceed an upper bound (currently enforced at 5MB in Tauri backend) to prevent memory exhaustion.
+1. **Size Limits**: The project file must not exceed an upper bound (currently 5 MiB, implemented as `5 * 1024 * 1024` bytes in the Tauri backend) to prevent memory exhaustion.
 2. **Schema Validation**: The loaded JSON is structurally validated against the `RehearsalSong` contract. Collaboration state tokens and `practiceProgress` use the same accepted domains as the shared renderer contract.
 3. **Bounded Processing**: The JSON parsing is standard and safe, avoiding arbitrary code execution or payload expansion attacks.
 
