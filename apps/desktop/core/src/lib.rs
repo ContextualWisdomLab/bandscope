@@ -155,6 +155,37 @@ where
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RehearsalCollaborationSyncModePayload {
+    LocalOnly,
+    PlannedCloud,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RehearsalAssignmentStatusPayload {
+    Todo,
+    InProgress,
+    Ready,
+    Blocked,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RehearsalCommentStatusPayload {
+    Open,
+    Resolved,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RehearsalApprovalStatusPayload {
+    Pending,
+    Approved,
+    ChangesRequested,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalAssignmentPayload {
     id: String,
@@ -163,7 +194,7 @@ pub struct RehearsalAssignmentPayload {
     section_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     role_id: Option<String>,
-    status: String,
+    status: RehearsalAssignmentStatusPayload,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -175,7 +206,7 @@ pub struct RehearsalCommentPayload {
     section_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     role_id: Option<String>,
-    status: String,
+    status: RehearsalCommentStatusPayload,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -184,13 +215,13 @@ pub struct RehearsalApprovalPayload {
     id: String,
     scope: String,
     owner: String,
-    status: String,
+    status: RehearsalApprovalStatusPayload,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalCollaborationPayload {
-    sync_mode: String,
+    sync_mode: RehearsalCollaborationSyncModePayload,
     sync_note: String,
     assignments: Vec<RehearsalAssignmentPayload>,
     comments: Vec<RehearsalCommentPayload>,
@@ -267,6 +298,24 @@ pub struct TranscriptionNotePayload {
     velocity: f64,
 }
 
+fn deserialize_practice_progress<'de, D>(deserializer: D) -> Result<Option<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Number(number) => match number.as_u64() {
+            Some(progress) if progress <= 100 => Ok(Some(progress as u8)),
+            _ => Err(serde::de::Error::custom(
+                "practiceProgress must be an integer from 0 through 100",
+            )),
+        },
+        _ => Err(serde::de::Error::custom(
+            "practiceProgress must be an integer from 0 through 100",
+        )),
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
@@ -288,7 +337,11 @@ pub struct RehearsalRolePayload {
     overlap_warnings: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     transcription: Option<Vec<TranscriptionNotePayload>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_practice_progress",
+        skip_serializing_if = "Option::is_none"
+    )]
     practice_progress: Option<u8>,
 }
 
