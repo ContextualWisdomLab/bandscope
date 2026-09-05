@@ -8,10 +8,19 @@ export type ProjectPreferences = {
   selectedPlaybackSource: SelectedPlaybackSource;
 };
 
+/** App-owned audio artifact identity used for process-restart re-admission. */
+export type ProjectSourceReference = {
+  projectId: string;
+  artifactName: string;
+  extension: "wav" | "mp3" | "flac" | "m4a";
+  fileSizeBytes: number;
+};
+
 /** Current renderer-facing project document admitted by the native persistence owner. */
 export type ProjectDocument = {
   song: RehearsalSong;
   preferences: ProjectPreferences;
+  sourceReference?: ProjectSourceReference;
 };
 
 const SELECTED_PLAYBACK_SOURCES = new Set<SelectedPlaybackSource>([
@@ -21,6 +30,13 @@ const SELECTED_PLAYBACK_SOURCES = new Set<SelectedPlaybackSource>([
   "drums",
   "other"
 ]);
+const PROJECT_SOURCE_EXTENSIONS = new Set<ProjectSourceReference["extension"]>([
+  "wav",
+  "mp3",
+  "flac",
+  "m4a"
+]);
+const PROJECT_ID_PATTERN = /^project-\d+-\d+$/;
 
 type OwnDataProperty =
   | { ok: true; value: unknown }
@@ -48,6 +64,22 @@ function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly strin
   }
 }
 
+function hasRequiredAndOptionalKeys(
+  value: Record<string, unknown>,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[]
+): boolean {
+  try {
+    const keys = Object.keys(value);
+    return (
+      requiredKeys.every((key) => keys.includes(key)) &&
+      keys.every((key) => requiredKeys.includes(key) || optionalKeys.includes(key))
+    );
+  } catch {
+    return false;
+  }
+}
+
 function ownEnumerableDataProperty(value: Record<string, unknown>, key: string): OwnDataProperty {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -60,13 +92,63 @@ function ownEnumerableDataProperty(value: Record<string, unknown>, key: string):
   }
 }
 
+function parseProjectSourceReference(value: unknown): ProjectSourceReference {
+  if (
+    !isPlainRecord(value) ||
+    !hasOnlyKeys(value, ["projectId", "artifactName", "extension", "fileSizeBytes"])
+  ) {
+    throw new Error("Invalid project document");
+  }
+
+  const projectIdProperty = ownEnumerableDataProperty(value, "projectId");
+  const artifactNameProperty = ownEnumerableDataProperty(value, "artifactName");
+  const extensionProperty = ownEnumerableDataProperty(value, "extension");
+  const fileSizeBytesProperty = ownEnumerableDataProperty(value, "fileSizeBytes");
+  if (
+    !projectIdProperty.ok ||
+    !artifactNameProperty.ok ||
+    !extensionProperty.ok ||
+    !fileSizeBytesProperty.ok
+  ) {
+    throw new Error("Invalid project document");
+  }
+
+  const projectId = projectIdProperty.value;
+  const artifactName = artifactNameProperty.value;
+  const extension = extensionProperty.value;
+  const fileSizeBytes = fileSizeBytesProperty.value;
+  if (
+    typeof projectId !== "string" ||
+    !PROJECT_ID_PATTERN.test(projectId) ||
+    typeof extension !== "string" ||
+    !PROJECT_SOURCE_EXTENSIONS.has(extension as ProjectSourceReference["extension"]) ||
+    typeof artifactName !== "string" ||
+    artifactName !== `source.${extension}` ||
+    typeof fileSizeBytes !== "number" ||
+    !Number.isSafeInteger(fileSizeBytes) ||
+    fileSizeBytes <= 0
+  ) {
+    throw new Error("Invalid project document");
+  }
+
+  return {
+    projectId,
+    artifactName,
+    extension: extension as ProjectSourceReference["extension"],
+    fileSizeBytes
+  };
+}
+
 /**
  * Validate the renderer-visible project document without accepting filesystem paths,
  * runtime capability URLs, generation tokens, prototype-bearing records, accessors,
- * trapped record enumeration, or unknown preference fields.
+ * trapped record enumeration, or unknown preference/source-reference fields.
  */
 export function parseProjectDocument(value: unknown): ProjectDocument {
-  if (!isPlainRecord(value) || !hasOnlyKeys(value, ["song", "preferences"])) {
+  if (
+    !isPlainRecord(value) ||
+    !hasRequiredAndOptionalKeys(value, ["song", "preferences"], ["sourceReference"])
+  ) {
     throw new Error("Invalid project document");
   }
 
@@ -93,21 +175,34 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     throw new Error("Invalid project document");
   }
 
+  let sourceReference: ProjectSourceReference | undefined;
+  const sourceReferenceDescriptor = Object.getOwnPropertyDescriptor(value, "sourceReference");
+  if (sourceReferenceDescriptor !== undefined) {
+    const sourceReferenceProperty = ownEnumerableDataProperty(value, "sourceReference");
+    if (!sourceReferenceProperty.ok) {
+      throw new Error("Invalid project document");
+    }
+    sourceReference = parseProjectSourceReference(sourceReferenceProperty.value);
+  }
+
   return {
     song: parseRehearsalSong(songProperty.value),
     preferences: {
       selectedPlaybackSource: selectedPlaybackSource as SelectedPlaybackSource
-    }
+    },
+    ...(sourceReference ? { sourceReference } : {})
   };
 }
 
 /** Build the exact current renderer document before crossing the native persistence boundary. */
 export function createProjectDocument(
   song: RehearsalSong,
-  selectedPlaybackSource: SelectedPlaybackSource = "full_mix"
+  selectedPlaybackSource: SelectedPlaybackSource = "full_mix",
+  sourceReference?: ProjectSourceReference
 ): ProjectDocument {
   return parseProjectDocument({
     song: parseRehearsalSong(song),
-    preferences: { selectedPlaybackSource }
+    preferences: { selectedPlaybackSource },
+    ...(sourceReference ? { sourceReference } : {})
   });
 }
