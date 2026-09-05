@@ -10,12 +10,14 @@ The Active Player has a stable source semantic (`full_mix | vocals | bass | drum
 - Preserve strict historical v1 and legacy raw-song parsing. A v1 file contains no evidence that a stem was selected, so migration must not infer one.
 - The persisted value is a closed rehearsal semantic only. Native playback URLs, absolute paths, generation tokens, and capability receipts stay runtime-only.
 - Unsupported future versions must fail explicitly before their body is interpreted as the current schema.
+- Keep the existing historical core source in place rather than creating a large review-only move for a narrow format change.
 - Version 2 is Draft code. Downgrade/rollback behavior and packaged cross-platform evidence remain release gates.
 
 ## RED → fix evidence
 
 - RED `86207ea0459f1a6e27e80f571ad5d6462a0d6fab` adds `apps/desktop/core/tests/project_format_v2_playback_preference.rs`. The predecessor cannot compile because the current-document API and typed preference did not exist. The test requires deterministic v1/legacy migration to `full_mix`, round-trip preservation of all five stable semantics, rejection of unknown and `bandscope-playback` values, and a typed document constructor that needs no runtime authority.
-- Causal fix `be4ce61f9a865229aad9b46ad27adb79b1028258` isolates historical payload/process logic in `core`, introduces `project_format` as the current version/migration boundary, and makes crate-root Project Persistence APIs write/read version 2 while delegating v1 and legacy validation to the existing strict parser. The old `lib.rs` blob is reused exactly as `core.rs`; this is a module move, not a copied persistence implementation.
+- Causal implementation `be4ce61f9a865229aad9b46ad27adb79b1028258` introduces `project_format` as the current version/migration boundary and delegates historical v1/legacy validation to the existing strict parser.
+- Review-surface repair `e95b1db4495df5d9c721271f9b8edc54840eb004` removes the temporary large source move. `apps/desktop/core/src/lib.rs` is restored byte-for-byte at its historical path; `src/crate_root.rs` includes it as the `core` module and re-exports the current v2 Project Persistence API. `Cargo.toml` changes only the library entry path. The net semantic delta from the predecessor is therefore the small crate-root adapter plus `project_format`, fixtures, tests, and documentation—not a copied 1,600-line implementation.
 - Golden fixture `4aa18fa8cbe5e59cf3f1e195f9a20e51c36e4da7` adds `project-v2.json` with an explicit `vocals` preference. Fixture contract `73dc9a7314c0e20938fc767c207e4102e1bbf106` verifies that current-format round trips preserve it.
 - Documentation alignment `9518d84eb621b03211a4ad5a164969268ae68cdd` updates `docs/engineering/local-project-format.md` to the version-2 envelope, ordered v1 migration, golden fixtures, runtime-authority separation, and remaining consumer/recovery gaps.
 
@@ -44,6 +46,7 @@ On reopen, the stored semantic is not sufficient authority to play audio. The co
 - **Use an arbitrary string preference** — rejected because malformed, future, or injected values would survive as if they were current domain truth.
 - **Infer the most recently generated stem during v1 migration** — rejected because the v1 artifact has no durable evidence for that claim. Deterministic `full_mix` is the only non-fabricated migration.
 - **Create a WebView persistence store until the project format catches up** — rejected because it would establish a second writer and could disagree with the crash-safe project artifact after Save As, reopen, or recovery.
+- **Keep the temporary `lib.rs` → `core.rs` file move** — rejected after reviewing the resulting diff. Although byte-equivalent, it expanded the review surface by roughly the whole historical core source without adding product behavior. The ordinary descendant repair keeps the source at its original path and uses a small crate-root adapter instead.
 
 ## Effect
 
