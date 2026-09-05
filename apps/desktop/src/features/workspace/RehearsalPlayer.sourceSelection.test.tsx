@@ -76,6 +76,40 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
     );
   });
 
+  it("revokes a failed selected stem immediately and refreshes native availability before allowing reselection", async () => {
+    const refresh = deferred<unknown>();
+    vi.mocked(invoke)
+      .mockResolvedValueOnce([fullMixAuthority, ...stemAuthorities])
+      .mockReturnValueOnce(refresh.promise);
+
+    render(
+      <RehearsalPlayer
+        song={createDemoRehearsalSong()}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    const vocals = await screen.findByRole("radio", { name: "Vocals" });
+    fireEvent.click(vocals);
+    await waitFor(() => expect(vocals).toBeChecked());
+
+    fireEvent.error(screen.getByTestId("rehearsal-loop-audio"));
+
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Vocals" })).not.toBeInTheDocument();
+    expect(vi.mocked(convertFileSrc)).toHaveBeenCalledWith(
+      "project-100-1",
+      "bandscope-playback",
+    );
+
+    refresh.resolve([fullMixAuthority]);
+    await waitFor(() =>
+      expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument(),
+    );
+  });
+
   it("never renders partial native availability as buyer-selectable stems", async () => {
     vi.mocked(invoke).mockResolvedValue([
       fullMixAuthority,
