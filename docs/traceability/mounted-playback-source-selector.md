@@ -43,6 +43,24 @@ RED commit `6e928262d8bbcba0845fcb04a1dc09c095e23434` adds two independently mou
 
 A focused TypeScript 5.8.3 `--strict` compile of the exact public wrapper with contract-compatible stubs passed after the fix. This checks the new wrapper's type/syntax surface only; it is not repository exact-head CI evidence and does not substitute for the real workspace test suite.
 
+## Discovery waiting-state accessibility
+
+Fresh mounted review found that `beginPlaybackSourceDiscovery` correctly removes stale stem controls while native availability is pending, but the UI gave no visible or programmatically determinable explanation for that temporary disappearance. The same silent waiting state occurred on first discovery and after error-driven revocation refresh. This is a buyer-visible loading-state gap rather than a playback-authority gap: full mix remains usable, but the user should be told why stem choices are temporarily unavailable.
+
+RED commit `c55e15d1884fcb8cfa750ed3434b498917858bbb` holds native availability unresolved and requires the mounted player to expose `Checking playback sources…` as a `status` while the canonical stem snapshot is pending, with no premature stem radio group. Causal fix `1e2eb0b1654a368286e05b242680d14b0b147020` derives the waiting state only from the current project's exact `PlaybackSourceSession.pendingRequest`, adds EN/KO screen copy under the existing locale owner, and removes the status when that exact discovery settles. It does not add a spinner, new request store, polling loop, or synthetic stem option.
+
+WAI-ARIA defines `status` as an advisory live region whose implicit `aria-live` value is `polite` and whose implicit `aria-atomic` value is `true`. WCAG 2.2 Success Criterion 4.1.3 requires status messages about application waiting/progress states to be programmatically determinable without moving focus. W3C's ARIA22 technique additionally notes that some environments do not reliably treat `status` as atomic by default. Compatibility RED `ff7b418633cdf053d6a9c46d00282590bb7876ec` therefore requires explicit `aria-atomic="true"`; causal fix `b9592814a24969ff65176e45b545e660429323c2` adds that compatibility attribute without changing focus or escalating the message to an interruptive `alert`.
+
+The status copy remains presentation only. It cannot select a source, mint authority, prolong a receipt, or make a partial stem set visible. JA/ZH/VI/ES/DE/FR and the DB-backed versioned translation ledger remain the wider #965/product localization owner rather than being duplicated here.
+
+### Accessibility references
+
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/wai-aria-1.2/
+
+World Wide Web Consortium. (n.d.). *Understanding Success Criterion 4.1.3: Status messages*. Retrieved September 5, 2026, from https://www.w3.org/WAI/WCAG22/Understanding/status-messages
+
+World Wide Web Consortium. (n.d.). *ARIA22: Using `role=status` to present status messages*. Retrieved September 5, 2026, from https://www.w3.org/WAI/WCAG21/Techniques/aria/ARIA22
+
 ## Mounted revocation and reselection
 
 Native `PlaybackAuthority` deliberately revokes the prior generated stem set when a newer stem analysis starts or when authority moves to another generation. The mounted selector therefore cannot treat a previously discovered stem as durable just because its radio option is still in renderer state.
@@ -57,12 +75,12 @@ Full-mix media failures are not silently converted into a selector refresh becau
 
 The wrapper does not mint authorities, derive native paths, copy the native registry, or persist a second source catalog. `PlaybackAuthority` remains the owner of playable bytes; `get_playback_source_availability` remains the native availability read model; `PlaybackSourceSession` remains the renderer option/session authority.
 
-Rendering partial stem sets was rejected because native publication is atomic. Keeping the previous project's options visible during refresh was rejected because revocable authority cannot outlive the snapshot that established it. A second transport store in the wrapper was rejected because the existing rehearsal transport remains canonical. Periodic polling was rejected because `beginPlaybackSourceDiscovery` correctly revokes visible stem options at refresh start; polling would therefore create repeated selector disappearance and unnecessary native work. Treating a failed stem as selectable until the next unrelated render was rejected because a revoked source is no longer buyer truth.
+Rendering partial stem sets was rejected because native publication is atomic. Keeping the previous project's options visible during refresh was rejected because revocable authority cannot outlive the snapshot that established it. A second transport store in the wrapper was rejected because the existing rehearsal transport remains canonical. Periodic polling was rejected because `beginPlaybackSourceDiscovery` correctly revokes visible stem options at refresh start; polling would therefore create repeated selector disappearance and unnecessary native work. Treating a failed stem as selectable until the next unrelated render was rejected because a revoked source is no longer buyer truth. A blocking modal or `alert` for normal discovery was rejected because discovery is advisory progress and full-mix playback remains available; changing context or interrupting speech would overstate the condition.
 
 ## Current media transaction and remaining buyer gap
 
 The selector is now connected to `RehearsalPlayerCore`'s source-switch transaction. Same-project source replacement issues the existing switch receipt before `audio.src` mutation, gates transport while metadata is pending, admits only the exact active plan/target/duration, restores seek and playback rate, and retires the receipt on success or failure. Project/generation rotation remounts the transport owner rather than inheriting prior project state, and a replaced source's unresolved `play()` Promise is retired before it can report an error against the next source. Those details are maintained in `mounted-playback-source-switch-transaction.md`.
 
-Commercial delivery remains incomplete. Selected-source persistence/reload, translation-ledger integration for source labels, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, responsive/browser and screen-reader E2E, and rights-cleared audible Windows/macOS acceptance remain open. The new revocation behavior also still needs exact-head hosted browser/component evidence rather than source-level test/fix evidence alone.
+Commercial delivery remains incomplete. Selected-source persistence/reload, discovery failure/empty-state product copy where a distinct buyer action is warranted, translation-ledger integration for source labels/status, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, responsive/browser and screen-reader E2E, and rights-cleared audible Windows/macOS acceptance remain open. The new waiting-state and revocation behavior also still need exact-head hosted browser/component evidence rather than source-level test/fix evidence alone.
 
 Until those paths and current-head protected CI/review gates are GREEN, the UI Delivery Gate remains FAIL.
