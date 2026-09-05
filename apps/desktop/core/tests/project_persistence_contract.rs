@@ -147,6 +147,10 @@ fn project_persistence_rejects_explicit_null_for_optional_shared_fields() {
     null_collaboration["collaboration"] = Value::Null;
     assert!(project_payload_from_content(&null_collaboration.to_string()).is_err());
 
+    let mut null_score_attachments = current_rehearsal_song();
+    null_score_attachments["scoreAttachments"] = Value::Null;
+    assert!(project_payload_from_content(&null_score_attachments.to_string()).is_err());
+
     let mut null_assignment_role = current_rehearsal_song();
     null_assignment_role["collaboration"]["assignments"][0]["roleId"] = Value::Null;
     assert!(project_payload_from_content(&null_assignment_role.to_string()).is_err());
