@@ -29,7 +29,7 @@
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
 
-## 2026-09-01 - CSV Formula Injection NUL Byte Bypass
-**Vulnerability:** CSV formula-injection mitigation was incomplete because the desktop export boundary did not classify a leading NUL byte (`\x00`) as dangerous input.
-**Learning:** NUL-prefixed cells need an explicit executable regression at the export boundary because downstream spreadsheet/parser behavior is outside BandScope's trust boundary. Repeated NUL prefixes and whitespace followed by NUL must not bypass the same fail-closed prefixing contract.
-**Prevention:** Treat NUL as a dangerous leading character in `escapeCsvField`, prefix the entire original field before structural CSV quoting, and keep regressions for NUL-only, NUL+formula, repeated-NUL, and whitespace+NUL inputs. The lint exception is scoped only to the intentional control-character regular expression.
+## 2026-09-05 - CSV Formula Injection C0 Control Prefix Bypass
+**Vulnerability:** CSV formula-injection mitigation was incomplete when a cell began with a C0 control character (`\x00`-`\x1F`) that could be interpreted differently by downstream spreadsheet or parser implementations before a formula token.
+**Learning:** NUL is only one member of the parser-disagreement boundary. Security policy must not depend on every downstream consumer preserving leading control bytes exactly, and executable regressions must include non-whitespace controls such as ESC as well as NUL.
+**Prevention:** In `escapeCsvField`, treat any leading C0 control after permitted whitespace/BOM/NBSP as dangerous, prefix the entire original field before structural CSV quoting, and retain regressions for NUL-only, repeated NUL, whitespace+control, ESC-prefixed formula-shaped values, and full-width formula operators. Keep the lint exception scoped only to the intentional control-character regular expression.
