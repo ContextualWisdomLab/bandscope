@@ -502,6 +502,8 @@ export function RehearsalPlayer({
     audio.addEventListener("loadedmetadata", admitLoadedSource);
     audio.addEventListener("error", failLoadedSource);
 
+    // A source replacement retires unresolved play() outcomes from the previous media resource.
+    playRequestSequenceRef.current += 1;
     playbackIntentRef.current = "inactive";
     setMediaDurationSeconds(null);
     if (!audio.paused) {
