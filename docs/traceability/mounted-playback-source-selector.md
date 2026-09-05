@@ -6,7 +6,7 @@ Status: Draft implementation evidence for PR #1160. This document does not promo
 
 The native playback boundary already exposed a renderer-safe availability command and the renderer already had canonical option, session, discovery, and source-switch receipt contracts. The mounted `RehearsalPlayer`, however, still consumed only the full-mix `audioSourcePath`. A rehearsing musician therefore had no buyer-visible way to choose the atomically admitted vocals, bass, drums, or other-instruments source even when native authority had registered the complete stem set.
 
-The selector must not create a second playback authority. It may display only the current native project's opaque authorities, must not expose filesystem paths, and must fail closed when native availability is partial, malformed, stale, or from another project.
+The selector must not create a second playback authority. It may display only the current native project's opaque authorities, must not expose filesystem paths, and must fail closed when native availability is partial, malformed, stale, revoked, or from another project.
 
 ## Test-first evidence
 
@@ -43,23 +43,26 @@ RED commit `6e928262d8bbcba0845fcb04a1dc09c095e23434` adds two independently mou
 
 A focused TypeScript 5.8.3 `--strict` compile of the exact public wrapper with contract-compatible stubs passed after the fix. This checks the new wrapper's type/syntax surface only; it is not repository exact-head CI evidence and does not substitute for the real workspace test suite.
 
+## Mounted revocation and reselection
+
+Native `PlaybackAuthority` deliberately revokes the prior generated stem set when a newer stem analysis starts or when authority moves to another generation. The mounted selector therefore cannot treat a previously discovered stem as durable just because its radio option is still in renderer state.
+
+Fresh RED commit `4e9276c7e782add0ef02a1f6a7435bb93eb7af43` selects `Vocals`, raises an actual media `error` from the mounted rehearsal `<audio>` element, and requires the selector to discard every stem immediately, fall back through the existing full-mix authority, and issue a new `get_playback_source_availability` request before any stem can be selected again. The refresh is intentionally left unresolved during the assertion so stale buyer-visible options cannot be justified by a fast IPC response.
+
+Causal fix `24040b4cd23629de5f60dbb0a0b54c40e212dec4` keeps the repair in the UI composition owner. The wrapper captures media-source errors from its own mounted player, and only when the failed current selection is a stem from the current full-mix session does it call `beginPlaybackSourceDiscovery` against the existing session. That transition synchronously reduces the option snapshot to full mix and preserves the session's monotonic request sequence; the asynchronous native result may restore stem options only through the exact new discovery receipt. A generation token also prevents any earlier async discovery from committing after a newer project or revocation refresh.
+
+Full-mix media failures are not silently converted into a selector refresh because there is no safer local source to fall back to. The core's existing playback-error path remains authoritative for those failures. The wrapper does not mint authority, infer a native path, or poll the native registry.
+
 ## Authority and rejected alternatives
 
 The wrapper does not mint authorities, derive native paths, copy the native registry, or persist a second source catalog. `PlaybackAuthority` remains the owner of playable bytes; `get_playback_source_availability` remains the native availability read model; `PlaybackSourceSession` remains the renderer option/session authority.
 
-Rendering partial stem sets was rejected because native publication is atomic. Keeping the previous project's options visible during refresh was rejected because revocable authority cannot outlive the snapshot that established it. A second transport store in the wrapper was rejected because the existing rehearsal transport remains canonical.
+Rendering partial stem sets was rejected because native publication is atomic. Keeping the previous project's options visible during refresh was rejected because revocable authority cannot outlive the snapshot that established it. A second transport store in the wrapper was rejected because the existing rehearsal transport remains canonical. Periodic polling was rejected because `beginPlaybackSourceDiscovery` correctly revokes visible stem options at refresh start; polling would therefore create repeated selector disappearance and unnecessary native work. Treating a failed stem as selectable until the next unrelated render was rejected because a revoked source is no longer buyer truth.
 
-## Remaining buyer gap
+## Current media transaction and remaining buyer gap
 
-This increment mounts real source discovery and selection, but it does **not** complete seamless source switching. `RehearsalPlayerCore` still owns the pre-existing `audioSourceUrl` effect: a selected authority change makes playback intent inactive, clears admitted duration, pauses, replaces `audio.src`, and calls `load()`. The dedicated `PlaybackSourceSwitchSession` continuity contract is not yet connected to this mounted media lifecycle.
+The selector is now connected to `RehearsalPlayerCore`'s source-switch transaction. Same-project source replacement issues the existing switch receipt before `audio.src` mutation, gates transport while metadata is pending, admits only the exact active plan/target/duration, restores seek and playback rate, and retires the receipt on success or failure. Project/generation rotation remounts the transport owner rather than inheriting prior project state, and a replaced source's unresolved `play()` Promise is retired before it can report an error against the next source. Those details are maintained in `mounted-playback-source-switch-transaction.md`.
 
-The next causal slice must therefore move source replacement inside the transport owner and prove one transaction:
+Commercial delivery remains incomplete. Selected-source persistence/reload, translation-ledger integration for source labels, JA/ZH/VI/ES/DE/FR plus CJK/text-expansion/font-fallback evidence, responsive/browser and screen-reader E2E, and rights-cleared audible Windows/macOS acceptance remain open. The new revocation behavior also still needs exact-head hosted browser/component evidence rather than source-level test/fix evidence alone.
 
-1. choose only an authority from the current `PlaybackSourceSession`;
-2. call `beginPlaybackSourceSwitch` before mutating `audio.src`;
-3. keep the transport non-playing while the target loads;
-4. admit `loadedmetadata` only through the exact current switch session/plan, target authority, and decoded duration;
-5. restore exact seek and playback rate, resume only when the captured source phase was looping, then call `completePlaybackSourceSwitch`;
-6. on load/admission failure, call `abortPlaybackSourceSwitch` before a later media event can reuse the receipt.
-
-Persistence/reload of the selected source, native revocation while mounted, translated source labels beyond the current locale infrastructure, responsive/browser E2E, screen-reader evidence, and rights-cleared audible Windows/macOS acceptance also remain open. Until those paths and current-head protected CI/review gates are GREEN, the UI Delivery Gate remains FAIL.
+Until those paths and current-head protected CI/review gates are GREEN, the UI Delivery Gate remains FAIL.
