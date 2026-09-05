@@ -15,7 +15,10 @@ import {
   RehearsalPlayer as RehearsalPlayerCore,
 } from "./RehearsalPlayerCore";
 import { createPlaybackSourceCopy } from "./playbackSourceCopy";
-import { discoverPlaybackSourceOptions, type PlaybackSourceInvoke } from "./playbackSourceDiscovery";
+import {
+  discoverPlaybackSourceOutcome,
+  type PlaybackSourceInvoke,
+} from "./playbackSourceDiscovery";
 import {
   beginPlaybackSourceDiscovery,
   completePlaybackSourceDiscovery,
@@ -28,6 +31,11 @@ import type { PlaybackSourceKind } from "./playbackSourceSelection";
 export { isPlayableAudioSource } from "./RehearsalPlayerCore";
 
 type RehearsalPlayerCoreProps = ComponentProps<typeof RehearsalPlayerCore>;
+
+type PlaybackSourceFeedback = {
+  fullMixAuthority: string;
+  status: "empty" | "error";
+};
 
 export type RehearsalPlayerProps = RehearsalPlayerCoreProps & {
   /** Test seam for the renderer-safe Tauri availability command. */
@@ -77,6 +85,8 @@ export function RehearsalPlayer({
   const [sourceSession, setSourceSession] = useState<PlaybackSourceSession>(() =>
     createPlaybackSourceSession(hasLocalAudio ? audioSourcePath : null),
   );
+  const [sourceDiscoveryFeedback, setSourceDiscoveryFeedback] =
+    useState<PlaybackSourceFeedback | null>(null);
   const sourceSessionRef = useRef(sourceSession);
   const discoveryGenerationRef = useRef(0);
 
@@ -86,6 +96,7 @@ export function RehearsalPlayer({
       currentFullMixAuthority: string | null,
     ): void => {
       const generation = ++discoveryGenerationRef.current;
+      setSourceDiscoveryFeedback(null);
       const started = beginPlaybackSourceDiscovery(
         baseSession,
         currentFullMixAuthority,
@@ -100,22 +111,30 @@ export function RehearsalPlayer({
       }
 
       const request = started.request;
-      void discoverPlaybackSourceOptions(
+      void discoverPlaybackSourceOutcome(
         request.fullMixAuthority,
         invokePlaybackSource,
-      ).then((discovered) => {
+      ).then((outcome) => {
         if (generation !== discoveryGenerationRef.current) {
           return;
         }
         const completed = completePlaybackSourceDiscovery(
           sourceSessionRef.current,
           request,
-          discovered,
+          outcome.options,
         );
         commitPlaybackSourceSession(
           sourceSessionRef,
           setSourceSession,
           completed,
+        );
+        setSourceDiscoveryFeedback(
+          outcome.status === "ready"
+            ? null
+            : {
+                fullMixAuthority: request.fullMixAuthority,
+                status: outcome.status,
+              },
         );
       });
     },
@@ -137,6 +156,17 @@ export function RehearsalPlayer({
     const selected = selectPlaybackSource(sourceSessionRef.current, authority);
     commitPlaybackSourceSession(sourceSessionRef, setSourceSession, selected);
   }, []);
+
+  const retryPlaybackSourceDiscovery = useCallback((): void => {
+    const current = sourceSessionRef.current;
+    if (
+      current.fullMixAuthority === null ||
+      current.fullMixAuthority !== audioSourcePath
+    ) {
+      return;
+    }
+    discoverCurrentPlaybackSources(current, current.fullMixAuthority);
+  }, [audioSourcePath, discoverCurrentPlaybackSources]);
 
   const handlePlaybackSourceErrorCapture = useCallback(
     (event: SyntheticEvent<HTMLDivElement>): void => {
@@ -171,6 +201,12 @@ export function RehearsalPlayer({
       : null;
   const sourceDiscoveryPending =
     sessionMatchesMountedProject && sourceSession.pendingRequest !== null;
+  const sourceDiscoveryStatus =
+    sessionMatchesMountedProject &&
+    !sourceDiscoveryPending &&
+    sourceDiscoveryFeedback?.fullMixAuthority === audioSourcePath
+      ? sourceDiscoveryFeedback.status
+      : null;
   const hasStemChoices = visibleOptions.length > 1;
   // A new full-mix authority is a new project/generation boundary; it must not
   // inherit transport phase or a renderer-local source-switch receipt.
@@ -188,6 +224,29 @@ export function RehearsalPlayer({
         >
           {playbackSourceCopy("loading")}
         </p>
+      ) : null}
+      {sourceDiscoveryStatus === "empty" ? (
+        <p
+          aria-atomic="true"
+          className="mb-3 text-sm text-slate-300"
+          role="status"
+        >
+          {playbackSourceCopy("empty")}
+        </p>
+      ) : null}
+      {sourceDiscoveryStatus === "error" ? (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-300">
+          <p aria-atomic="true" role="status">
+            {playbackSourceCopy("error")}
+          </p>
+          <button
+            className="min-h-11 px-2 font-semibold text-slate-100 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+            onClick={retryPlaybackSourceDiscovery}
+            type="button"
+          >
+            {playbackSourceCopy("retry")}
+          </button>
+        </div>
       ) : null}
       {hasStemChoices ? (
         <fieldset className="mb-3 border-b border-white/10 pb-3">
