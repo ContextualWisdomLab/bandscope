@@ -1,11 +1,18 @@
 //! Revocable native media authority for the mounted rehearsal player.
 //!
-//! The WebView receives only an app-minted project id. Native source paths stay
-//! behind this protocol boundary and every request is checked against the one
-//! currently active project before BandScope opens any file.
+//! The WebView receives only app-minted opaque identifiers. Native source paths
+//! stay behind this protocol boundary and every request is checked against the
+//! one currently active project before BandScope opens any file.
 
-use bandscope_desktop_core::{is_valid_project_id, LocalAudioSourcePayload};
+use bandscope_desktop::{
+    native_file_identity::{native_file_identity, NativeFileIdentity},
+    playable_stem_admission::PreflightPlayableStemSet,
+};
+use bandscope_desktop_core::{
+    is_valid_project_id, playable_stem_contract::PlaybackStemKind, LocalAudioSourcePayload,
+};
 use std::{
+    collections::BTreeMap,
     fs::File,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
@@ -27,122 +34,56 @@ pub const PLAYBACK_AUTHORITY_PREFIX: &str = "bandscope-project://";
 /// an arbitrarily large buffer from an untrusted Range header.
 const MAX_RANGE_BYTES: u64 = 1_000 * 1024;
 
-#[cfg(unix)]
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PlaybackFileIdentity {
-    device: u64,
-    inode: u64,
-    change_time_seconds: i64,
-    change_time_nanoseconds: i64,
-}
-
-#[cfg(windows)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(C)]
-struct WindowsFileTime {
-    low_date_time: u32,
-    high_date_time: u32,
-}
-
-#[cfg(windows)]
-#[repr(C)]
-struct WindowsByHandleFileInformation {
-    file_attributes: u32,
-    creation_time: WindowsFileTime,
-    last_access_time: WindowsFileTime,
-    last_write_time: WindowsFileTime,
-    volume_serial_number: u32,
-    file_size_high: u32,
-    file_size_low: u32,
-    number_of_links: u32,
-    file_index_high: u32,
-    file_index_low: u32,
-}
-
-#[cfg(windows)]
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PlaybackFileIdentity {
-    volume_serial_number: u32,
-    file_index: u64,
-    last_write_time: WindowsFileTime,
-}
-
-#[cfg(not(any(unix, windows)))]
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct PlaybackFileIdentity;
-
-#[cfg(unix)]
-fn playback_file_identity(file: &File) -> std::io::Result<PlaybackFileIdentity> {
-    use std::os::unix::fs::MetadataExt;
-
-    let metadata = file.metadata()?;
-    Ok(PlaybackFileIdentity {
-        device: metadata.dev(),
-        inode: metadata.ino(),
-        change_time_seconds: metadata.ctime(),
-        change_time_nanoseconds: metadata.ctime_nsec(),
-    })
-}
-
-#[cfg(windows)]
-fn playback_file_identity(file: &File) -> std::io::Result<PlaybackFileIdentity> {
-    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle};
-
-    #[link(name = "kernel32")]
-    extern "system" {
-        #[link_name = "GetFileInformationByHandle"]
-        fn get_file_information_by_handle(
-            file: std::os::windows::io::RawHandle,
-            information: *mut WindowsByHandleFileInformation,
-        ) -> i32;
-    }
-
-    let mut information = MaybeUninit::<WindowsByHandleFileInformation>::uninit();
-    let result = unsafe {
-        get_file_information_by_handle(file.as_raw_handle(), information.as_mut_ptr())
-    };
-    if result == 0 {
-        return Err(std::io::Error::last_os_error());
-    }
-    let information = unsafe { information.assume_init() };
-    Ok(PlaybackFileIdentity {
-        volume_serial_number: information.volume_serial_number,
-        file_index: ((information.file_index_high as u64) << 32)
-            | information.file_index_low as u64,
-        last_write_time: information.last_write_time,
-    })
-}
-
-#[cfg(not(any(unix, windows)))]
-fn playback_file_identity(_file: &File) -> std::io::Result<PlaybackFileIdentity> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "native playback file identity is unsupported on this platform",
-    ))
+#[derive(Clone, Debug)]
+struct PlaybackFileAuthority {
+    source_path: PathBuf,
+    extension: String,
+    expected_size: u64,
+    source_identity: NativeFileIdentity,
 }
 
 #[derive(Clone, Debug)]
 struct PlaybackSourceAuthority {
     project_id: String,
-    source_path: PathBuf,
-    extension: String,
-    expected_size: u64,
-    source_identity: PlaybackFileIdentity,
+    full_mix: PlaybackFileAuthority,
+    stem_analysis_job_id: Option<String>,
+    playable_stems: Option<BTreeMap<PlaybackStemKind, PlaybackFileAuthority>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PlaybackRequestSource {
+    FullMix,
+    Stem(PlaybackStemKind),
 }
 
 /// Process-local authority for the one audio source currently admitted to the
-/// rehearsal player. Replacing it revokes every previously selected source.
+/// rehearsal player. Replacing it revokes the full mix, any in-flight stem
+/// generation token, and every stem registered for the previous source.
 #[derive(Default)]
 pub struct PlaybackAuthority {
     current: Mutex<Option<PlaybackSourceAuthority>>,
 }
 
-/// Return the only renderer-visible handle for an app-minted playback project.
+/// Return the renderer-visible full-mix handle for an app-minted playback project.
 pub fn playback_authority_uri(project_id: &str) -> Result<String, String> {
     if !is_valid_project_id(project_id) {
         return Err("Could not prepare the selected audio for playback.".to_string());
     }
     Ok(format!("{PLAYBACK_AUTHORITY_PREFIX}{project_id}"))
+}
+
+/// Return an opaque generated-stem handle without exposing a native path.
+pub fn playback_stem_authority_uri(
+    project_id: &str,
+    stem_kind: PlaybackStemKind,
+) -> Result<String, String> {
+    if !is_valid_project_id(project_id) {
+        return Err("Could not prepare generated stems for playback.".to_string());
+    }
+    Ok(format!(
+        "{PLAYBACK_AUTHORITY_PREFIX}{project_id}/stem/{}",
+        stem_slug(stem_kind)
+    ))
 }
 
 impl PlaybackAuthority {
@@ -155,7 +96,7 @@ impl PlaybackAuthority {
         let source_path = PathBuf::from(&source.source_path);
         let (file, _) = open_validated_source(&source_path, source.file_size_bytes)
             .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
-        let source_identity = playback_file_identity(&file)
+        let source_identity = native_file_identity(&file)
             .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
         let mut current = self
             .current
@@ -163,26 +104,108 @@ impl PlaybackAuthority {
             .map_err(|_| "Could not prepare the selected audio for playback.".to_string())?;
         *current = Some(PlaybackSourceAuthority {
             project_id: project_id.to_string(),
-            source_path,
-            extension: source.extension.clone(),
-            expected_size: source.file_size_bytes,
-            source_identity,
+            full_mix: PlaybackFileAuthority {
+                source_path,
+                extension: source.extension.clone(),
+                expected_size: source.file_size_bytes,
+                source_identity,
+            },
+            stem_analysis_job_id: None,
+            playable_stems: None,
         });
         Ok(())
     }
 
-    /// Serve GET/HEAD media requests only when their opaque project id still
-    /// names the current authority. Stale project ids fail closed immediately.
+    /// Mark a newly queued analysis as the only job allowed to register stems
+    /// for the current project and revoke any older generated stem set.
+    pub fn begin_stem_analysis(&self, project_id: &str, job_id: &str) -> Result<(), String> {
+        if !is_valid_project_id(project_id) || job_id.is_empty() {
+            return Err("Could not prepare generated stems for playback.".to_string());
+        }
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "Could not prepare generated stems for playback.".to_string())?;
+        let authority = current
+            .as_mut()
+            .filter(|entry| entry.project_id == project_id)
+            .ok_or_else(|| "Could not prepare generated stems for playback.".to_string())?;
+        authority.stem_analysis_job_id = Some(job_id.to_string());
+        authority.playable_stems = None;
+        Ok(())
+    }
+
+    /// Atomically bind a complete native-preflighted stem set to the current
+    /// project, but only if the same analysis job is still the latest owner.
+    ///
+    /// File identities come from the exact handles whose bytes passed hash/header
+    /// preflight. No producer path is accepted and partial registration is impossible.
+    pub fn activate_stems(
+        &self,
+        project_id: &str,
+        job_id: &str,
+        preflight: &PreflightPlayableStemSet,
+    ) -> Result<(), String> {
+        if !is_valid_project_id(project_id) || job_id.is_empty() {
+            return Err("Could not prepare generated stems for playback.".to_string());
+        }
+        let mut sources = BTreeMap::new();
+        for file in preflight.files() {
+            if sources
+                .insert(
+                    file.stem_kind(),
+                    PlaybackFileAuthority {
+                        source_path: file.native_path().to_path_buf(),
+                        extension: "wav".to_string(),
+                        expected_size: file.file_size_bytes(),
+                        source_identity: file.file_identity().clone(),
+                    },
+                )
+                .is_some()
+            {
+                return Err("Could not prepare generated stems for playback.".to_string());
+            }
+        }
+        if sources.len() != PlaybackStemKind::canonical_order().len()
+            || PlaybackStemKind::canonical_order()
+                .into_iter()
+                .any(|stem_kind| !sources.contains_key(&stem_kind))
+        {
+            return Err("Could not prepare generated stems for playback.".to_string());
+        }
+
+        let mut current = self
+            .current
+            .lock()
+            .map_err(|_| "Could not prepare generated stems for playback.".to_string())?;
+        let authority = current
+            .as_mut()
+            .filter(|entry| entry.project_id == project_id)
+            .filter(|entry| entry.stem_analysis_job_id.as_deref() == Some(job_id))
+            .ok_or_else(|| "Could not prepare generated stems for playback.".to_string())?;
+        authority.playable_stems = Some(sources);
+        Ok(())
+    }
+
+    /// Serve GET/HEAD media requests only when their opaque project/source token
+    /// still belongs to the current authority. Missing or revoked stems return 404.
     pub fn respond(&self, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
-        let Some(project_id) = project_id_from_path(request.uri().path()) else {
+        let Some((project_id, requested_source)) = playback_request_source(request.uri().path()) else {
             return empty_response(StatusCode::NOT_FOUND);
         };
         self.with_current_authority(project_id, |authority| {
             if request.method() != Method::GET && request.method() != Method::HEAD {
-                return empty_response(StatusCode::METHOD_NOT_ALLOWED);
+                return Some(empty_response(StatusCode::METHOD_NOT_ALLOWED));
             }
-            serve_authorized_source(authority, &request)
+            let source = match requested_source {
+                PlaybackRequestSource::FullMix => &authority.full_mix,
+                PlaybackRequestSource::Stem(stem_kind) => {
+                    authority.playable_stems.as_ref()?.get(&stem_kind)?
+                }
+            };
+            Some(serve_authorized_source(source, &request))
         })
+        .flatten()
         .unwrap_or_else(|| empty_response(StatusCode::NOT_FOUND))
     }
 
@@ -202,12 +225,43 @@ impl PlaybackAuthority {
     }
 }
 
-fn project_id_from_path(path: &str) -> Option<&str> {
-    let project_id = path.strip_prefix('/')?;
-    if project_id.is_empty() || project_id.contains('/') || project_id.contains('%') {
+fn stem_slug(stem_kind: PlaybackStemKind) -> &'static str {
+    match stem_kind {
+        PlaybackStemKind::Vocals => "vocals",
+        PlaybackStemKind::Bass => "bass",
+        PlaybackStemKind::Drums => "drums",
+        PlaybackStemKind::Other => "other",
+    }
+}
+
+fn stem_kind_from_slug(value: &str) -> Option<PlaybackStemKind> {
+    match value {
+        "vocals" => Some(PlaybackStemKind::Vocals),
+        "bass" => Some(PlaybackStemKind::Bass),
+        "drums" => Some(PlaybackStemKind::Drums),
+        "other" => Some(PlaybackStemKind::Other),
+        _ => None,
+    }
+}
+
+fn playback_request_source(path: &str) -> Option<(&str, PlaybackRequestSource)> {
+    let relative = path.strip_prefix('/')?;
+    if relative.is_empty() || relative.contains('%') {
         return None;
     }
-    is_valid_project_id(project_id).then_some(project_id)
+    let mut parts = relative.split('/');
+    let project_id = parts.next()?;
+    if !is_valid_project_id(project_id) {
+        return None;
+    }
+    match (parts.next(), parts.next(), parts.next()) {
+        (None, None, None) => Some((project_id, PlaybackRequestSource::FullMix)),
+        (Some("stem"), Some(stem_slug), None) => Some((
+            project_id,
+            PlaybackRequestSource::Stem(stem_kind_from_slug(stem_slug)?),
+        )),
+        _ => None,
+    }
 }
 
 fn content_type(extension: &str) -> Option<&'static str> {
@@ -240,9 +294,9 @@ fn open_validated_source(source_path: &Path, expected_size: u64) -> Result<(File
     Ok((file, metadata.len()))
 }
 
-fn validated_file(authority: &PlaybackSourceAuthority) -> Result<(File, u64), StatusCode> {
+fn validated_file(authority: &PlaybackFileAuthority) -> Result<(File, u64), StatusCode> {
     let (file, len) = open_validated_source(&authority.source_path, authority.expected_size)?;
-    let current_identity = playback_file_identity(&file).map_err(|_| StatusCode::GONE)?;
+    let current_identity = native_file_identity(&file).map_err(|_| StatusCode::GONE)?;
     if current_identity != authority.source_identity {
         return Err(StatusCode::GONE);
     }
@@ -250,7 +304,7 @@ fn validated_file(authority: &PlaybackSourceAuthority) -> Result<(File, u64), St
 }
 
 fn serve_authorized_source(
-    authority: &PlaybackSourceAuthority,
+    authority: &PlaybackFileAuthority,
     request: &Request<Vec<u8>>,
 ) -> Response<Vec<u8>> {
     let Some(media_type) = content_type(&authority.extension) else {
@@ -371,7 +425,15 @@ fn empty_response(status: StatusCode) -> Response<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bandscope_desktop::playable_stem_admission::preflight_playable_stem_set;
+    use bandscope_desktop_core::playable_stem_contract::PlayableStemArtifactSetReference;
+    use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    const STEM_ARTIFACT_SET_ID: &str =
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const SINGLE_SAMPLE_WAVE_SHA256: &str =
+        "4aebda3a657a0d8f532d11ceacb1679081d7bdf7d7d301a53f1096af3580be91";
 
     fn test_source(label: &str, bytes: &[u8]) -> (PathBuf, LocalAudioSourcePayload) {
         let unique = SystemTime::now()
@@ -395,6 +457,58 @@ mod tests {
         (root, source)
     }
 
+    fn single_sample_wave() -> Vec<u8> {
+        vec![
+            0x52, 0x49, 0x46, 0x46, 0x26, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66,
+            0x6d, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x40, 0x1f,
+            0x00, 0x00, 0x80, 0x3e, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00, 0x64, 0x61, 0x74,
+            0x61, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]
+    }
+
+    fn preflight_stem_fixture(label: &str) -> (PathBuf, PreflightPlayableStemSet) {
+        let (root, _) = test_source(label, b"full-mix");
+        let set_root = root
+            .join("playable-stems-v1")
+            .join(STEM_ARTIFACT_SET_ID);
+        std::fs::create_dir_all(&set_root).expect("test stem set root should be created");
+        let wave = single_sample_wave();
+        for stem_kind in PlaybackStemKind::canonical_order() {
+            std::fs::write(set_root.join(stem_kind.file_name()), &wave)
+                .expect("test stem should be written");
+        }
+        let stem_artifacts = PlaybackStemKind::canonical_order()
+            .into_iter()
+            .map(|stem_kind| {
+                json!({
+                    "artifactId": stem_kind.artifact_id(),
+                    "stemKind": stem_slug(stem_kind),
+                    "fileSizeBytes": wave.len(),
+                    "contentHashSha256": SINGLE_SAMPLE_WAVE_SHA256,
+                    "mediaType": "audio/wav",
+                    "sampleRate": 8_000,
+                    "channelCount": 1,
+                    "sampleCount": 1,
+                    "durationSeconds": 0.000125
+                })
+            })
+            .collect::<Vec<_>>();
+        let reference = serde_json::from_value::<PlayableStemArtifactSetReference>(json!({
+            "artifactSetId": STEM_ARTIFACT_SET_ID,
+            "formatVersion": 1,
+            "sampleRate": 8_000,
+            "channelCount": 1,
+            "sampleCount": 1,
+            "durationSeconds": 0.000125,
+            "appliedGain": 1.0,
+            "stemArtifacts": stem_artifacts
+        }))
+        .expect("test stem reference should satisfy the contract");
+        let preflight = preflight_playable_stem_set(&root, &reference)
+            .expect("test stem files should pass native preflight");
+        (root, preflight)
+    }
+
     fn request(project_id: &str) -> Request<Vec<u8>> {
         Request::builder()
             .uri(format!("{PLAYBACK_SCHEME}://localhost/{project_id}"))
@@ -402,11 +516,25 @@ mod tests {
             .expect("test request should build")
     }
 
+    fn stem_request(project_id: &str, stem_kind: PlaybackStemKind) -> Request<Vec<u8>> {
+        Request::builder()
+            .uri(format!(
+                "{PLAYBACK_SCHEME}://localhost/{project_id}/stem/{}",
+                stem_slug(stem_kind)
+            ))
+            .body(Vec::new())
+            .expect("test stem request should build")
+    }
+
     #[test]
-    fn renderer_handle_contains_only_the_app_minted_project_id() {
+    fn renderer_handles_contain_only_app_minted_ids_and_canonical_stem_tokens() {
         assert_eq!(
             playback_authority_uri("project-100-1").as_deref(),
             Ok("bandscope-project://project-100-1")
+        );
+        assert_eq!(
+            playback_stem_authority_uri("project-100-1", PlaybackStemKind::Vocals).as_deref(),
+            Ok("bandscope-project://project-100-1/stem/vocals")
         );
         assert!(playback_authority_uri("../../private.wav").is_err());
     }
@@ -438,6 +566,101 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(first_root);
         let _ = std::fs::remove_dir_all(second_root);
+    }
+
+    #[test]
+    fn preflighted_stems_bind_and_serve_all_four_files_atomically() {
+        let (root, source) = test_source("stem-bind-full", b"full-mix");
+        let (stem_root, preflight) = preflight_stem_fixture("stem-bind");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-125-1", &source)
+            .expect("full mix should activate");
+        authority
+            .begin_stem_analysis("project-125-1", "job-10")
+            .expect("current analysis should own stem registration");
+        authority
+            .activate_stems("project-125-1", "job-10", &preflight)
+            .expect("complete preflighted stems should bind");
+
+        for stem_kind in PlaybackStemKind::canonical_order() {
+            assert_eq!(
+                authority.respond(stem_request("project-125-1", stem_kind)).body(),
+                &single_sample_wave()
+            );
+        }
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(stem_root);
+    }
+
+    #[test]
+    fn older_same_project_job_cannot_overwrite_a_newer_stem_generation() {
+        let (root, source) = test_source("stem-race-full", b"full-mix");
+        let (stem_root, preflight) = preflight_stem_fixture("stem-race");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-130-1", &source)
+            .expect("full mix should activate");
+        authority
+            .begin_stem_analysis("project-130-1", "job-10")
+            .expect("first analysis should begin");
+        authority
+            .begin_stem_analysis("project-130-1", "job-11")
+            .expect("newer analysis should supersede the first");
+
+        assert!(authority
+            .activate_stems("project-130-1", "job-10", &preflight)
+            .is_err());
+        assert_eq!(
+            authority
+                .respond(stem_request("project-130-1", PlaybackStemKind::Vocals))
+                .status(),
+            StatusCode::NOT_FOUND
+        );
+        authority
+            .activate_stems("project-130-1", "job-11", &preflight)
+            .expect("latest analysis should bind stems");
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(stem_root);
+    }
+
+    #[test]
+    fn stem_file_identity_rejects_replacement_after_preflight() {
+        let (root, source) = test_source("stem-identity-full", b"full-mix");
+        let (stem_root, preflight) = preflight_stem_fixture("stem-identity");
+        let authority = PlaybackAuthority::default();
+        authority
+            .activate("project-140-1", &source)
+            .expect("full mix should activate");
+        authority
+            .begin_stem_analysis("project-140-1", "job-20")
+            .expect("analysis should begin");
+        authority
+            .activate_stems("project-140-1", "job-20", &preflight)
+            .expect("preflighted stems should bind");
+
+        let vocals_path = preflight
+            .files()
+            .iter()
+            .find(|file| file.stem_kind() == PlaybackStemKind::Vocals)
+            .expect("vocals preflight should exist")
+            .native_path()
+            .to_path_buf();
+        let replacement = vocals_path.with_extension("replacement");
+        std::fs::write(&replacement, single_sample_wave())
+            .expect("same-size replacement should be written");
+        std::fs::remove_file(&vocals_path).expect("preflighted vocals should be removed");
+        std::fs::rename(&replacement, &vocals_path)
+            .expect("replacement should occupy the preflighted path");
+
+        assert_eq!(
+            authority
+                .respond(stem_request("project-140-1", PlaybackStemKind::Vocals))
+                .status(),
+            StatusCode::GONE
+        );
+        let _ = std::fs::remove_dir_all(root);
+        let _ = std::fs::remove_dir_all(stem_root);
     }
 
     #[test]
@@ -477,6 +700,13 @@ mod tests {
             .body(Vec::new())
             .expect("test traversal request should build");
         assert_eq!(authority.respond(traversal).status(), StatusCode::NOT_FOUND);
+        let unknown_stem = Request::builder()
+            .uri(format!(
+                "{PLAYBACK_SCHEME}://localhost/project-200-3/stem/private.wav"
+            ))
+            .body(Vec::new())
+            .expect("unknown stem request should build");
+        assert_eq!(authority.respond(unknown_stem).status(), StatusCode::NOT_FOUND);
         let _ = std::fs::remove_dir_all(root);
     }
 

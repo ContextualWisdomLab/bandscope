@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RehearsalPlayer } from "./RehearsalPlayer";
+import {
+  isPlayableAudioSource,
+  RehearsalPlayer,
+} from "./RehearsalPlayer";
 
 const originalTauriInternals = Object.getOwnPropertyDescriptor(
   window,
@@ -91,6 +94,38 @@ describe("RehearsalPlayer audio authority", () => {
     expect(convertFileSrc).not.toHaveBeenCalledWith(
       "/Users/test/Music/private-rehearsal.wav",
     );
+  });
+
+  it("converts only canonical generated-stem authority handles", () => {
+    const convertFileSrc = vi.fn(
+      (source: string) => `bandscope-playback://localhost/${source}`,
+    );
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      configurable: true,
+      value: { convertFileSrc },
+    });
+
+    for (const stem of ["vocals", "bass", "drums", "other"]) {
+      expect(
+        isPlayableAudioSource(
+          `bandscope-project://project-100-1/stem/${stem}`,
+        ),
+      ).toBe(true);
+    }
+    expect(convertFileSrc).toHaveBeenCalledWith(
+      "project-100-1/stem/vocals",
+      "bandscope-playback",
+    );
+    expect(
+      isPlayableAudioSource(
+        "bandscope-project://project-100-1/stem/guitar",
+      ),
+    ).toBe(false);
+    expect(
+      isPlayableAudioSource(
+        "bandscope-project://project-100-1/stem/vocals/../private.wav",
+      ),
+    ).toBe(false);
   });
 
   it("does not expose a native path when no current playback project authority exists", () => {

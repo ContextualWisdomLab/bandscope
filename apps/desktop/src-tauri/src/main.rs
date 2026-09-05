@@ -1,7 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod playback_protocol;
+mod playback_source_availability_command;
 
+use bandscope_desktop::playable_stem_admission::preflight_playable_stem_set;
 use bandscope_desktop_core::*;
 use playback_protocol::{playback_authority_uri, PlaybackAuthority, PLAYBACK_SCHEME};
 use rfd::FileDialog;
@@ -329,21 +331,29 @@ fn renderer_bootstrap_summary(
     Ok(summary)
 }
 
-fn drain_analysis_status_updates(
+fn drain_analysis_process_status_updates(
     state: &AppState,
     app: &tauri::AppHandle<impl Runtime>,
-    status_rx: &mpsc::Receiver<AnalysisJobStatus>,
-    last_status: &mut Option<AnalysisJobStatus>,
+    process_status_rx: &mpsc::Receiver<analysis_process_status::AnalysisProcessStatus>,
+    latest_process_status: &mut Option<analysis_process_status::AnalysisProcessStatus>,
 ) {
-    while let Ok(status) = status_rx.try_recv() {
-        store_status_and_emit(state, app, &status);
-        *last_status = Some(status);
+    while let Ok(process_status) = process_status_rx.try_recv() {
+        let emit_as_progress =
+            analysis_process_status::is_analysis_process_progress_status(&process_status);
+        let renderer_status = analysis_process_status::retain_latest_process_status(
+            latest_process_status,
+            process_status,
+        );
+        if emit_as_progress {
+            store_status_and_emit(state, app, &renderer_status);
+        }
     }
 }
 
 fn run_analysis_engine(
     state: AppState,
     app: tauri::AppHandle<impl Runtime>,
+    playback_authority: Arc<PlaybackAuthority>,
     job_id: String,
     request: AnalysisJobRequest,
     requested_at: String,
@@ -379,6 +389,10 @@ fn run_analysis_engine(
         }
     };
 
+    let playback_project_id = request.project_id.clone();
+    let playback_temp_root = request.temp_root.clone();
+    let playback_job_id = job_id.clone();
+    let process_job_id = job_id.clone();
     let payload = json!({
         "jobId": job_id.clone(),
         "request": request,
@@ -403,26 +417,30 @@ fn run_analysis_engine(
             "Analysis engine is unavailable.",
         );
     };
-    let (status_tx, status_rx) = mpsc::channel::<AnalysisJobStatus>();
+    let (process_status_tx, process_status_rx) =
+        mpsc::channel::<analysis_process_status::AnalysisProcessStatus>();
     let stdout_reader = thread::spawn(move || {
         let reader = BufReader::new(stdout);
-        let mut last_status = None;
+        let mut latest_process_status = None;
         for line in reader.lines() {
-            let Ok(line) = line else {
-                break;
-            };
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
+            let line = line.map_err(|_| ())?;
+            let Some(process_status) =
+                analysis_process_status::parse_analysis_process_status_line(&line)
+                    .map_err(|_| ())?
+            else {
                 continue;
-            }
-            if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(trimmed) {
-                last_status = Some(status.clone());
-                if status_tx.send(status).is_err() {
-                    break;
-                }
+            };
+            analysis_process_status::validate_analysis_process_status_for_job(
+                &process_status,
+                &process_job_id,
+            )
+            .map_err(|_| ())?;
+            latest_process_status = Some(process_status.clone());
+            if process_status_tx.send(process_status).is_err() {
+                break;
             }
         }
-        last_status
+        Ok::<_, ()>(latest_process_status)
     });
     let stderr_reader = thread::spawn(move || {
         let mut reader = stderr;
@@ -450,10 +468,15 @@ fn run_analysis_engine(
     }
 
     let deadline = Instant::now() + ANALYSIS_PROCESS_TIMEOUT;
-    let mut last_status = None;
+    let mut latest_process_status = None;
     let exit_status;
     loop {
-        drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
+        drain_analysis_process_status_updates(
+            &state,
+            &app,
+            &process_status_rx,
+            &mut latest_process_status,
+        );
         match process.try_wait() {
             Ok(Some(status)) => {
                 exit_status = status;
@@ -494,11 +517,30 @@ fn run_analysis_engine(
             }
         }
     }
-    let reader_last_status = stdout_reader.join().unwrap_or(None);
+    let reader_latest_process_status = match stdout_reader.join() {
+        Ok(Ok(latest_process_status)) => latest_process_status,
+        _ => {
+            let _ = stderr_reader.join();
+            return failed_status(
+                payload["jobId"]
+                    .as_str()
+                    .unwrap_or("unknown-job")
+                    .to_string(),
+                requested_at,
+                AnalysisJobErrorCode::EngineUnavailable,
+                "Analysis engine returned an invalid response.",
+            );
+        }
+    };
     let _ = stderr_reader.join();
-    drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
-    if last_status.is_none() {
-        last_status = reader_last_status;
+    drain_analysis_process_status_updates(
+        &state,
+        &app,
+        &process_status_rx,
+        &mut latest_process_status,
+    );
+    if latest_process_status.is_none() {
+        latest_process_status = reader_latest_process_status;
     }
 
     if !exit_status.success() {
@@ -513,17 +555,37 @@ fn run_analysis_engine(
         );
     }
 
-    last_status.unwrap_or_else(|| {
-        failed_status(
-            payload["jobId"]
-                .as_str()
-                .unwrap_or("unknown-job")
-                .to_string(),
-            requested_at,
-            AnalysisJobErrorCode::EngineUnavailable,
-            "Analysis engine returned an invalid response.",
-        )
-    })
+    let final_process_status = match analysis_process_status::validate_final_analysis_process_status(
+        latest_process_status.as_ref(),
+        &playback_job_id,
+    ) {
+        Ok(process_status) => process_status,
+        Err(_) => {
+            return failed_status(
+                payload["jobId"]
+                    .as_str()
+                    .unwrap_or("unknown-job")
+                    .to_string(),
+                requested_at,
+                AnalysisJobErrorCode::EngineUnavailable,
+                "Analysis engine returned an invalid response.",
+            )
+        }
+    };
+    let finished = final_process_status.renderer_status().clone();
+    if matches!(finished.state, AnalysisJobState::Succeeded) {
+        let final_artifact_set = final_process_status.playable_stem_artifact_set();
+        if let (Some(project_id), Some(temp_root), Some(artifact_set)) = (
+            playback_project_id.as_deref(),
+            playback_temp_root.as_deref(),
+            final_artifact_set,
+        ) {
+            if let Ok(preflight) = preflight_playable_stem_set(Path::new(temp_root), artifact_set) {
+                let _ = playback_authority.activate_stems(project_id, &playback_job_id, &preflight);
+            }
+        }
+    }
+    finished
 }
 
 #[tauri::command]
@@ -531,6 +593,7 @@ fn start_analysis_job(
     request: Value,
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    playback_authority: tauri::State<'_, Arc<PlaybackAuthority>>,
 ) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
     let mut parsed_request = match parse_request_payload(request) {
@@ -580,6 +643,9 @@ fn start_analysis_job(
             "Analysis queue is full. Please wait for a running job to finish.",
         );
     }
+    if let Some(project_id) = parsed_request.project_id.as_deref() {
+        let _ = playback_authority.begin_stem_analysis(project_id, &job_id);
+    }
     let queued = AnalysisJobStatus {
         job_id: job_id.clone(),
         state: AnalysisJobState::Queued,
@@ -596,6 +662,7 @@ fn start_analysis_job(
 
     let app_state = state.inner().clone();
     let worker_app_handle = app.clone();
+    let worker_playback_authority = playback_authority.inner().clone();
     std::thread::spawn(move || {
         store_status_and_emit(
             &app_state,
@@ -616,6 +683,7 @@ fn start_analysis_job(
         let finished = run_analysis_engine(
             app_state.clone(),
             worker_app_handle.clone(),
+            worker_playback_authority,
             job_id,
             parsed_request,
             requested_at,
@@ -896,6 +964,7 @@ fn main() {
             import_youtube_url,
             start_analysis_job,
             get_analysis_job_status,
+            playback_source_availability_command::get_playback_source_availability,
             save_project,
             load_project,
             attach_score_pdf,

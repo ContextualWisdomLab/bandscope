@@ -1,0 +1,12 @@
+{
+  "legend": "Playback source",
+  "loading": "Checking playback sources…",
+  "empty": "No stem sources are available for this project. Full mix is ready.",
+  "error": "Could not check stem sources. Full mix is still available.",
+  "retry": "Check stem sources again",
+  "fullMix": "Full mix",
+  "vocals": "Vocals",
+  "bass": "Bass",
+  "drums": "Drums",
+  "other": "Other instruments"
+}
