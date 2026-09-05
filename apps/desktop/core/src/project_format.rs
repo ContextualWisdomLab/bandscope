@@ -58,8 +58,8 @@ impl Default for ProjectPreferencesPayload {
 ///
 /// The reference deliberately stores no absolute/relative user path. Native
 /// Resource Admission derives the artifact location from `project_id` and the
-/// fixed `source.<extension>` artifact name, then re-validates the byte length
-/// before issuing any fresh runtime authority.
+/// fixed `source.<extension>` artifact name, then re-validates byte length and
+/// SHA-256 content identity before issuing any fresh runtime authority.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProjectSourceReferencePayload {
@@ -71,6 +71,8 @@ pub struct ProjectSourceReferencePayload {
     pub extension: String,
     /// Expected non-zero byte length used as bounded re-admission evidence.
     pub file_size_bytes: u64,
+    /// Canonical lowercase SHA-256 digest of the admitted app-owned audio bytes.
+    pub content_sha256: String,
 }
 
 /// Current typed project document after historical migration.
@@ -109,10 +111,18 @@ fn unsupported_version(version: u64) -> String {
     format!("Unsupported project format version: {version}")
 }
 
+fn sha256_hex_is_canonical(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 fn source_reference_is_valid(reference: &ProjectSourceReferencePayload) -> bool {
     if !is_valid_project_id(&reference.project_id)
         || reference.file_size_bytes == 0
         || !AUDIO_EXTENSIONS.contains(&reference.extension.as_str())
+        || !sha256_hex_is_canonical(&reference.content_sha256)
     {
         return false;
     }
@@ -138,8 +148,9 @@ fn validate_document(document: ProjectDocumentPayload) -> Result<ProjectDocument
 /// preferences, stable playback-source enum, source reference, and rehearsal-
 /// song DTO all use typed allowlists/`deny_unknown_fields`. Source references
 /// admit only a valid project id, a fixed app-owned artifact basename, a closed
-/// audio extension, and a non-zero byte length; filesystem paths and revocable
-/// playback URLs therefore fail closed before any filesystem mutation.
+/// audio extension, a non-zero byte length, and a canonical lowercase SHA-256
+/// digest; filesystem paths and revocable playback URLs therefore fail closed
+/// before any filesystem mutation.
 pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayload, String> {
     let document = serde_json::from_value::<ProjectDocumentPayload>(value)
         .map_err(|_| "Invalid project document payload".to_string())?;
@@ -151,10 +162,12 @@ pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayloa
 /// Security Notes: `.bscope` bytes are untrusted input. Versions 2 and 3 use
 /// `deny_unknown_fields` envelopes and closed playback-source semantics.
 /// Version 3 additionally validates the app-owned source reference without
-/// accepting any user filesystem path. Version 1 and legacy raw-song inputs
-/// are delegated to the existing strict parser and migrated in memory with the
-/// explicit `full_mix` default and no invented source reference. Unsupported
-/// versions fail before their body is interpreted as current truth.
+/// accepting any user filesystem path and requires canonical SHA-256 content
+/// identity so byte length alone can never be treated as sufficient re-admission
+/// evidence. Version 1 and legacy raw-song inputs are delegated to the existing
+/// strict parser and migrated in memory with the explicit `full_mix` default
+/// and no invented source reference. Unsupported versions fail before their
+/// body is interpreted as current truth.
 pub fn project_document_from_content(content: &str) -> Result<ProjectDocumentPayload, String> {
     let root = serde_json::from_str::<Value>(content)
         .map_err(|_| "Invalid project file format".to_string())?;
