@@ -56,7 +56,19 @@ pub fn copy_bounded_local_audio<R: Read, W: Write>(reader: R, writer: &mut W) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use std::io::{Cursor, Error, ErrorKind};
+
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buffer: &[u8]) -> std::io::Result<usize> {
+            Err(Error::new(ErrorKind::Other, "simulated destination failure"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn bounded_copy_rejects_stream_growth_past_the_admitted_limit() {
@@ -80,5 +92,16 @@ mod tests {
 
         assert_eq!(copied, 4);
         assert_eq!(staged, vec![1_u8, 2, 3, 4]);
+    }
+
+    #[test]
+    fn bounded_copy_reports_destination_failure_as_workspace_failure() {
+        let input = Cursor::new(vec![1_u8, 2, 3, 4]);
+        let mut staged = FailingWriter;
+
+        let error = copy_bounded_local_audio_with_limit(input, &mut staged, 4)
+            .expect_err("a staging write failure must not be reported as a source read failure");
+
+        assert_eq!(error, "Could not prepare the local project workspace.");
     }
 }
