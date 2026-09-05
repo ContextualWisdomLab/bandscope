@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { parseProjectDocument } from "./projectDocument";
 
+const CONTENT_SHA256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 class ProjectDocumentWithPrototype {
   song = createDemoRehearsalSong();
   preferences = { selectedPlaybackSource: "vocals" };
@@ -114,6 +116,32 @@ describe("project document plain-record admission", () => {
     expect(getterCalls).toBe(0);
   });
 
+  it("rejects an accessor-backed source digest without invoking the accessor", () => {
+    let getterCalls = 0;
+    const sourceReference = {
+      projectId: "project-400-4",
+      artifactName: "source.wav",
+      extension: "wav",
+      fileSizeBytes: 4096
+    } as Record<string, unknown>;
+    Object.defineProperty(sourceReference, "contentSha256", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("source digest getter must not run");
+      }
+    });
+
+    expect(() =>
+      parseProjectDocument({
+        song: createDemoRehearsalSong(),
+        preferences: { selectedPlaybackSource: "vocals" },
+        sourceReference
+      })
+    ).toThrow("Invalid project document");
+    expect(getterCalls).toBe(0);
+  });
+
   it("fails closed when optional source-reference descriptor inspection throws", () => {
     const document = new Proxy(
       {
@@ -123,7 +151,8 @@ describe("project document plain-record admission", () => {
           projectId: "project-400-4",
           artifactName: "source.wav",
           extension: "wav",
-          fileSizeBytes: 4096
+          fileSizeBytes: 4096,
+          contentSha256: CONTENT_SHA256
         }
       },
       {
