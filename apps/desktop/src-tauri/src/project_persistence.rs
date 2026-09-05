@@ -697,6 +697,21 @@ fn finish_rolled_back_publication(
     journal: &Path,
     target: &Path,
 ) -> Result<(), String> {
+    let journal_content = read_project_file_with_opener(
+        journal,
+        open_project_file,
+        MAX_RECOVERY_JOURNAL_BYTES,
+        PROJECT_RECOVERY_ERROR,
+    )
+    .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    let durable_journal: PublicationJournal = serde_json::from_str(&journal_content)
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    let stage_identity =
+        project_file_identity(stage).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    if stage_identity != durable_journal.candidate {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
+    }
+
     sync_parent_directory(project_parent(target))
         .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
     remove_recovery_artifact(stage)?;
@@ -1372,7 +1387,7 @@ mod tests {
         let root = test_dir("max-name");
         let target = root.join("a".repeat(255));
 
-        publish_new_project_file(&target, br#"{"id":"song-1"}"#)
+        publish_new_project_file(&target, br#"{\"id\":\"song-1\"}"#)
             .expect("a max-length target name should still be stageable");
 
         assert!(target.is_file());
@@ -1388,8 +1403,8 @@ mod tests {
         let stage = super::staging_path(&target).expect("candidate stage path should be derivable");
         let displaced =
             super::staging_path(&target).expect("displaced stage path should be derivable");
-        let original = br#"{"id":"original"}"#;
-        let candidate = br#"{"id":"candidate"}"#;
+        let original = br#"{\"id\":\"original\"}"#;
+        let candidate = br#"{\"id\":\"candidate\"}"#;
         fs::write(&target, original).expect("original fixture should be written");
         if fs::symlink_metadata(&alias).is_err() {
             fs::remove_dir_all(root).expect("case-sensitive fixture directory should be removable");
@@ -1432,9 +1447,9 @@ mod tests {
         } else {
             stage.clone()
         };
-        let original = br#"{"id":"original"}"#;
-        let candidate = br#"{"id":"candidate"}"#;
-        let competing = br#"{"id":"competing"}"#;
+        let original = br#"{\"id\":\"original\"}"#;
+        let candidate = br#"{\"id\":\"candidate\"}"#;
+        let competing = br#"{\"id\":\"competing\"}"#;
         fs::write(&target, original).expect("original fixture should be written");
         fs::write(&stage, candidate).expect("candidate fixture should be written");
         let expected = super::project_file_identity(&target)
@@ -1531,7 +1546,7 @@ mod tests {
     fn reads_project_content_within_the_existing_load_limit() {
         let root = test_dir("read-valid");
         let target = root.join("setlist.bscope");
-        let content = r#"{"id":"song-1"}"#;
+        let content = r#"{\"id\":\"song-1\"}"#;
         fs::write(&target, content).expect("fixture should be written");
 
         assert_eq!(
@@ -1549,14 +1564,14 @@ mod tests {
         let root = test_dir("read-symlink");
         let external = root.join("external.json");
         let selected = root.join("selected.bscope");
-        fs::write(&external, r#"{"id":"external"}"#).expect("external fixture should be written");
+        fs::write(&external, r#"{\"id\":\"external\"}"#).expect("external fixture should be written");
         symlink(&external, &selected).expect("fixture symlink should be created");
 
         let error = read_project_file(&selected)
             .expect_err("a selected symlink must not redirect the project reader");
 
         assert_eq!(error, "Failed to read file");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("test fixture should be removable");
     }
 
     #[test]
@@ -1565,8 +1580,8 @@ mod tests {
         let selected = root.join("selected.bscope");
         let replacement = root.join("replacement.bscope");
         let parked = root.join("parked.bscope");
-        fs::write(&selected, r#"{"id":"selected"}"#).expect("selected fixture should be written");
-        fs::write(&replacement, r#"{"id":"replacement-with-different-bytes"}"#)
+        fs::write(&selected, r#"{\"id\":\"selected\"}"#).expect("selected fixture should be written");
+        fs::write(&replacement, r#"{\"id\":\"replacement-with-different-bytes\"}"#)
             .expect("replacement fixture should be written");
 
         let error = read_project_file_with_opener(&selected, |path| {
@@ -1593,7 +1608,7 @@ mod tests {
             .expect_err("the project reader must enforce the byte ceiling while reading");
 
         assert_eq!(error, "Project file is too large (exceeds 5 MiB limit)");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("test fixture should be removable");
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -1602,8 +1617,8 @@ mod tests {
         let root = test_dir("recovery");
         let target = root.join("setlist.bscope");
         let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
-        let known_good = br#"{"id":"known-good"}"#;
-        let candidate = br#"{"id":"candidate"}"#;
+        let known_good = br#"{\"id\":\"known-good\"}"#;
+        let candidate = br#"{\"id\":\"candidate\"}"#;
         fs::write(&target, known_good).expect("known-good fixture should be written");
         fs::write(&stage, candidate).expect("candidate fixture should be written");
 
@@ -1636,9 +1651,9 @@ mod tests {
         let target = root.join("setlist.bscope");
         let parked = root.join("parked-authorized.bscope");
         let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
-        let authorized = br#"{"id":"authorized"}"#;
-        let racer = br#"{"id":"racer"}"#;
-        let candidate = br#"{"id":"candidate"}"#;
+        let authorized = br#"{\"id\":\"authorized\"}"#;
+        let racer = br#"{\"id\":\"racer\"}"#;
+        let candidate = br#"{\"id\":\"candidate\"}"#;
         fs::write(&target, authorized).expect("authorized fixture should be written");
         fs::write(&stage, candidate).expect("candidate fixture should be written");
 
@@ -1676,8 +1691,8 @@ mod tests {
         let root = test_dir("published-recovery");
         let target = root.join("setlist.bscope");
         let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
-        let known_good = br#"{"id":"known-good"}"#;
-        let candidate = br#"{"id":"candidate"}"#;
+        let known_good = br#"{\"id\":\"known-good\"}"#;
+        let candidate = br#"{\"id\":\"candidate\"}"#;
         fs::write(&target, known_good).expect("known-good fixture should be written");
         fs::write(&stage, candidate).expect("candidate fixture should be written");
 
@@ -1713,7 +1728,7 @@ mod tests {
         let root = test_dir("unrelated-recovery");
         let target = root.join("selected.bscope");
         let unrelated = root.join("other.bscope");
-        fs::write(&target, br#"{"id":"selected"}"#).expect("target fixture should be written");
+        fs::write(&target, br#"{\"id\":\"selected\"}"#).expect("target fixture should be written");
         fs::write(
             super::publication_journal_path(&unrelated, false)
                 .expect("unrelated journal path should be derivable"),
@@ -1725,7 +1740,7 @@ mod tests {
             .expect("an unrelated incomplete journal must not block recovery");
         assert_eq!(
             fs::read(&target).expect("target should remain readable"),
-            br#"{"id":"selected"}"#
+            br#"{\"id\":\"selected\"}"#
         );
         fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
