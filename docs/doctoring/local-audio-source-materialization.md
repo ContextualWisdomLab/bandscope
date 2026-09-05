@@ -12,6 +12,8 @@ The next persistence handoff exposed a separate evidence gap: the bounded copy r
 
 A post-fix review found one more ownership defect. The new SHA-256 state was private to Resource Admission, while #1160 already had a second private playable-stem SHA-256 implementation. Merely documenting future consolidation was not enough: without a reusable core reader port, the dependent Active Player stack could not actually delete its copy. The Shared Kernel therefore needs a reader-based digest API that preserves the same bounded authority model without opening paths itself.
 
+The staged receipt still did not prove that the object eventually published as `source.<extension>` retained those same bytes. A same-size mutation after staging could preserve `file_size_bytes` while changing content. Treating a pre-publication digest as durable project truth would therefore leave a gap exactly where Project Persistence needs native evidence. Resource Admission needs a bounded re-read verifier that compares both size and SHA-256 of an already-open published artifact against the staging receipt before that receipt can be handed to persistence.
+
 ## Constraints
 
 - Local analysis remains local-first and introduces no network or generic filesystem capability.
@@ -23,6 +25,7 @@ A post-fix review found one more ownership defect. The new SHA-256 state was pri
 - Content identity must be computed from the exact byte slices whose staging writes succeeded; the one-byte overflow probe is not part of the digest.
 - SHA-256 is used only as content-identity evidence. This implementation does not claim CAVP validation, FIPS 140 validation, authenticity, or protection against a malicious actor who can replace both an artifact and its stored digest.
 - A reusable SHA-256 port may hash only a caller-owned `Read`; it must not open arbitrary paths, log bytes, or introduce new filesystem authority.
+- Publication verification likewise accepts only an already-authorized `Read`; path resolution and no-link containment stay with the native caller that owns app storage authority.
 - The user-visible source label may preserve the selected filename, but analysis authority must move to app-owned storage.
 - The change must not claim that Tauri already persists the new receipt, project reopen is complete, YouTube source persistence is complete, power-loss recovery is complete, or commercial decoder licensing is solved.
 
@@ -35,6 +38,7 @@ A post-fix review found one more ownership defect. The new SHA-256 state was pri
 5. Compute the persistence digest in the renderer or later from the original absolute path. Rejected because neither source is authoritative for the bytes successfully staged into BandScope-owned storage.
 6. Add a second SHA-256 implementation or a new hashing path in Project Persistence. Rejected. The GUI-independent desktop core is the minimal Shared Kernel for this byte-identity primitive. Active Player's existing local playable-stem SHA-256 implementation must migrate to this canonical primitive when its dependent stack is restacked rather than remain a divergent copy.
 7. Keep the core SHA-256 state private and ask each consumer to wrap or copy it. Rejected because that makes the documented consolidation impossible. A public reader-only `sha256_hex_reader` is the narrow reusable boundary: consumers retain authority over which already-authorized descriptor they supply, while the core owns one digest implementation.
+8. Treat the staging receipt as publication identity immediately after rename. Rejected because a same-size content change would not be detected by byte-count checks alone. Selected instead: re-read an already-open published artifact through the same 100 MiB/SHA-256 path and require exact receipt equality before persistence may consume the identity.
 
 ## Implementation and exact evidence
 
@@ -49,6 +53,9 @@ A post-fix review found one more ownership defect. The new SHA-256 state was pri
 - Causal fix `566cd1f991296e7f3c288cb07a11c2d2effb258a` adds `LocalAudioCopyReceipt` and `copy_bounded_local_audio_with_receipt`. SHA-256 is updated only after the corresponding `write_all` succeeds, so a failed writer never yields identity evidence for an incomplete stage. The compatibility byte-count adapter remains for the current Tauri caller, and `Interrupted` source reads are retried without changing the resulting identity.
 - Shared-kernel RED `373824c7bbb40f2df1bb2721316680378c104834` requires a public core reader boundary to reproduce the FIPS 180-4 `abc` SHA-256 vector. The predecessor cannot satisfy the import because its digest state is private to Resource Admission.
 - Causal fix `d1ba40683772019577fec4d8c767ff8b23294e38` exports `sha256_hex_reader` from desktop core. It consumes only a caller-owned `Read`, retries `Interrupted`, propagates other I/O failures, does not open a path, and uses the same SHA-256 state as the local-audio receipt. This makes #1160 consolidation executable instead of aspirational.
+- Publication-binding RED `fdfdd7003b8a9162f846dcf22ffe66a3afd5f47e` requires an unchanged published byte stream to reproduce the staging receipt and a same-size mutation to fail with the bounded project-workspace diagnosis. The predecessor has no publication verifier.
+- Causal fix `a1c85cbfbdc7051169f097e8ad235e3bbac439d3` adds `verify_local_audio_publication_receipt`. It accepts only an already-open reader, reuses the same bounded staging/hash path with an in-memory sink, and requires exact byte-count plus SHA-256 equality. Read failure, growth, truncation, or content mismatch is normalized to the project-workspace error because original source admission has already completed by this boundary.
+- Export repair `20e7faaddd619c6cbd053876ca6de27b9933a4a2` exposes the publication verifier from `bandscope_desktop_core`, making the next Tauri caller integration executable without source copying.
 - The shared SHA-256 state is checked against NIST SHA-256 known-answer vectors including the empty message, `abc`, the multi-block standard vector, and one million `a` bytes. The reader port also has interrupted-short-read and non-interrupted-failure regressions. These are correctness regressions only; they are not CAVP or module-validation evidence.
 
 Hosted evidence must be reacquired on the final descendant rather than transferred from any predecessor head.
@@ -59,13 +66,13 @@ Hosted evidence must be reacquired on the final descendant rather than transferr
 
 The selected audio path, file metadata, and media bytes remain untrusted. The OS file dialog supplies the initial path, but the path is used only to resolve and open the user-selected source. The resulting app-owned project root is the storage trust boundary used for subsequent analysis authority. The content digest is evidence about bytes that successfully crossed that boundary into the staging writer; it is not authorization to reopen an arbitrary host path.
 
-The shared reader port accepts no path and creates no descriptor. Callers such as Resource Admission or future Active Player stem admission must supply a descriptor they already own under their bounded-context authority. That keeps hashing reusable without turning the Shared Kernel into a filesystem service.
+The shared reader and publication-verification ports accept no path and create no descriptor. Callers such as Resource Admission or future Active Player stem admission must supply a descriptor they already own under their bounded-context authority. That keeps hashing reusable without turning the Shared Kernel into a filesystem service. The publication verifier additionally refuses to promote a staging receipt when the published bytes do not reproduce both its exact size and digest.
 
 ### Validation and safe failure
 
 The extension allowlist and descriptor-observed non-zero/100 MiB encoded-size policy remain unchanged. The bounded copy writes no more than 100 MiB. If exactly 100 MiB has been staged, it reads only one additional source byte to determine whether the source grew past the ceiling; that probe byte is never written or hashed as admitted content. A source read failure returns the bounded media-read message, while a destination write failure returns the bounded workspace message. `Interrupted` reads are retried. Neither failure path exposes the source path, destination path, raw OS error, media contents, or a misleading partial digest. A unique private stage is removed by the native caller on copy or flush failure. The final source artifact is not published until the staged file has been synchronized successfully.
 
-The receipt is currently bound to the byte stream whose writes succeeded, not yet to a post-rename descriptor identity. Tauri must switch from the compatibility byte-count adapter to the receipt API and then verify that the synchronized/published artifact is the same app-owned object before the digest becomes durable `sourceReference` truth. Same-size external mutation of a staging or final artifact remains a threat until that publication binding and reopen verification are complete.
+`verify_local_audio_publication_receipt` re-reads an already-open published object under the same non-zero/100 MiB bound and compares exact native identity. Any verification read failure, overgrowth, truncation, or digest mismatch fails closed as a project-workspace error and exposes no path or OS detail. The current Tauri caller has not yet been switched to this verifier, so descriptor acquisition/no-link containment and final handoff remain incomplete production integration rather than claimed behavior.
 
 ### Logging and privacy
 
@@ -81,13 +88,16 @@ No new logging, telemetry, network transfer, or path exposure is introduced. SHA
 - destination writer failure reports the bounded app-owned workspace diagnosis and cannot return a partial receipt;
 - SHA-256 matches authoritative known-answer vectors across short, multi-block, chunked, and one-million-byte inputs;
 - the public reader boundary reproduces the same digest, retries interrupted reads, and propagates non-interrupted reader failure;
+- an unchanged published reader reproduces the staging receipt;
+- same-size published-content mutation is rejected even when byte count is unchanged;
+- publication-verification read failure is normalized to the bounded project-workspace diagnosis;
 - failed copy or flush does not publish the final project-owned source artifact;
-- Tauri must compile against the exported Resource Admission and shared SHA-256 ports;
+- Tauri must compile against the exported Resource Admission, publication-verification, and shared SHA-256 ports;
 - hosted Rust/Tauri, Windows, macOS, security, SBOM, and review gates must be reacquired on the final exact PR head.
 
 ## Remaining risks and follow-up
 
-The core can now emit native streaming content identity for exactly the bytes successfully staged, but the current Tauri `materialize_local_audio_source` caller still uses the compatibility byte-count adapter and therefore does not yet carry the digest into its bootstrap/persistence handoff. The next owner slice is to consume the receipt at that native caller, bind it to the synchronized and published `source.<extension>` artifact, and expose only the path-free identity fields needed by #970/#962. Reopen must then resolve only the app-owned artifact, revalidate regular/no-link containment, observed size, digest, and decode admission, and reconstruct a fresh bootstrap before #1160 mints playback authority.
+The core can now emit native streaming identity for exactly the bytes successfully staged and can verify that an already-open published byte stream reproduces that receipt. The current Tauri `materialize_local_audio_source` caller still uses the compatibility byte-count adapter, so this run does not claim production publication binding complete. The next owner slice is to switch that native caller to `copy_bounded_local_audio_with_receipt`, synchronize and publish `source.<extension>`, open the published object under app-owned/no-link authority, call `verify_local_audio_publication_receipt`, and only then expose the path-free identity fields needed by #970/#962. Reopen must resolve only the app-owned artifact, revalidate regular/no-link containment, observed size, digest, and decode admission, and reconstruct a fresh bootstrap before #1160 mints playback authority.
 
 The private playable-stem SHA-256 implementation already present in #1160 is now a concrete consolidation finding with a consumable replacement port: when this Resource Admission foundation is available in that stack, #1160 must replace its local implementation with `bandscope_desktop_core::sha256_hex_reader` while retaining stem identity/error tests. YouTube intake still uses its owned cache artifact and needs an explicit durable-source promotion decision. Parent-directory durability and exhaustive power-loss injection remain separate recovery work. Issue #1129 remains the commercial decoder dependency gate and is not changed by this materialization boundary.
 
