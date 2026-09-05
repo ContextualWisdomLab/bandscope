@@ -141,7 +141,19 @@ fn app_owned_root<R: Runtime>(
     Ok(root)
 }
 
-fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, String> {
+/// Admit one OS-selected local audio file into a project-owned immutable source artifact.
+///
+/// Security Notes: the external path is used only to canonicalize and open the
+/// user-authorized source. Size is checked from that opened descriptor, bytes
+/// are copied through the bounded Resource Admission helper into a private
+/// same-project staging file, and only a successful flushed stage is renamed to
+/// `source.<extension>`. Bootstrap state therefore points at app-owned bytes;
+/// a later mutation, move, permission change, or replacement of the user's
+/// original path cannot change the bytes submitted to analysis.
+fn materialize_local_audio_source(
+    path: &Path,
+    project_root: &Path,
+) -> Result<LocalAudioSourcePayload, String> {
     let canonical = path
         .canonicalize()
         .map_err(|_| "Could not read the selected audio file.".to_string())?;
@@ -153,20 +165,56 @@ fn normalize_local_audio_source(path: &Path) -> Result<LocalAudioSourcePayload, 
     if !AUDIO_EXTENSIONS.contains(&extension.as_str()) {
         return Err("Choose a WAV, MP3, FLAC, or M4A file to start analysis.".into());
     }
-    let metadata = std::fs::metadata(&canonical)
+    let file_name = canonical
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Could not read the selected audio file.".to_string())?
+        .to_string();
+    let source = std::fs::File::open(&canonical)
+        .map_err(|_| "Could not read the selected audio file.".to_string())?;
+    let metadata = source
+        .metadata()
         .map_err(|_| "Could not read the selected audio file.".to_string())?;
     if !metadata.is_file() {
         return Err("Could not read the selected audio file.".into());
     }
-    let file_size_bytes = validate_local_audio_file_size(metadata.len())?;
-    let file_name = canonical
-        .file_name()
-        .and_then(|value| value.to_str())
-        .ok_or_else(|| "Could not read the selected audio file.".to_string())?;
+    validate_local_audio_file_size(metadata.len())?;
+
+    let destination = project_root.join(format!("source.{extension}"));
+    let stage = project_root.join(format!(".source-{}.stage", uuid::Uuid::new_v4()));
+    let mut staged = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&stage)
+        .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
+
+    let file_size_bytes = match copy_bounded_local_audio(source, &mut staged) {
+        Ok(file_size_bytes) => file_size_bytes,
+        Err(error) => {
+            drop(staged);
+            let _ = std::fs::remove_file(&stage);
+            return Err(error);
+        }
+    };
+    if staged.sync_all().is_err() {
+        drop(staged);
+        let _ = std::fs::remove_file(&stage);
+        return Err("Could not prepare the local project workspace.".to_string());
+    }
+    drop(staged);
+
+    if destination.exists() {
+        let _ = std::fs::remove_file(&stage);
+        return Err("Could not prepare the local project workspace.".to_string());
+    }
+    if std::fs::rename(&stage, &destination).is_err() {
+        let _ = std::fs::remove_file(&stage);
+        return Err("Could not prepare the local project workspace.".to_string());
+    }
 
     Ok(LocalAudioSourcePayload {
-        source_path: canonical.to_string_lossy().into_owned(),
-        file_name: file_name.to_string(),
+        source_path: destination.to_string_lossy().into_owned(),
+        file_name,
         extension,
         file_size_bytes,
     })
@@ -643,11 +691,11 @@ fn select_local_audio_source(
         .add_filter("Audio", &AUDIO_EXTENSIONS)
         .pick_file()
         .ok_or_else(|| "Choose a WAV, MP3, FLAC, or M4A file to start analysis.".to_string())?;
-    let source = normalize_local_audio_source(&path)?;
     let project_id = next_project_id(&state);
     let project_root = app_owned_root(&app, "projects", &project_id)?;
     let cache_root = app_owned_root(&app, "cache", &project_id)?;
     let temp_root = app_owned_root(&app, "temp", &project_id)?;
+    let source = materialize_local_audio_source(&path, &project_root)?;
 
     let summary = ProjectBootstrapSummaryPayload {
         project_id,
