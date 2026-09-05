@@ -43,6 +43,8 @@ Mounted implementation commit `0b4d1383418763f91978a41c35081ce39ca68788` binds f
 
 Commit `447e8a48343c9addbffaf4e4499305c51e610ff4` pins the new discovery-result classification at the unit boundary, including proof that an invocation error containing a private-looking native path is reduced to `{ status: "error", options: null }` rather than echoed to the renderer.
 
+KO interaction evidence was added in `856d37f493febffc15244e46dc38b832c12d5cca`. Review immediately found that the pre-existing locale fixture used `bandscope-project://project-i18n-1`, which is not a canonical playback authority because `PlaybackSourceSelection` requires numeric project identity segments. Repair `442b87f37ec415a972f78dd7359853d63689e9c6` changes the fixture to `bandscope-project://project-400-4`, so the locale test now exercises the real authority grammar instead of relying on an impossible test token. The Korean empty state and retry action remain covered without changing production authority rules.
+
 ## Accessibility and interaction decision
 
 The empty and error messages use `role="status"` because they are advisory changes to the current rehearsal surface and do not justify an interruptive alert or focus transfer. Explicit `aria-atomic="true"` is retained for compatibility. The retry control is a native `button` adjacent to, not nested inside, the live region; it remains in normal focus order and uses the existing visible focus treatment and minimum interactive height.
