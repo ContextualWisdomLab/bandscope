@@ -54,6 +54,7 @@ import {
   InPageNavList,
 } from "./in-page-nav"
 import { Toaster, toast } from "./sonner"
+import { Slider } from "./slider"
 
 describe("added ui primitives (runtime render)", () => {
   it("Table renders header, row and cell", () => {
@@ -244,5 +245,13 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+})
+
+describe("added ui primitives - slider", () => {
+  it("Slider renders its control, track, indicator, and thumb", () => {
+    const { container } = render(<Slider defaultValue={[50]} aria-label="slider" />)
+    expect(container.querySelector('[data-slot="slider"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-thumb"]')).toBeTruthy()
   })
 })

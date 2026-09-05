@@ -76,3 +76,8 @@
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
 - `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
+
+## [0.1.4] - 2026-09-05
+### Added
+
+- 데스크탑 앱 환경을 위한 재사용 가능한 UI 컴포넌트인 `Slider`를 추가했습니다 (`@base-ui/react` 기반).
