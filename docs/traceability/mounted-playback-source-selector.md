@@ -51,6 +51,8 @@ RED commit `c55e15d1884fcb8cfa750ed3434b498917858bbb` holds native availability 
 
 WAI-ARIA defines `status` as an advisory live region whose implicit `aria-live` value is `polite` and whose implicit `aria-atomic` value is `true`. WCAG 2.2 Success Criterion 4.1.3 requires status messages about application waiting/progress states to be programmatically determinable without moving focus. W3C's ARIA22 technique additionally notes that some environments do not reliably treat `status` as atomic by default. Compatibility RED `ff7b418633cdf053d6a9c46d00282590bb7876ec` therefore requires explicit `aria-atomic="true"`; causal fix `b9592814a24969ff65176e45b545e660429323c2` adds that compatibility attribute without changing focus or escalating the message to an interruptive `alert`.
 
+Exact-head review then found a test-evidence defect rather than a production-authority defect: `RehearsalPlayerCore` already owns a separate persistent `role="status"`, so an unqualified `findByRole("status")` could bind to the wrong live region and an assertion that all statuses disappear could never be valid. Repair commit `1fafe1fb391c8d31fa55538b3b8243804cbb0276` targets only the discovery status by its exact loading copy plus `role="status"`, and after settlement asserts only that specific status is absent. The production status semantics and source authority are unchanged.
+
 The status copy remains presentation only. It cannot select a source, mint authority, prolong a receipt, or make a partial stem set visible. JA/ZH/VI/ES/DE/FR and the DB-backed versioned translation ledger remain the wider #965/product localization owner rather than being duplicated here.
 
 ### Accessibility references
