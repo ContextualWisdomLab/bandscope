@@ -22,6 +22,10 @@ const SELECTED_PLAYBACK_SOURCES = new Set<SelectedPlaybackSource>([
   "other"
 ]);
 
+type OwnDataProperty =
+  | { ok: true; value: unknown }
+  | { ok: false };
+
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
@@ -36,25 +40,52 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
-  const allowed = new Set(allowedKeys);
-  return Object.keys(value).every((key) => allowed.has(key)) && Object.keys(value).length === allowedKeys.length;
+  try {
+    const keys = Object.keys(value);
+    return keys.length === allowedKeys.length && keys.every((key) => allowedKeys.includes(key));
+  } catch {
+    return false;
+  }
+}
+
+function ownEnumerableDataProperty(value: Record<string, unknown>, key: string): OwnDataProperty {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable || !("value" in descriptor)) {
+      return { ok: false };
+    }
+    return { ok: true, value: descriptor.value };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /**
  * Validate the renderer-visible project document without accepting filesystem paths,
- * runtime capability URLs, generation tokens, prototype-bearing records, or unknown preference fields.
+ * runtime capability URLs, generation tokens, prototype-bearing records, accessors,
+ * trapped record enumeration, or unknown preference fields.
  */
 export function parseProjectDocument(value: unknown): ProjectDocument {
   if (!isPlainRecord(value) || !hasOnlyKeys(value, ["song", "preferences"])) {
     throw new Error("Invalid project document");
   }
 
-  const preferences = value.preferences;
-  if (!isPlainRecord(preferences) || !hasOnlyKeys(preferences, ["selectedPlaybackSource"])) {
+  const songProperty = ownEnumerableDataProperty(value, "song");
+  const preferencesProperty = ownEnumerableDataProperty(value, "preferences");
+  if (!songProperty.ok || !preferencesProperty.ok || !isPlainRecord(preferencesProperty.value)) {
     throw new Error("Invalid project document");
   }
 
-  const selectedPlaybackSource = preferences.selectedPlaybackSource;
+  const preferences = preferencesProperty.value;
+  if (!hasOnlyKeys(preferences, ["selectedPlaybackSource"])) {
+    throw new Error("Invalid project document");
+  }
+
+  const selectedPlaybackSourceProperty = ownEnumerableDataProperty(preferences, "selectedPlaybackSource");
+  if (!selectedPlaybackSourceProperty.ok) {
+    throw new Error("Invalid project document");
+  }
+  const selectedPlaybackSource = selectedPlaybackSourceProperty.value;
   if (
     typeof selectedPlaybackSource !== "string" ||
     !SELECTED_PLAYBACK_SOURCES.has(selectedPlaybackSource as SelectedPlaybackSource)
@@ -63,7 +94,7 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
   }
 
   return {
-    song: parseRehearsalSong(value.song),
+    song: parseRehearsalSong(songProperty.value),
     preferences: {
       selectedPlaybackSource: selectedPlaybackSource as SelectedPlaybackSource
     }
