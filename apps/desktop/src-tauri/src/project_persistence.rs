@@ -11,7 +11,7 @@ const PROJECT_EXISTS_ERROR: &str = "Project file already exists. Choose a new fi
 const PROJECT_STAGE_ERROR: &str = "Could not stage the project safely.";
 const PROJECT_PUBLISH_ERROR: &str = "Could not publish the project safely.";
 const PROJECT_READ_ERROR: &str = "Failed to read file";
-const PROJECT_TOO_LARGE_ERROR: &str = "Project file is too large (exceeds 5MB limit)";
+const PROJECT_TOO_LARGE_ERROR: &str = "Project file is too large (exceeds 5 MiB limit)";
 const PROJECT_RECOVERY_ERROR: &str = "Could not recover the project publication safely.";
 
 #[cfg(windows)]
@@ -1516,7 +1516,7 @@ mod tests {
         let error = publish_new_project_file(&target, &content)
             .expect_err("oversized project should fail before publication");
 
-        assert_eq!(error, "Project file is too large (exceeds 5MB limit)");
+        assert_eq!(error, "Project file is too large (exceeds 5 MiB limit)");
         assert!(!target.exists());
         assert_eq!(
             fs::read_dir(&root)
@@ -1592,7 +1592,7 @@ mod tests {
         let error = read_project_file(&target)
             .expect_err("the project reader must enforce the byte ceiling while reading");
 
-        assert_eq!(error, "Project file is too large (exceeds 5MB limit)");
+        assert_eq!(error, "Project file is too large (exceeds 5 MiB limit)");
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
@@ -1704,7 +1704,7 @@ mod tests {
         assert_eq!(fs::read(&target).expect("target should remain readable"), candidate);
         assert!(!stage.exists(), "the displaced known-good stage should be cleaned");
         assert!(!published.exists(), "the published journal should be cleaned");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -1727,7 +1727,7 @@ mod tests {
             fs::read(&target).expect("target should remain readable"),
             br#"{"id":"selected"}"#
         );
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[test]
