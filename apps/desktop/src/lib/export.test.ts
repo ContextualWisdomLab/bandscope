@@ -74,6 +74,11 @@ describe("export sanitization", () => {
       expect(escapeCsvField("\x00\x00=1+2")).toBe("'\x00\x00=1+2");
       expect(escapeCsvField("  \x00\x00@cmd")).toBe("'  \x00\x00@cmd");
       expect(escapeCsvField("\x00")).toBe("'\x00");
+
+      // Spreadsheet/parser disagreement is not limited to NUL: fail closed on any leading C0 control.
+      expect(escapeCsvField("\x1B+SUM(A1)")).toBe("'\x1B+SUM(A1)");
+      expect(escapeCsvField("  \x07@cmd")).toBe("'  \x07@cmd");
+      expect(escapeCsvField("\x1B")).toBe("'\x1B");
     });
 
     it("preserves the full-width operator regression contract from PR #941", () => {
