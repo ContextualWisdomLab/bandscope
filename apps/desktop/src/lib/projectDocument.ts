@@ -41,6 +41,10 @@ const PROJECT_ID_PATTERN = /^project-\d+-\d+$/;
 type OwnDataProperty =
   | { ok: true; value: unknown }
   | { ok: false };
+type OptionalOwnDataProperty =
+  | { ok: true; present: false }
+  | { ok: true; present: true; value: unknown }
+  | { ok: false; present: false };
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -89,6 +93,24 @@ function ownEnumerableDataProperty(value: Record<string, unknown>, key: string):
     return { ok: true, value: descriptor.value };
   } catch {
     return { ok: false };
+  }
+}
+
+function optionalOwnEnumerableDataProperty(
+  value: Record<string, unknown>,
+  key: string
+): OptionalOwnDataProperty {
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined) {
+      return { ok: true, present: false };
+    }
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      return { ok: false, present: false };
+    }
+    return { ok: true, present: true, value: descriptor.value };
+  } catch {
+    return { ok: false, present: false };
   }
 }
 
@@ -175,15 +197,13 @@ export function parseProjectDocument(value: unknown): ProjectDocument {
     throw new Error("Invalid project document");
   }
 
-  let sourceReference: ProjectSourceReference | undefined;
-  const sourceReferenceDescriptor = Object.getOwnPropertyDescriptor(value, "sourceReference");
-  if (sourceReferenceDescriptor !== undefined) {
-    const sourceReferenceProperty = ownEnumerableDataProperty(value, "sourceReference");
-    if (!sourceReferenceProperty.ok) {
-      throw new Error("Invalid project document");
-    }
-    sourceReference = parseProjectSourceReference(sourceReferenceProperty.value);
+  const sourceReferenceProperty = optionalOwnEnumerableDataProperty(value, "sourceReference");
+  if (!sourceReferenceProperty.ok) {
+    throw new Error("Invalid project document");
   }
+  const sourceReference = sourceReferenceProperty.present
+    ? parseProjectSourceReference(sourceReferenceProperty.value)
+    : undefined;
 
   return {
     song: parseRehearsalSong(songProperty.value),
