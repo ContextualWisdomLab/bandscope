@@ -74,6 +74,56 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
     );
   });
 
+  it("explains the full-mix-only state when native availability contains no stems", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce([fullMixAuthority]);
+
+    render(
+      <RehearsalPlayer
+        song={createDemoRehearsalSong()}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "No stem sources are available for this project. Full mix is ready.",
+        { selector: '[role="status"]' },
+      ),
+    ).toHaveAttribute("aria-atomic", "true");
+    expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
+  });
+
+  it("shows a retryable error when native source discovery fails", async () => {
+    vi.mocked(invoke)
+      .mockRejectedValueOnce(new Error("availability lookup failed"))
+      .mockResolvedValueOnce([fullMixAuthority, ...stemAuthorities]);
+
+    render(
+      <RehearsalPlayer
+        song={createDemoRehearsalSong()}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Could not check stem sources. Full mix is still available.",
+        { selector: '[role="status"]' },
+      ),
+    ).toHaveAttribute("aria-atomic", "true");
+    expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Check stem sources again" }));
+
+    expect(await screen.findByRole("group", { name: "Playback source" })).toBeInTheDocument();
+    expect(vi.mocked(invoke)).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByText("Could not check stem sources. Full mix is still available."),
+    ).not.toBeInTheDocument();
+  });
+
   it("discovers the current atomic stem set and switches the mounted player only through opaque authority", async () => {
     render(
       <RehearsalPlayer
