@@ -107,6 +107,28 @@ pub fn copy_bounded_local_audio_with_receipt<R: Read, W: Write>(
     copy_bounded_local_audio_with_limit(reader, writer, MAX_LOCAL_AUDIO_FILE_BYTES)
 }
 
+/// Re-read a published app-owned source and prove that it matches its staging receipt.
+///
+/// Security Notes: the caller must pass an already-open descriptor for the
+/// synchronized, published `source.<extension>` object. This helper opens no
+/// path and grants no filesystem authority. It re-applies the 100 MiB bound and
+/// SHA-256 over the published bytes, then requires both size and digest to equal
+/// the staging receipt. Any read, growth, truncation, or content mismatch is
+/// reported as a bounded project-workspace failure because the selected source
+/// already passed admission before publication.
+pub fn verify_local_audio_publication_receipt<R: Read>(
+    reader: R,
+    expected: &LocalAudioCopyReceipt,
+) -> Result<LocalAudioCopyReceipt, String> {
+    let mut sink = std::io::sink();
+    let actual = copy_bounded_local_audio_with_receipt(reader, &mut sink)
+        .map_err(|_| LOCAL_AUDIO_WRITE_ERROR.to_string())?;
+    if actual != *expected {
+        return Err(LOCAL_AUDIO_WRITE_ERROR.to_string());
+    }
+    Ok(actual)
+}
+
 /// Copy one admitted local-audio stream into a staging writer and return its byte count.
 ///
 /// This compatibility adapter preserves the existing desktop call boundary while
@@ -224,5 +246,20 @@ mod tests {
             "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a"
         );
         assert_eq!(staged, vec![1_u8, 2, 3, 4]);
+    }
+
+    #[test]
+    fn publication_verification_maps_read_failure_to_workspace_failure() {
+        let expected = LocalAudioCopyReceipt {
+            file_size_bytes: 4,
+            content_sha256:
+                "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a"
+                    .to_string(),
+        };
+
+        let error = verify_local_audio_publication_receipt(FailingReader, &expected)
+            .expect_err("published artifact read failure must be a workspace failure");
+
+        assert_eq!(error, LOCAL_AUDIO_WRITE_ERROR);
     }
 }
