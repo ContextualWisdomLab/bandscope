@@ -55,15 +55,23 @@ describe("RehearsalPlayer mounted playback-source selection", () => {
       />,
     );
 
-    const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent("Checking playback sources…");
-    expect(status).toHaveAttribute("aria-atomic", "true");
+    const discoveryStatus = await screen.findByText(
+      "Checking playback sources…",
+      { selector: '[role="status"]' },
+    );
+    expect(discoveryStatus).toHaveAttribute("aria-atomic", "true");
     expect(screen.queryByRole("group", { name: "Playback source" })).not.toBeInTheDocument();
 
     discovery.resolve([fullMixAuthority, ...stemAuthorities]);
 
     expect(await screen.findByRole("group", { name: "Playback source" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Checking playback sources…", {
+          selector: '[role="status"]',
+        }),
+      ).not.toBeInTheDocument(),
+    );
   });
 
   it("discovers the current atomic stem set and switches the mounted player only through opaque authority", async () => {
