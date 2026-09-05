@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -59,6 +60,7 @@ export function RehearsalPlayer({
   hasLocalAudio = false,
   ...coreProps
 }: RehearsalPlayerProps): ReactElement {
+  const sourceGroupName = useId();
   const invokePlaybackSource = useMemo<PlaybackSourceInvoke>(
     () =>
       playbackSourceInvoke ??
@@ -149,7 +151,7 @@ export function RehearsalPlayer({
                 <input
                   checked={sourceSession.selectedAuthority === option.authority}
                   className="h-5 w-5 accent-cyan-300"
-                  name="rehearsal-playback-source"
+                  name={sourceGroupName}
                   onChange={() => choosePlaybackSource(option.authority)}
                   type="radio"
                   value={option.authority}
