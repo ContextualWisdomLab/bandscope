@@ -13,7 +13,10 @@ def test_windows_project_persistence_gate_tracks_contract_inputs() -> None:
     required_paths = (
         '"apps/desktop/core/Cargo.toml"',
         '"apps/desktop/core/src/lib.rs"',
+        '"apps/desktop/core/src/crate_root.rs"',
+        '"apps/desktop/core/src/project_format.rs"',
         '"apps/desktop/core/tests/project_persistence*.rs"',
+        '"apps/desktop/core/tests/project_format*.rs"',
         '"apps/desktop/core/testdata/project-*.json"',
         '"apps/desktop/src-tauri/Cargo.toml"',
         '"apps/desktop/src-tauri/Cargo.lock"',
