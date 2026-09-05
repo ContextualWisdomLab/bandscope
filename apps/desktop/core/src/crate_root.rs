@@ -12,6 +12,6 @@ mod project_format;
 pub use core::*;
 pub use project_format::{
     project_content_for_document, project_content_for_payload, project_document_from_content,
-    project_payload_from_content, ProjectDocumentPayload, ProjectPreferencesPayload,
-    SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
+    project_document_from_value, project_payload_from_content, ProjectDocumentPayload,
+    ProjectPreferencesPayload, SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
 };
