@@ -23,7 +23,16 @@ const SELECTED_PLAYBACK_SOURCES = new Set<SelectedPlaybackSource>([
 ]);
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
@@ -33,7 +42,7 @@ function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly strin
 
 /**
  * Validate the renderer-visible project document without accepting filesystem paths,
- * runtime capability URLs, generation tokens, or unknown preference fields.
+ * runtime capability URLs, generation tokens, prototype-bearing records, or unknown preference fields.
  */
 export function parseProjectDocument(value: unknown): ProjectDocument {
   if (!isPlainRecord(value) || !hasOnlyKeys(value, ["song", "preferences"])) {
