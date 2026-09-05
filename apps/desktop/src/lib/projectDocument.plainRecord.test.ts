@@ -43,6 +43,39 @@ describe("project document plain-record admission", () => {
     expect(() => parseProjectDocument(trappedDocument)).toThrow("Invalid project document");
   });
 
+  it("fails closed with the public contract when own-key enumeration throws", () => {
+    const trappedDocument = new Proxy(
+      {
+        song: createDemoRehearsalSong(),
+        preferences: { selectedPlaybackSource: "vocals" }
+      },
+      {
+        ownKeys() {
+          throw new Error("own-key trap");
+        }
+      }
+    );
+
+    expect(() => parseProjectDocument(trappedDocument)).toThrow("Invalid project document");
+  });
+
+  it("rejects accessor-backed preference fields without invoking the accessor", () => {
+    let getterCalls = 0;
+    const document = {
+      song: createDemoRehearsalSong()
+    } as Record<string, unknown>;
+    Object.defineProperty(document, "preferences", {
+      enumerable: true,
+      get() {
+        getterCalls += 1;
+        throw new Error("preference getter must not run");
+      }
+    });
+
+    expect(() => parseProjectDocument(document)).toThrow("Invalid project document");
+    expect(getterCalls).toBe(0);
+  });
+
   it("admits null-prototype JSON records without widening the durable field set", () => {
     const song = createDemoRehearsalSong();
     const preferences = Object.assign(Object.create(null) as Record<string, unknown>, {
