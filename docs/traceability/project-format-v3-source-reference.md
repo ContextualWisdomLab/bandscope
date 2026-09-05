@@ -18,6 +18,8 @@ Project format v2 can persist the Active Player selection semantic, but it canno
 
 `6acd761f8a25b904352b2ae4eebcbc4f61ec5a48` extended the renderer/native bridge test with the same source-reference shape. The predecessor TypeScript parser admitted only `song` and `preferences`, so the new current-document payload was rejected.
 
+A fresh post-change sweep then found a separate migration-test regression before hosted CI could be treated as evidence: `project_format_v2_playback_preference.rs` still hard-coded serialized version `2` and directly constructed `ProjectDocumentPayload` without the new optional field. That was not a product-format rollback signal; it was predecessor test code that had not been migrated with the format owner. `ace91a29e540919d02716dd492e290f9743422a8` updates those assertions to `CURRENT_PROJECT_FORMAT_VERSION`, explicitly checks that historical migrations do not invent `sourceReference`, and adds `source_reference: None` to the typed constructor. This repair preserves the v2 input compatibility contract while making current-output expectations version-aware.
+
 ## Selected design
 
 Version 3 adds an optional `sourceReference`:
@@ -58,6 +60,7 @@ The field is optional because v2/v1/legacy projects cannot prove that an app-own
 - `04b4a93dbd7ecf5c6d3bdf4434f7908d06ffd73b` — keeps optional source-reference descriptor inspection exception-safe instead of allowing proxy traps to escape the public validation contract.
 - `c1cdcd036749a0a9231682db9446e5fbbe410d40` — verifies accessor/proxy-backed source-reference input is rejected without executing getters.
 - `5203c2846dd2d12a02ad54204e9c6b5197d1177f` — updates the engineering format document to the code-current v3 contract and migration boundary.
+- `ace91a29e540919d02716dd492e290f9743422a8` — repairs stale v2-output expectations and typed-constructor compilation after the version advance without weakening v2 input compatibility.
 
 Hosted exact-head checks are authoritative for repository GREEN; predecessor results are not transferable.
 
@@ -81,7 +84,7 @@ The durable reference intentionally excludes the original local path and origina
 
 ### Test points
 
-`project_format_v3_source_reference.rs` covers current round-trip, v2 migration without invention, project-id/path/artifact/extension/size rejection, and unknown `sourcePath` rejection. `projectDocumentBridge.test.ts` covers the renderer/native payload boundary. `projectDocument.plainRecord.test.ts` covers passive record semantics and getter/proxy rejection.
+`project_format_v3_source_reference.rs` covers current round-trip, v2 migration without invention, project-id/path/artifact/extension/size rejection, and unknown `sourcePath` rejection. `project_format_v2_playback_preference.rs` keeps legacy/v1/v2 compatibility explicit while asserting current-version output and absent invented source evidence. `projectDocumentBridge.test.ts` covers the renderer/native payload boundary. `projectDocument.plainRecord.test.ts` covers passive record semantics and getter/proxy rejection.
 
 ### Remaining risk
 
