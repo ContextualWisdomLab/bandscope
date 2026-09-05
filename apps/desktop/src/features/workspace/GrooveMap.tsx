@@ -17,8 +17,8 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
-    // Performance: Avoid O(N) array scan with .reduce() to find maximum offset.
-    // Instead use a simple loop which avoids callback overhead and allocates less memory.
+    // Both implementations are O(N). The loop avoids reduce callback dispatch on this render path;
+    // keep the 10-second floor so short transcriptions retain the existing timeline scale.
     let max = 10;
     for (let i = 0; i < renderedNotes.length; i++) {
       if (renderedNotes[i]!.offset > max) {
