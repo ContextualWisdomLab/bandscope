@@ -19,6 +19,7 @@ const SOURCE_SEMANTICS: SelectedPlaybackSource[] = [
   "drums",
   "other"
 ];
+const CONTENT_SHA256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 describe("project document bridge", () => {
   beforeEach(() => {
@@ -47,7 +48,7 @@ describe("project document bridge", () => {
     }
   );
 
-  it("persists only an app-owned source reference and never a user filesystem path", async () => {
+  it("persists only an app-owned source reference with content identity and never a user filesystem path", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
     tauriWindow.__TAURI_INVOKE__ = invoke;
     const song = createDemoRehearsalSong();
@@ -59,7 +60,8 @@ describe("project document bridge", () => {
         projectId: "project-400-4",
         artifactName: "source.wav",
         extension: "wav",
-        fileSizeBytes: 4096
+        fileSizeBytes: 4096,
+        contentSha256: CONTENT_SHA256
       }
     });
 
@@ -71,14 +73,15 @@ describe("project document bridge", () => {
           projectId: "project-400-4",
           artifactName: "source.wav",
           extension: "wav",
-          fileSizeBytes: 4096
+          fileSizeBytes: 4096,
+          contentSha256: CONTENT_SHA256
         }
       }
     });
     expect(JSON.stringify(invoke.mock.calls)).not.toContain("sourcePath");
   });
 
-  it("returns the persisted source semantic with the reopened song", async () => {
+  it("returns the persisted source semantic and content identity with the reopened song", async () => {
     const song = createDemoRehearsalSong();
     tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
       song,
@@ -87,7 +90,8 @@ describe("project document bridge", () => {
         projectId: "project-400-4",
         artifactName: "source.flac",
         extension: "flac",
-        fileSizeBytes: 8192
+        fileSizeBytes: 8192,
+        contentSha256: CONTENT_SHA256
       }
     });
 
@@ -98,7 +102,8 @@ describe("project document bridge", () => {
         projectId: "project-400-4",
         artifactName: "source.flac",
         extension: "flac",
-        fileSizeBytes: 8192
+        fileSizeBytes: 8192,
+        contentSha256: CONTENT_SHA256
       }
     });
   });
@@ -115,24 +120,41 @@ describe("project document bridge", () => {
     await expect(loadProjectDocument()).rejects.toThrow("Invalid project document");
   });
 
-  it("rejects user paths and mismatched app-owned artifact names in source references", async () => {
+  it("rejects user paths, missing digests, and mismatched app-owned source evidence", async () => {
     const song = createDemoRehearsalSong();
     for (const sourceReference of [
       {
         projectId: "../escape",
         artifactName: "source.wav",
         extension: "wav",
-        fileSizeBytes: 4096
+        fileSizeBytes: 4096,
+        contentSha256: CONTENT_SHA256
       },
       {
         projectId: "project-400-4",
         artifactName: "../source.wav",
         extension: "wav",
-        fileSizeBytes: 4096
+        fileSizeBytes: 4096,
+        contentSha256: CONTENT_SHA256
       },
       {
         projectId: "project-400-4",
         artifactName: "source.mp3",
+        extension: "wav",
+        fileSizeBytes: 4096,
+        contentSha256: CONTENT_SHA256
+      },
+      {
+        projectId: "project-400-4",
+        artifactName: "source.wav",
+        extension: "wav",
+        fileSizeBytes: 4096,
+        contentSha256: CONTENT_SHA256,
+        sourcePath: "/Users/example/Music/private.wav"
+      },
+      {
+        projectId: "project-400-4",
+        artifactName: "source.wav",
         extension: "wav",
         fileSizeBytes: 4096
       },
@@ -141,7 +163,14 @@ describe("project document bridge", () => {
         artifactName: "source.wav",
         extension: "wav",
         fileSizeBytes: 4096,
-        sourcePath: "/Users/example/Music/private.wav"
+        contentSha256: "0123456789abcdef"
+      },
+      {
+        projectId: "project-400-4",
+        artifactName: "source.wav",
+        extension: "wav",
+        fileSizeBytes: 4096,
+        contentSha256: "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF"
       }
     ]) {
       tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
