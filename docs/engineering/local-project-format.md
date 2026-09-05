@@ -128,7 +128,7 @@ BandScope records user corrections in the `manualOverrides` array on a `Rehearsa
 }
 ```
 
-## Security Constraints
+## Security Notes
 
 When loading `.bscope` files from disk, BandScope applies these constraints:
 
