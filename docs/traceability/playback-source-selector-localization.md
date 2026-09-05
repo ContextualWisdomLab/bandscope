@@ -14,6 +14,8 @@ This was a UI contract defect rather than a source-authority defect. The radio v
 - Opaque `bandscope-playback` authorities, discovery/session receipts, source switching, revocation and native filesystem authority are unchanged.
 - Wider localization, text-expansion/font-fallback and shipped accessibility convergence remain product-level work under #965; this PR must not become a second global localization owner.
 
+The existing native `fieldset` + `legend` + labeled-radio composition is retained. W3C WAI guidance explicitly uses `fieldset` and `legend` to group and name related radio controls, and recommends deriving accessible names from visible text/native techniques rather than replacing them with redundant ARIA labeling. Localizing those visible names therefore preserves the existing interaction semantics while making the group and option purpose consistent with the current UI language.
+
 ## Test-first evidence
 
 RED contract: `84adeb0982dbb4760b1b3e07444ac9bc9d27956b` adds a mounted regression that sets the preferred browser locale to `ko-KR`, admits the same complete five-source native set, and requires Korean accessible names while asserting that every radio retains the exact opaque authority value.
@@ -39,3 +41,11 @@ No network, filesystem, subprocess, IPC, persistence, credential or model author
 Source-level EN/KO localization for this selector is implemented, but repository GREEN is not inferred from these commits. The unchanged final head still requires the repository and central exact-head test/coverage/build/security/review gates.
 
 The UI Delivery Gate remains **FAIL** for the complete product requirement. The application-wide locale authority still supports only EN/KO; JA/ZH/VI/ES/DE/FR, CJK/text-expansion/font-fallback evidence, the requested database-backed versioned translation ledger, responsive/browser/screen-reader current-head E2E, and rights-cleared audible Windows/macOS acceptance remain open work. Selected-source project persistence/reload also remains owned by #962 rather than this localization slice.
+
+## References
+
+World Wide Web Consortium. (2024, December 12). *Web Content Accessibility Guidelines (WCAG) 2.2*. https://www.w3.org/TR/WCAG22/
+
+World Wide Web Consortium, Web Accessibility Initiative. (n.d.). *Grouping controls*. Retrieved September 5, 2026, from https://www.w3.org/WAI/tutorials/forms/grouping/
+
+World Wide Web Consortium, Web Accessibility Initiative. (n.d.). *Providing accessible names and descriptions*. Retrieved September 5, 2026, from https://www.w3.org/WAI/ARIA/apg/practices/names-and-descriptions/
