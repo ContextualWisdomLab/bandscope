@@ -111,7 +111,7 @@ Last updated: 2026-03-11
 - Shared contracts live in `packages/shared-types` so the UI can evolve without importing Python internals.
 - Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.
 - The current shared-types baseline includes a rehearsal-domain fixture that exercises section, role, cue, confidence, provenance, and export-summary fields in the desktop shell before the full analysis pipeline lands.
-- Project writes currently use an independent v1 JSON envelope around the validated rehearsal song; legacy raw song files remain readable, unknown envelope fields fail closed, and unsupported versions return an explicit error. Typed source, derived, decision, handoff, preference, and volatile runtime sections remain follow-up work under #962.
+- Current Project Persistence writes a strict `projectFormatVersion: 3` envelope around the validated rehearsal song, closed Active Player preference, and optional path-free app-owned audio `sourceReference`; legacy raw-song, v1, and v2 inputs remain readable through ordered migration, while Resource Admission still owns the unfinished app-owned full-mix materialization/re-admission needed after process restart. Source/derived/decision/handoff expansion, autosave/recovery UX, and volatile runtime authority remain follow-up work under #962 rather than parallel stores.
 - Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener.
 - Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
 - Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
@@ -127,4 +127,4 @@ Last updated: 2026-03-11
 - Security docs and checks are part of the default quickcheck path so design drift is caught early.
 - Supply-chain docs, workflow pinning, and lockfile verification are part of the default quickcheck path so dependency drift is caught early.
 - Quickcheck and CI are expected to verify dependency review, audit, supplemental inventory, and SBOM baseline presence as part of bootstrap.
-- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path.
+- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path so dependency drift is caught early.
