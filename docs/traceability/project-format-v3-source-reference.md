@@ -42,9 +42,11 @@ The contract accepts only:
 
 The field is optional because v2/v1/legacy projects cannot prove that an app-owned source artifact exists. Their ordered migration writes version 3 with no invented reference. `selectedPlaybackSource` remains independent: it is rehearsal intent, while `sourceReference` identifies only the app-owned full-mix artifact required to rebuild native availability.
 
+The path-free shape is also a security boundary, not merely a portability choice. CWE-22 treats attacker-influenced relative/absolute pathnames as a path-traversal class, while CWE-59 covers file access that follows a link or shortcut to an unintended resource. Accordingly, a future reopen path must derive the artifact below the validated app-owned project root rather than trust a persisted path, and must re-check link/reparse and file identity at access time. These references justify the threat model; they do not constitute evidence that re-admission is already implemented.
+
 ## Rejected alternatives
 
-**Persist the original absolute path.** Rejected because it leaks local filesystem information, becomes stale when the file moves, and gives the project document filesystem authority.
+**Persist the original absolute path.** Rejected because it leaks local filesystem information, becomes stale when the file moves, gives the project document filesystem authority, and reintroduces a path-traversal-shaped input at reopen.
 
 **Persist `bandscope-playback://...`.** Rejected because the URL is a revocable runtime capability whose generation and availability are session-specific.
 
@@ -62,7 +64,7 @@ The field is optional because v2/v1/legacy projects cannot prove that an app-own
 - `5203c2846dd2d12a02ad54204e9c6b5197d1177f` — updates the engineering format document to the code-current v3 contract and migration boundary.
 - `ace91a29e540919d02716dd492e290f9743422a8` — repairs stale v2-output expectations and typed-constructor compilation after the version advance without weakening v2 input compatibility.
 
-Hosted exact-head checks are authoritative for repository GREEN; predecessor results are not transferable.
+Hosted exact-head checks are authoritative for repository GREEN; predecessor results are not transferable. The test-first/root-cause record also follows the released NIST SSDF 1.1 principle of integrating secure-development practices into the SDLC and addressing vulnerability root causes rather than treating a passing downstream check as the sole control. NIST published SSDF 1.2 only as SP 800-218 Rev. 1 Initial Public Draft in December 2025; this traceability therefore treats v1.1 as the released reference and the v1.2 draft as non-normative tracking input.
 
 ## Security Notes
 
@@ -76,7 +78,7 @@ Native and TypeScript boundaries reject unknown source-reference fields. Project
 
 ### Safe failure
 
-Malformed references fail before project publication or before a reopened document is accepted by the renderer bridge. Historical inputs migrate without a reference rather than fabricating an authority. A future re-admission implementation must fail closed if the derived artifact is absent, non-regular, linked/reparsed, has the wrong size, or fails audio decode/admission checks.
+Malformed references fail before project publication or before a reopened document is accepted by the renderer bridge. Historical inputs migrate without a reference rather than fabricating an authority. A future re-admission implementation must fail closed if the derived artifact is absent, non-regular, linked/reparsed, has the wrong size, or fails audio decode/admission checks. CWE-59 specifically makes link resolution before file access part of the threat model, so a lexical containment check alone is not sufficient acceptance evidence.
 
 ### Logging and privacy
 
@@ -89,3 +91,13 @@ The durable reference intentionally excludes the original local path and origina
 ### Remaining risk
 
 Version 3 is a schema foundation, not completed source re-admission. Current Resource Admission still stores bootstrap source information in process memory and uses the selected external source path. The next causal slice must materialize the admitted full mix under the app-owned project namespace, write `sourceReference` only after that succeeds, and reconstruct a fresh bootstrap from the validated reference on reopen. Content digest/stronger bounded identity, cleanup/retention policy for app-owned audio, crash injection during materialization, and rights-cleared Windows/macOS real-audio acceptance remain required before this path can be called release-ready.
+
+## References
+
+MITRE. (2026). *CWE-22: Improper limitation of a pathname to a restricted directory ('Path Traversal')* (CWE Version 4.20). https://cwe.mitre.org/data/definitions/22.html
+
+MITRE. (2026). *CWE-59: Improper link resolution before file access ('Link Following')* (CWE Version 4.20). https://cwe.mitre.org/data/definitions/59.html
+
+Scarfone, K., Souppaya, M., & Dodson, D. (2022). *Secure Software Development Framework (SSDF) Version 1.1: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-218
+
+Booth, H., Ogata, M., Kent, K., Souppaya, M., & Dodson, D. (2025). *Secure Software Development Framework (SSDF) Version 1.2: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218 Rev. 1, Initial Public Draft). National Institute of Standards and Technology. https://csrc.nist.gov/pubs/sp/800/218/r1/ipd
