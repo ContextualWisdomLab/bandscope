@@ -379,6 +379,7 @@ export function RehearsalPlayer({
       hasLocalAudio && audioSourceUrl !== null ? audioSourcePath : null;
     const sourceAuthority = loadedPlaybackAuthorityRef.current;
     let plan: PlaybackSourceSwitchPlan | null = null;
+    let admissionSettled = false;
 
     if (
       sourceAuthority !== null &&
@@ -409,6 +410,10 @@ export function RehearsalPlayer({
     }
 
     const retireFailedPlan = (reportPlaybackError: boolean): void => {
+      if (admissionSettled) {
+        return;
+      }
+      admissionSettled = true;
       if (plan !== null) {
         playbackSourceSwitchSessionRef.current = abortPlaybackSourceSwitch(
           playbackSourceSwitchSessionRef.current,
@@ -426,6 +431,9 @@ export function RehearsalPlayer({
 
     /** Admit metadata only for the exact source mutation owned by this effect. */
     const admitLoadedSource = (): void => {
+      if (admissionSettled) {
+        return;
+      }
       const duration = audio.duration;
       if (
         targetAuthority === null ||
@@ -437,6 +445,7 @@ export function RehearsalPlayer({
       }
 
       if (plan === null) {
+        admissionSettled = true;
         loadedPlaybackAuthorityRef.current = targetAuthority;
         setMediaDurationSeconds(duration);
         setPlaybackError(false);
@@ -475,6 +484,7 @@ export function RehearsalPlayer({
           playbackSourceSwitchSessionRef.current,
           admittedPlan,
         );
+        admissionSettled = true;
         sourceSwitchPendingRef.current = false;
         setSourceSwitchPending(false);
       } catch {
@@ -482,7 +492,13 @@ export function RehearsalPlayer({
       }
     };
 
-    const failLoadedSource = (): void => retireFailedPlan(true);
+    const failLoadedSource = (): void => {
+      if (admissionSettled) {
+        handlePlaybackError();
+        return;
+      }
+      retireFailedPlan(true);
+    };
     audio.addEventListener("loadedmetadata", admitLoadedSource);
     audio.addEventListener("error", failLoadedSource);
 
