@@ -1,20 +1,22 @@
 # Local Project Format
 
-This document specifies the format and lifecycle of a BandScope `.bscope` project file, focusing on data persistence, manual overrides, and recovery.
+This document specifies the format and lifecycle of a BandScope `.bscope` project file, focusing on data persistence, manual overrides, durable rehearsal preferences, and recovery.
 
 ## Overview
 
-BandScope projects are saved as `.bscope` files. Current writes use a standard JSON envelope with `projectFormatVersion: 1`; the nested `song` is the current compatibility view used by the desktop contract. Older raw `RehearsalSong` JSON remains loadable as an explicit legacy input and is never silently rewritten in memory as a newer version.
+BandScope projects are saved as `.bscope` files. Current writes use a strict JSON envelope with `projectFormatVersion: 2`. The nested `song` remains the compatibility view used by the desktop rehearsal contract, while `preferences` is the first typed project-level section outside that song view.
+
+Version 1 files and older raw `RehearsalSong` JSON remain supported inputs. They are parsed by the historical strict song/v1 boundary and migrated in memory to the current document with `preferences.selectedPlaybackSource = "full_mix"`. A migration does not infer that a stem was selected previously because v1 carried no such durable evidence.
 
 ## Schema
 
-The primary data structure for a `.bscope` file is the `RehearsalSong` type from `@bandscope/shared-types`.
+The rehearsal content inside `song` is the `RehearsalSong` contract from `@bandscope/shared-types`.
 
-### Top-Level Structure (version 1)
+### Top-Level Structure (version 2)
 
 ```json
 {
-  "projectFormatVersion": 1,
+  "projectFormatVersion": 2,
   "song": {
     "id": "string",
     "title": "string",
@@ -32,17 +34,44 @@ The primary data structure for a `.bscope` file is the `RehearsalSong` type from
       "comments": [ ... ],
       "approvals": [ ... ]
     }
+  },
+  "preferences": {
+    "selectedPlaybackSource": "full_mix"
   }
 }
 ```
 
-`tempo` and `collaboration` are optional. The native persistence boundary preserves the current shared collaboration contract and its assignment/comment/approval state domains. Role records also preserve optional `harmonicExplanation`, `transpositionPlan`, `transcription`, and integer `practiceProgress` from 0 through 100. These fields are typed project data; unknown fields still fail closed rather than being retained in an untyped JSON bag.
+`selectedPlaybackSource` is a closed durable semantic with exactly these values: `full_mix`, `vocals`, `bass`, `drums`, or `other`. It is not a media URL, local path, generation receipt, or native playback authority. An opaque `bandscope-playback` authority is runtime-only and must never appear in a `.bscope` file.
 
-The version is independent of the application package version. The v1 reader rejects unknown envelope fields and returns an explicit unsupported-version error for a well-formed future version. The checked-in golden fixture is `apps/desktop/core/testdata/project-v1.json`.
+The current compatibility save command still receives only a validated song payload, so it writes version 2 with the deterministic `full_mix` default. The typed Project Persistence API can already serialize an explicit stable preference. Wiring the mounted Active Player selection into that typed document and resolving it through fresh native availability on reopen are separate consumer steps and are not claimed complete by the format migration itself.
+
+`tempo` and `collaboration` are optional song fields. The native persistence boundary preserves the current shared collaboration contract and its assignment/comment/approval state domains. Role records also preserve optional `harmonicExplanation`, `transpositionPlan`, `transcription`, and integer `practiceProgress` from 0 through 100. These fields are typed project data; unknown fields still fail closed rather than being retained in an untyped JSON bag.
+
+The project format version is independent of the application package version. Version 2 rejects unknown envelope fields and invalid preference tokens. A well-formed unsupported future version returns an explicit unsupported-version error before its body is interpreted as current truth.
+
+Checked-in compatibility evidence:
+
+- `apps/desktop/core/testdata/project-v1.json` — supported version-1 input.
+- `apps/desktop/core/testdata/project-v2.json` — current version-2 document with an explicit `vocals` preference.
+- `apps/desktop/core/tests/project_format_v2_playback_preference.rs` — v1 and legacy migration, closed preference-domain, and no-runtime-authority contracts.
+- `apps/desktop/core/tests/project_format_v2_fixture.rs` — current golden-fixture round trip.
+
+### Version 1 compatibility
+
+Version 1 had the shape below and did not contain project-level preferences:
+
+```json
+{
+  "projectFormatVersion": 1,
+  "song": { ... }
+}
+```
+
+The ordered v1 → v2 migration keeps the validated song unchanged and creates only one new value: `preferences.selectedPlaybackSource = "full_mix"`. This is idempotent at the current reader/writer boundary: once a document is serialized as v2, reopening and serializing it again preserves the same typed preference instead of re-running a heuristic inference.
 
 ### Sections and Roles
 
-Sections describe structural segments of the song (e.g., Intro, Verse, Chorus). Each section contains a list of roles (instruments or vocals).
+Sections describe structural segments of the song (for example Intro, Verse, or Chorus). Each section contains a list of roles.
 
 ```json
 {
@@ -60,7 +89,7 @@ Sections describe structural segments of the song (e.g., Intro, Verse, Chorus). 
 
 ### Manual Overrides
 
-To ensure provenance preservation, BandScope records when a user manually changes an analyzed property. This is stored in the `manualOverrides` array on the `RehearsalRole` object.
+BandScope records user corrections in the `manualOverrides` array on a `RehearsalRole` so an analyzed value is not confused with user-owned rehearsal truth.
 
 ```json
 {
@@ -81,26 +110,27 @@ To ensure provenance preservation, BandScope records when a user manually change
       },
       "source": "user"
     }
-  ],
-  ...
+  ]
 }
 ```
 
-By retaining `manualOverrides`, BandScope can distinguish between original model outputs and user corrections, meeting the provenance requirements for the product.
-
 ## Security Constraints
 
-When loading `.bscope` files from disk, BandScope applies the following constraints:
-1. **Size Limits**: The project file must not exceed an upper bound (currently 5 MiB, implemented as `5 * 1024 * 1024` bytes in the Tauri backend) to prevent memory exhaustion.
-2. **Schema Validation**: The loaded JSON is structurally validated against the `RehearsalSong` contract. Collaboration state tokens and `practiceProgress` use the same accepted domains as the shared renderer contract.
-3. **Bounded Processing**: The JSON parsing is standard and safe, avoiding arbitrary code execution or payload expansion attacks.
+When loading `.bscope` files from disk, BandScope applies these constraints:
+
+1. **Size limit** — a project file may not exceed 5 MiB (`5 * 1024 * 1024` bytes) at the current Tauri persistence boundary.
+2. **Strict schema validation** — current/v1 envelopes and the rehearsal song contract reject unknown fields according to their published compatibility rule. Playback preference, collaboration state, provenance, cue, role, export, and progress domains are closed values rather than arbitrary strings.
+3. **Bounded processing** — project JSON is parsed as data only. The format contains no executable code or runtime playback URL.
+4. **Runtime-authority separation** — a selected source is stored only as a stable semantic. Reopening must request a fresh native authority from current resource availability rather than trusting persisted media capability data.
 
 ## Current boundary and next migration slices
 
-Version 1 deliberately keeps the existing validated `RehearsalSong` as the compatibility view. Source references, derived analysis artifacts, user decisions, portable handoff data, UI preferences, and volatile player state are not fabricated or written into untyped bags. Their typed promotion, bounded autosave journal, backup rotation, migration receipts, and accessible restore/compare/discard flow remain the next #962 slices. Player state must use this authority after the transport state machine is stable; it must not create a second localStorage or session persistence authority.
+Version 2 establishes the first typed project preference and an executable v1 → v2 migration. It does not complete #962. Source references, derived analysis artifacts, user decisions beyond the existing song contract, portable handoff data, broader UI preferences, autosave/recovery state, and volatile player state are not fabricated or written into untyped bags.
 
-A selected playback source must be persisted as a stable project semantic such as `full_mix`, `vocals`, `bass`, `drums`, or `other`, never as a revocable `bandscope-playback` authority. Reload must resolve that semantic against current native availability and fail closed to Full mix if the prior source is unavailable.
+The mounted Active Player must persist its selected semantic through the Project Persistence owner, then resolve that semantic against current native source availability on reopen. If the requested stem is no longer admitted, the player must fail closed to Full mix. A WebView `localStorage`/session store or serialized `bandscope-playback` URL would create a second authority and is not an acceptable substitute.
+
+The remaining Project Persistence work includes bounded autosave, known-good backup rotation, startup recovery discovery, accessible Restore / Compare / Discard UX, descriptor-bound parent authority, deterministic migration receipts/hashes, downgrade/rollback behavior, and exhaustive interruption/disk-full/power-loss fault injection.
 
 ## Extensibility
 
-Future updates to the `.bscope` format must add an ordered migration from the prior envelope, validate a copy before publication, retain the prior known-good artifact, and update the machine-verifiable fixture. Unknown fields must either be explicitly preserved by a typed schema or rejected; they must never be silently discarded.
+Each future `.bscope` version must have an ordered deterministic migration from every supported predecessor, validate a copy before publication, retain the prior known-good artifact until the migrated document opens successfully, and add a machine-verifiable golden fixture. Unknown fields must either be explicitly preserved by a typed schema or rejected; they must never be silently discarded.
