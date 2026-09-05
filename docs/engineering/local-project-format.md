@@ -43,7 +43,7 @@ The rehearsal content inside `song` is the `RehearsalSong` contract from `@bands
 
 `selectedPlaybackSource` is a closed durable semantic with exactly these values: `full_mix`, `vocals`, `bass`, `drums`, or `other`. It is not a media URL, local path, generation receipt, or native playback authority. An opaque `bandscope-playback` authority is runtime-only and must never appear in a `.bscope` file.
 
-The current compatibility save command still receives only a validated song payload, so it writes version 2 with the deterministic `full_mix` default. The typed Project Persistence API can already serialize an explicit stable preference. Wiring the mounted Active Player selection into that typed document and resolving it through fresh native availability on reopen are separate consumer steps and are not claimed complete by the format migration itself.
+The native `save_project`/`load_project` commands now admit and return the complete typed current document, and the TypeScript Project Persistence adapter exposes `saveProjectDocument`/`loadProjectDocument` with the same closed preference domain. Existing song-only `saveProject`/`loadProject` callers remain compatibility adapters and use the deterministic `full_mix` default when they do not own an explicit source preference. The mounted #1160 Active Player still has to supply its selected semantic to this bridge on save and consume the reopened semantic through fresh native source availability; that UI composition step is not claimed complete by the bridge itself.
 
 `tempo` and `collaboration` are optional song fields. The native persistence boundary preserves the current shared collaboration contract and its assignment/comment/approval state domains. Role records also preserve optional `harmonicExplanation`, `transpositionPlan`, `transcription`, and integer `practiceProgress` from 0 through 100. These fields are typed project data; unknown fields still fail closed rather than being retained in an untyped JSON bag.
 
@@ -55,6 +55,7 @@ Checked-in compatibility evidence:
 - `apps/desktop/core/testdata/project-v2.json` — current version-2 document with an explicit `vocals` preference.
 - `apps/desktop/core/tests/project_format_v2_playback_preference.rs` — v1 and legacy migration, closed preference-domain, and no-runtime-authority contracts.
 - `apps/desktop/core/tests/project_format_v2_fixture.rs` — current golden-fixture round trip.
+- `apps/desktop/src/lib/projectDocumentBridge.test.ts` — renderer/native bridge contract for all five stable semantics plus runtime-authority and unknown-preference rejection.
 
 ### Version 1 compatibility
 
@@ -125,9 +126,9 @@ When loading `.bscope` files from disk, BandScope applies these constraints:
 
 ## Current boundary and next migration slices
 
-Version 2 establishes the first typed project preference and an executable v1 → v2 migration. It does not complete #962. Source references, derived analysis artifacts, user decisions beyond the existing song contract, portable handoff data, broader UI preferences, autosave/recovery state, and volatile player state are not fabricated or written into untyped bags.
+Version 2 now establishes the first typed project preference, executable legacy/v1 → v2 migration, and a symmetric native/TypeScript current-document Save/Reopen bridge. It does not complete #962. Source references, derived analysis artifacts, user decisions beyond the existing song contract, portable handoff data, broader UI preferences, autosave/recovery state, and volatile player state are not fabricated or written into untyped bags.
 
-The mounted Active Player must persist its selected semantic through the Project Persistence owner, then resolve that semantic against current native source availability on reopen. If the requested stem is no longer admitted, the player must fail closed to Full mix. A WebView `localStorage`/session store or serialized `bandscope-playback` URL would create a second authority and is not an acceptable substitute.
+The mounted Active Player must still pass its selected semantic into the Project Persistence bridge and, on reopen, resolve the returned semantic against current native source availability. If the requested stem is no longer admitted, the player must fail closed to Full mix. A WebView `localStorage`/session store or serialized `bandscope-playback` URL would create a second authority and is not an acceptable substitute.
 
 The remaining Project Persistence work includes bounded autosave, known-good backup rotation, startup recovery discovery, accessible Restore / Compare / Discard UX, descriptor-bound parent authority, deterministic migration receipts/hashes, downgrade/rollback behavior, and exhaustive interruption/disk-full/power-loss fault injection.
 
