@@ -13,5 +13,6 @@ pub use core::*;
 pub use project_format::{
     project_content_for_document, project_content_for_payload, project_document_from_content,
     project_document_from_value, project_payload_from_content, ProjectDocumentPayload,
-    ProjectPreferencesPayload, SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
+    ProjectPreferencesPayload, ProjectSourceReferencePayload, SelectedPlaybackSourcePayload,
+    CURRENT_PROJECT_FORMAT_VERSION,
 };
