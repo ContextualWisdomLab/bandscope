@@ -8,10 +8,12 @@
 #[path = "lib.rs"]
 mod runtime_core;
 mod audio_resource;
+mod content_sha256;
 mod score_pdf;
 
 pub use audio_resource::{
-    copy_bounded_local_audio, validate_local_audio_file_size, MAX_LOCAL_AUDIO_FILE_BYTES,
+    copy_bounded_local_audio, copy_bounded_local_audio_with_receipt,
+    validate_local_audio_file_size, LocalAudioCopyReceipt, MAX_LOCAL_AUDIO_FILE_BYTES,
 };
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
