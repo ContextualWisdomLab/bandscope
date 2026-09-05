@@ -14,6 +14,7 @@ export type ProjectSourceReference = {
   artifactName: string;
   extension: "wav" | "mp3" | "flac" | "m4a";
   fileSizeBytes: number;
+  contentSha256: string;
 };
 
 /** Current renderer-facing project document admitted by the native persistence owner. */
@@ -37,6 +38,7 @@ const PROJECT_SOURCE_EXTENSIONS = new Set<ProjectSourceReference["extension"]>([
   "m4a"
 ]);
 const PROJECT_ID_PATTERN = /^project-\d+-\d+$/;
+const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
 
 type OwnDataProperty =
   | { ok: true; value: unknown }
@@ -117,7 +119,7 @@ function optionalOwnEnumerableDataProperty(
 function parseProjectSourceReference(value: unknown): ProjectSourceReference {
   if (
     !isPlainRecord(value) ||
-    !hasOnlyKeys(value, ["projectId", "artifactName", "extension", "fileSizeBytes"])
+    !hasOnlyKeys(value, ["projectId", "artifactName", "extension", "fileSizeBytes", "contentSha256"])
   ) {
     throw new Error("Invalid project document");
   }
@@ -126,11 +128,13 @@ function parseProjectSourceReference(value: unknown): ProjectSourceReference {
   const artifactNameProperty = ownEnumerableDataProperty(value, "artifactName");
   const extensionProperty = ownEnumerableDataProperty(value, "extension");
   const fileSizeBytesProperty = ownEnumerableDataProperty(value, "fileSizeBytes");
+  const contentSha256Property = ownEnumerableDataProperty(value, "contentSha256");
   if (
     !projectIdProperty.ok ||
     !artifactNameProperty.ok ||
     !extensionProperty.ok ||
-    !fileSizeBytesProperty.ok
+    !fileSizeBytesProperty.ok ||
+    !contentSha256Property.ok
   ) {
     throw new Error("Invalid project document");
   }
@@ -139,6 +143,7 @@ function parseProjectSourceReference(value: unknown): ProjectSourceReference {
   const artifactName = artifactNameProperty.value;
   const extension = extensionProperty.value;
   const fileSizeBytes = fileSizeBytesProperty.value;
+  const contentSha256 = contentSha256Property.value;
   if (
     typeof projectId !== "string" ||
     !PROJECT_ID_PATTERN.test(projectId) ||
@@ -148,7 +153,9 @@ function parseProjectSourceReference(value: unknown): ProjectSourceReference {
     artifactName !== `source.${extension}` ||
     typeof fileSizeBytes !== "number" ||
     !Number.isSafeInteger(fileSizeBytes) ||
-    fileSizeBytes <= 0
+    fileSizeBytes <= 0 ||
+    typeof contentSha256 !== "string" ||
+    !SHA256_HEX_PATTERN.test(contentSha256)
   ) {
     throw new Error("Invalid project document");
   }
@@ -157,14 +164,15 @@ function parseProjectSourceReference(value: unknown): ProjectSourceReference {
     projectId,
     artifactName,
     extension: extension as ProjectSourceReference["extension"],
-    fileSizeBytes
+    fileSizeBytes,
+    contentSha256
   };
 }
 
 /**
  * Validate the renderer-visible project document without accepting filesystem paths,
  * runtime capability URLs, generation tokens, prototype-bearing records, accessors,
- * trapped record enumeration, or unknown preference/source-reference fields.
+ * trapped record enumeration, ambiguous source digests, or unknown preference/source-reference fields.
  */
 export function parseProjectDocument(value: unknown): ProjectDocument {
   if (
