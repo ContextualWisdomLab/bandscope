@@ -181,7 +181,11 @@ export function RehearsalPlayer({
   return (
     <div className="contents" onErrorCapture={handlePlaybackSourceErrorCapture}>
       {sourceDiscoveryPending ? (
-        <p className="mb-3 text-sm text-slate-300" role="status">
+        <p
+          aria-atomic="true"
+          className="mb-3 text-sm text-slate-300"
+          role="status"
+        >
           {playbackSourceCopy("loading")}
         </p>
       ) : null}
