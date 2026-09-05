@@ -1,6 +1,7 @@
 """Verify that security-sensitive design and traceability documents include Security Notes."""
 
 from pathlib import Path
+import re
 
 SECURITY_NOTES_TEXT = "Security Notes"
 SECURITY_NOTE_DIRS = (Path("docs/plans"), Path("docs/traceability"))
@@ -12,26 +13,36 @@ REQUIRED_SUBSECTIONS = [
     "realistic threats",
     "remaining risk",
 ]
+MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 
 
 def security_notes_section(content: str) -> str:
-    """Extract the lowercased Security Notes section from a governed document."""
-    lowered = content.lower()
-    marker = SECURITY_NOTES_TEXT.lower()
-    start = lowered.find(marker)
-    if start == -1:
+    """Extract only the lowercased Security Notes section from a governed document."""
+    lines = content.splitlines()
+    start_index: int | None = None
+    heading_level: int | None = None
+
+    for index, line in enumerate(lines):
+        match = MARKDOWN_HEADING.match(line.strip())
+        if match is None:
+            continue
+        heading_text = match.group(2).rstrip("#").strip()
+        if heading_text.casefold() == SECURITY_NOTES_TEXT.casefold():
+            start_index = index
+            heading_level = len(match.group(1))
+            break
+
+    if start_index is None or heading_level is None:
         return ""
 
-    end_candidates = []
-    for delimiter in ["\n---", "\n## approaches considered", "\n## decision"]:
-        end = lowered.find(delimiter, start + len(marker))
-        if end != -1:
-            end_candidates.append(end)
+    end_index = len(lines)
+    for index in range(start_index + 1, len(lines)):
+        match = MARKDOWN_HEADING.match(lines[index].strip())
+        if match is not None and len(match.group(1)) == heading_level:
+            end_index = index
+            break
 
-    if not end_candidates:
-        return lowered[start:]
-
-    return lowered[start : min(end_candidates)]
+    return "\n".join(lines[start_index:end_index]).lower()
 
 
 def governed_documents() -> list[Path]:
