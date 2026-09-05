@@ -7,6 +7,7 @@ import {
   useState,
   type ComponentProps,
   type ReactElement,
+  type SyntheticEvent,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -71,57 +72,86 @@ export function RehearsalPlayer({
     createPlaybackSourceSession(hasLocalAudio ? audioSourcePath : null),
   );
   const sourceSessionRef = useRef(sourceSession);
+  const discoveryGenerationRef = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    const resetSession = createPlaybackSourceSession(
-      hasLocalAudio ? audioSourcePath : null,
-    );
-    const started = beginPlaybackSourceDiscovery(
-      resetSession,
-      hasLocalAudio ? audioSourcePath : null,
-    );
-    commitPlaybackSourceSession(
-      sourceSessionRef,
-      setSourceSession,
-      started.state,
-    );
-
-    if (started.request === null) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const request = started.request;
-    void discoverPlaybackSourceOptions(
-      request.fullMixAuthority,
-      invokePlaybackSource,
-    ).then((discovered) => {
-      if (cancelled) {
-        return;
-      }
-      const completed = completePlaybackSourceDiscovery(
-        sourceSessionRef.current,
-        request,
-        discovered,
+  const discoverCurrentPlaybackSources = useCallback(
+    (
+      baseSession: PlaybackSourceSession,
+      currentFullMixAuthority: string | null,
+    ): void => {
+      const generation = ++discoveryGenerationRef.current;
+      const started = beginPlaybackSourceDiscovery(
+        baseSession,
+        currentFullMixAuthority,
       );
       commitPlaybackSourceSession(
         sourceSessionRef,
         setSourceSession,
-        completed,
+        started.state,
       );
-    });
+      if (started.request === null) {
+        return;
+      }
 
+      const request = started.request;
+      void discoverPlaybackSourceOptions(
+        request.fullMixAuthority,
+        invokePlaybackSource,
+      ).then((discovered) => {
+        if (generation !== discoveryGenerationRef.current) {
+          return;
+        }
+        const completed = completePlaybackSourceDiscovery(
+          sourceSessionRef.current,
+          request,
+          discovered,
+        );
+        commitPlaybackSourceSession(
+          sourceSessionRef,
+          setSourceSession,
+          completed,
+        );
+      });
+    },
+    [invokePlaybackSource],
+  );
+
+  useEffect(() => {
+    const currentFullMixAuthority = hasLocalAudio ? audioSourcePath : null;
+    discoverCurrentPlaybackSources(
+      createPlaybackSourceSession(currentFullMixAuthority),
+      currentFullMixAuthority,
+    );
     return () => {
-      cancelled = true;
+      discoveryGenerationRef.current += 1;
     };
-  }, [audioSourcePath, hasLocalAudio, invokePlaybackSource]);
+  }, [audioSourcePath, discoverCurrentPlaybackSources, hasLocalAudio]);
 
   const choosePlaybackSource = useCallback((authority: string) => {
     const selected = selectPlaybackSource(sourceSessionRef.current, authority);
     commitPlaybackSourceSession(sourceSessionRef, setSourceSession, selected);
   }, []);
+
+  const handlePlaybackSourceErrorCapture = useCallback(
+    (event: SyntheticEvent<HTMLDivElement>): void => {
+      if (!(event.target instanceof HTMLMediaElement)) {
+        return;
+      }
+      const current = sourceSessionRef.current;
+      if (
+        current.fullMixAuthority === null ||
+        current.fullMixAuthority !== audioSourcePath ||
+        current.selectedAuthority === null ||
+        current.selectedAuthority === current.fullMixAuthority
+      ) {
+        return;
+      }
+
+      // Native stem authority is revocable. Drop the failed stem before awaiting IPC.
+      discoverCurrentPlaybackSources(current, current.fullMixAuthority);
+    },
+    [audioSourcePath, discoverCurrentPlaybackSources],
+  );
 
   const sessionMatchesMountedProject =
     hasLocalAudio && sourceSession.fullMixAuthority === audioSourcePath;
@@ -141,7 +171,7 @@ export function RehearsalPlayer({
     : "no-local-audio";
 
   return (
-    <>
+    <div className="contents" onErrorCapture={handlePlaybackSourceErrorCapture}>
       {hasStemChoices ? (
         <fieldset className="mb-3 border-b border-white/10 pb-3">
           <legend className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-300">
@@ -173,6 +203,6 @@ export function RehearsalPlayer({
         hasLocalAudio={hasLocalAudio}
         audioSourcePath={selectedAuthority}
       />
-    </>
+    </div>
   );
 }
