@@ -3,6 +3,8 @@
 //! The operations and constants follow NIST FIPS 180-4 SHA-256. The known-answer
 //! tests below are correctness checks, not CAVP validation or a FIPS 140 claim.
 
+use std::io::{self, ErrorKind, Read};
+
 const BLOCK_BYTES: usize = 64;
 const DIGEST_BYTES: usize = 32;
 const INITIAL_STATE: [u32; 8] = [
@@ -170,9 +172,35 @@ impl StreamingSha256 {
     }
 }
 
+/// Hash a caller-owned byte stream as canonical lowercase SHA-256.
+///
+/// Security Notes: this helper never opens a path, logs bytes, or grants filesystem
+/// authority. The caller must supply an already-authorized reader and decide how
+/// the resulting digest is bound to a concrete artifact. `Interrupted` reads are
+/// retried; other reader failures are returned unchanged. This is content identity,
+/// not an authenticity primitive or a FIPS module-validation claim.
+pub fn sha256_hex_reader(mut reader: impl Read) -> io::Result<String> {
+    let mut digest = StreamingSha256::default();
+    let mut chunk = [0_u8; 64 * 1024];
+    loop {
+        match reader.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(read_bytes) => digest
+                .update(&chunk[..read_bytes])
+                .map_err(|_| io::Error::new(ErrorKind::InvalidData, "SHA-256 input too large"))?,
+            Err(error) if error.kind() == ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    digest
+        .finalize_hex()
+        .map_err(|_| io::Error::new(ErrorKind::InvalidData, "SHA-256 input too large"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Cursor, Error};
 
     fn digest_in_chunks(bytes: &[u8], chunk_size: usize) -> String {
         let mut digest = StreamingSha256::default();
@@ -182,6 +210,36 @@ mod tests {
         digest
             .finalize_hex()
             .expect("test vector bit length must fit SHA-256")
+    }
+
+    struct InterruptedShortReader {
+        bytes: Vec<u8>,
+        cursor: usize,
+        interrupted: bool,
+    }
+
+    impl Read for InterruptedShortReader {
+        fn read(&mut self, output: &mut [u8]) -> io::Result<usize> {
+            if !self.interrupted {
+                self.interrupted = true;
+                return Err(Error::from(ErrorKind::Interrupted));
+            }
+            if self.cursor == self.bytes.len() {
+                return Ok(0);
+            }
+            let copied = 7.min(output.len()).min(self.bytes.len() - self.cursor);
+            output[..copied].copy_from_slice(&self.bytes[self.cursor..self.cursor + copied]);
+            self.cursor += copied;
+            Ok(copied)
+        }
+    }
+
+    struct FailingReader;
+
+    impl Read for FailingReader {
+        fn read(&mut self, _output: &mut [u8]) -> io::Result<usize> {
+            Err(Error::new(ErrorKind::Other, "fixture read failure"))
+        }
     }
 
     #[test]
@@ -202,6 +260,27 @@ mod tests {
         ] {
             assert_eq!(digest_in_chunks(message, 7), expected);
         }
+    }
+
+    #[test]
+    fn shared_reader_retries_interrupted_short_reads() {
+        let bytes = (0..131_111)
+            .map(|index| (index % 251) as u8)
+            .collect::<Vec<_>>();
+        let expected = sha256_hex_reader(Cursor::new(&bytes)).expect("reference hash should succeed");
+        let actual = sha256_hex_reader(InterruptedShortReader {
+            bytes,
+            cursor: 0,
+            interrupted: false,
+        })
+        .expect("interrupted short reads should be retried");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn shared_reader_propagates_non_interrupted_failure() {
+        let error = sha256_hex_reader(FailingReader).expect_err("reader failure must propagate");
+        assert_eq!(error.kind(), ErrorKind::Other);
     }
 
     #[test]

@@ -15,5 +15,6 @@ pub use audio_resource::{
     copy_bounded_local_audio, copy_bounded_local_audio_with_receipt,
     validate_local_audio_file_size, LocalAudioCopyReceipt, MAX_LOCAL_AUDIO_FILE_BYTES,
 };
+pub use content_sha256::sha256_hex_reader;
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
