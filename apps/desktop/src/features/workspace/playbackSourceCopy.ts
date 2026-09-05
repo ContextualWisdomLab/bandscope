@@ -14,6 +14,6 @@ const playbackSourceCopyByLocale: Readonly<
 /** Return one localized playback-source screen string from the current resource set. */
 export function createPlaybackSourceCopy(locale: Locale) {
   return function playbackSourceCopy(key: PlaybackSourceCopyKey): string {
-    return playbackSourceCopyByLocale[locale][key] ?? playbackSourceCopyByLocale.en[key];
+    return playbackSourceCopyByLocale[locale][key];
   };
 }
