@@ -27,6 +27,7 @@ Commit `3db1096baa52de34baa7fea4c1638185914d22b7` adds a focused renderer admiss
 - `7f9d118b08038fd5473b71f0a1243136b39e04bc` changes native `save_project` to `project_document_from_value` + `project_content_for_document` and `load_project` to return `ProjectDocumentPayload` through `project_document_from_content`.
 - Review of that native edit found one unrelated line accidentally changed in `remove_score_pdf`; `327c83f86c1ed213a1f6a58d382715e744ab9831` immediately restores the original project-scoped score root. That transient defect is not treated as valid product delta.
 - `7cc4869560155039ff1e2e10d171505885dc39e3` makes renderer record admission match its stated JSON-record contract: only `Object.prototype` or null-prototype records are accepted, and prototype inspection failure itself fails closed. The durable field/domain contract is unchanged.
+- `3f4ce38c2be533a7b8bc90cd67b702d624cd3d1a` closes the new branch/edge evidence around that fix: a throwing `getPrototypeOf` proxy fails closed, the null-prototype path remains intentionally accepted, and ordinary objects remain accepted.
 
 ## Alternatives rejected
 
@@ -40,7 +41,7 @@ Persisting the opaque playback URL was rejected because its generation/session a
 
 **Mitigations.** Exact-key checks, plain-record prototype checks, the closed five-value source domain, `parseRehearsalSong`, Rust `deny_unknown_fields`, the v2 closed enum, bounded project reads and atomic publication prevent unknown/runtime state from being silently persisted. Prototype inspection exceptions fail closed. Song-only compatibility writes use the deterministic `full_mix` default.
 
-**Test points.** The bridge contract exercises all five durable semantics, load round trip, runtime-authority rejection and unknown-field rejection. `projectDocument.plainRecord.test.ts` exercises custom-prototype rejection for both the outer document and nested preferences plus an ordinary JSON-shaped positive case. Existing Rust v2 fixtures/migration contracts continue to cover disk representation and legacy/v1 migration.
+**Test points.** The bridge contract exercises all five durable semantics, load round trip, runtime-authority rejection and unknown-field rejection. `projectDocument.plainRecord.test.ts` exercises custom-prototype rejection for both the outer document and nested preferences, fail-closed prototype inspection, the intentional null-prototype path and an ordinary JSON-shaped positive case. Existing Rust v2 fixtures/migration contracts continue to cover disk representation and legacy/v1 migration.
 
 **Realistic threats.** A renderer bug or compromised WebView could attempt to persist an absolute path, stale playback capability URL, extra writable state or prototype-bearing object in place of the declared JSON record; a crafted project could return an unsupported source semantic. Both sides fail closed rather than treating those values as project truth.
 
@@ -48,4 +49,4 @@ Persisting the opaque playback URL was rejected because its generation/session a
 
 ## Effect
 
-The persistence format and desktop IPC speak the same current v2 document without copying native path authority into the renderer contract, and renderer-side admission now matches the documented plain JSON-record boundary. This completes the v2 document bridge prerequisite itself; it does not complete source/bootstrap restoration, Active Player reopen interaction or #962 recovery/autosave scope.
+The persistence format and desktop IPC speak the same current v2 document without copying native path authority into the renderer contract, and renderer-side admission now matches the documented plain JSON-record boundary with explicit edge coverage. This completes the v2 document bridge prerequisite itself; it does not complete source/bootstrap restoration, Active Player reopen interaction or #962 recovery/autosave scope.
