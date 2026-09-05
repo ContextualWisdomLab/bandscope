@@ -52,8 +52,8 @@ impl Default for ProjectPreferencesPayload {
 }
 
 /// Current typed project document after historical migration.
-#[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProjectDocumentPayload {
     /// Validated rehearsal song compatibility view.
     pub song: RehearsalSongPayload,
@@ -71,6 +71,17 @@ struct ProjectFileV2Payload {
 
 fn unsupported_version(version: u64) -> String {
     format!("Unsupported project format version: {version}")
+}
+
+/// Admit a renderer-supplied current project document before publication.
+///
+/// Security Notes: renderer IPC values are untrusted. The document, nested
+/// preferences, stable playback-source enum, and rehearsal-song DTO all use
+/// typed allowlists/`deny_unknown_fields`; revocable playback URLs and unknown
+/// runtime state therefore fail closed before any filesystem mutation.
+pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayload, String> {
+    serde_json::from_value::<ProjectDocumentPayload>(value)
+        .map_err(|_| "Invalid project document payload".to_string())
 }
 
 /// Parse a current, v1, or legacy project into the current typed document.
