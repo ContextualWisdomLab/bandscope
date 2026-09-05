@@ -20,6 +20,25 @@ const stemAuthorities = [
   `${fullMixAuthority}/stem/other`,
 ] as const;
 
+function admitDuration(audio: HTMLAudioElement, duration: number): void {
+  Object.defineProperty(audio, "duration", {
+    configurable: true,
+    value: duration,
+  });
+  fireEvent.loadedMetadata(audio);
+}
+
+async function enterLoopingPlayback(audio: HTMLAudioElement): Promise<void> {
+  vi.useFakeTimers();
+  fireEvent.click(screen.getByRole("button", { name: /start the count-in/i }));
+  await act(async () => {
+    vi.advanceTimersByTime(2_100);
+    await Promise.resolve();
+  });
+  audio.currentTime = 17.5;
+  fireEvent.timeUpdate(audio);
+}
+
 describe("RehearsalPlayer mounted source-switch transaction", () => {
   beforeEach(() => {
     vi.mocked(convertFileSrc).mockClear();
@@ -54,21 +73,8 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
 
     const vocals = await screen.findByRole("radio", { name: "Vocals" });
     const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
-    Object.defineProperty(audio, "duration", {
-      configurable: true,
-      value: 120,
-    });
-    fireEvent.loadedMetadata(audio);
-
-    vi.useFakeTimers();
-    fireEvent.click(screen.getByRole("button", { name: /start the count-in/i }));
-    await act(async () => {
-      vi.advanceTimersByTime(2_100);
-      await Promise.resolve();
-    });
-
-    audio.currentTime = 17.5;
-    fireEvent.timeUpdate(audio);
+    admitDuration(audio, 120);
+    await enterLoopingPlayback(audio);
     play.mockClear();
     load.mockClear();
 
@@ -78,13 +84,44 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
     expect(load).toHaveBeenCalledTimes(1);
     expect(play).not.toHaveBeenCalled();
 
-    Object.defineProperty(audio, "duration", {
-      configurable: true,
-      value: 120,
-    });
-    fireEvent.loadedMetadata(audio);
+    admitDuration(audio, 120);
 
     expect(audio.currentTime).toBe(17.5);
     expect(play).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a target that cannot cover the active loop and never reuses its receipt", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+
+    render(
+      <RehearsalPlayer
+        song={createDemoRehearsalSong()}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    const vocals = await screen.findByRole("radio", { name: "Vocals" });
+    const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
+    admitDuration(audio, 120);
+    await enterLoopingPlayback(audio);
+    play.mockClear();
+
+    fireEvent.click(vocals);
+    expect(play).not.toHaveBeenCalled();
+
+    admitDuration(audio, 20);
+
+    expect(play).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toMatch(
+      /could not play this local audio/i,
+    );
+
+    admitDuration(audio, 120);
+    expect(play).not.toHaveBeenCalled();
   });
 });
