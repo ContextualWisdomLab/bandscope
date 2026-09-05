@@ -1,7 +1,7 @@
 """Verify that security-sensitive design and traceability documents include Security Notes."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
 SECURITY_NOTE_DIRS = (Path("docs/plans"), Path("docs/traceability"))
