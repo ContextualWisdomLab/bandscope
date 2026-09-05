@@ -10,6 +10,8 @@ mod runtime_core;
 mod audio_resource;
 mod score_pdf;
 
-pub use audio_resource::{validate_local_audio_file_size, MAX_LOCAL_AUDIO_FILE_BYTES};
+pub use audio_resource::{
+    copy_bounded_local_audio, validate_local_audio_file_size, MAX_LOCAL_AUDIO_FILE_BYTES,
+};
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
