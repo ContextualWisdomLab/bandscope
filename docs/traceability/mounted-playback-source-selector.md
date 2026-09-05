@@ -35,6 +35,14 @@ Regression commit `ad96e16ac54246d1dd70922ecd64f262412dc713` adds a delayed proj
 
 Causal fix `71c03bcc12de4806804d93db45e1d8f0ea764668` now treats a session as renderable only when `sourceSession.fullMixAuthority === audioSourcePath`. During project rotation the wrapper immediately hides the old option snapshot and passes the newly mounted full-mix authority to the transport child before asynchronous discovery begins. The existing exact-request completion and effect cancellation remain the second line of stale-response defense.
 
+## Multi-mount radio isolation
+
+Review after mounting also found that a constant HTML radio `name` would join source controls from two independently mounted rehearsal players into one browser radio group. That does not occur in the current single Workspace surface, but it is an invalid reusable-component contract and can make selecting a source in one mount visually uncheck another mount without changing its React authority state.
+
+RED commit `6e928262d8bbcba0845fcb04a1dc09c095e23434` adds two independently mounted players and requires both full-mix radios to remain selected until their own component changes. Causal fix `29b51d7778624ec0d887f256a10fc93420220971` scopes the native radio `name` with React `useId()`. Browser keyboard/radio semantics remain native while independent component instances no longer share selection state.
+
+A focused TypeScript 5.8.3 `--strict` compile of the exact public wrapper with contract-compatible stubs passed after the fix. This checks the new wrapper's type/syntax surface only; it is not repository exact-head CI evidence and does not substitute for the real workspace test suite.
+
 ## Authority and rejected alternatives
 
 The wrapper does not mint authorities, derive native paths, copy the native registry, or persist a second source catalog. `PlaybackAuthority` remains the owner of playable bytes; `get_playback_source_availability` remains the native availability read model; `PlaybackSourceSession` remains the renderer option/session authority.
