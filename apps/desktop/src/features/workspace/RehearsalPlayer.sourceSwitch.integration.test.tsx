@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -67,14 +67,14 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
       await Promise.resolve();
     });
 
-    audio.currentTime = 2.5;
+    audio.currentTime = 17.5;
     fireEvent.timeUpdate(audio);
     play.mockClear();
     load.mockClear();
 
     fireEvent.click(vocals);
 
-    await waitFor(() => expect(vocals).toBeChecked());
+    expect(vocals).toBeChecked();
     expect(load).toHaveBeenCalledTimes(1);
     expect(play).not.toHaveBeenCalled();
 
@@ -84,7 +84,7 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
     });
     fireEvent.loadedMetadata(audio);
 
-    expect(audio.currentTime).toBe(2.5);
+    expect(audio.currentTime).toBe(17.5);
     expect(play).toHaveBeenCalledTimes(1);
   });
 });
