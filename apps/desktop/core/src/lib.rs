@@ -276,17 +276,40 @@ pub struct ScoreAttachmentMetadataPayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConfidenceLevelPayload {
+    Low,
+    Medium,
+    High,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProvenanceSourcePayload {
+    Model,
+    User,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConfidencePayload {
-    level: String,
-    source: String,
+    level: ConfidenceLevelPayload,
+    source: ProvenanceSourcePayload,
     notes: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CueKindPayload {
+    Lyric,
+    Count,
+    Transition,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CuePayload {
-    kind: String,
+    kind: CueKindPayload,
     value: String,
 }
 
@@ -302,15 +325,35 @@ pub struct RangePayload {
 pub struct HarmonyPayload {
     chord: String,
     function_label: String,
-    source: String,
+    source: ProvenanceSourcePayload,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManualOverrideFieldPayload {
+    Harmony,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ManualOverrideSourcePayload {
+    User,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManualOverrideHarmonyPayload {
+    chord: String,
+    function_label: String,
+    source: ManualOverrideSourcePayload,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ManualOverridePayload {
-    field: String,
-    value: HarmonyPayload,
-    source: String,
+    field: ManualOverrideFieldPayload,
+    value: ManualOverrideHarmonyPayload,
+    source: ManualOverrideSourcePayload,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -341,11 +384,27 @@ where
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RehearsalRoleTypePayload {
+    Instrument,
+    Vocal,
+    Hand,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RehearsalPriorityPayload {
+    Low,
+    Medium,
+    High,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalRolePayload {
     id: String,
     name: String,
-    role_type: String,
+    role_type: RehearsalRoleTypePayload,
     harmony: HarmonyPayload,
     #[serde(
         default,
@@ -356,7 +415,7 @@ pub struct RehearsalRolePayload {
     cue: CuePayload,
     range: RangePayload,
     confidence: ConfidencePayload,
-    rehearsal_priority: String,
+    rehearsal_priority: RehearsalPriorityPayload,
     simplification: String,
     setup_note: String,
     #[serde(
@@ -424,10 +483,25 @@ pub struct PartGraphNodePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SectionFormLabelPayload {
+    Intro,
+    Verse,
+    PreChorus,
+    Chorus,
+    Bridge,
+    Outro,
+    Tag,
+    Pickup,
+    Stop,
+    Handoff,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RehearsalSectionPayload {
     id: String,
-    label: String,
+    label: SectionFormLabelPayload,
     groove: String,
     time_range: SectionTimeRangePayload,
     confidence: ConfidencePayload,
@@ -436,9 +510,16 @@ pub struct RehearsalSectionPayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExportFormatPayload {
+    CueSheet,
+    ChartSummary,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExportSummaryPayload {
-    format: String,
+    format: ExportFormatPayload,
     headline: String,
     focus_sections: Vec<String>,
 }
