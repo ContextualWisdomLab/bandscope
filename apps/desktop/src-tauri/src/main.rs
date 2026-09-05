@@ -742,7 +742,7 @@ async fn import_youtube_url(
 
 #[tauri::command]
 fn save_project(payload: Value) -> Result<(), String> {
-    let parsed = serde_json::from_value::<RehearsalSongPayload>(payload)
+    let parsed = project_document_from_value(payload)
         .map_err(|_| "Invalid project payload".to_string())?;
 
     let path = FileDialog::new()
@@ -750,7 +750,7 @@ fn save_project(payload: Value) -> Result<(), String> {
         .save_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
-    let content = project_content_for_payload(&parsed)?;
+    let content = project_content_for_document(&parsed)?;
     project_persistence::recover_project_publication(&path)?;
     project_persistence::publish_new_project_file(&path, content.as_bytes())?;
 
@@ -758,7 +758,7 @@ fn save_project(payload: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn load_project() -> Result<RehearsalSongPayload, String> {
+fn load_project() -> Result<ProjectDocumentPayload, String> {
     let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])
         .pick_file()
@@ -766,7 +766,7 @@ fn load_project() -> Result<RehearsalSongPayload, String> {
 
     project_persistence::recover_project_publication(&path)?;
     let content = project_persistence::read_project_file(&path)?;
-    project_payload_from_content(&content)
+    project_document_from_content(&content)
 }
 
 fn scores_root_for_project<R: Runtime>(
@@ -854,7 +854,7 @@ fn remove_score_pdf(
     if !is_valid_score_id(&score_id) {
         return Err("Invalid score id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects")?;
     let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
         Ok(path) => path,
         Err(_) => return Ok(false),
