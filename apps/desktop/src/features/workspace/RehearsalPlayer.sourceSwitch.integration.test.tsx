@@ -96,6 +96,52 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("ignores a stale play rejection from the prior source while target metadata is pending", async () => {
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
+    let rejectPriorPlay: ((reason?: unknown) => void) | undefined;
+    const priorPlay = new Promise<void>((_resolve, reject) => {
+      rejectPriorPlay = reject;
+    });
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockImplementationOnce(() => priorPlay)
+      .mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+
+    render(
+      <RehearsalPlayer
+        song={createDemoRehearsalSong()}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    const vocals = await screen.findByRole("radio", { name: "Vocals" });
+    const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
+    admitDuration(audio, 120);
+    await enterLoopingPlayback(audio);
+    expect(play).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(vocals);
+    expect(play).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      rejectPriorPlay?.(
+        Object.assign(new Error("prior source rejected after replacement"), {
+          name: "NotSupportedError",
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    admitDuration(audio, 120);
+    expect(audio.currentTime).toBe(17.5);
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("aborts a target that cannot cover the active loop and never reuses its receipt", async () => {
     vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => undefined);
     const play = vi
