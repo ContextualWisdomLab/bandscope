@@ -117,3 +117,24 @@ fn current_project_rejects_paths_and_untrusted_source_reference_shapes() {
         );
     }
 }
+
+#[test]
+fn current_project_rejects_a_source_reference_without_content_identity() {
+    let content = json!({
+        "projectFormatVersion": 3,
+        "song": v2_song(),
+        "preferences": { "selectedPlaybackSource": "full_mix" },
+        "sourceReference": {
+            "projectId": "project-400-4",
+            "artifactName": "source.wav",
+            "extension": "wav",
+            "fileSizeBytes": 4096
+        }
+    })
+    .to_string();
+
+    assert!(
+        project_document_from_content(&content).is_err(),
+        "a durable source reference must carry content identity, not byte length alone"
+    );
+}
