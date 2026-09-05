@@ -1,6 +1,7 @@
 use bandscope_desktop_core::{
-    project_content_for_document, project_document_from_content, project_payload_from_content,
-    ProjectDocumentPayload, ProjectPreferencesPayload, SelectedPlaybackSourcePayload,
+    project_content_for_document, project_document_from_content, project_document_from_value,
+    project_payload_from_content, ProjectDocumentPayload, ProjectPreferencesPayload,
+    SelectedPlaybackSourcePayload,
 };
 use serde_json::{json, Value};
 
@@ -117,4 +118,55 @@ fn document_constructor_does_not_require_a_revocable_runtime_authority() {
         json!("drums")
     );
     assert!(!serialized.contains("bandscope-playback://"));
+}
+
+#[test]
+fn ipc_document_payload_accepts_only_stable_project_preferences() {
+    let v1: Value = serde_json::from_str(v1_fixture()).expect("v1 fixture should parse");
+    let song = v1["song"].clone();
+
+    for selected_source in ["full_mix", "vocals", "bass", "drums", "other"] {
+        let document = project_document_from_value(json!({
+            "song": song.clone(),
+            "preferences": {
+                "selectedPlaybackSource": selected_source
+            }
+        }))
+        .expect("the IPC document boundary should accept every stable source semantic");
+
+        let serialized = project_content_for_document(&document)
+            .expect("an admitted IPC document should serialize to the durable v2 envelope");
+        let value: Value = serde_json::from_str(&serialized).expect("v2 JSON should parse");
+        assert_eq!(
+            value["preferences"]["selectedPlaybackSource"],
+            json!(selected_source)
+        );
+    }
+
+    for invalid_document in [
+        json!({
+            "song": song.clone(),
+            "preferences": {
+                "selectedPlaybackSource": "bandscope-playback://project-400-4/vocals?generation=7"
+            }
+        }),
+        json!({
+            "song": song.clone(),
+            "preferences": {
+                "selectedPlaybackSource": "karaoke"
+            }
+        }),
+        json!({
+            "song": song,
+            "preferences": {
+                "selectedPlaybackSource": "vocals"
+            },
+            "runtimeAuthority": "bandscope-playback://project-400-4/vocals?generation=7"
+        }),
+    ] {
+        assert!(
+            project_document_from_value(invalid_document).is_err(),
+            "unknown or revocable IPC state must fail closed before project publication"
+        );
+    }
 }
