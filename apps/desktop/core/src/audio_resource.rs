@@ -111,17 +111,24 @@ pub fn copy_bounded_local_audio_with_receipt<R: Read, W: Write>(
 ///
 /// Security Notes: the caller must pass an already-open descriptor for the
 /// synchronized, published `source.<extension>` object. This helper opens no
-/// path and grants no filesystem authority. It re-applies the 100 MiB bound and
-/// SHA-256 over the published bytes, then requires both size and digest to equal
-/// the staging receipt. Any read, growth, truncation, or content mismatch is
-/// reported as a bounded project-workspace failure because the selected source
-/// already passed admission before publication.
+/// path and grants no filesystem authority. The staging receipt is native
+/// evidence from the prior bounded copy, so its byte length becomes the tighter
+/// publication-read ceiling: the verifier hashes at most that many bytes and
+/// reads one additional probe byte to reject growth. It then requires both size
+/// and digest to equal the staging receipt. Any invalid expected length, read,
+/// growth, truncation, or content mismatch is reported as a bounded
+/// project-workspace failure because the selected source already passed
+/// admission before publication.
 pub fn verify_local_audio_publication_receipt<R: Read>(
     reader: R,
     expected: &LocalAudioCopyReceipt,
 ) -> Result<LocalAudioCopyReceipt, String> {
+    if expected.file_size_bytes == 0 || expected.file_size_bytes > MAX_LOCAL_AUDIO_FILE_BYTES {
+        return Err(LOCAL_AUDIO_WRITE_ERROR.to_string());
+    }
+
     let mut sink = std::io::sink();
-    let actual = copy_bounded_local_audio_with_receipt(reader, &mut sink)
+    let actual = copy_bounded_local_audio_with_limit(reader, &mut sink, expected.file_size_bytes)
         .map_err(|_| LOCAL_AUDIO_WRITE_ERROR.to_string())?;
     if actual != *expected {
         return Err(LOCAL_AUDIO_WRITE_ERROR.to_string());
