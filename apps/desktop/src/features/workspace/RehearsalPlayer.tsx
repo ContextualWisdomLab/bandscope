@@ -134,6 +134,11 @@ export function RehearsalPlayer({
       ? audioSourcePath
       : null;
   const hasStemChoices = visibleOptions.length > 1;
+  // A new full-mix authority is a new project/generation boundary; it must not
+  // inherit transport phase or a renderer-local source-switch receipt.
+  const mountedProjectKey = hasLocalAudio
+    ? audioSourcePath ?? "local-audio-without-authority"
+    : "no-local-audio";
 
   return (
     <>
@@ -163,6 +168,7 @@ export function RehearsalPlayer({
         </fieldset>
       ) : null}
       <RehearsalPlayerCore
+        key={mountedProjectKey}
         {...coreProps}
         hasLocalAudio={hasLocalAudio}
         audioSourcePath={selectedAuthority}
