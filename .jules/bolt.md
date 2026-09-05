@@ -1,6 +1,6 @@
 ## 2023-06-10 - Caching parsed lockfile results
 
-**Learning:** Parsing Cargo.lock files repeatedly per iteration in the supply chain verification script causes significant I/O and CPU overhead.
+**Learning:** Parsing Cargo.lock files repeatedly per iteration causes significant I/O and CPU overhead.
 **Action:** Use `@functools.lru_cache` to cache parsed package dictionaries based on `Path` inputs for static checks.
 
 ## 2024-06-03 - O(1) Map Lookups for Performance
@@ -62,6 +62,6 @@
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
 
-## 2026-09-05 - Avoid .reduce() for finding extremums
-**Learning:** Using `Array.prototype.reduce()` to find a maximum or minimum value incurs significant callback allocation and execution overhead compared to a standard `for` loop.
-**Action:** Replace `.reduce()` calls that just search for a min/max with a standard indexed `for` loop or `for...of` loop with simple `if` condition to achieve 5x faster execution and lower memory allocation.
+## 2026-09-05 - Min/max scans remain linear
+**Learning:** Replacing `Array.prototype.reduce()` with an indexed loop for an extremum search can reduce callback-dispatch overhead, but both implementations still scan every element and remain O(N). A speedup measured on an arbitrary 100,000-element microbenchmark is not a product-level performance guarantee.
+**Action:** Preserve behavior first, state the complexity correctly, and only claim material performance improvement after profiling representative BandScope transcription sizes and the rendered buyer path. Do not generalize a single microbenchmark multiplier into a repository-wide rule.
