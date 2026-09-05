@@ -20,3 +20,33 @@ pub fn validate_local_audio_file_size(file_size_bytes: u64) -> Result<u64, Strin
     }
     Ok(file_size_bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn bounded_copy_rejects_stream_growth_past_the_admitted_limit() {
+        let input = Cursor::new(vec![1_u8, 2, 3, 4, 5]);
+        let mut staged = Vec::new();
+
+        let error = copy_bounded_local_audio_with_limit(input, &mut staged, 4)
+            .expect_err("a source that grows beyond the admitted byte limit must fail closed");
+
+        assert_eq!(error, LOCAL_AUDIO_TOO_LARGE_ERROR);
+        assert_eq!(staged, vec![1_u8, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn bounded_copy_accepts_the_exact_limit_and_reports_observed_bytes() {
+        let input = Cursor::new(vec![1_u8, 2, 3, 4]);
+        let mut staged = Vec::new();
+
+        let copied = copy_bounded_local_audio_with_limit(input, &mut staged, 4)
+            .expect("the exact encoded-byte limit remains admissible");
+
+        assert_eq!(copied, 4);
+        assert_eq!(staged, vec![1_u8, 2, 3, 4]);
+    }
+}
