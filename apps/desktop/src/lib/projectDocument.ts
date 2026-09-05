@@ -48,6 +48,7 @@ type OptionalOwnDataProperty =
   | { ok: true; present: true; value: unknown }
   | { ok: false; present: false };
 
+/** Accept only passive JSON-style records; prototype inspection traps fail closed. */
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return false;
@@ -61,6 +62,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   }
 }
 
+/** Confirm a record exposes exactly the allowed enumerable own keys; enumeration traps fail closed. */
 function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
   try {
     const keys = Object.keys(value);
@@ -70,6 +72,7 @@ function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly strin
   }
 }
 
+/** Confirm required keys exist and every enumerable own key belongs to the declared project schema. */
 function hasRequiredAndOptionalKeys(
   value: Record<string, unknown>,
   requiredKeys: readonly string[],
@@ -86,6 +89,7 @@ function hasRequiredAndOptionalKeys(
   }
 }
 
+/** Read an enumerable own data property without invoking accessors; descriptor traps fail closed. */
 function ownEnumerableDataProperty(value: Record<string, unknown>, key: string): OwnDataProperty {
   try {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -98,6 +102,7 @@ function ownEnumerableDataProperty(value: Record<string, unknown>, key: string):
   }
 }
 
+/** Read an optional enumerable own data property without invoking accessors; descriptor traps fail closed. */
 function optionalOwnEnumerableDataProperty(
   value: Record<string, unknown>,
   key: string
@@ -116,6 +121,7 @@ function optionalOwnEnumerableDataProperty(
   }
 }
 
+/** Validate path-free app-owned audio identity before admitting it as durable project truth. */
 function parseProjectSourceReference(value: unknown): ProjectSourceReference {
   if (
     !isPlainRecord(value) ||
