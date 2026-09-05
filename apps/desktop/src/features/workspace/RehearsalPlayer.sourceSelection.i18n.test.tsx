@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-const fullMixAuthority = "bandscope-project://project-i18n-1";
+const fullMixAuthority = "bandscope-project://project-400-4";
 const stemAuthorities = [
   `${fullMixAuthority}/stem/vocals`,
   `${fullMixAuthority}/stem/bass`,
