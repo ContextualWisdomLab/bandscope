@@ -72,12 +72,13 @@ export function createPlaybackSourceSwitchSession(): PlaybackSourceSwitchSession
  * Capture transport continuity before replacing the media source.
  *
  * Count-in changes are deliberately rejected: changing media while the independent
- * count-in clock is running would create a second timing race. Looping/paused
- * switches retain the exact admitted media position; armed switches start from the
- * selected loop boundary. Invalid loop timing, positions, or switch identities fail
- * closed rather than being clamped or converted into an ambiguous no-op. Source and
- * target must both be canonical opaque authorities for the same mounted playback
- * project.
+ * count-in clock is running would create a second timing race. A paused transport
+ * that still owns pending count-in beats is the same timing state and therefore
+ * also fails closed. Looping/paused-after-loop switches retain the exact admitted
+ * media position; armed switches start from the selected loop boundary. Invalid
+ * loop timing, positions, or switch identities fail closed rather than being
+ * clamped or converted into an ambiguous no-op. Source and target must both be
+ * canonical opaque authorities for the same mounted playback project.
  */
 export function capturePlaybackSourceSwitch(
   transport: RehearsalTransportState,
@@ -93,6 +94,7 @@ export function capturePlaybackSourceSwitch(
     loop.endSeconds <= loop.startSeconds ||
     !isRehearsalPlaybackRate(transport.playbackRate) ||
     !hasValidSwitchIdentity(identity) ||
+    (transport.phase === "paused" && transport.countInRemainingBeats !== 0) ||
     (transport.phase !== "armed" &&
       transport.phase !== "looping" &&
       transport.phase !== "paused")
