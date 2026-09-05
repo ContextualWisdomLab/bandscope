@@ -25,7 +25,8 @@ Version 2 established the durable preference, but its first compatibility surfac
 - Documentation alignment `9518d84eb621b03211a4ad5a164969268ae68cdd` updates `docs/engineering/local-project-format.md` to the version-2 envelope, ordered v1 migration, golden fixtures, runtime-authority separation, and remaining consumer/recovery gaps.
 - Evidence-trigger RED `770942f006c80724a5cac970d17acae6da4a9d5b` proves the Windows Project Persistence lane would not run for `crate_root.rs`, `project_format.rs`, or the new `project_format*.rs` integration contracts. Causal workflow fix `72434d1026fe0a409bf291d91ead64d8b13f7959` adds those exact paths to both pull-request and protected-branch triggers without removing any prior input or reducing the Rust test command.
 - IPC-admission RED `ed5dd9a05a4ceead5a48119d854d5fc06a7e0a1c` extends the external format contract with a renderer-shaped `{ song, preferences }` document. The predecessor cannot compile because `project_document_from_value` does not exist. The RED requires all five stable tokens to survive durable v2 serialization and rejects an unknown token, a realistic revocable `bandscope-playback://...` value, and an extra root `runtimeAuthority` field.
-- Causal IPC fix `7711b4f938d6dd95dbd58a31595a3a7760834bdb` makes `ProjectDocumentPayload` a strict deserializable DTO and adds `project_document_from_value`. Root document, nested preferences, selected-source enum, and the existing rehearsal-song DTO now fail closed before publication when renderer IPC carries unknown or runtime-only state.
+- Causal IPC implementation `7711b4f938d6dd95dbd58a31595a3a7760834bdb` makes `ProjectDocumentPayload` a strict deserializable DTO and adds `project_document_from_value`. Fresh review of the crate root then found that the new function was not re-exported, so the external integration contract would still fail to compile even though the implementation existed.
+- Public-surface repair `4f076ce7c2a03b455409a318d045f526492497f6` adds `project_document_from_value` to the canonical `crate_root.rs` re-export list. The external test now addresses the same public Project Persistence API that Tauri and later consumers must use rather than reaching into a private module.
 
 ## Decision
 
@@ -41,7 +42,7 @@ Version 2 adds one typed top-level section:
 }
 ```
 
-`selectedPlaybackSource` accepts exactly `full_mix`, `vocals`, `bass`, `drums`, or `other`. V1 and legacy raw-song inputs migrate to `full_mix` because that is the only selection consistent with the absence of historical stem-selection evidence. Existing song-only save callers advance to v2 with the same deterministic default. The native core now also admits a strict renderer-shaped current document so the upcoming Tauri bridge can pass an explicit stable preference without accepting arbitrary JSON or runtime playback authority.
+`selectedPlaybackSource` accepts exactly `full_mix`, `vocals`, `bass`, `drums`, or `other`. V1 and legacy raw-song inputs migrate to `full_mix` because that is the only selection consistent with the absence of historical stem-selection evidence. Existing song-only save callers advance to v2 with the same deterministic default. The native core now publicly admits a strict renderer-shaped current document so the upcoming Tauri bridge can pass an explicit stable preference without accepting arbitrary JSON or runtime playback authority.
 
 On reopen, the stored semantic is not sufficient authority to play audio. The consumer must ask the native Active Player/resource-admission boundary for current source availability, resolve a fresh opaque authority, and fall back to Full mix when the stored stem is unavailable.
 
@@ -51,6 +52,7 @@ On reopen, the stored semantic is not sufficient authority to play audio. The co
 - **Keep the selected source inside the `song` DTO** — rejected because it is a project/UI preference, not MIR/rehearsal-song analysis truth, and would blur bounded-context ownership.
 - **Use an arbitrary string preference or raw `serde_json::Value` as the storage DTO** — rejected because malformed, future, injected, or runtime-only values would survive as if they were current domain truth.
 - **Deserialize only `preferences` and trust the separately parsed song** — rejected because it would create split admission semantics for one durable document and make unknown root fields invisible.
+- **Expose the new admission function only inside the private format module** — rejected because the actual Tauri/consumer bridge must depend on one canonical public Project Persistence API; a private-only function gives false unit-level confidence while the external integration contract remains RED.
 - **Infer the most recently generated stem during v1 migration** — rejected because the v1 artifact has no durable evidence for that claim. Deterministic `full_mix` is the only non-fabricated migration.
 - **Create a WebView persistence store until the project format catches up** — rejected because it would establish a second writer and could disagree with the crash-safe project artifact after Save As, reopen, or recovery.
 - **Keep the temporary `lib.rs` → `core.rs` file move** — rejected after reviewing the resulting diff. Although byte-equivalent, it expanded the review surface by roughly the whole historical core source without adding product behavior. The ordinary descendant repair keeps the source at its original path and uses a small crate-root adapter instead.
@@ -58,7 +60,7 @@ On reopen, the stored semantic is not sufficient authority to play audio. The co
 
 ## Effect
 
-The canonical Project Persistence branch now has a typed current document with a versioned preference boundary, executable v1/legacy migration, and a strict native admission function for renderer-supplied current documents. This closes the schema/authority prerequisite for passing an explicit stable source through Tauri without persisting runtime media capability data.
+The canonical Project Persistence branch now has a typed current document with a versioned preference boundary, executable v1/legacy migration, and a strict public native admission function for renderer-supplied current documents. This closes the schema/authority prerequisite for passing an explicit stable source through Tauri without persisting runtime media capability data.
 
 This does not yet mean that a user-selected stem survives reopen. The current `save_project` command still accepts only `RehearsalSong` and therefore writes the compatibility `full_mix` default; `load_project` still returns only the song compatibility view. The next consumer slice must wire these commands and #1160 to the current document API, then resolve the restored semantic against fresh native availability.
 
@@ -78,7 +80,7 @@ Migration and IPC-admission errors are bounded format/validation errors. They do
 
 ### Test points
 
-The RED/fix suite covers v1 migration, legacy migration, every valid source token, unknown tokens, a realistic revocable playback URL, typed construction without runtime authority, checked-in v2 golden fixture, renderer-shaped current-document admission, and rejection of extra runtime authority at the IPC document root. Existing Project Persistence tests continue to own bounded I/O, symlink/reparse checks, native identity, atomic publication/recovery, permission normalization, and the 5 MiB ceiling. The focused Windows workflow policy test also pins every Rust format source, format integration test, golden fixture, Tauri persistence source, and manifest/lock input that must wake the platform-specific persistence lane.
+The RED/fix suite covers v1 migration, legacy migration, every valid source token, unknown tokens, a realistic revocable playback URL, typed construction without runtime authority, checked-in v2 golden fixture, renderer-shaped current-document admission, rejection of extra runtime authority at the IPC document root, and public-crate visibility of that admission function. Existing Project Persistence tests continue to own bounded I/O, symlink/reparse checks, native identity, atomic publication/recovery, permission normalization, and the 5 MiB ceiling. The focused Windows workflow policy test also pins every Rust format source, format integration test, golden fixture, Tauri persistence source, and manifest/lock input that must wake the platform-specific persistence lane.
 
 ### Remaining risk
 
