@@ -131,7 +131,7 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
     expect(play).not.toHaveBeenCalled();
   });
 
-  it("keeps a cross-project source rotation non-playing before and after target admission", async () => {
+  it("remounts transport authority on project rotation and keeps the new project non-playing after admission", async () => {
     const load = vi
       .spyOn(HTMLMediaElement.prototype, "load")
       .mockImplementation(() => undefined);
@@ -164,10 +164,14 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
       />,
     );
 
+    const rotatedAudio = screen.getByTestId(
+      "rehearsal-loop-audio",
+    ) as HTMLAudioElement;
+    expect(rotatedAudio).not.toBe(audio);
     expect(load).toHaveBeenCalledTimes(1);
     expect(play).not.toHaveBeenCalled();
 
-    admitDuration(audio, 120);
+    admitDuration(rotatedAudio, 120);
     expect(play).not.toHaveBeenCalled();
   });
 });
