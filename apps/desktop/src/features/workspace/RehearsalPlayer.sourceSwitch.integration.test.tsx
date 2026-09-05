@@ -130,4 +130,44 @@ describe("RehearsalPlayer mounted source-switch transaction", () => {
     admitDuration(audio, 120);
     expect(play).not.toHaveBeenCalled();
   });
+
+  it("keeps a cross-project source rotation non-playing before and after target admission", async () => {
+    const load = vi
+      .spyOn(HTMLMediaElement.prototype, "load")
+      .mockImplementation(() => undefined);
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+
+    const song = createDemoRehearsalSong();
+    const { rerender } = render(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={fullMixAuthority}
+      />,
+    );
+
+    const audio = screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement;
+    admitDuration(audio, 120);
+    await enterLoopingPlayback(audio);
+    play.mockClear();
+    load.mockClear();
+
+    const nextProjectAuthority = "bandscope-project://project-200-1";
+    rerender(
+      <RehearsalPlayer
+        song={song}
+        hasLocalAudio={true}
+        audioSourcePath={nextProjectAuthority}
+      />,
+    );
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
+
+    admitDuration(audio, 120);
+    expect(play).not.toHaveBeenCalled();
+  });
 });
