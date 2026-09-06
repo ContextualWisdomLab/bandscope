@@ -146,10 +146,14 @@ fn app_owned_root<R: Runtime>(
 /// Security Notes: the external path is used only to canonicalize and open the
 /// user-authorized source. Size is checked from that opened descriptor, bytes
 /// are copied through the bounded Resource Admission helper into a private
-/// same-project staging file, and only a successful flushed stage is renamed to
-/// `source.<extension>`. Bootstrap state therefore points at app-owned bytes;
-/// a later mutation, move, permission change, or replacement of the user's
-/// original path cannot change the bytes submitted to analysis.
+/// same-project staging file, and a synchronized stage is renamed to
+/// `source.<extension>`. The published object is then required to remain a
+/// regular non-symlink filesystem entry and its opened bytes must reproduce the
+/// staging size+SHA-256 receipt before bootstrap authority is returned. This
+/// keeps later analysis bound to the app-owned publication rather than the
+/// mutable user-selected path. Atomic no-follow descriptor acquisition remains
+/// a separate platform-hardening requirement; these portable checks do not
+/// claim to provide O_NOFOLLOW-equivalent race semantics.
 fn materialize_local_audio_source(
     path: &Path,
     project_root: &Path,
@@ -188,8 +192,8 @@ fn materialize_local_audio_source(
         .open(&stage)
         .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
 
-    let file_size_bytes = match copy_bounded_local_audio(source, &mut staged) {
-        Ok(file_size_bytes) => file_size_bytes,
+    let receipt = match copy_bounded_local_audio_with_receipt(source, &mut staged) {
+        Ok(receipt) => receipt,
         Err(error) => {
             drop(staged);
             let _ = std::fs::remove_file(&stage);
@@ -212,11 +216,55 @@ fn materialize_local_audio_source(
         return Err("Could not prepare the local project workspace.".to_string());
     }
 
+    let published_path_metadata = match std::fs::symlink_metadata(&destination) {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => metadata,
+        _ => {
+            let _ = std::fs::remove_file(&destination);
+            return Err("Could not prepare the local project workspace.".to_string());
+        }
+    };
+    if published_path_metadata.len() != receipt.file_size_bytes {
+        let _ = std::fs::remove_file(&destination);
+        return Err("Could not prepare the local project workspace.".to_string());
+    }
+    let published = match std::fs::File::open(&destination) {
+        Ok(file) => file,
+        Err(_) => {
+            let _ = std::fs::remove_file(&destination);
+            return Err("Could not prepare the local project workspace.".to_string());
+        }
+    };
+    let published_descriptor_metadata = match published.metadata() {
+        Ok(metadata) if metadata.is_file() && metadata.len() == receipt.file_size_bytes => metadata,
+        _ => {
+            drop(published);
+            let _ = std::fs::remove_file(&destination);
+            return Err("Could not prepare the local project workspace.".to_string());
+        }
+    };
+    if published_descriptor_metadata.len() != published_path_metadata.len()
+        || verify_local_audio_publication_receipt(published, &receipt).is_err()
+    {
+        let _ = std::fs::remove_file(&destination);
+        return Err("Could not prepare the local project workspace.".to_string());
+    }
+    let published_path_metadata = match std::fs::symlink_metadata(&destination) {
+        Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => metadata,
+        _ => {
+            let _ = std::fs::remove_file(&destination);
+            return Err("Could not prepare the local project workspace.".to_string());
+        }
+    };
+    if published_path_metadata.len() != receipt.file_size_bytes {
+        let _ = std::fs::remove_file(&destination);
+        return Err("Could not prepare the local project workspace.".to_string());
+    }
+
     Ok(LocalAudioSourcePayload {
         source_path: destination.to_string_lossy().into_owned(),
         file_name,
         extension,
-        file_size_bytes,
+        file_size_bytes: receipt.file_size_bytes,
     })
 }
 
