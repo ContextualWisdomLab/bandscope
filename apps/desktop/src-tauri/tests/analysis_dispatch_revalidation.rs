@@ -12,6 +12,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+const MAIN_SOURCE: &str = include_str!("../src/main.rs");
 const WAV_BYTES: &[u8] = b"RIFF\x04\x00\x00\x00WAVE";
 const WAV_SHA256: &str = "1fe5a351bf0314c8a1840b023fd1e4cab3f0f123468940c241bd7bf20e989ab8";
 
@@ -90,4 +91,12 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
 
     fs::remove_dir_all(project_root.parent().expect("project root should have parent"))
         .expect("fixture should be removed");
+}
+
+#[test]
+fn analysis_process_receives_native_evidence_without_global_environment_mutation() {
+    assert!(MAIN_SOURCE.contains("BANDSCOPE_ADMITTED_AUDIO_BYTES"));
+    assert!(MAIN_SOURCE.contains("BANDSCOPE_ADMITTED_AUDIO_SHA256"));
+    assert!(MAIN_SOURCE.contains("command.env("));
+    assert!(!MAIN_SOURCE.contains("std::env::set_var(\"BANDSCOPE_ADMITTED_AUDIO_"));
 }
