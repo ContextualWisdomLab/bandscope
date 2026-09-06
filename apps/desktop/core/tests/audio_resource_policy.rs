@@ -20,6 +20,6 @@ fn local_audio_size_policy_rejects_an_empty_native_bootstrap_source() {
 fn local_audio_size_policy_rejects_a_native_source_above_the_canonical_ceiling() {
     assert_eq!(
         validate_local_audio_file_size(MAX_LOCAL_AUDIO_FILE_BYTES + 1),
-        Err("Selected audio file exceeds the 100 MiB analysis limit.".to_string())
+        Err("Choose a shorter or smaller song file to start analysis.".to_string())
     );
 }
