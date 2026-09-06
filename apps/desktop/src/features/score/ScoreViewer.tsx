@@ -246,7 +246,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   const previousPageUnavailable = pageNumber <= 1;
   const nextPageUnavailable = pageNumber >= pageCount;
   const unavailableReasonClassName =
-    "pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-48 -translate-x-1/2 rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-center text-xs text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none group-hover:opacity-100 group-focus-within:opacity-100";
+    "absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-48 -translate-x-1/2 rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-center text-xs text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none group-hover:opacity-100 group-focus-within:opacity-100";
 
   return (
     <Card className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl">
