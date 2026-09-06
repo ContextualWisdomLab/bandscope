@@ -55,7 +55,7 @@ Version 2 introduced:
 
 The v2 decision survives in current v3 as the same closed `preferences.selectedPlaybackSource` domain and deterministic historical migration rule. Tauri `save_project`/`load_project` now admit/return the typed current document rather than the old song-only compatibility view, so the historical bridge gap described above has been superseded.
 
-Version 3 adds a separate optional path-free app-owned `sourceReference`. That field is deliberately not a playback authority and is not inferred for v2/v1/legacy projects. Current process-restart audio reopen is still incomplete because Resource Admission has not yet materialized the full mix under the app-owned project namespace and reconstructed a fresh bootstrap from that reference.
+Version 3 adds a separate optional path-free app-owned `sourceReference`. That field is deliberately not a playback authority and is not inferred for v2/v1/legacy projects. #970 now re-admits the app-owned full mix on restart against the persisted size and SHA-256 evidence and binds production analysis decode to a verified private byte snapshot. The remaining Active Player work is to reconcile durable `selectedPlaybackSource` intent with fresh Full mix/current-stem audible authorities under #1160.
 
 ## Security Notes
 
@@ -67,6 +67,17 @@ Version 3 adds a separate optional path-free app-owned `sourceReference`. That f
 
 The historical v2 envelope and current preference DTO use `deny_unknown_fields`; selection is a five-value enum; the rehearsal song remains strict typed data. Unknown root/preference values and literal `bandscope-playback://...` values fail before publication. Current v3 adds a separately typed source-reference boundary rather than weakening this preference contract.
 
+### Mitigations
+
+Keep durable playback intent as the closed five-value semantic, reject runtime capability strings and unknown fields at both renderer and native admission, migrate evidence-free historical projects deterministically to `full_mix`, and require fresh Resource Admission/Active Player authority before a stored stem preference becomes playable.
+
+### Realistic threats
+
+- a crafted project stores a filesystem path or revocable playback URL as if it were durable playback truth;
+- a future or malformed preference token is accepted and later interpreted differently by renderer and native code;
+- a historical project is migrated by guessing a stem selection that the artifact never recorded;
+- a valid persisted stem preference is replayed after restart without checking whether that stem is currently admitted and audible.
+
 ### Logging and privacy
 
 Preference/migration errors are bounded validation errors and need not echo project paths, song/collaboration content, media URLs, credentials, or audio metadata. The preference itself contains no locator.
@@ -77,4 +88,4 @@ Preference/migration errors are bounded validation errors and need not echo proj
 
 ### Remaining risk
 
-The preference schema itself is no longer the process-restart blocker. Remaining work is owned by the v3/resource-admission path: app-owned full-mix materialization and re-admission, mounted Save/Reopen composition, fresh stem-authority resolution/fallback, stronger content identity where required, autosave/backup/startup recovery UX, migration receipts and downgrade behavior, descriptor-bound parent authority, and exhaustive interruption/power-loss evidence. Exact-head cross-platform CI and independent review remain mandatory before merge/release.
+The preference schema and full-mix restart/content identity path are no longer the blocker. Remaining work is primarily Active Player and release evidence: reconcile the durable selection against freshly admitted Full mix and current stem artifacts, fail closed to Full mix when a preferred stem is unavailable, complete mounted Save/Reopen and audible E2E on supported Windows/macOS packages, and retain crash/recovery/downgrade evidence and independent exact-head review before merge/release.
