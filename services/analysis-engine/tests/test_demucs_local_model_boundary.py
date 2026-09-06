@@ -182,3 +182,53 @@ def test_demucs_model_load_rejects_checkpoint_over_resource_limit_before_resolve
         AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
+
+
+def test_demucs_model_load_rejects_checkpoint_growth_after_descriptor_preflight(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject bytes beyond the descriptor size admitted before snapshot copy."""
+    checkpoint_bytes = b"checkpoint-grew-after-preflight"
+    checksum_prefix = hashlib.sha256(checkpoint_bytes).hexdigest()[:8]
+    checkpoint_name = f"955717e8-{checksum_prefix}.th"
+    checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
+    checkpoint_root.mkdir(parents=True)
+    checkpoint_path = checkpoint_root / checkpoint_name
+    checkpoint_path.write_bytes(checkpoint_bytes)
+    checkpoint_stat = checkpoint_path.stat()
+    calls = {"count": 0}
+
+    def forbidden_lookup(_name: str, **_kwargs: object) -> _FakeModel:
+        calls["count"] += 1
+        raise AssertionError("post-preflight growth must not reach Demucs deserialization")
+
+    real_fstat = audio_separator_module.os.fstat
+
+    def stale_preflight_size(descriptor: int) -> object:
+        current = real_fstat(descriptor)
+        if current.st_dev == checkpoint_stat.st_dev and current.st_ino == checkpoint_stat.st_ino:
+            return SimpleNamespace(
+                st_mode=current.st_mode,
+                st_dev=current.st_dev,
+                st_ino=current.st_ino,
+                st_size=current.st_size - 1,
+            )
+        return current
+
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_DEMUCS_LOCAL_CHECKPOINTS",
+        {"htdemucs": checkpoint_name},
+    )
+    monkeypatch.setattr(audio_separator_module.os, "fstat", stale_preflight_size)
+    _install_fake_runtime(
+        monkeypatch,
+        torch_hub_dir=str(tmp_path / "torch-hub"),
+        get_model=forbidden_lookup,
+    )
+
+    with pytest.raises(ValueError, match="model weights are not installed locally"):
+        AudioStemSeparator()._load_model()
+
+    assert calls["count"] == 0
