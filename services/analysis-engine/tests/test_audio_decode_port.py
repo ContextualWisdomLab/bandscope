@@ -1,7 +1,7 @@
 """Contract tests for the canonical local-audio decode port.
 
 These regressions keep resource admission, decoder failure redaction, and
- decoded-output validation behind one owned boundary.
+decoded-output validation behind one owned boundary.
 """
 
 from __future__ import annotations
