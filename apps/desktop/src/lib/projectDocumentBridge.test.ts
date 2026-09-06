@@ -48,25 +48,13 @@ describe("project document bridge", () => {
     }
   );
 
-  it("persists only an app-owned source reference with content identity and never a user filesystem path", async () => {
+  it("rejects renderer-authored app-owned source evidence before persistence IPC", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
     tauriWindow.__TAURI_INVOKE__ = invoke;
     const song = createDemoRehearsalSong();
 
-    await saveProjectDocument({
-      song,
-      preferences: { selectedPlaybackSource: "vocals" },
-      sourceReference: {
-        projectId: "project-400-4",
-        artifactName: "source.wav",
-        extension: "wav",
-        fileSizeBytes: 4096,
-        contentSha256: CONTENT_SHA256
-      }
-    });
-
-    expect(invoke).toHaveBeenCalledWith("save_project", {
-      payload: {
+    await expect(
+      saveProjectDocument({
         song,
         preferences: { selectedPlaybackSource: "vocals" },
         sourceReference: {
@@ -76,9 +64,10 @@ describe("project document bridge", () => {
           fileSizeBytes: 4096,
           contentSha256: CONTENT_SHA256
         }
-      }
-    });
-    expect(JSON.stringify(invoke.mock.calls)).not.toContain("sourcePath");
+      })
+    ).rejects.toThrow("Invalid project document");
+
+    expect(invoke).not.toHaveBeenCalled();
   });
 
   it("returns the persisted source semantic and content identity with the reopened song", async () => {
