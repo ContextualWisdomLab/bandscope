@@ -63,6 +63,10 @@ The `.bscope` document and renderer-visible data are untrusted. `sourceReference
 
 The existing Resource Admission identity builder validates the BandScope project-id grammar, admitted extension allowlist, fixed `source.<extension>` artifact name, positive bounded size, and canonical lowercase 64-hex SHA-256 representation. The reverse ACL reuses those canonical rules rather than duplicating them in Project Persistence.
 
+### Mitigations
+
+The content boundary is split deliberately: Project Persistence supplies only path-free durable evidence; the native filesystem adapter must establish containment and an opened regular descriptor; Resource Admission then verifies the opened bytes against the persisted bounded receipt. The fixed artifact-name derivation, one-byte growth probe, exact SHA-256 comparison, and absence of a pathname parameter prevent the reverse ACL from turning project JSON into ambient filesystem authority.
+
 ### Safe failure
 
 Malformed durable evidence, forged artifact names, read errors, size changes, growth, truncation, and SHA-256 mismatch all return the bounded project-workspace diagnosis. No failed re-admission returns native source identity or playback capability. The native reopen adapter must additionally fail closed on missing/non-regular/linked/reparsed artifacts or decode/admission failure.
@@ -74,6 +78,10 @@ The reverse ACL does not receive or log the original user-selected path. SHA-256
 ### Test points
 
 `apps/desktop/core/tests/local_audio_restart_readmission.rs` executes exact-byte success plus same-size mutation, growth, truncation, forged artifact, malformed project-id, and non-canonical extension failures. Existing Resource Admission tests remain the canonical coverage for bounded copying, publication receipt generation, read/write failure separation, digest known-answer vectors, and maximum-size enforcement.
+
+### Realistic threats
+
+Relevant threats are local project corruption after a reported Save, same-size replacement of `source.<extension>`, truncation or append caused by interrupted or external writes, tampered `.bscope` identity fields, and attempts to smuggle traversal-like artifact names through typed but untrusted durable data. Hash equality is not treated as protection against a privileged attacker who can modify both the project document and app-owned artifact; that stronger local-compromise model requires separate platform storage and integrity controls.
 
 ### Remaining risk
 
