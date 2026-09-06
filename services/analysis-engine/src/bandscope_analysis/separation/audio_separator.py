@@ -21,9 +21,9 @@ Security Notes:
 - Empty, non-finite, or float32-overflowed model stems fail closed before they
   can become successful silence or downstream rehearsal evidence.
 - Inference does not intentionally acquire model weights from the network. The
-  canonical htdemucs checkpoint must already exist as a regular file in the
-  local torch checkpoint cache and reproduce the checksum prefix encoded in its
-  canonical filename. BandScope copies the verified descriptor bytes into a
+  canonical htdemucs checkpoint must already exist as a bounded regular file in
+  the local torch checkpoint cache and reproduce the checksum prefix encoded in
+  its canonical filename. BandScope copies the verified descriptor bytes into a
   private temporary local Demucs repository and resolves the checkpoint by its
   signature there, so upstream deserialization cannot reopen or download from
   the mutable cache pathname. Release bundling, full digest/signature provenance,
@@ -69,6 +69,7 @@ _ADMITTED_AUDIO_BYTES_ENV = "BANDSCOPE_ADMITTED_AUDIO_BYTES"
 _ADMITTED_AUDIO_SHA256_ENV = "BANDSCOPE_ADMITTED_AUDIO_SHA256"
 _SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
 _COPY_CHUNK_BYTES = 64 * 1024
+_MAX_LOCAL_DEMUCS_CHECKPOINT_BYTES = 128 * 1024 * 1024
 _DEMUCS_LOCAL_CHECKPOINTS = {
     "htdemucs": "955717e8-8726e21a.th",
 }
@@ -138,9 +139,11 @@ def _snapshot_local_demucs_checkpoint(model_name: str, snapshot_root: Path) -> s
 
     The mutable torch cache pathname is used only to acquire the source descriptor.
     The descriptor must represent the same regular file observed by ``lstat``;
-    ``O_NOFOLLOW`` is requested where the host exposes it. The bytes copied from
-    that descriptor must reproduce the checksum prefix encoded in the canonical
-    checkpoint filename. Demucs later deserializes only the private snapshot.
+    ``O_NOFOLLOW`` is requested where the host exposes it. The admitted object is
+    size-bounded before and during the copy so cache corruption cannot consume
+    unbounded snapshot storage. The copied bytes must reproduce the checksum
+    prefix encoded in the canonical checkpoint filename. Demucs later
+    deserializes only the private snapshot.
     """
     checkpoint_name = _DEMUCS_LOCAL_CHECKPOINTS.get(model_name)
     identity = (
@@ -169,13 +172,19 @@ def _snapshot_local_demucs_checkpoint(model_name: str, snapshot_root: Path) -> s
                 not stat.S_ISREG(descriptor_stat.st_mode)
                 or descriptor_stat.st_dev != path_stat.st_dev
                 or descriptor_stat.st_ino != path_stat.st_ino
+                or descriptor_stat.st_size <= 0
+                or descriptor_stat.st_size > _MAX_LOCAL_DEMUCS_CHECKPOINT_BYTES
             ):
                 return None
 
             digest = hashlib.sha256()
+            copied_bytes = 0
             with os.fdopen(descriptor, "rb", closefd=False) as checkpoint_file:
                 with snapshot_path.open("xb") as snapshot_file:
                     while chunk := checkpoint_file.read(_COPY_CHUNK_BYTES):
+                        copied_bytes += len(chunk)
+                        if copied_bytes > _MAX_LOCAL_DEMUCS_CHECKPOINT_BYTES:
+                            raise ValueError("local Demucs checkpoint exceeds resource limit")
                         digest.update(chunk)
                         snapshot_file.write(chunk)
                     snapshot_file.flush()
