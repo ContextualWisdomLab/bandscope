@@ -18,8 +18,8 @@ These are the merge-gate status checks that should be required on protected bran
 - `scan-pr-queue`
 - `osv-scan`
 - `scorecard`
-- `Analyze (javascript-typescript)`
-- `Analyze (python)`
+- `CodeQL compatibility analysis (javascript-typescript)`
+- `CodeQL compatibility analysis (python)`
 
 `gate / build / windows` must cover both Windows `amd64` and Windows `arm64`.
 `gate / build / macos` must cover both macOS Intel (`amd64`) and macOS `arm64`.
@@ -32,18 +32,27 @@ These are the merge-gate status checks that should be required on protected bran
 - `gate / build / windows`
 - `gate / build / macos`
 - `trivy-fs`
-- `Analyze (javascript-typescript)`
-- `Analyze (python)`
+- `CodeQL compatibility analysis (javascript-typescript)`
+- `CodeQL compatibility analysis (python)`
 
 The organization required-workflow rule is the authoritative PR owner for
 `osv-scan`, `dependency-review`, `trivy-fs`, Scorecard visibility, Semgrep SAST,
-Strix, and Noema. GitHub default setup owns CodeQL. One repository-local
+Strix, Noema, and the CodeQL PR compatibility contexts. GitHub CodeQL/default
+setup remains the scanner authority behind the central CodeQL compatibility
+contract rather than a second repository-local PR workflow. One repository-local
 `security-backstop` job combines dependency audits, Bandit, supplemental secret
 checks, and Trivy after trusted-branch pushes or manual dispatch. Scorecard stays
 separate because its publishing path has stricter permissions and SARIF handling.
 
-The lists above reflect the live classic required-status contexts verified on
-2026-09-04. The active organization ruleset separately requires the central
+The lists above reflect the intended post-migration classic required-status
+contexts. As verified on 2026-09-07, live `develop` protection still requires the
+retired `Analyze (javascript-typescript)` and `Analyze (python)` contexts removed
+with the repository CodeQL PR workflow in #1165. Issue #1172 owns the consumer-side
+migration to the central `CodeQL compatibility analysis (<language>)` names. Do
+not merge this documentation change as shipped truth until the protected settings
+are changed and an unchanged PR head proves both replacement contexts terminal.
+
+The active organization ruleset separately requires the central
 `close-empty-pr.yml`, `opencode-review.yml`, `pr-review-merge-scheduler.yml`,
 `security-scan.yml`, `strix.yml`, `sast-semgrep.yml`, and `noema-review.yml`
 workflows on the default branch. Keep these two enforcement mechanisms distinct
