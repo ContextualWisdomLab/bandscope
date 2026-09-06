@@ -70,9 +70,12 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     expect(previousReason).toHaveClass(
       "group-hover:opacity-100",
       "group-focus-within:opacity-100",
-      "motion-reduce:transition-none"
+      "motion-reduce:transition-none",
+      "pointer-events-none",
+      "group-hover:pointer-events-auto",
+      "group-focus-within:pointer-events-auto"
     );
-    expect(previousReason).not.toHaveClass("pointer-events-none");
+    expect(previousReason).not.toHaveClass("mb-2");
     previousButton.focus();
     expect(previousButton).toHaveFocus();
     expect(nextButton).not.toHaveAttribute("aria-describedby");
@@ -101,9 +104,12 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     expect(nextReason).toHaveClass(
       "group-hover:opacity-100",
       "group-focus-within:opacity-100",
-      "motion-reduce:transition-none"
+      "motion-reduce:transition-none",
+      "pointer-events-none",
+      "group-hover:pointer-events-auto",
+      "group-focus-within:pointer-events-auto"
     );
-    expect(nextReason).not.toHaveClass("pointer-events-none");
+    expect(nextReason).not.toHaveClass("mb-2");
     nextButton.focus();
     expect(nextButton).toHaveFocus();
     expect(previousButton).not.toHaveAttribute("aria-describedby");
