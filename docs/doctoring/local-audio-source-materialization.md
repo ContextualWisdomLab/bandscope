@@ -14,9 +14,10 @@ The implementation accumulated several narrower defects while that boundary was 
 - SHA-256 existed in more than one security-sensitive implementation and initially had no reusable reader-only core port;
 - a staging receipt alone did not prove that the final published object still contained the same bytes;
 - publication verification initially used the product-wide 100 MiB ceiling rather than the receipt's tighter expected length;
-- after the core receipt and verifier existed, the production Tauri materializer still called the compatibility byte-count-only adapter and discarded SHA-256 evidence.
+- after the core receipt and verifier existed, the production Tauri materializer still called the compatibility byte-count-only adapter and discarded SHA-256 evidence;
+- publication initially used `destination.exists()` followed by overwrite-capable `rename`, leaving a check-then-act window where another entry could appear at `source.<extension>` between the check and publication.
 
-The last item is now repaired on the canonical #866 branch: the production local-file materializer consumes the native receipt and re-verifies the published app-owned object before returning bootstrap authority. Path-free digest handoff into #970, restart re-admission, platform-atomic no-follow acquisition, parent-directory crash durability, YouTube durable-source policy, and decoder licensing remain separate open work.
+The receipt/verifier and no-clobber publication defects are now repaired on the canonical #866 branch: the production local-file materializer consumes the native receipt, synchronizes the stage, creates the app-owned publication with a same-filesystem hard link that fails if the destination name already exists, removes the private stage name, and re-verifies the published object before returning bootstrap authority. Path-free digest handoff into #970, restart re-admission, platform-atomic no-follow acquisition, parent-directory crash durability, YouTube durable-source policy, and decoder licensing remain separate open work.
 
 ## Constraints
 
@@ -30,6 +31,7 @@ The last item is now repaired on the canonical #866 branch: the production local
 - SHA-256 is content-identity/correctness evidence only. This code does not claim CAVP validation, FIPS 140 validation, authenticity, or protection against an actor who can replace both artifact and stored digest.
 - Reusable SHA-256 and publication-verification APIs accept only caller-owned `Read` values. They do not open arbitrary paths or create filesystem authority.
 - Publication verification rejects an invalid native receipt length before reading and consumes at most `expected.file_size_bytes + 1` bytes.
+- Publication must not overwrite an existing app-owned source name. The same-project staging file and destination share a filesystem; hard-link publication therefore provides a narrow no-clobber create, while unsupported filesystems fail closed rather than falling back to overwrite-capable rename.
 - The selected filename may remain a user-facing label, but local-analysis authority moves to app-owned storage.
 - Portable `symlink_metadata` / open / re-check logic narrows linked-object substitution but does not claim atomic `O_NOFOLLOW` or Windows reparse-point-equivalent semantics.
 - This slice does not claim that the digest is already persisted in `.bscope`, restart/reopen is complete, YouTube persistence is complete, parent-directory publication is crash-durable, or the commercial decoder-license gate is solved.
@@ -45,6 +47,8 @@ The last item is now repaired on the canonical #866 branch: the production local
 7. Treat the staging receipt as publication truth without rereading — rejected. Same-size mutation would evade byte-count checks.
 8. Re-read every published object up to 100 MiB — rejected. The native receipt supplies a tighter expected length, so verification reads only expected bytes plus one growth probe.
 9. Leave the Tauri caller on `copy_bounded_local_audio -> u64` — rejected. Production publication must retain the native receipt, synchronize and publish the stage, reopen the app-owned object, and require exact size+SHA-256 equality before bootstrap authority is returned.
+10. Check `destination.exists()` and then rename the stage — rejected. On platforms where rename replaces an existing target, the check and rename form a race that can clobber an entry created after the check.
+11. Create the destination with `std::fs::hard_link(stage, destination)` and then remove the private stage name — selected for this same-filesystem project root. The create fails when the destination already exists and preserves the synchronized bytes without a second copy. Failure to create or remove the stage fails closed and does not fall back to overwrite-capable rename.
 
 ## Implementation and exact evidence
 
@@ -59,7 +63,9 @@ The hardening chain remains cumulative and test-first where behavior changed:
 - Publication RED `fdfdd7003b8a9162f846dcf22ffe66a3afd5f47e` and fix `a1c85cbfbdc7051169f097e8ad235e3bbac439d3` introduced `verify_local_audio_publication_receipt`, requiring exact byte-count and SHA-256 equality for an already-open published reader; `20e7faaddd619c6cbd053876ca6de27b9933a4a2` exported it.
 - Bounded-verification RED `6a0692ee288d3b126bd0598e07e03c88a702d567` and fix `c65a9fd312f4d67e6d1cad83b80b1213e692c8dd` changed publication verification to stop after expected bytes plus one growth probe instead of hashing an invalid replacement up to the global ceiling.
 - Production-integration RED `ed9fe7eba6261753dc0f68e820e2b642703fe2cd` added a focused Tauri contract requiring the actual local-audio materializer to consume both `copy_bounded_local_audio_with_receipt` and `verify_local_audio_publication_receipt`, and forbidding the compatibility byte-count-only call on that function.
-- Causal production fix `bdf8f87d5e5c9db423537c7633e7ff4b92bec5b6` switched `materialize_local_audio_source` to the receipt API, calls `sync_all` on the same-project stage, renames it to app-owned `source.<extension>`, rejects a published path observed as symlink/non-file, reopens the publication, checks descriptor length, requires `verify_local_audio_publication_receipt` equality, re-checks published path metadata, and returns the receipt's admitted byte count.
+- Causal production fix `bdf8f87d5e5c9db423537c7633e7ff4b92bec5b6` switched `materialize_local_audio_source` to the receipt API, calls `sync_all` on the same-project stage, publishes app-owned `source.<extension>`, rejects a published path observed as symlink/non-file, reopens the publication, checks descriptor length, requires `verify_local_audio_publication_receipt` equality, re-checks published path metadata, and returns the receipt's admitted byte count.
+- No-clobber RED `45b1f72abeded4e478775d31085244621f68c9f0` requires production publication to use an atomic no-clobber destination create and explicitly forbids the `destination.exists()` plus overwrite-capable `rename` sequence.
+- No-clobber fix `eb972e951ef090c92b595c752b18d66f11f6b96e` replaces check-then-rename with same-filesystem `hard_link(stage, destination)`, removes the private stage name only after the destination link exists, and fails closed if either publication or stage cleanup cannot complete.
 
 The SHA-256 implementation is checked against standard known-answer vectors including the empty message, `abc`, the multi-block vector, and one million `a` bytes. Reader tests cover short reads, `Interrupted`, and non-interrupted failure. These are correctness regressions, not validation-module evidence.
 
@@ -69,9 +75,9 @@ The selected audio path, file metadata, and media bytes are untrusted. The OS fi
 
 The core hash and publication-verification ports accept no path and create no descriptor. Resource Admission or another owning context supplies an already-authorized reader. A staging receipt cannot be promoted when the published bytes do not reproduce both its length and digest.
 
-The production Tauri caller now synchronizes the stage before rename, requires regular/non-symlink observations of the published path, opens the published object, checks descriptor size, verifies exact receipt equality, and performs a post-verification path check. Any publication mismatch or read failure is normalized to the bounded project-workspace diagnosis; no source/destination path, raw OS error, or audio bytes are exposed.
+The production Tauri caller now synchronizes the stage, creates the destination through a no-clobber same-filesystem hard link, removes the private stage name, requires regular/non-symlink observations of the published path, opens the published object, checks descriptor size, verifies exact receipt equality, and performs a post-verification path check. Any publication mismatch or read failure is normalized to the bounded project-workspace diagnosis; no source/destination path, raw OS error, or audio bytes are exposed. If hard-link creation is unavailable on the project filesystem, admission fails closed rather than silently downgrading to an overwrite-capable publication primitive.
 
-Those portable checks materially narrow linked-object substitution but are not an atomic no-follow open guarantee. A platform-specific descriptor acquisition design remains necessary if BandScope needs `O_NOFOLLOW`/reparse-point-equivalent race semantics against a same-user adversary. The parent directory is also not yet explicitly synchronized after rename, so power-loss durability of the directory entry is not claimed here.
+Those portable checks materially narrow name clobbering and linked-object substitution but are not an atomic no-follow open guarantee. A platform-specific descriptor acquisition design remains necessary if BandScope needs `O_NOFOLLOW`/reparse-point-equivalent race semantics against a same-user adversary. The parent directory is also not yet explicitly synchronized after destination-link creation and stage unlink, so power-loss durability of the directory entries is not claimed here.
 
 No new logging, telemetry, network transfer, or raw-media export is introduced. The SHA-256 receipt is non-secret content identity. It is not yet part of the current bootstrap/persistence wire contract.
 
@@ -89,6 +95,7 @@ No new logging, telemetry, network transfer, or raw-media export is introduced. 
 - same-size content mutation, truncation, growth, or publication-read failure fails closed;
 - invalid receipt lengths fail before reading publication bytes;
 - grown publication is rejected after expected bytes plus one probe;
+- production publication cannot use an existence-check plus overwrite-capable rename and must fail closed when the fixed destination name already exists;
 - production Tauri local-file materialization must compile against and call the receipt and publication-verification ports, not the compatibility byte-count adapter;
 - hosted Rust/Tauri, Windows, macOS, security, SBOM, coverage/package, and independent-review evidence must be reacquired on the final exact #866 head.
 
@@ -96,7 +103,7 @@ Synthetic arrays or source-text checks do not substitute for the later productio
 
 ## Remaining risks and follow-up
 
-The local-file production path now binds bootstrap authority to a publication whose bytes reproduce the native staging receipt. The next cross-context step is **not** another copy or hash implementation: #866 must expose a path-free publication-identity receipt suitable for #970 v3, while the analysis engine may continue to consume its narrower runtime `LocalAudioSource` path metadata. The current Rust/TypeScript/Python analysis `LocalAudioSource` contract does not include `contentSha256`, so injecting a new field into that runtime request without a versioned contract change would break strict Python admission. A distinct bootstrap/persistence source-identity boundary is therefore preferred.
+The local-file production path now binds bootstrap authority to a no-clobber app-owned publication whose bytes reproduce the native staging receipt. The next cross-context step is **not** another copy or hash implementation: #866 must expose a path-free publication-identity receipt suitable for #970 v3, while the analysis engine may continue to consume its narrower runtime `LocalAudioSource` path metadata. The current Rust/TypeScript/Python analysis `LocalAudioSource` contract does not include `contentSha256`, so injecting a new field into that runtime request without a versioned contract change would break strict Python admission. A distinct bootstrap/persistence source-identity boundary is therefore preferred.
 
 After Project Persistence receives `projectId + artifactName + extension + fileSizeBytes + contentSha256`, restart must resolve only the app-owned artifact, re-establish regular/no-link containment, bounded size/SHA-256 and applicable decode admission, reconstruct a fresh bootstrap, and only then let #1160 combine persisted `selectedPlaybackSource` intent with fresh native stem availability. Missing preferred stems fail closed to Full mix.
 
