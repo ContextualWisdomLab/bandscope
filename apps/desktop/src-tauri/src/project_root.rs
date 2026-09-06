@@ -25,17 +25,26 @@ fn metadata_is_safe_existing_project_directory(metadata: &fs::Metadata) -> bool 
 
 /// Resolve one already-provisioned app-local project directory without creating it.
 ///
-/// Security Notes: `project_id` is validated before joining. The final project
-/// directory must already exist as a real directory rather than a symlink or
-/// Windows reparse point. This read-side resolver never calls `create_dir_all`,
-/// so a missing or replaced project root cannot be silently provisioned during
-/// reopen. Descriptor-bound parent-directory authority remains a separate
-/// platform-hardening requirement.
+/// Security Notes: `project_id` is validated before joining. The app-local base
+/// itself and the final project directory must already exist as real directories
+/// rather than symlinks or Windows reparse points. Rejecting a linked base before
+/// joining prevents a stable app-local path name from redirecting reopen into a
+/// different filesystem subtree. This read-side resolver never calls
+/// `create_dir_all`, so a missing or replaced project root cannot be silently
+/// provisioned during reopen. Descriptor-bound authority for every ancestor and
+/// concurrent parent replacement remains a separate platform-hardening
+/// requirement.
 pub(crate) fn resolve_existing_project_root(
     base_root: &Path,
     project_id: &str,
 ) -> Result<PathBuf, String> {
     if !is_valid_project_id(project_id) {
+        return Err(PROJECT_ROOT_ERROR.to_string());
+    }
+
+    let base_metadata =
+        fs::symlink_metadata(base_root).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
+    if !metadata_is_safe_existing_project_directory(&base_metadata) {
         return Err(PROJECT_ROOT_ERROR.to_string());
     }
 
