@@ -109,3 +109,41 @@ fn project_save_binds_only_explicit_project_id_to_retained_native_source_identit
         "multiple project aggregates forbid a global last-selected shortcut"
     );
 }
+
+#[test]
+fn project_load_re_admits_persisted_source_before_returning_document() {
+    let source = include_str!("../src/main.rs");
+    let load_start = source
+        .find("fn load_project(")
+        .expect("native project load command must remain present");
+    let load_tail = &source[load_start..];
+    let load_end = load_tail
+        .find("\n}\n\nfn scores_root_for_project")
+        .expect("load command boundary must remain inspectable");
+    let load_command = &load_tail[..load_end];
+
+    assert!(
+        source.contains("fn restore_project_source_after_restart("),
+        "restart needs one native adapter that restores source authority from persisted evidence"
+    );
+    assert!(
+        load_command.contains("app: tauri::AppHandle<impl Runtime>"),
+        "load must resolve the app-local project root inside the native boundary"
+    );
+    assert!(
+        load_command.contains("state: tauri::State<'_, AppState>"),
+        "load must restore fresh native bootstrap state for the exact project aggregate"
+    );
+    assert!(
+        load_command.contains("publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>"),
+        "load must restore path-free publication identity only after re-admission"
+    );
+    assert!(
+        load_command.contains("restore_project_source_after_restart("),
+        "a v3 source reference must be re-admitted before the loaded document is returned"
+    );
+    assert!(
+        !load_command.contains("app_owned_root(&app, \"projects\""),
+        "restart must not provision a missing project directory while reading"
+    );
+}
