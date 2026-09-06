@@ -6,6 +6,7 @@ cd "$REPO_ROOT"
 
 python3 scripts/checks/test_verify_docs.py
 python3 scripts/checks/verify_docs.py
+python3 scripts/checks/verify_open_pr_queue.py
 python3 scripts/checks/verify_security_notes.py
 python3 scripts/checks/security_gates.py
 python3 scripts/checks/verify_supply_chain.py

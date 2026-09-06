@@ -1,0 +1,1148 @@
+{
+  "schema_version": "1.0.0",
+  "snapshot_date": "2026-08-24",
+  "timezone": "Asia/Seoul",
+  "repository": "ContextualWisdomLab/bandscope",
+  "base_branch": "develop",
+  "base_sha": "acdbea6344fe1231c39535b575f4de35e4c607c9",
+  "open_pr_count": 122,
+  "authority_note": "Generated from a complete live GitHub open-PR inventory. Refresh checks, reviews, threads, ancestry, and writer evidence immediately before action.",
+  "trains": {
+    "T0": {
+      "description": "Dependency, toolchain, workflow and quality base",
+      "issue": 966
+    },
+    "T1": {
+      "description": "Local input, filesystem authority, resource admission and cancellation",
+      "issue": 781
+    },
+    "T2": {
+      "description": "Scientific accuracy, MIR evaluation and numerical parity",
+      "issue": 770
+    },
+    "T3": {
+      "description": "Rehearsal actions and active-player vertical",
+      "issue": 961
+    },
+    "T4": {
+      "description": "Project portability, handoff and interoperability",
+      "issue": 962
+    },
+    "T5": {
+      "description": "Activation, UI system, Storybook and accessibility",
+      "issue": 965
+    },
+    "T6": {
+      "description": "Diagnostics, redaction, security evidence and supportability",
+      "issue": 963
+    },
+    "T7": {
+      "description": "Signed commercial release and updater",
+      "issue": 960
+    },
+    "T8": {
+      "description": "Live additions awaiting explicit merge-train triage",
+      "issue": 966
+    }
+  },
+  "pull_requests": [
+    {
+      "number": 731,
+      "title": "🎨 Palette: 향상된 접근성을 위해 아이콘 버튼에 툴팁 및 aria-disabled 적용",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/731",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "5ea5663f26e33315ac6dda3c4f983f0f12a1cba7",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 732,
+      "title": "⚡ Chords: vectorize HMM reference and correct relative-key prior",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/732",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "830dd4c982b12e1dcdf896e3e951363f1ec16a15",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 737,
+      "title": "feat(integration): add versioned naruon rehearsal handoff",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/737",
+      "initial_train": "T4",
+      "initial_disposition": "outbound_naruon_handoff_contract",
+      "head_sha": "82ae343e9911e30cbfe65f1264367b6ae8576cb6",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 740,
+      "title": "feat: import rehearsal handoffs for focused reanalysis",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/740",
+      "initial_train": "T4",
+      "initial_disposition": "inbound_handoff_reanalysis_slice",
+      "head_sha": "4761a882d1b345647fb6ca7bbb7c89c5420a097f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 744,
+      "title": "feat(i18n): localize Workspace controls and harden interpolation",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/744",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "0ca00b110d046f8101b01a13fcc3f10d57feebd2",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 746,
+      "title": "perf(segmenter): vectorize checkerboard novelty reference",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/746",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "9d0def7d5038b62b1eb0a8ce2784e23d6618ad74",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 750,
+      "title": "fix(score): validate PDF bridge byte arrays without coercion",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/750",
+      "initial_train": "T1",
+      "initial_disposition": "triage_required",
+      "head_sha": "d982adef81cd54adae37078f71a7976aa122e986",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 754,
+      "title": "build(deps): bump time from 0.3.53 to 0.3.55 in /apps/desktop/src-tauri",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/754",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "966d5f1204ec90c303f8903e55f71f67bcba136d",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 776,
+      "title": "feat(chords): surface actionable rehearsal guidance",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/776",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "8b38e4885e21619cb502eb6d2be25420e6246fd3",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 780,
+      "title": "fix(security): keep every CodeQL Action phase on one revision",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/780",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "738495ca9d425fb34a12e76c0614eda356e68f3a",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 783,
+      "title": "fix(security): establish canonical npm, PDF.js, Nanoid, and Undici baseline",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/783",
+      "initial_train": "T0",
+      "initial_disposition": "canonical_dependency_security_base",
+      "head_sha": "1168c8f4257de5de036ea54bf5ee73edb83e775e",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 811,
+      "title": "🔒 [보안] CLI 무제한 파일 읽기 취약점 수정",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/811",
+      "initial_train": "T1",
+      "initial_disposition": "triage_required",
+      "head_sha": "54c645c9dcace65dca4e5bb669a665480a26dcb7",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 824,
+      "title": "🧪 테스트: 줄기 분리 시간 초과 처리 테스트 추가",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/824",
+      "initial_train": "T1",
+      "initial_disposition": "triage_required",
+      "head_sha": "f4d01558eb3c0c2a0b6c81f9614eeb083b6bb39b",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 826,
+      "title": "🧪 [테스트 개선] TemporalAnalyzer 분석 오류 테스트 추가",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/826",
+      "initial_train": "T6",
+      "initial_disposition": "triage_required",
+      "head_sha": "9002ff8b92272c590a57eecdc80c95f71e4bec55",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 827,
+      "title": "fix(desktop): remove synthetic browser analysis success",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/827",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "a2e5d260e68a0fe36a4d0551af202b73f257dd70",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 828,
+      "title": "test(analysis): govern real YouTube known-stem benchmark",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/828",
+      "initial_train": "T2",
+      "initial_disposition": "real_audio_accuracy_slice_under_issue_770",
+      "head_sha": "9331b406e7fbe4d1407f9f7854db1fd9ba12b194",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 833,
+      "title": "🎨 Palette: 코드 수정 버튼에 접근성 있는 툴팁 지원 추가",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/833",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "3206c259afcc02a1cc625f3e9f785d48b4a799ed",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 834,
+      "title": "⚡ Bolt: O(1) 메모리로 순차적 코드 변경 횟수 계산 최적화",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/834",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "c686ae450677303d2622abec1869aef6cef98155",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 845,
+      "title": "feat(analysis): CSV 큐시트 내보내기 기능 및 수식 주입 보안 로직 추가",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/845",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "d1dc4da583320205ba92dfabb3fd48092a51d9e9",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 849,
+      "title": "⚡ Bolt: 차트 내보내기(chart.py)의 중복 제거 로직 O(N^2)에서 O(N)으로 최적화",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/849",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "e3268c8bf632d49a524b84cce141f850dd3f252d",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 850,
+      "title": "feat: add Part Handoff Map UI component to workspace",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/850",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "adbe3da061722ae0dc98bff368ecff494363cdc9",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 858,
+      "title": "fix(security): bind analysis paths to filesystem authority",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/858",
+      "initial_train": "T1",
+      "initial_disposition": "triage_required",
+      "head_sha": "bedc2069494c0687f02873097226de04fa86f484",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 859,
+      "title": "⚡ Bolt: GrooveMap의 maxTime 계산 성능 개선",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/859",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "38e1027d3a9613da5ea912020fa3f08ef0814e69",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 861,
+      "title": "test(quality): enforce Python branch coverage",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/861",
+      "initial_train": "T0",
+      "initial_disposition": "canonical_python_branch_coverage_base",
+      "head_sha": "6afbc9fff585a5a7c2bf0454b0673c3f71f1b0e1",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 865,
+      "title": "fix(score): bound native PDF reads before allocation",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/865",
+      "initial_train": "T1",
+      "initial_disposition": "triage_required",
+      "head_sha": "f86e266b2ab2dc5a95e6b4a484e777b29f0feeaf",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 866,
+      "title": "fix(audio): establish canonical local-audio resource policy",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/866",
+      "initial_train": "T1",
+      "initial_disposition": "canonical_local_audio_resource_policy",
+      "head_sha": "223dd78126deeb3f12a68dc140f6a83fbe422225",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 867,
+      "title": "test(supply-chain): preserve simple dependency-path cycle semantics",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/867",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "f1ac4167b8b7bdb88c92a89c437e0dd5432ba6ae",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 873,
+      "title": "feat(roles): wire measured register overlap into section warnings",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/873",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "c30be7afa82beeade94c99d2a4bae818aebf121f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 874,
+      "title": "feat(workspace): name the parts to lock in first",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/874",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "05935e02f29366b2bd240d6fb4d1bae784cb992b",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 881,
+      "title": "test(ci): lock local OpenCode small_model to NVIDIA NIM",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/881",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "4e07356d1ece6f22c040d6a0cd24c995800f88a9",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 884,
+      "title": "feat(workspace): open Stem Lab as honest isolation lanes",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/884",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "e33ca56a3922b78b5569e32e1a949f5a488c7e01",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 891,
+      "title": "test(analysis): lock verse/chorus chord recovery on a known take",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/891",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "92fe9155a1896e13ba8e06e1762f6848fc2efdfa",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 892,
+      "title": "fix(analysis): score C major acceptance from decoded WAV bytes",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/892",
+      "initial_train": "T2",
+      "initial_disposition": "triage_required",
+      "head_sha": "40f138e00ece3d480b5433a5ff8e1d9026cd7ff2",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 894,
+      "title": "fix(security): drop persisted credentials before dependency lifecycle code",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/894",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "475adeba62109e1e34981baed22ce89728211108",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 895,
+      "title": "fix(workflows): audit orphaned Actions registry identities",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/895",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "9de29814cb307e7e50817e820c2510058d67233f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 896,
+      "title": "build(node): coordinate Node 22.22.2 floor with jsdom 30",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/896",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "c07e51639dbb7b44f57ff0aabc26ad793e691add",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 897,
+      "title": "feat(workspace): Storybook tokens for rehearsal components",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/897",
+      "initial_train": "T5",
+      "initial_disposition": "storybook_design_inventory_slice",
+      "head_sha": "d31a6ce740f756902d59edaf4420eea713007c81",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 898,
+      "title": "feat(workspace): put the next rehearsal action on empty and error cards",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/898",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "48c6084e9e8e74026e5690173c01a5e1479b7026",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 899,
+      "title": "feat(workspace): open existing rehearsal surfaces from the sidebar",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/899",
+      "initial_train": "T5",
+      "initial_disposition": "triage_required",
+      "head_sha": "b263ac441df5522a1a943463744f9f732d806adc",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 900,
+      "title": "feat(workspace): name tonight's export and priority actions",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/900",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "0c09689fc981d72c2a6d7505c0ab0c41a97d0ebe",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 901,
+      "title": "feat(workspace): start tonight's first part from the ready board",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/901",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "940ff24aaeac3261f922a8f33d47dd8abb1abb93",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 903,
+      "title": "feat(workspace): loop tonight's first section on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/903",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "1f3e8c75c57232208d2b723aa37137e47ccf46de",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 905,
+      "title": "feat(workspace): open tonight's first notes on the groove map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/905",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "a1a38fc4e537f22d7811592e49baeb9d816faeff",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 907,
+      "title": "chore(env): add Cloud Agent environment config",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/907",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "b0972c5ad01c506e24566433e8dbf9008c91c4a9",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 910,
+      "title": "feat(workspace): set up tonight's part before the first entrance",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/910",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "61aa51f274c04d60289da7919a70d40155f2674d",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 912,
+      "title": "feat(workspace): guide tonight's first entrance on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/912",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "b8f588ad6b0d017a4539ed6956fdcf53057292bc",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 913,
+      "title": "feat(workspace): guide tonight's first lyric cue on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/913",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "c56a58933c418d9b0d86faca5a663de21f5b1d8c",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 914,
+      "title": "feat(workspace): guide tonight's first dropout on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/914",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "a0b5fe92436113fcf57017f4a065e8901a471f9d",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 916,
+      "title": "feat(workspace): guide tonight's first pickup on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/916",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "6657a47b706e40d704a6949de383c5d55aa288a5",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 918,
+      "title": "build(deps): bump uuid from 1.23.4 to 1.24.1 in /apps/desktop/src-tauri",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/918",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "77a2c35a21eeaf6273ea6bf825d9ea0c1793f33b",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 919,
+      "title": "build(deps): update numba requirement from <0.67.0 to <0.68.0 in /services/analysis-engine",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/919",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "b113cec48235bc74660f74d5ed9bcdb5357d74b0",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 920,
+      "title": "build(deps): bump react and @types/react",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/920",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "477fa3e363e77cbc0b05b9147f58398f781d6e58",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 921,
+      "title": "build(deps): bump @base-ui/react from 1.5.0 to 1.7.0",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/921",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "2840d0d0831d705b357aca15d7ec91bcf6928ca4",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 922,
+      "title": "build(deps-dev): bump storybook from 10.4.6 to 10.5.8",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/922",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "5f6f0a809eb05ec6b37417b37581a8927c76e2a8",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 923,
+      "title": "build(deps-dev): bump @storybook/react-vite from 10.4.6 to 10.5.8",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/923",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "d3d65db3541850bbec781757341934cdf6a8aca7",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 924,
+      "title": "build(deps): bump github/codeql-action/init from 4.37.0 to 4.37.7",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/924",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "bd7cd7d49cf5ea05081b12dca13385ebf67a881e",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 925,
+      "title": "build(deps-dev): bump typescript-eslint from 8.63.0 to 8.67.0",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/925",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "525bb99a455361d531ac26a856f70903e9ce14de",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 926,
+      "title": "build(deps): bump lucide-react from 1.24.0 to 1.31.0",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/926",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "5b27740c54bbdd81c05008224f6a32ddbaa265fd",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 927,
+      "title": "build(deps): bump sonner from 2.0.7 to 2.0.8",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/927",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "235019727df523ea459a6bd09b60208906eb22c8",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 928,
+      "title": "build(deps-dev): bump eslint-plugin-jsdoc from 63.0.13 to 64.2.0",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/928",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "f87c0fbdca3b69af444a617412e3d620171b2ee4",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 929,
+      "title": "build(deps-dev): bump @testing-library/jest-dom from 6.9.1 to 7.0.1",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/929",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "0ce4cb84cbafcc81cbd824b2a7879ab5549d419a",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 930,
+      "title": "build(deps): bump github/codeql-action/autobuild from 4.37.0 to 4.37.7",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/930",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "927c473bbfefc63a08aaf352222372506d836abd",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 931,
+      "title": "build(deps): bump astral-sh/setup-uv from 8.3.2 to 10.0.1",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/931",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "8aed8adac44592b6dbfac30bf4cfe419e71eebe0",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 932,
+      "title": "build(deps): bump github/codeql-action/analyze from 4.37.0 to 4.37.7",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/932",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "57011511f876883347a5da5f5e2540f356cb0195",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 933,
+      "title": "build(deps): bump github/codeql-action/upload-sarif from 4.37.0 to 4.37.7",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/933",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "dff69016587f35141a0f13c1bec84fa19fc18a5a",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 934,
+      "title": "feat(workspace): guide tonight's first stop on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/934",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "3d796dfffd64b2331bf4146166449f7725b8b673",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 936,
+      "title": "build(deps): bump the uv group across 1 directory with 2 updates",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/936",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "cb048b1f455b3655aa0fcc086b15b0cc496d339a",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 937,
+      "title": "feat(workspace): guide tonight's first labeled handoff on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/937",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "c3685178c6f393902748d25c30d087af8c6597b7",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 939,
+      "title": "feat(workspace): guide tonight's first chorus on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/939",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "d3c852894bc51425653d6e296c4ea9c69fe533cf",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 941,
+      "title": "🛡️ Sentinel: CSV 수식 주입 NUL·전각 연산자 우회 차단",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/941",
+      "initial_train": "T6",
+      "initial_disposition": "triage_required",
+      "head_sha": "f7a2634607c5a7792f05309ec9e284d9d6132ca6",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 942,
+      "title": "build(deps): bump react-dom and @types/react-dom",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/942",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "647b883996ed49141e177a5e97138aaca368ef81",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 943,
+      "title": "feat(workspace): guide tonight's first intro on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/943",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "4855357e19dd444271f95142667cb226989e1142",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 944,
+      "title": "build(rust): pin all product and release lanes to 1.97.1",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/944",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "b0f8cf0de9f02ee1bed7a8ee964daed6d2063562",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 946,
+      "title": "feat(workspace): guide tonight's first bridge on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/946",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "4d13986d7d486caae8f87db7d468388624acd29f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 947,
+      "title": "feat(workspace): guide tonight's first verse on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/947",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "315e563ffe6d6ad83c48117e308477f8ca280cbc",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 948,
+      "title": "fix(security): retire quick-xml RustSec exceptions",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/948",
+      "initial_train": "T0",
+      "initial_disposition": "triage_required",
+      "head_sha": "d415bc382167c90216fb0cae46821b5597270766",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 949,
+      "title": "fix(security): redact key detector dependency failures",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/949",
+      "initial_train": "T6",
+      "initial_disposition": "triage_required",
+      "head_sha": "6ee9ada2228a91d6e1a0de776347890e8ea82132",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 950,
+      "title": "fix(security): redact temporal detector failure logs",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/950",
+      "initial_train": "T6",
+      "initial_disposition": "triage_required",
+      "head_sha": "396d42017bd32c9b7215ec8bf8f5bf8669139e85",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 951,
+      "title": "fix(security): redact range-analysis failure logs",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/951",
+      "initial_train": "T6",
+      "initial_disposition": "triage_required",
+      "head_sha": "9c64ca3cd3bd2669d012f86b7f3611e7f2463583",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 955,
+      "title": "feat(workspace): guide tonight's first pre-chorus on map and player",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/955",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "d1975e182f529cad3acba1c6c6d7d0a74ac4e47a",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 956,
+      "title": "fix(security): redact articulation failure logs",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/956",
+      "initial_train": "T6",
+      "initial_disposition": "triage_required",
+      "head_sha": "2707ad39e0198857a9f5eedfddea8a36718257e8",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 957,
+      "title": "feat(workspace): name tonight's first playable range on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/957",
+      "initial_train": "T3",
+      "initial_disposition": "triage_required",
+      "head_sha": "4c4c045cfe1eabf585aadb01bf799ed68d654e4f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 967,
+      "title": "feat(operations): add privacy-safe support manifest boundary",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/967",
+      "initial_train": "T6",
+      "initial_disposition": "support_manifest_boundary",
+      "head_sha": "b9881489d297f1f97f985a880df72da886b861a2",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 968,
+      "title": "feat(readiness): establish BandScope 1.0 product-readiness baseline",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/968",
+      "initial_train": "T0",
+      "initial_disposition": "product_readiness_baseline_program",
+      "head_sha": "db52897352ae945f80333de8fe60c9159e7f9f2c",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 969,
+      "title": "fix(design): restore Figma contract-page inventory and drift check",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/969",
+      "initial_train": "T5",
+      "initial_disposition": "figma_contract_inventory_drift_check",
+      "head_sha": "934b76286632a7d7ade8d99e6ead85a7e751ce4d",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 970,
+      "title": "fix(project): stage new saves without clobbering known-good files",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/970",
+      "initial_train": "T4",
+      "initial_disposition": "project_atomic_publication",
+      "head_sha": "2e48e59916c8fb4552e26c26c8a6c65946f6b7fb",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 971,
+      "title": "feat(workspace): loop tonight's first section from the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/971",
+      "initial_train": "T3",
+      "initial_disposition": "player_first_section_loop",
+      "head_sha": "7c1b4973f9d7f4ae7320814cfa340d42d29e2706",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 972,
+      "title": "feat(workspace): name the next rehearsal action from help",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/972",
+      "initial_train": "T3",
+      "initial_disposition": "help_next_action_copy",
+      "head_sha": "c0095ca8f4015133a7debb6fdac910d573a6ec79",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 974,
+      "title": "feat(workspace): start analysis from the first-run card",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/974",
+      "initial_train": "T5",
+      "initial_disposition": "first_run_analyze_entry",
+      "head_sha": "fd33104ca88030b5218e1c56a0cb683e2b50d7db",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 976,
+      "title": "feat(workspace): name the next action after analysis fails",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/976",
+      "initial_train": "T3",
+      "initial_disposition": "analysis_failure_next_action_copy",
+      "head_sha": "d07dc57347ce8187bc70b1d1f01b1ac5ec195887",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 980,
+      "title": "feat(workspace): name using your own song as the first next action",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/980",
+      "initial_train": "T5",
+      "initial_disposition": "first_run_own_song_action",
+      "head_sha": "9bc2ead0d52f4f3da811305042755512d396a9f3",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 981,
+      "title": "feat(workspace): name Choose another song after local intake fails",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/981",
+      "initial_train": "T3",
+      "initial_disposition": "local_intake_failure_next_action_copy",
+      "head_sha": "9059b4ceb5de2b223114611751b9bc26d9f220b2",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 982,
+      "title": "feat(workspace): name Paste another YouTube link after import fails",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/982",
+      "initial_train": "T3",
+      "initial_disposition": "youtube_import_failure_next_action_copy",
+      "head_sha": "54f5a59edfea79e42b363bae334d99de13016235",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 984,
+      "title": "feat(workspace): name the next action after project load or save fails",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/984",
+      "initial_train": "T4",
+      "initial_disposition": "project_save_load_failure_next_action_copy",
+      "head_sha": "8207813b5ef7637946e6510e09fa734529b1f654",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 985,
+      "title": "feat(analysis): enforce one canonical audio resource policy (#781)",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/985",
+      "initial_train": "T1",
+      "initial_disposition": "canonical_audio_resource_policy",
+      "head_sha": "d2cf2047af790cddf02b3957856d246638a754b5",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 986,
+      "title": "feat(workspace): guide tonight's first outro on the rehearsal map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/986",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "4222d99c025723329e522f98b7088486a4c3b5ca",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 987,
+      "title": "feat(workspace): name tonight's tempo, starting chord, and transpose setup",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/987",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "ec87428f4ef976d3a71570b5ef60c29a315f1c35",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 989,
+      "title": "feat(workspace): guide tonight's first tag on the rehearsal map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/989",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "6b83256ff8415d5e8afb0c034f97c6d40674ed79",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 990,
+      "title": "feat(workspace): name tonight's first simpler take on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/990",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "3736a1647ec06251214005b82552717fd8dd8b69",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 991,
+      "title": "feat(workspace): name tonight's first groove on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/991",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "ac360bd992feb7167fdf0ec92d50413c6df383f9",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 992,
+      "title": "feat(workspace): name tonight's first overlap on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/992",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "510347b801bf1d69a32b26b42519dbbb2827e4f7",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 993,
+      "title": "feat(workspace): name tonight's first transition cue on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/993",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "151d8ec7336889fecfaead0367b734ef1fbe38d5",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 994,
+      "title": "feat(workspace): name tonight's first transition on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/994",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "6e8d5412d8935bf767425c9e6c6adc19e7f19031",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 995,
+      "title": "feat(workspace): name tonight's first count on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/995",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "4d353ca99a389189b2d7c1eda04067a071e1ac79",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 996,
+      "title": "feat(workspace): name tonight's first assignment on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/996",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "54b75a265ef3b7265461abf0601b6daf52d67b5f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 997,
+      "title": "feat(workspace): name tonight's first open rehearsal comment on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/997",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "fa4aadd429c220bc1e620d475892e2292c92f4b8",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 998,
+      "title": "feat(workspace): name tonight's first pending approval on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/998",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "b67afb688866f5436b0c6079ffe4291e918be7ea",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 999,
+      "title": "⚡ Bolt: 관측 확률 계산 배열 연산으로 벡터화 (성능 개선)",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/999",
+      "initial_train": "T2",
+      "initial_disposition": "observation_probability_vectorization",
+      "head_sha": "c11f5ed592bd982d1148050f7cec6a1573ce5160",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1000,
+      "title": "feat(workspace): name tonight's first blocked assignment on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1000",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "6c6b3e75616e36f7b2997b92ea13bdca7628b523",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1001,
+      "title": "feat(workspace): name tonight's first ear check on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1001",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "38781c86dbcfdee00da1072062056deeada54afe",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1002,
+      "title": "feat(workspace): name tonight's first confirmed chord on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1002",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "1a1f231052d1cecadf1178b14cc9ff1e43a21975",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1003,
+      "title": "feat(workspace): name tonight's first harmonic explanation on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1003",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "8f88db8c23134afb4e2e726b10b1cada7bb969d0",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1004,
+      "title": "feat(workspace): name tonight's first setup note on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1004",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "9411885d68ed7a08d880043dca4f52bc6166abce",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1005,
+      "title": "feat(workspace): name tonight's first harmonic function on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1005",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "00cf87dca1bd334cb5c891b3bc3bd19510d10611",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1006,
+      "title": "feat(workspace): name tonight's first transposition plan on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1006",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "f1e86e9c66c09252fbedd6626f015cf370464c56",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1007,
+      "title": "feat(workspace): name tonight's first part handoff on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1007",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "e06ca27fad4792f8b191fd314a630e5932580007",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1008,
+      "title": "feat(workspace): name tonight's first capo plan on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1008",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "e1673b5968411cde72ce8945281c5db5779e145f",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1009,
+      "title": "feat(activation): license a demo song and name first-run next actions",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1009",
+      "initial_train": "T5",
+      "initial_disposition": "licensed_demo_first_run_activation",
+      "head_sha": "86004787d77cdcfbcc3d411124e9b01ed2898a71",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1010,
+      "title": "feat(workspace): name tonight's first tuning plan on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1010",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "5b07db76282e89bf5c7aefb2cd680343c2d63f05",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1011,
+      "title": "feat(workspace): name tonight's first dynamics plan on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1011",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "1d077d091025ab90b2831069a689b4bddb782725",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1012,
+      "title": "feat(workspace): name tonight's first articulation plan on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1012",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "039b68cf556d997c2a9145cc0250b93aa254f0c7",
+      "head_sha_status": "exact_current_head"
+    },
+    {
+      "number": 1013,
+      "title": "feat(workspace): name tonight's first voicing plan on the map",
+      "url": "https://github.com/ContextualWisdomLab/bandscope/pull/1013",
+      "initial_train": "T3",
+      "initial_disposition": "workspace_rehearsal_map_slice",
+      "head_sha": "812d60a93cf4ee5ac9cdceb4f96ce4b9f09cf7b5",
+      "head_sha_status": "exact_current_head"
+    }
+  ]
+}
