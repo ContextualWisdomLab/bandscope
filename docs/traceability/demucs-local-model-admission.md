@@ -10,7 +10,7 @@ For the Demucs 4.x API currently consumed by BandScope, `get_model(..., repo=Non
 
 The next implementation still verified the mutable torch-cache object and then let the upstream resolver reopen that pathname. A replacement or deletion after verification could therefore invalidate the evidence. The current implementation instead copies bytes from the verified descriptor into a private local Demucs repository and calls `get_model(signature, repo=snapshot_root)`. Demucs consequently resolves through `LocalRepo`; a later mutation of the torch-cache pathname cannot change the model bytes being deserialized or reactivate `RemoteRepo` for that load.
 
-That private snapshot introduced a separate resource-admission gap: a regular cache object with the canonical filename could be arbitrarily large. Checksum mismatch was detected only after copying the object, so corrupted local state could consume unbounded temporary storage before failing. The current boundary rejects empty or over-limit descriptors before copying and enforces the same ceiling while streaming, covering growth after `fstat` as well.
+That private snapshot introduced a separate resource-admission gap: a regular cache object with the canonical filename could be arbitrarily large. Checksum mismatch was detected only after copying the object, so corrupted local state could consume unbounded temporary storage before failing. A 128 MiB ceiling repaired the unbounded-copy case, but the copy still streamed until EOF rather than binding materialization to the descriptor size observed at `fstat`. If the file grew after preflight while remaining below the ceiling, extra bytes could still enter the private snapshot before checksum rejection. The current boundary therefore snapshots exactly the descriptor-reported byte count, rejects short reads, and rejects any byte beyond that admitted count before resolver/deserialization.
 
 A commercial review exposed an independent rights blocker. The upstream Demucs issue about distributing pretrained models commercially received an explicit maintainer response that the model weights are not covered by the MIT code license and are provided only for scientific purposes. Technical integrity, local-only loading, a third-party mirror, or conversion of the same weights cannot create commercial rights. BandScope issue #1181 owns that release blocker.
 
@@ -22,7 +22,7 @@ A commercial review exposed an independent rights blocker. The upstream Demucs i
 - The private compatibility snapshot is temporary runtime authority, not a released model artifact or provenance statement.
 - The upstream pretrained Demucs weights must not be bundled, auto-downloaded, or represented as commercially licensed unless an explicit commercial-use/redistribution grant covering the exact artifact is obtained.
 - Model artifacts are supply-chain inputs: usage/redistribution rights, provenance, exact full integrity evidence, package placement, SBOM/supplemental inventory coverage, signing and update/rollback behavior belong to Distribution rather than MIR inference code.
-- A missing, modified, oversized, or commercially inadmissible model must fail safely rather than fall back to the retired FFT mask or claim successful separation.
+- A missing, modified, oversized, size-racing, or commercially inadmissible model must fail safely rather than fall back to the retired FFT mask or claim successful separation.
 - Unit fixtures may mock a model boundary; release/scientific acceptance still requires rights-cleared real decoded audio and an actually admissible released model artifact.
 
 ## RED evidence
@@ -35,6 +35,8 @@ Commit `9fd9b562d068dea1e9348584f53ced6d9c6c0553` adds the immutable-snapshot re
 
 Commit `7ac4bc1d35ff736966ed556407b6ff56d03942c0` adds the resource-bound RED. A checksum-valid fixture is deliberately larger than a monkeypatched local-model ceiling; the Demucs resolver is forbidden. The predecessor had no checkpoint-size admission rule, so it would continue to resolution rather than fail before model loading. The immediate descendant carries the causal fix; no hosted RED failure receipt is claimed for this intermediate head.
 
+Commit `f4ef3dc86e34432936b2febb152991af70e57bd1` adds the descriptor-size continuity RED. The fixture presents a stable regular checkpoint whose descriptor preflight reports one byte less than the bytes subsequently readable from that same descriptor and forbids any Demucs resolver call. The predecessor streamed until EOF, so the extra post-preflight byte entered the private snapshot and a checksum-valid full byte sequence could still reach model resolution. The immediate descendant carries the causal fix; no hosted RED failure receipt is claimed for the intermediate head.
+
 ## Selected repair
 
 Commit `61b629baaef0d6da15967fe272b9d9f109d18eaf` established the first narrow admission guard: the production `htdemucs` checkpoint must already exist locally, be a regular non-symlink object, and unsupported/missing inputs fail with the bounded message `Stem separation model weights are not installed locally.`
@@ -43,7 +45,9 @@ Commit `d0432187eea6ec94a247d78f1c02f69e7185a5a1` parses the canonical lowercase
 
 Commit `3662de13e1ffae2ac2337835dd6f317011e81bff` closes the mutable-cache pathname gap. BandScope opens the canonical cache object with no-follow semantics where available, verifies that the opened descriptor is the same regular object observed by `lstat`, copies and hashes that descriptor into a process-private temporary Demucs repository, and invokes `get_model(signature, repo=snapshot_root)`. Upstream `get_model` therefore uses `LocalRepo`; the mutable torch-cache pathname is no longer reopened by the model resolver and `RemoteRepo` is not selected for this load.
 
-Commit `c21c6c4476f7c9ae937a24dda77eb841515ed315` bounds that compatibility snapshot to 128 MiB. The descriptor must report a positive size no greater than the ceiling before copying. The copy loop also counts actual bytes and fails before writing an over-limit chunk, so growth after the metadata check cannot cause unbounded snapshot storage. A checksum mismatch, size violation, file-identity mismatch, or I/O failure removes the owned snapshot and returns the same bounded model-unavailable result before Demucs deserialization.
+Commit `c21c6c4476f7c9ae937a24dda77eb841515ed315` bounds that compatibility snapshot to 128 MiB. The descriptor must report a positive size no greater than the ceiling before copying, so an already-oversized cache object cannot consume unbounded snapshot storage.
+
+Commit `0d0c6c3263e9b72b5aec554c1824de3d004b5831` then binds snapshot materialization to that admitted descriptor size. The copy reads exactly `descriptor_stat.st_size` bytes, fails on an early EOF, and probes one additional byte without copying it; any post-`fstat` growth therefore fails before Demucs resolution instead of entering the snapshot. SHA-256 verification of those exact bytes against the canonical filename prefix remains required. A checksum mismatch, size violation, file-identity mismatch, size race, or I/O failure removes the owned snapshot and returns the same bounded model-unavailable result before Demucs deserialization.
 
 The 128 MiB ceiling is a defensive compatibility resource limit, not a claim about the exact commercial artifact. Distribution #1180 must eventually replace this cache-compatibility assumption with an immutable admitted artifact whose exact byte size, full digest/signature, package placement, and update/rollback compatibility are release inputs.
 
@@ -63,9 +67,9 @@ Rejected. Upstream `LocalRepo` interprets the checksum-bearing filename as integ
 
 Rejected. It leaves a verification-to-use pathname race. Copying from the verified descriptor into a private repository binds the bytes used by the resolver to the bytes BandScope admitted.
 
-### Copy any sized regular checkpoint and reject only after hashing
+### Copy until EOF under only a generic maximum
 
-Rejected. Integrity failure after an unbounded copy is still a resource-exhaustion path. Model artifacts require an explicit byte ceiling before and during materialization.
+Rejected. A generic maximum prevents unbounded storage but does not preserve the exact descriptor-size observation that authorized the snapshot. A file that grows after `fstat` but remains below the ceiling would contribute unadmitted bytes before checksum rejection. Exact-count copy plus an extra-byte probe keeps resource and identity evidence aligned.
 
 ### Download or bundle the checkpoint from this MIR/Project Persistence lane
 
@@ -87,11 +91,11 @@ Rejected. The retired heuristic is not a scientifically acceptable substitute fo
 
 ### Attack surface
 
-The model-loading boundary crosses the local Python process into third-party Demucs/torch deserialization. Cache pathname state, opened model bytes, temporary snapshots, and release model artifacts are security-, availability-, scientific-integrity-, and supply-chain-sensitive inputs.
+The model-loading boundary crosses the local Python process into third-party Demucs/torch deserialization. Cache pathname state, opened model bytes, descriptor size, temporary snapshots, and release model artifacts are security-, availability-, scientific-integrity-, and supply-chain-sensitive inputs.
 
 ### Trust boundary
 
-Signal/MIR may consume a technically admitted local model for Draft analysis, but it does not own remote acquisition, commercial-use/redistribution rights, or release packaging. The private snapshot binds one load to verified local bytes; it does not make those bytes commercially admissible. The eight-hex checksum is upstream compatibility integrity evidence, not BandScope release provenance. #1180 owns Distribution artifact delivery and #1181 owns the pretrained-weight rights blocker.
+Signal/MIR may consume a technically admitted local model for Draft analysis, but it does not own remote acquisition, commercial-use/redistribution rights, or release packaging. The private snapshot binds one load to the regular descriptor, its admitted byte count, and verified local bytes; it does not make those bytes commercially admissible. The eight-hex checksum is upstream compatibility integrity evidence, not BandScope release provenance. #1180 owns Distribution artifact delivery and #1181 owns the pretrained-weight rights blocker.
 
 ### Realistic threats
 
@@ -100,6 +104,7 @@ Signal/MIR may consume a technically admitted local model for Draft analysis, bu
 - a symlink/non-regular object is presented under the expected cache pathname;
 - modified bytes retain a trusted-looking checkpoint filename;
 - a cache object is replaced between verification and model use;
+- a cache descriptor grows or shrinks after size preflight and changes the bytes copied into the private repository;
 - a corrupted canonical-name object is extremely large and exhausts temporary storage before checksum rejection;
 - a technically valid upstream checkpoint is shipped or advertised commercially despite the stated scientific-purpose restriction;
 - a third-party mirror or converted artifact is mistaken for a new commercial license grant.
@@ -109,11 +114,11 @@ Signal/MIR may consume a technically admitted local model for Draft analysis, bu
 - exact allowlist for the currently supported `htdemucs` checkpoint name;
 - regular-file, no-follow, and descriptor identity checks;
 - positive-size and 128 MiB compatibility ceiling before snapshotting;
-- streaming byte-count enforcement during the snapshot copy so post-`fstat` growth also fails closed;
+- exact descriptor-size snapshotting with early-EOF and extra-byte rejection, so post-`fstat` shrink/growth fails closed;
 - streaming SHA-256 verification against the canonical Demucs checksum prefix;
 - private temporary local repository built from the verified descriptor bytes;
 - explicit `repo=snapshot_root`, keeping upstream model resolution on `LocalRepo` instead of `RemoteRepo`;
-- bounded failure before Demucs deserialization for missing, modified, oversized, or otherwise inadmissible cache state;
+- bounded failure before Demucs deserialization for missing, modified, oversized, size-racing, or otherwise inadmissible cache state;
 - no heuristic-success fallback;
 - #1181 blocks commercial packaging/auto-download/rights claims until explicit rights or an admissible replacement exists;
 - #1180 retains ownership of immutable release artifact, full digest/signature, inventory, package, signing, and updater/rollback evidence.
@@ -131,13 +136,14 @@ Demucs/torch deserialization still consumes a trusted technical snapshot in its 
 - checksum-matching fixture: resolver receives only the private snapshot repository;
 - original cache pathname replaced after snapshot: private snapshot bytes remain unchanged;
 - checkpoint larger than the active resource ceiling: resolver call count remains zero;
+- descriptor preflight smaller than readable bytes: extra bytes do not enter the snapshot and resolver call count remains zero;
 - unsupported model name and symlink/non-regular object: fail closed;
 - commercial release: exact rights evidence exists for the immutable artifact or the upstream weights are absent from release inputs;
 - released admissible model: exact full digest/signature, exact size, inventory, package/signing/notarization, rollback, and offline Windows/macOS real-audio acceptance are linked.
 
 ## Effect
 
-Ordinary missing-model execution no longer begins an implicit model download. Modified or oversized cache objects fail before Demucs resolution, and the model resolver consumes a private snapshot derived from the exact descriptor BandScope verified rather than reopening the mutable torch-cache pathname. These controls establish a technical local-first compatibility boundary; they do not authorize commercial use of the upstream weights.
+Ordinary missing-model execution no longer begins an implicit model download. Modified, oversized, or size-racing cache objects fail before Demucs resolution, and the model resolver consumes a private snapshot derived from exactly the descriptor byte count BandScope admitted rather than reopening the mutable torch-cache pathname or accepting later growth. These controls establish a technical local-first compatibility boundary; they do not authorize commercial use of the upstream weights.
 
 ## Follow-up
 
