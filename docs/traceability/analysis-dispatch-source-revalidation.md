@@ -65,6 +65,13 @@ The renderer-visible project id remains a selector only. Native `LocalAudioPubli
 
 The repair combines checks with distinct purposes. Native re-admission confirms the app-owned project/source contract immediately before queue admission. Python then creates a private content snapshot and verifies the same identity at the consuming decode boundary. The decoder reads the verified snapshot itself, eliminating the previous check-then-reopen byte gap. Content-addressed work roots prevent same-path/same-size cache aliasing without duplicating hash computation in Python.
 
+### Realistic threats
+
+- the app-owned source path is rebound to different same-size bytes after native revalidation but before Python opens it;
+- a child receives a partial or malformed evidence pair and silently falls back to an unverified decode path;
+- process-global evidence mutation causes concurrent jobs to consume another project's source identity;
+- same-path/same-size replacement aliases an existing analysis or stem-work cache namespace.
+
 ### Safe failure
 
 Missing native identity, project mismatch, native re-open failure, malformed or partial child evidence, growth, truncation, or same-size mutation fails before separation/model work. Native paths and OS diagnostics are not returned as buyer-facing detail. Existing direct/manual library callers with no native evidence retain the compatibility path; production desktop local-audio jobs always provide evidence.
