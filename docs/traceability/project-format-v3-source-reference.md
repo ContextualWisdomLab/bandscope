@@ -12,7 +12,7 @@ The first v3 source-reference draft narrowed location authority correctly but re
 - Historical projects must migrate deterministically. Missing evidence must stay missing rather than being inferred.
 - A durable source handle must not contain a user filesystem path, WebView storage key, generation token, or runtime playback URL.
 - Renderer and file input are untrusted and must remain passive JSON data.
-- The source handle has to be sufficient for later native re-admission to derive and verify an app-owned artifact without cross-service SQL or another writable authority.
+- The source handle has to be sufficient for native re-admission to derive and verify an app-owned artifact without cross-service SQL or another writable authority.
 - The v3 format is still Draft/unreleased work in #970, so tightening the v3 source-reference contract before merge is preferable to publishing an underspecified same-version schema and then maintaining it as compatibility debt.
 
 ## RED evidence
@@ -49,11 +49,11 @@ The contract accepts only:
 - a positive byte length. The renderer additionally requires a JavaScript safe integer so it cannot silently round persisted byte evidence;
 - a canonical lowercase 64-hex-character SHA-256 digest of the app-owned source bytes.
 
-`fileSizeBytes` remains useful as a bounded preflight and diagnostic signal but is not accepted as content identity. `contentSha256` is the durable equality check that later Resource Admission must recompute over the re-opened app-owned artifact before creating fresh runtime authority. FIPS 180-4 defines SHA-256 as part of the Secure Hash Standard; NIST's current CAVP secure-hashing material, updated in August 2026, continues to list SHA-256 under FIPS 180-4. NIST has announced a future revision of FIPS 180-4, but that revision has not replaced the current final standard.
+`fileSizeBytes` remains useful as a bounded preflight and diagnostic signal but is not accepted as content identity. `contentSha256` is the durable equality check that Resource Admission recomputes over the re-opened app-owned artifact before creating fresh runtime authority. FIPS 180-4 defines SHA-256 as part of the Secure Hash Standard; NIST's current CAVP secure-hashing material, updated in August 2026, continues to list SHA-256 under FIPS 180-4. NIST has announced a future revision of FIPS 180-4, but that revision has not replaced the current final standard.
 
 The field is optional because v2/v1/legacy projects cannot prove that an app-owned source artifact exists. Their ordered migration writes version 3 with no invented reference. `selectedPlaybackSource` remains independent: it is rehearsal intent, while `sourceReference` identifies only the app-owned full-mix artifact required to rebuild native availability.
 
-The path-free shape is also a security boundary, not merely a portability choice. CWE-22 treats attacker-influenced relative/absolute pathnames as a path-traversal class, while CWE-59 covers file access that follows a link or shortcut to an unintended resource. A future reopen path must derive the artifact below the validated app-owned project root rather than trust a persisted path, re-check link/reparse and file identity at access time, verify size, recompute SHA-256, and only then re-run audio admission. These references justify the threat model; they do not constitute evidence that re-admission is already implemented.
+The path-free shape is also a security boundary, not merely a portability choice. CWE-22 treats attacker-influenced relative/absolute pathnames as a path-traversal class, while CWE-59 covers file access that follows a link or shortcut to an unintended resource. The current reopen path derives the fixed artifact below the validated app-owned project root rather than trusting a persisted path, rejects linked/reparsed final components and substituted roots, verifies bounded size and SHA-256, and only then restores native source identity. This does not yet make every ancestor lookup descriptor-bound against concurrent replacement; that residual filesystem-identity risk remains separately tracked.
 
 ## Rejected alternatives
 
@@ -81,7 +81,7 @@ The path-free shape is also a security boundary, not merely a portability choice
 - `c2117f2a41e2c1db84aba6332c069dda59b5cad2` — requires canonical lowercase SHA-256 content identity in the native v3 source-reference contract.
 - `7e853c5d6c40a35128afcf356536d2ca147ad109` — requires the same SHA-256 evidence in renderer admission and keeps digest/property inspection passive and fail closed.
 
-Hosted exact-head checks are authoritative for repository GREEN; predecessor results are not transferable. The test-first/root-cause record also follows the released NIST SSDF 1.1 principle of integrating secure-development practices into the SDLC and addressing vulnerability root causes rather than treating a passing downstream check as the sole control. NIST published SSDF 1.2 only as SP 800-218 Rev. 1 Initial Public Draft in December 2025; this traceability therefore treats v1.1 as the released reference and the v1.2 draft as non-normative tracking input.
+Subsequent #970 descendants adopted Resource Admission #866, inject retained publication identity into v3 Save, re-admit the exact app-owned bytes on restart, and pass the retained identity through the native-to-analysis boundary so production decode consumes a verified private byte snapshot. Hosted exact-head checks remain authoritative for repository GREEN; predecessor results are not transferable. The test-first/root-cause record also follows the released NIST SSDF 1.1 principle of integrating secure-development practices into the SDLC and addressing vulnerability root causes rather than treating a passing downstream check as the sole control. NIST published SSDF 1.2 only as SP 800-218 Rev. 1 Initial Public Draft in December 2025; this traceability therefore treats v1.1 as the released reference and the v1.2 draft as non-normative tracking input.
 
 ## Security Notes
 
@@ -93,9 +93,21 @@ Hosted exact-head checks are authoritative for repository GREEN; predecessor res
 
 Native and TypeScript boundaries reject unknown source-reference fields. Project ids use the existing BandScope minted-id grammar. Artifact names are derived from the admitted extension and cannot contain path traversal. The extension is closed to the existing audio allowlist. Byte evidence must be positive; the renderer additionally rejects unsafe integers. `contentSha256` must be exactly 64 lowercase hexadecimal characters. The string is evidence to be verified, not trusted merely because its syntax is valid.
 
+### Mitigations
+
+Project Persistence stores only the path-free identity tuple, derives the fixed app-owned artifact from the validated project namespace, and delegates byte truth to Resource Admission. Restart re-admission rechecks project/root constraints, regular/no-link semantics, exact size and SHA-256 before native identity is restored. Production analysis then carries that retained evidence to the child process and decodes a verified private snapshot rather than trusting a later pathname reopen.
+
+### Realistic threats
+
+- a crafted `.bscope` attempts path traversal or substitutes an arbitrary artifact name or extension;
+- an app-owned source is replaced with different same-size bytes after the project was saved;
+- a symlink/reparse point or substituted project root redirects reopen outside the intended project namespace;
+- a renderer fabricates digest/size evidence and tries to impersonate native Resource Admission state;
+- a valid durable preference is mistaken for current playback authority without re-admitting the corresponding Full mix or stem.
+
 ### Safe failure
 
-Malformed references fail before project publication or before a reopened document is accepted by the renderer bridge. Historical inputs migrate without a reference rather than fabricating an authority. Re-admission must fail closed if the derived artifact is absent, non-regular, linked/reparsed, has the wrong size, has a SHA-256 mismatch, or fails audio decode/admission checks. CWE-59 specifically makes link resolution before file access part of the threat model, so lexical containment plus matching digest syntax is not sufficient acceptance evidence.
+Malformed references fail before project publication or before a reopened document is accepted by the renderer bridge. Historical inputs migrate without a reference rather than fabricating an authority. Re-admission fails closed if the derived artifact is absent, non-regular, linked/reparsed at the governed boundary, has the wrong size, has a SHA-256 mismatch, or fails the applicable admission/decode path. CWE-59 specifically makes link resolution before file access part of the threat model, so lexical containment plus matching digest syntax is not sufficient acceptance evidence.
 
 ### Logging and privacy
 
@@ -103,11 +115,11 @@ The durable reference intentionally excludes the original local path and origina
 
 ### Test points
 
-`project_format_v3_source_reference.rs` covers current round-trip, v2 migration without invention, project-id/path/artifact/extension/size rejection, unknown `sourcePath` rejection, and canonical SHA-256 requirements. `project_format_v2_playback_preference.rs` keeps legacy/v1/v2 compatibility explicit while asserting current-version output and absent invented source evidence. `projectDocumentBridge.test.ts` covers the renderer/native payload boundary, including digest presence and canonical representation. `projectDocument.plainRecord.test.ts` covers passive record semantics and getter/proxy rejection.
+`project_format_v3_source_reference.rs` covers current round-trip, v2 migration without invention, project-id/path/artifact/extension/size rejection, unknown `sourcePath` rejection, and canonical SHA-256 requirements. `project_format_v2_playback_preference.rs` keeps legacy/v1/v2 compatibility explicit while asserting current-version output and absent invented source evidence. `projectDocumentBridge.test.ts` covers the renderer/native payload boundary, including digest presence and canonical representation. `projectDocument.plainRecord.test.ts` covers passive record semantics and getter/proxy rejection. Current Project Persistence integration tests additionally cover restart re-admission, root/link substitution, byte mutation/growth/truncation, and the native retained-identity handoff.
 
 ### Remaining risk
 
-Version 3 is a schema/admission foundation, not completed source re-admission. Current Resource Admission still stores bootstrap source information in process memory and uses the selected external source path. The next causal slice must materialize the admitted full mix under the app-owned project namespace, compute `contentSha256` from the bytes that were actually published, write `sourceReference` only after publication and digest calculation succeed, and reconstruct a fresh bootstrap from the validated reference on reopen. Reopen must recompute SHA-256 before issuing playback authority. Cleanup/retention policy for app-owned audio, crash injection during materialization, and rights-cleared Windows/macOS real-audio acceptance remain required before this path can be called release-ready.
+The v3 schema, retained Save handoff, restart exact-content re-admission and production analysis byte continuity are implemented in the Draft #970 ancestry, but release evidence is incomplete. Higher-ancestor filesystem identity is not fully descriptor-bound against concurrent replacement on all supported platforms. Active Player #1160 must still reconcile persisted `selectedPlaybackSource` with fresh Full mix/current-stem audible authorities and fail closed to Full mix when the preferred stem is absent. Cleanup/retention, mounted Save/Reopen, crash/power-loss, downgrade/application rollback, and rights-cleared Windows/macOS real-audio acceptance remain required before release readiness.
 
 ## References
 
