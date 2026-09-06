@@ -69,3 +69,15 @@ fn restart_re_admission_revalidates_fixed_app_owned_artifact_identity() {
 
     assert_eq!(error, "Could not prepare the local project workspace.");
 }
+
+#[test]
+fn restart_re_admission_rejects_malformed_durable_identity_before_reading() {
+    for mut malformed in [source_reference(), source_reference()] {
+        if malformed.project_id == "project-600-6" {
+            malformed.project_id = "../project-600-6".to_string();
+        }
+        let error = re_admit_local_audio_publication(&malformed, Cursor::new(WAV_BYTES))
+            .expect_err("malformed persisted identity must fail before becoming runtime authority");
+        assert_eq!(error, "Could not prepare the local project workspace.");
+    }
+}
