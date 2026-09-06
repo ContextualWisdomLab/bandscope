@@ -39,22 +39,22 @@ def test_categorize_role_bass() -> None:
 
 
 def test_categorize_role_keys() -> None:
-    """Test keyboard role is categorized correctly."""
+    """Test keyboard role type is categorized correctly."""
     assert _categorize_role("keys-right", "Keyboard 1 Right Hand", "hand") == StemCategory.KEYS
 
 
 def test_categorize_role_piano() -> None:
-    """Test piano role is categorized correctly."""
+    """Test piano role type is categorized correctly."""
     assert _categorize_role("piano-1", "Piano", "instrument") == StemCategory.KEYS
 
 
 def test_categorize_role_guitar() -> None:
-    """Test guitar role is categorized correctly."""
+    """Test guitar role type is categorized correctly."""
     assert _categorize_role("guitar-1", "Electric Guitar", "instrument") == StemCategory.GUITAR
 
 
 def test_categorize_role_drums() -> None:
-    """Test drum role is categorized correctly."""
+    """Test drum role type is categorized correctly."""
     assert _categorize_role("drum-kit", "Drum Kit", "instrument") == StemCategory.DRUMS
 
 
@@ -466,11 +466,11 @@ def test_audio_stem_separator_rejects_empty_decoder_output(
     audio_path = tmp_path / "empty.wav"
     audio_path.write_bytes(b"placeholder")
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.librosa.load",
+        "bandscope_analysis.audio_decode.librosa.load",
         lambda *args, **kwargs: (np.array([], dtype=np.float32), 8_000),
     )
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
@@ -486,7 +486,7 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
     audio_path = tmp_path / "broken.wav"
     audio_path.write_bytes(b"placeholder")
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.preflight_audio_metadata",
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
         lambda *_args, **_kwargs: None,
     )
 
@@ -494,7 +494,7 @@ def test_audio_stem_separator_redacts_decoder_exceptions(
         raise RuntimeError(f"decoder failed under {tmp_path}")
 
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.librosa.load",
+        "bandscope_analysis.audio_decode.librosa.load",
         fail_decode,
     )
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
