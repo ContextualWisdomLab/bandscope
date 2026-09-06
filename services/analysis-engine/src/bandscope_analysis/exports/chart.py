@@ -7,7 +7,7 @@ cue-sheet rows suitable for CSV/JSON export.
 Security Notes:
     - Pure dict-to-string transformation: no file, network, or process I/O.
     - Never reads source-path fields and never emits filesystem paths.
-    - Safe failure: ``None``, empty, or malformed input yields ``""`` / ``[]``;
+    - Safe failure: ``None``, empty, or malformed input yields ``\"\"`` / ``[]``;
       missing or malformed keys are skipped and no exceptions escape.
 """
 
@@ -78,14 +78,14 @@ def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     part_graph = section.get("partGraph")
     if not isinstance(part_graph, list):
         return None
-    active: dict[str, None] = {}
+    active: list[str] = []
     for node in part_graph:
         if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
         role_id = node.get("role_id")
-        if isinstance(role_id, str) and role_id:
-            active[role_id] = None
-    return list(active.keys())
+        if isinstance(role_id, str) and role_id and role_id not in active:
+            active.append(role_id)
+    return active
 
 
 def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
@@ -121,25 +121,25 @@ def _role_display_name(role: Mapping[str, object]) -> str | None:
 
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
-    names: dict[str, None] = {}
+    names: list[str] = []
     for role in _active_roles(section):
         name = _role_display_name(role)
-        if name is not None:
-            names[name] = None
-    return list(names.keys())
+        if name is not None and name not in names:
+            names.append(name)
+    return names
 
 
 def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
-    cues: dict[str, None] = {}
+    cues: list[str] = []
     for role in _active_roles(section):
         cue = role.get("cue")
         if not isinstance(cue, Mapping):
             continue
         value = cue.get("value")
-        if isinstance(value, str) and value:
-            cues[value] = None
-    return "; ".join(cues.keys())
+        if isinstance(value, str) and value and value not in cues:
+            cues.append(value)
+    return "; ".join(cues)
 
 
 def _confidence_level(section: Mapping[str, object]) -> str | None:
@@ -188,7 +188,7 @@ def _section_lines(sections: list[Mapping[str, object]]) -> list[str]:
 def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object]]) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
     lines: list[str] = []
-    priorities: dict[str, None] = {}
+    priorities: list[str] = []
     for section in sections:
         for role in _section_roles(section):
             name = _role_display_name(role)
@@ -196,10 +196,11 @@ def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object
             if name is None or not isinstance(priority, str) or not priority:
                 continue
             entry = f"  - {name}: {priority}"
-            priorities[entry] = None
+            if entry not in priorities:
+                priorities.append(entry)
     if priorities:
         lines.append("Priorities:")
-        lines.extend(priorities.keys())
+        lines.extend(priorities)
     summary = song.get("exportSummary")
     if isinstance(summary, Mapping):
         headline = summary.get("headline")
@@ -215,7 +216,7 @@ def build_chart_text(song: Mapping[str, object] | None) -> str:
     section (``[mm:ss-mm:ss] LABEL  (confidence)  roles: ...``), and a footer
     with rehearsal priorities and the export focus headline. Output is
     deterministic and never contains filesystem paths. Malformed input
-    yields ``""``.
+    yields ``\"\"``.
     """
     if not isinstance(song, Mapping):
         return ""
