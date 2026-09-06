@@ -4,9 +4,7 @@ from pathlib import Path
 from runpy import run_path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SECURITY_NOTES_CHECK = run_path(
-    str(REPO_ROOT / "scripts" / "checks" / "verify_security_notes.py")
-)
+SECURITY_NOTES_CHECK = run_path(str(REPO_ROOT / "scripts" / "checks" / "verify_security_notes.py"))
 security_notes_section = SECURITY_NOTES_CHECK["security_notes_section"]
 
 
