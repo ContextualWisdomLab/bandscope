@@ -14,6 +14,16 @@ use std::{
 use tauri::{Emitter, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
+/// Native-only cache of verified local-audio publication identities.
+///
+/// Security Notes: entries are keyed only by BandScope-minted project ids and
+/// contain the bounded path-free publication evidence emitted by Resource
+/// Admission. User filesystem paths are never retained in this state.
+#[derive(Default)]
+struct LocalAudioPublicationIdentityState(
+    std::sync::Mutex<std::collections::HashMap<String, LocalAudioPublicationIdentity>>,
+);
+
 fn iso_timestamp_now() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
@@ -158,7 +168,8 @@ fn app_owned_root<R: Runtime>(
 fn materialize_local_audio_source(
     path: &Path,
     project_root: &Path,
-) -> Result<LocalAudioSourcePayload, String> {
+    project_id: &str,
+) -> Result<(LocalAudioSourcePayload, LocalAudioPublicationIdentity), String> {
     let canonical = path
         .canonicalize()
         .map_err(|_| "Could not read the selected audio file.".to_string())?;
@@ -262,12 +273,17 @@ fn materialize_local_audio_source(
         return Err("Could not prepare the local project workspace.".to_string());
     }
 
-    Ok(LocalAudioSourcePayload {
-        source_path: destination.to_string_lossy().into_owned(),
-        file_name,
-        extension,
-        file_size_bytes: receipt.file_size_bytes,
-    })
+    let publication_identity =
+        build_local_audio_publication_identity(project_id, &extension, &receipt)?;
+    Ok((
+        LocalAudioSourcePayload {
+            source_path: destination.to_string_lossy().into_owned(),
+            file_name,
+            extension,
+            file_size_bytes: receipt.file_size_bytes,
+        },
+        publication_identity,
+    ))
 }
 
 fn parse_request_payload(payload: Value) -> Result<AnalysisJobRequest, String> {
@@ -401,6 +417,20 @@ fn store_bootstrap_source(state: &AppState, summary: ProjectBootstrapSummaryPayl
     if let Ok(mut sources) = state.0.bootstrap_sources.lock() {
         sources.insert(summary.project_id.clone(), summary);
     }
+}
+
+/// Retain path-free publication evidence before the renderer receives bootstrap authority.
+fn store_local_audio_publication_identity(
+    state: &LocalAudioPublicationIdentityState,
+    identity: LocalAudioPublicationIdentity,
+) -> Result<(), String> {
+    let project_id = identity.project_id.clone();
+    let mut identities = state
+        .0
+        .lock()
+        .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
+    identities.insert(project_id, identity);
+    Ok(())
 }
 
 fn lookup_bootstrap_source(
@@ -736,6 +766,7 @@ fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) ->
 fn select_local_audio_source(
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
     let path = FileDialog::new()
         .add_filter("Audio", &AUDIO_EXTENSIONS)
@@ -745,7 +776,9 @@ fn select_local_audio_source(
     let project_root = app_owned_root(&app, "projects", &project_id)?;
     let cache_root = app_owned_root(&app, "cache", &project_id)?;
     let temp_root = app_owned_root(&app, "temp", &project_id)?;
-    let source = materialize_local_audio_source(&path, &project_root)?;
+    let (source, publication_identity) =
+        materialize_local_audio_source(&path, &project_root, &project_id)?;
+    store_local_audio_publication_identity(&publication_state, publication_identity)?;
 
     let summary = ProjectBootstrapSummaryPayload {
         project_id,
@@ -970,6 +1003,7 @@ fn remove_score_pdf(
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
+        .manage(LocalAudioPublicationIdentityState::default())
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
             import_youtube_url,
