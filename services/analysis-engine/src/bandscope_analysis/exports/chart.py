@@ -7,7 +7,7 @@ cue-sheet rows suitable for CSV/JSON export.
 Security Notes:
     - Pure dict-to-string transformation: no file, network, or process I/O.
     - Never reads source-path fields and never emits filesystem paths.
-    - Safe failure: ``None``, empty, or malformed input yields ``\"\"`` / ``[]``;
+    - Safe failure: ``None``, empty, or malformed input yields ``""`` / ``[]``;
       missing or malformed keys are skipped and no exceptions escape.
 """
 
@@ -216,7 +216,7 @@ def build_chart_text(song: Mapping[str, object] | None) -> str:
     section (``[mm:ss-mm:ss] LABEL  (confidence)  roles: ...``), and a footer
     with rehearsal priorities and the export focus headline. Output is
     deterministic and never contains filesystem paths. Malformed input
-    yields ``\"\"``.
+    yields ``""``.
     """
     if not isinstance(song, Mapping):
         return ""
