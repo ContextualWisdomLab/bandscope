@@ -67,7 +67,7 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
     let refreshed = revalidate_local_audio_bootstrap_for_analysis(
         &bootstrap(&project_root),
         &retained_identity(),
-        fs::File::open,
+        |path| fs::File::open(path),
     )
     .expect("unchanged app-owned bytes should regain dispatch authority");
     assert_eq!(refreshed.source.source_path, source_path.to_string_lossy());
@@ -89,7 +89,7 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
     let error = revalidate_local_audio_bootstrap_for_analysis(
         &bootstrap(&project_root),
         &retained_identity(),
-        fs::File::open,
+        |path| fs::File::open(path),
     )
     .expect_err("same-size mutation must fail before analysis dispatch");
     assert_eq!(
