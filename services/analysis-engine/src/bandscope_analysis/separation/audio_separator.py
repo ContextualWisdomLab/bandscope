@@ -30,6 +30,7 @@ Security Notes:
   and model-rights evidence remain Distribution work.
 - PyTorch/Demucs checkpoint incompatibility fails with the same bounded local-model
   diagnostic rather than exposing serialized class names or internal loader details.
+  Process environment cannot opt this boundary back into unrestricted pickle loading.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -70,6 +71,8 @@ _ADMITTED_SOURCE_CHANGED_ERROR = "Stem separation source changed before decode."
 _LOCAL_MODEL_UNAVAILABLE_ERROR = "Stem separation model weights are not installed locally."
 _ADMITTED_AUDIO_BYTES_ENV = "BANDSCOPE_ADMITTED_AUDIO_BYTES"
 _ADMITTED_AUDIO_SHA256_ENV = "BANDSCOPE_ADMITTED_AUDIO_SHA256"
+_TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD_ENV = "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"
+_TORCH_TRUTHY_ENV_VALUES = frozenset({"1", "y", "yes", "true"})
 _SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
 _COPY_CHUNK_BYTES = 64 * 1024
 _MAX_LOCAL_DEMUCS_CHECKPOINT_BYTES = 128 * 1024 * 1024
@@ -96,6 +99,12 @@ def _valid_sha256_hex(value: object) -> bool:
         and value == value.lower()
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _unsafe_torch_pickle_override_enabled() -> bool:
+    """Return whether PyTorch would downgrade an implicit load to unrestricted pickle."""
+    raw_value = os.environ.get(_TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD_ENV, "")
+    return raw_value.strip().lower() in _TORCH_TRUTHY_ENV_VALUES
 
 
 def _checkpoint_signature_and_checksum(checkpoint_name: str) -> tuple[str, str] | None:
@@ -328,9 +337,12 @@ class AudioStemSeparator:
         repository. Passing that repository explicitly keeps Demucs on LocalRepo
         and prevents RemoteRepo/network fallback or a second open of the cache path.
         PyTorch 2.6+ weights-only incompatibility is treated as an unavailable
-        admitted model; BandScope does not force unsafe legacy pickle loading here.
+        admitted model; BandScope does not force unsafe legacy pickle loading here,
+        including through PyTorch's process-level no-weights-only override.
         """
         if self._model is None:
+            if _unsafe_torch_pickle_override_enabled():
+                raise ValueError(_LOCAL_MODEL_UNAVAILABLE_ERROR)
             try:
                 from demucs.pretrained import (  # type: ignore[import-not-found, unused-ignore]
                     get_model,
