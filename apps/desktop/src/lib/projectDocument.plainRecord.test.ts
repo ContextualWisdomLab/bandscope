@@ -3,6 +3,7 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { parseProjectDocument } from "./projectDocument";
 
 const CONTENT_SHA256 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const MAX_LOCAL_AUDIO_FILE_BYTES = 100 * 1024 * 1024;
 
 class ProjectDocumentWithPrototype {
   song = createDemoRehearsalSong();
@@ -140,6 +141,22 @@ describe("project document plain-record admission", () => {
       })
     ).toThrow("Invalid project document");
     expect(getterCalls).toBe(0);
+  });
+
+  it("rejects a source reference whose claimed bytes exceed the Resource Admission ceiling", () => {
+    expect(() =>
+      parseProjectDocument({
+        song: createDemoRehearsalSong(),
+        preferences: { selectedPlaybackSource: "full_mix" },
+        sourceReference: {
+          projectId: "project-400-4",
+          artifactName: "source.wav",
+          extension: "wav",
+          fileSizeBytes: MAX_LOCAL_AUDIO_FILE_BYTES + 1,
+          contentSha256: CONTENT_SHA256
+        }
+      })
+    ).toThrow("Invalid project document");
   });
 
   it("fails closed when optional source-reference descriptor inspection throws", () => {
