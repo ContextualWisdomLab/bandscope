@@ -49,3 +49,25 @@ fn local_audio_publication_must_not_overwrite_an_existing_source_name() {
         "overwrite-capable rename must not publish the immutable project source"
     );
 }
+
+#[test]
+fn local_audio_selection_retains_verified_path_free_identity_in_native_state() {
+    let source = include_str!("../src/main.rs");
+
+    assert!(
+        source.contains("struct LocalAudioPublicationIdentityState"),
+        "verified source identity must have a native-only state owner"
+    );
+    assert!(
+        source.contains("build_local_audio_publication_identity(project_id, &extension, &receipt)"),
+        "the production materializer must derive persistence identity from the verified native receipt"
+    );
+    assert!(
+        source.contains("store_local_audio_publication_identity(&publication_state, publication_identity)"),
+        "selection must retain native publication identity before returning bootstrap authority"
+    );
+    assert!(
+        source.contains(".manage(LocalAudioPublicationIdentityState::default())"),
+        "the native publication identity state must be registered with the Tauri runtime"
+    );
+}
