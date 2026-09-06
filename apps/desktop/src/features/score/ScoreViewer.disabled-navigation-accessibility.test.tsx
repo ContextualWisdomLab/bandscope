@@ -17,8 +17,8 @@ vi.mock("../../i18n", () => ({
       scoreViewerZoomIn: "Zoom in",
       scoreViewerZoomOut: "Zoom out",
       scoreViewerFitWidth: "Fit width",
-      scoreViewerPrevPageDisabled: "Previous page (Unavailable)",
-      scoreViewerNextPageDisabled: "Next page (Unavailable)"
+      scoreViewerPrevPageDisabled: "Already at the first page",
+      scoreViewerNextPageDisabled: "Already at the last page"
     })[key] ?? key,
   detectPreferredLocale: () => "en"
 }));
@@ -66,7 +66,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
 
     const previousReason = screen.getByRole("tooltip");
     expect(previousReason).toHaveAttribute("id", previousDescriptionId);
-    expect(previousReason).toHaveTextContent("Previous page (Unavailable)");
+    expect(previousReason).toHaveTextContent("Already at the first page");
     expect(previousReason).toHaveClass(
       "group-hover:opacity-100",
       "group-focus-within:opacity-100",
@@ -87,7 +87,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
 
     const nextReason = screen.getByRole("tooltip");
     expect(nextReason).toHaveAttribute("id", nextDescriptionId);
-    expect(nextReason).toHaveTextContent("Next page (Unavailable)");
+    expect(nextReason).toHaveTextContent("Already at the last page");
     expect(nextReason).toHaveClass(
       "group-hover:opacity-100",
       "group-focus-within:opacity-100",
