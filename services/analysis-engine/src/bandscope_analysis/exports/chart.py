@@ -7,7 +7,7 @@ cue-sheet rows suitable for CSV/JSON export.
 Security Notes:
     - Pure dict-to-string transformation: no file, network, or process I/O.
     - Never reads source-path fields and never emits filesystem paths.
-    - Safe failure: ``None``, empty, or malformed input yields ``""`` / ``[]``;
+    - Safe failure: ``None``, empty, or malformed input yields ``\"\"`` / ``[]``;
       missing or malformed keys are skipped and no exceptions escape.
 """
 
@@ -73,19 +73,31 @@ def _section_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
     return [role for role in roles if isinstance(role, Mapping)]
 
 
+def _hashable_text(value: object) -> str | None:
+    """Return compatible string-like text as a safe built-in mapping key."""
+    if not isinstance(value, str):
+        return None
+    try:
+        hash(value)
+        text = str.__str__(value)
+    except Exception:
+        return None
+    return text if text else None
+
+
 def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     """Return active role ids from the part graph, or ``None`` when absent."""
     part_graph = section.get("partGraph")
     if not isinstance(part_graph, list):
         return None
-    active: list[str] = []
+    active: dict[str, None] = {}
     for node in part_graph:
         if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
-        role_id = node.get("role_id")
-        if isinstance(role_id, str) and role_id and role_id not in active:
-            active.append(role_id)
-    return active
+        role_id = _hashable_text(node.get("role_id"))
+        if role_id is not None:
+            active[role_id] = None
+    return list(active)
 
 
 def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
@@ -102,43 +114,40 @@ def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
         return roles
     by_id: dict[str, Mapping[str, object]] = {}
     for role in roles:
-        role_id = role.get("id")
-        if isinstance(role_id, str) and role_id not in by_id:
+        role_id = _hashable_text(role.get("id"))
+        if role_id is not None and role_id not in by_id:
             by_id[role_id] = role
     return [by_id.get(role_id, {"id": role_id, "name": role_id}) for role_id in active_ids]
 
 
 def _role_display_name(role: Mapping[str, object]) -> str | None:
-    """Return the role's display name, falling back to its id."""
-    name = role.get("name")
-    if isinstance(name, str) and name:
+    """Return a hashable display name, falling back to a hashable role id."""
+    name = _hashable_text(role.get("name"))
+    if name is not None:
         return name
-    role_id = role.get("id")
-    if isinstance(role_id, str) and role_id:
-        return role_id
-    return None
+    return _hashable_text(role.get("id"))
 
 
 def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
-    names: list[str] = []
+    names: dict[str, None] = {}
     for role in _active_roles(section):
         name = _role_display_name(role)
-        if name is not None and name not in names:
-            names.append(name)
-    return names
+        if name is not None:
+            names[name] = None
+    return list(names)
 
 
 def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
-    cues: list[str] = []
+    cues: dict[str, None] = {}
     for role in _active_roles(section):
         cue = role.get("cue")
         if not isinstance(cue, Mapping):
             continue
-        value = cue.get("value")
-        if isinstance(value, str) and value and value not in cues:
-            cues.append(value)
+        value = _hashable_text(cue.get("value"))
+        if value is not None:
+            cues[value] = None
     return "; ".join(cues)
 
 
@@ -188,16 +197,15 @@ def _section_lines(sections: list[Mapping[str, object]]) -> list[str]:
 def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object]]) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
     lines: list[str] = []
-    priorities: list[str] = []
+    priorities: dict[str, None] = {}
     for section in sections:
         for role in _section_roles(section):
             name = _role_display_name(role)
-            priority = role.get("rehearsalPriority")
-            if name is None or not isinstance(priority, str) or not priority:
+            priority = _hashable_text(role.get("rehearsalPriority"))
+            if name is None or priority is None:
                 continue
             entry = f"  - {name}: {priority}"
-            if entry not in priorities:
-                priorities.append(entry)
+            priorities[entry] = None
     if priorities:
         lines.append("Priorities:")
         lines.extend(priorities)
@@ -216,7 +224,7 @@ def build_chart_text(song: Mapping[str, object] | None) -> str:
     section (``[mm:ss-mm:ss] LABEL  (confidence)  roles: ...``), and a footer
     with rehearsal priorities and the export focus headline. Output is
     deterministic and never contains filesystem paths. Malformed input
-    yields ``""``.
+    yields ``\"\"``.
     """
     if not isinstance(song, Mapping):
         return ""
