@@ -1,7 +1,11 @@
 use bandscope_desktop_core::{
-    re_admit_local_audio_publication, ProjectSourceReferencePayload,
+    re_admit_local_audio_publication, re_admit_local_audio_publication_from_project_root,
+    ProjectSourceReferencePayload,
 };
-use std::io::{Cursor, Error, ErrorKind, Read, Result as IoResult};
+use std::{
+    io::{Cursor, Error, ErrorKind, Read, Result as IoResult},
+    path::Path,
+};
 
 const WAV_BYTES: &[u8] = &[
     0x52, 0x49, 0x46, 0x46, 0x2c, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6d,
@@ -108,4 +112,35 @@ fn restart_re_admission_does_not_expose_reader_failures() {
 
     assert_eq!(error, "Could not prepare the local project workspace.");
     assert!(!error.contains("private OS detail"));
+}
+
+#[test]
+fn project_root_adapter_derives_only_the_validated_fixed_artifact_path() {
+    let root = Path::new("/trusted/app/project-600-6");
+    let reopened = re_admit_local_audio_publication_from_project_root(
+        root,
+        &source_reference(),
+        |path| {
+            assert_eq!(path, root.join("source.wav"));
+            Ok(Cursor::new(WAV_BYTES))
+        },
+    )
+    .expect("validated durable evidence should derive one fixed app-owned artifact path");
+
+    assert_eq!(reopened.source_path, root.join("source.wav"));
+    assert_eq!(reopened.identity.project_id, "project-600-6");
+}
+
+#[test]
+fn project_root_adapter_rejects_cross_project_binding_before_opening() {
+    let error = re_admit_local_audio_publication_from_project_root(
+        Path::new("/trusted/app/project-700-7"),
+        &source_reference(),
+        |_path| -> IoResult<Cursor<&'static [u8]>> {
+            panic!("a mismatched project root must fail before filesystem authority is requested")
+        },
+    )
+    .expect_err("persisted evidence must remain bound to its exact project aggregate");
+
+    assert_eq!(error, "Could not prepare the local project workspace.");
 }
