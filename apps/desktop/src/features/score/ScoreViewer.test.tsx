@@ -20,7 +20,9 @@ vi.mock("../../i18n", () => ({
       scoreViewerPageIndicator: "Page {current} of {total}",
       scoreViewerZoomIn: "Zoom in",
       scoreViewerZoomOut: "Zoom out",
-      scoreViewerFitWidth: "Fit width"
+      scoreViewerFitWidth: "Fit width",
+      scoreViewerFirstPageTooltip: "Already at the first page",
+      scoreViewerLastPageTooltip: "Already at the last page"
     })[key] ?? key,
   detectPreferredLocale: () => "en"
 }));
@@ -120,8 +122,10 @@ describe("ScoreViewer", () => {
       expect(page.render).toHaveBeenCalled();
     });
     expect(page.getViewport).toHaveBeenCalledWith({ scale: 1 });
-    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Previous page" })).toHaveAttribute("title", "Already at the first page");
+    expect(screen.getByRole("button", { name: "Next page" })).toHaveAttribute("aria-disabled", "false");
+    expect(screen.getByRole("button", { name: "Next page" })).not.toHaveAttribute("title");
   });
 
   it("shows the file name when provided", async () => {
@@ -174,14 +178,17 @@ describe("ScoreViewer", () => {
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
     const previousButton = screen.getByRole("button", { name: "Previous page" });
     const nextButton = screen.getByRole("button", { name: "Next page" });
-    expect(previousButton).toBeDisabled();
+    expect(previousButton).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 2 of 3")).toBeInTheDocument();
 
     fireEvent.click(nextButton);
     expect(screen.getByText("Page 3 of 3")).toBeInTheDocument();
-    expect(nextButton).toBeDisabled();
+    expect(nextButton).toHaveAttribute("aria-disabled", "true");
+    expect(nextButton).toHaveAttribute("title", "Already at the last page");
+    expect(previousButton).toHaveAttribute("aria-disabled", "false");
+    expect(previousButton).not.toHaveAttribute("title");
 
     await waitFor(() => {
       expect(doc.getPage).toHaveBeenCalledWith(3);
