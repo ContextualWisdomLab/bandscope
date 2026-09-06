@@ -435,6 +435,44 @@ fn store_local_audio_publication_identity(
     Ok(())
 }
 
+/// Bind renderer-owned project state to an already-verified Resource Admission identity.
+///
+/// Security Notes: the renderer can select only a BandScope-minted project id.
+/// It cannot submit a path, artifact name, byte count, digest, or sourceReference.
+/// The exact keyed native identity is revalidated through the Project Persistence
+/// ACL before serialization. An unknown or malformed id fails closed; omitting
+/// the selector preserves compatibility for projects that have no admitted local
+/// source identity yet.
+fn project_document_with_retained_source_reference(
+    mut document: ProjectDocumentPayload,
+    project_id: Option<&str>,
+    state: &LocalAudioPublicationIdentityState,
+) -> Result<ProjectDocumentPayload, String> {
+    let Some(project_id) = project_id else {
+        return Ok(document);
+    };
+    if !is_valid_project_id(project_id) {
+        return Err("Invalid project payload".to_string());
+    }
+
+    let identity = state
+        .0
+        .lock()
+        .map_err(|_| "Invalid project payload".to_string())?
+        .get(project_id)
+        .cloned()
+        .ok_or_else(|| "Invalid project payload".to_string())?;
+    if identity.project_id != project_id {
+        return Err("Invalid project payload".to_string());
+    }
+
+    document.source_reference = Some(
+        project_source_reference_from_publication_identity(&identity)
+            .map_err(|_| "Invalid project payload".to_string())?,
+    );
+    Ok(document)
+}
+
 fn lookup_bootstrap_source(
     state: &AppState,
     project_id: &str,
@@ -874,9 +912,18 @@ async fn import_youtube_url(
 }
 
 #[tauri::command]
-fn save_project(payload: Value) -> Result<(), String> {
+fn save_project(
+    payload: Value,
+    project_id: Option<String>,
+    publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
+) -> Result<(), String> {
     let parsed = project_document_from_value(payload)
         .map_err(|_| "Invalid project payload".to_string())?;
+    let parsed = project_document_with_retained_source_reference(
+        parsed,
+        project_id.as_deref(),
+        &publication_state,
+    )?;
 
     let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])
