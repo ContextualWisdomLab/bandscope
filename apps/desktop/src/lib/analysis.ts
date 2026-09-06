@@ -385,15 +385,22 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
  * Persist renderer-owned project state without accepting native source identity from the WebView.
  *
  * Native Resource Admission owns `sourceReference` evidence. Renderer-authored
- * source evidence fails before persistence IPC; a native adapter may inject
- * retained publication identity only after selecting a known project aggregate.
+ * source evidence fails before persistence IPC. When the caller owns an already-
+ * minted project aggregate, it may pass only that project id; Tauri resolves the
+ * retained publication identity and injects the path-free reference natively.
  */
-export async function saveProjectDocument(projectDocument: ProjectDocument): Promise<void> {
+export async function saveProjectDocument(
+  projectDocument: ProjectDocument,
+  projectId?: string
+): Promise<void> {
   const parsedDocument = parseProjectDocument(projectDocument);
   if (parsedDocument.sourceReference) {
     throw new Error("Invalid project document");
   }
-  await invokeAnalysis("save_project", { payload: parsedDocument });
+  await invokeAnalysis("save_project", {
+    payload: parsedDocument,
+    ...(projectId === undefined ? {} : { projectId })
+  });
 }
 
 /** Reopen one current versioned project document, including durable Project Persistence state. */
@@ -405,9 +412,10 @@ export async function loadProjectDocument(): Promise<ProjectDocument> {
 /** Compatibility save for callers that do not yet own a playback-source preference. */
 export async function saveProject(
   song: RehearsalSong,
-  selectedPlaybackSource: SelectedPlaybackSource = "full_mix"
+  selectedPlaybackSource: SelectedPlaybackSource = "full_mix",
+  projectId?: string
 ): Promise<void> {
-  await saveProjectDocument(createProjectDocument(song, selectedPlaybackSource));
+  await saveProjectDocument(createProjectDocument(song, selectedPlaybackSource), projectId);
 }
 
 /** Compatibility load for existing song-only consumers while mounted reopen composition remains separate work. */
