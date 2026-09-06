@@ -9,6 +9,7 @@
 mod runtime_core;
 mod audio_resource;
 mod content_sha256;
+mod publication_identity;
 mod score_pdf;
 
 pub use audio_resource::{
@@ -17,5 +18,8 @@ pub use audio_resource::{
     LocalAudioCopyReceipt, MAX_LOCAL_AUDIO_FILE_BYTES,
 };
 pub use content_sha256::sha256_hex_reader;
+pub use publication_identity::{
+    build_local_audio_publication_identity, LocalAudioPublicationIdentity,
+};
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
