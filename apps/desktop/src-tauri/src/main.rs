@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod project_persistence;
+mod project_root;
 
 use bandscope_desktop_core::*;
 use rfd::FileDialog;
@@ -473,6 +474,67 @@ fn project_document_with_retained_source_reference(
     Ok(document)
 }
 
+/// Rebuild native full-mix authority for one persisted v3 project before returning it.
+///
+/// Security Notes: the persisted `sourceReference` is evidence only. The project
+/// root is resolved from the Tauri app-local base without provisioning a missing
+/// directory; the source is then opened through the canonical no-follow/reparse
+/// Project Persistence opener and must reproduce the persisted bounded byte count
+/// and SHA-256. Only after that verification do native publication and bootstrap
+/// maps regain authority. Cache/temp workspaces are provisioned after source
+/// re-admission, so a forged or missing project source cannot cause read-side
+/// project-directory creation.
+fn restore_project_source_after_restart<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    state: &AppState,
+    publication_state: &LocalAudioPublicationIdentityState,
+    document: &ProjectDocumentPayload,
+) -> Result<(), String> {
+    let Some(reference) = document.source_reference.as_ref() else {
+        return Ok(());
+    };
+
+    let base_root = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
+    let project_root = project_root::resolve_existing_project_root(&base_root, &reference.project_id)?;
+    let reopened = re_admit_local_audio_publication_from_project_root(
+        &project_root,
+        reference,
+        project_persistence::open_project_file,
+    )?;
+
+    let cache_root = app_owned_root(app, "cache", &reference.project_id)?;
+    let temp_root = app_owned_root(app, "temp", &reference.project_id)?;
+    let summary = ProjectBootstrapSummaryPayload {
+        project_id: reference.project_id.clone(),
+        source_mode: "reference".into(),
+        project_root: project_root.to_string_lossy().into_owned(),
+        cache_root: cache_root.to_string_lossy().into_owned(),
+        temp_root: temp_root.to_string_lossy().into_owned(),
+        source: LocalAudioSourcePayload {
+            source_path: reopened.source_path.to_string_lossy().into_owned(),
+            file_name: reference.artifact_name.clone(),
+            extension: reference.extension.clone(),
+            file_size_bytes: reference.file_size_bytes,
+        },
+    };
+
+    let mut identities = publication_state
+        .0
+        .lock()
+        .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
+    let mut sources = state
+        .0
+        .bootstrap_sources
+        .lock()
+        .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
+    identities.insert(reference.project_id.clone(), reopened.identity);
+    sources.insert(reference.project_id.clone(), summary);
+    Ok(())
+}
+
 fn lookup_bootstrap_source(
     state: &AppState,
     project_id: &str,
@@ -938,7 +1000,11 @@ fn save_project(
 }
 
 #[tauri::command]
-fn load_project() -> Result<ProjectDocumentPayload, String> {
+fn load_project(
+    app: tauri::AppHandle<impl Runtime>,
+    state: tauri::State<'_, AppState>,
+    publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
+) -> Result<ProjectDocumentPayload, String> {
     let path = FileDialog::new()
         .add_filter("BandScope Project", &["bscope", "json"])
         .pick_file()
@@ -946,7 +1012,9 @@ fn load_project() -> Result<ProjectDocumentPayload, String> {
 
     project_persistence::recover_project_publication(&path)?;
     let content = project_persistence::read_project_file(&path)?;
-    project_document_from_content(&content)
+    let document = project_document_from_content(&content)?;
+    restore_project_source_after_restart(&app, &state, &publication_state, &document)?;
+    Ok(document)
 }
 
 fn scores_root_for_project<R: Runtime>(
