@@ -266,3 +266,40 @@ def test_demucs_model_load_bounds_pytorch_weights_only_incompatibility(
         audio_separator_module.AudioStemSeparator()._load_model()
 
     assert "HTDemucs" not in str(failure.value)
+
+
+@pytest.mark.parametrize("unsafe_override", ["1", "y", "yes", "true", "TRUE"])
+def test_demucs_model_load_rejects_environment_override_that_disables_weights_only(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+    unsafe_override: str,
+) -> None:
+    """Do not let process environment reactivate unrestricted pickle loading."""
+    checkpoint_bytes = b"environment-override-checkpoint-fixture"
+    checksum_prefix = hashlib.sha256(checkpoint_bytes).hexdigest()[:8]
+    checkpoint_name = f"955717e8-{checksum_prefix}.th"
+    checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
+    checkpoint_root.mkdir(parents=True)
+    (checkpoint_root / checkpoint_name).write_bytes(checkpoint_bytes)
+    calls = {"count": 0}
+
+    def forbidden_unsafe_lookup(_name: str, **_kwargs: object) -> _FakeModel:
+        calls["count"] += 1
+        raise AssertionError("unsafe weights-only override must fail before deserialization")
+
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_DEMUCS_LOCAL_CHECKPOINTS",
+        {"htdemucs": checkpoint_name},
+    )
+    monkeypatch.setenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", unsafe_override)
+    _install_fake_runtime(
+        monkeypatch,
+        torch_hub_dir=str(tmp_path / "torch-hub"),
+        get_model=forbidden_unsafe_lookup,
+    )
+
+    with pytest.raises(ValueError, match="model weights are not installed locally"):
+        audio_separator_module.AudioStemSeparator()._load_model()
+
+    assert calls["count"] == 0
