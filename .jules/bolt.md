@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2025-02-23 - Python O(N²) List Deduplication Anti-Pattern
+**Learning:** Checking list membership (`if item not in lst: lst.append(item)`) inside loops creates a hidden O(N²) algorithmic bottleneck because `not in` on a list requires an O(N) scan. This can become a significant performance issue when analyzing songs with many sections or complex cue roles (e.g., in `chart.py` for chart export).
+**Action:** When deduplicating strings or primitive items while preserving order in Python 3.7+, use dictionary key assignment (`dict_obj[item] = None`) inside the loop, and return `list(dict_obj.keys())` at the end. This reduces the complexity to O(N) by utilizing O(1) hashing for membership checks, without sacrificing readability.
