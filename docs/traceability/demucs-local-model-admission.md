@@ -10,14 +10,17 @@ For the Demucs 4.x API currently consumed by BandScope, `get_model(..., repo=Non
 
 The first local-only guard then exposed a second integrity gap: it accepted any regular non-symlink file named `955717e8-8726e21a.th`. Demucs itself treats the suffix after `-` as a SHA-256 checksum prefix for locally stored model files. Accepting modified bytes solely because the expected filename remained present allowed a tampered cache object to reach model deserialization.
 
+A fresh commercial review exposed a separate rights blocker. The upstream Demucs issue about distributing pretrained models commercially received an explicit maintainer response that the model weights are not covered by the MIT code license and are provided only for scientific purposes. Technical cache integrity, local-only loading, a third-party mirror, or conversion of the same weights cannot create commercial rights. BandScope issue #1181 owns that release blocker.
+
 ## Constraints
 
 - BandScope must remain local-first during ordinary analysis.
 - Runtime code must not silently download model artifacts.
 - A locally cached model must reproduce the checksum convention attached to the canonical Demucs checkpoint before upstream model resolution.
-- Model artifacts are supply-chain inputs: redistribution rights, provenance, full integrity evidence, package placement, SBOM/supplemental inventory coverage, signing and update/rollback behavior belong to Distribution rather than to MIR inference code.
-- A missing or modified local model must fail safely rather than fall back to the retired FFT mask or claim successful separation.
-- Unit fixtures may mock a model boundary; release/scientific acceptance still requires rights-cleared real decoded audio and the actual released model artifact.
+- The upstream pretrained Demucs weights must not be bundled, auto-downloaded, or represented as commercially licensed unless an explicit commercial-use/redistribution grant covering the exact artifact is obtained.
+- Model artifacts are supply-chain inputs: usage/redistribution rights, provenance, full integrity evidence, package placement, SBOM/supplemental inventory coverage, signing and update/rollback behavior belong to Distribution rather than to MIR inference code.
+- A missing, modified, or commercially inadmissible local model must fail safely rather than fall back to the retired FFT mask or claim successful separation.
+- Unit fixtures may mock a model boundary; release/scientific acceptance still requires rights-cleared real decoded audio and an actually admissible released model artifact.
 
 ## RED evidence
 
@@ -39,6 +42,8 @@ Commit `d0432187eea6ec94a247d78f1c02f69e7185a5a1` closes the filename-only cache
 
 Commit `8ccdf2013582db16811168cfadd44d1560ed375d` keeps the older separation unit tests honest about their scope: those tests deliberately replace Demucs with an in-memory fake and therefore bypass only the local-checkpoint prerequisite. The dedicated model-admission regressions do not receive that bypass.
 
+The commercial-rights finding is not treated as a code bug that can be patched by changing a package label. #1181 makes the upstream pretrained weights a release-blocking external legal/product prerequisite. Signal/MIR may continue to keep its local fail-closed technical boundary in Draft, but Distribution must not turn those weights into a commercial BandScope artifact without rights evidence.
+
 ## Alternatives considered
 
 ### Keep the existing `get_model("htdemucs")` path
@@ -51,11 +56,19 @@ Rejected. Demucs's own local repository logic interprets a suffix such as `-8726
 
 ### Download the model explicitly from BandScope at first use
 
-Rejected for ordinary analysis. This merely moves the hidden network dependency into BandScope and would require an explicit model-delivery product flow, source allowlist, full checksum/signature verification, license review, disclosure, cancellation/retry semantics and updater-style rollback.
+Rejected for ordinary analysis. This merely moves the hidden network dependency into BandScope. More importantly, the upstream maintainer's stated scientific-purpose restriction means an explicit downloader does not cure the commercial-rights defect. Any future model-delivery flow also requires source allowlisting, full checksum/signature verification, rights review, disclosure, cancellation/retry semantics and updater-style rollback.
 
 ### Bundle the checkpoint immediately in this Project Persistence PR
 
-Rejected as a cross-context shortcut. Shipping a large model artifact changes licensing, package size, SBOM/supplemental inventory, signing, notarization, update and rollback evidence. Distribution must own that immutable artifact contract; Signal/MIR consumes only the released artifact.
+Rejected. This is both a cross-context shortcut and currently incompatible with commercial release. Shipping the upstream pretrained weights changes rights exposure, package size, SBOM/supplemental inventory, signing, notarization, update and rollback evidence. Distribution may only own an immutable model artifact after #1181's rights prerequisite is satisfied or an admissible replacement is selected.
+
+### Rely on a third-party rehost or converted copy carrying an MIT label
+
+Rejected. The upstream maintainer explicitly distinguished the model weights from the MIT-licensed code. A mirror, conversion, or downstream metadata label does not establish rights broader than the upstream grant.
+
+### Replace the model with a commercially admissible separator
+
+Viable and now a first-class commercial alternative. The replacement must have traceable model-weight/training-data rights and must meet BandScope's real-audio separation/rehearsal accuracy contract; license safety cannot be bought by silently regressing to weak separation.
 
 ### Fall back to heuristic FFT stem masks
 
@@ -65,11 +78,11 @@ Rejected. The prior heuristic is not a scientifically acceptable substitute for 
 
 ### Attack surface
 
-The model-loading boundary crosses the local Python process into third-party Demucs/torch model resolution and deserialization. The checkpoint path and bytes are security- and scientific-integrity-sensitive inputs.
+The model-loading boundary crosses the local Python process into third-party Demucs/torch model resolution and deserialization. The checkpoint path and bytes are security- and scientific-integrity-sensitive inputs. A release model artifact also crosses a legal/supply-chain trust boundary before it can become a commercially supported dependency.
 
 ### Trust boundary
 
-Signal/MIR may consume a locally available model artifact, but it does not own remote download policy or release packaging. The upstream Demucs resolver is not itself evidence that BandScope has admitted a release artifact. The checksum prefix is a bounded compatibility integrity check, not BandScope's commercial provenance authority.
+Signal/MIR may consume a locally available technically admitted model artifact, but it does not own remote download policy, commercial-use/redistribution rights, or release packaging. The upstream Demucs resolver is not itself evidence that BandScope has admitted a release artifact. The checksum prefix is a bounded compatibility integrity check, not BandScope's commercial provenance or rights authority. #1181 owns the pretrained-weight commercial-rights blocker.
 
 ### Realistic threats
 
@@ -78,7 +91,9 @@ Signal/MIR may consume a locally available model artifact, but it does not own r
 - a symlink is presented at the expected checkpoint path;
 - a missing model is silently replaced with weaker heuristic output;
 - modified or malicious bytes are placed at the expected checkpoint filename;
-- the checkpoint is removed or replaced between BandScope's local verification and the upstream resolver, allowing the upstream remote fallback or a different local object to become reachable in that race window.
+- the checkpoint is removed or replaced between BandScope's local verification and the upstream resolver, allowing the upstream remote fallback or a different local object to become reachable in that race window;
+- a technically valid upstream pretrained checkpoint is shipped or advertised commercially despite the maintainer's scientific-purpose restriction;
+- a third-party mirror or converted artifact is mistaken for a new commercial license grant.
 
 ### Mitigations
 
@@ -89,13 +104,16 @@ Signal/MIR may consume a locally available model artifact, but it does not own r
 - bounded fail-closed error before entering Demucs when local evidence is absent or modified;
 - no heuristic-success fallback;
 - dedicated regressions proving missing and checksum-mismatched checkpoints never invoke the upstream resolver;
-- release model bundling remains a separate Distribution prerequisite rather than an ad-hoc download in MIR code.
+- #1181 blocks commercial packaging/auto-download/rights claims for the upstream pretrained weights until explicit rights or an admissible replacement exists;
+- release model packaging remains a separate Distribution prerequisite rather than an ad-hoc download in MIR code.
 
 ### Remaining risk
 
 The current repair is an immediate local-first compatibility guard, not the final release artifact boundary. The eight-hex suffix is only a truncated upstream checksum convention; it is not a repository-owned full SHA-256, signature or immutable release provenance statement. The existing supplemental component inventory also does not list a shipped htdemucs checkpoint.
 
-There is still a preflight-to-upstream-resolver TOCTOU window: BandScope closes its verification descriptor before `get_model` reopens the cache path. If the checkpoint disappears or is replaced after verification, the upstream remote path can become reachable or another object can be presented. Release readiness therefore requires a BandScope-owned immutable model artifact and a local-only loader that consumes the verified artifact without any remote fallback or pathname re-open race.
+There is still a preflight-to-upstream-resolver TOCTOU window: BandScope closes its verification descriptor before `get_model` reopens the cache path. If the checkpoint disappears or is replaced after verification, the upstream remote path can become reachable or another object can be presented. A future technically admissible model therefore needs a local-only loader that consumes an already-open or immutable verified artifact without remote fallback or pathname re-open race.
+
+The upstream pretrained `htdemucs` weights are additionally blocked for commercial release by #1181 unless an explicit grant is obtained. Even a perfect local-only loader and full digest would not resolve that rights constraint.
 
 ### Test points
 
@@ -104,27 +122,31 @@ There is still a preflight-to-upstream-resolver TOCTOU window: BandScope closes 
 - checksum-matching registered fixture: existing offline resolver remains usable;
 - unsupported model name: fail closed without lookup;
 - symlink/non-regular checkpoint: fail closed;
-- released model artifact: full checksum/signature, inventory, package and offline Windows/macOS real-audio acceptance before release.
+- commercial release: exact model rights evidence is present and linked to the immutable artifact, or the upstream weights are absent from release inputs;
+- released admissible model artifact: full checksum/signature, inventory, package and offline Windows/macOS real-audio acceptance before release.
 
 ## Effect
 
 The normal missing-model path no longer begins an implicit model download, and a modified cache object with the expected filename no longer reaches Demucs model resolution solely by name. A machine without a locally admitted checkpoint receives a bounded separation-unavailable failure instead of silently becoming network-dependent or deserializing unchecked cached bytes.
 
-This deliberately exposes the next buyer-visible gap: a commercial BandScope package must provide an admitted model artifact so an offline buyer does not need a pre-populated developer torch cache.
+The next buyer-visible gap is no longer just "bundle htdemucs for offline use." The upstream pretrained weights are not commercially releasable on the currently documented basis. BandScope must obtain explicit rights or select/train a commercially admissible model, then bind that artifact to the local-only integrity/provenance boundary without regressing real-audio rehearsal quality.
 
 ## Follow-up
 
-1. Establish the Distribution-owned htdemucs artifact decision: redistribution/license basis, exact version, full digest, storage/package location and release/update policy.
-2. Replace the preflight-plus-upstream-resolver compatibility path with a local-only loader bound to an already-open or immutable verified released artifact, eliminating the remaining remote-fallback/path-reopen race.
-3. Add the released model to `supply-chain/supplemental-component-inventory.json` and SBOM/provenance evidence.
-4. Exercise the exact packaged artifact on supported Windows and macOS using rights-cleared real audio, with source-separation metrics and explicit uncertainty/claim boundaries.
-5. Keep #770 as the scientific-accuracy owner; model-delivery evidence must not substitute for MIR-quality evidence.
+1. Resolve #1181: obtain explicit commercial-use/redistribution rights for the exact pretrained weights or select/train a commercially admissible replacement with traceable training-data/model rights.
+2. For the admissible model, establish exact version, full digest/signature, storage/package location and release/update/rollback policy under Distribution.
+3. Replace the preflight-plus-upstream-resolver compatibility path with a local-only loader bound to an already-open or immutable verified admissible artifact, eliminating remote-fallback/path-reopen behavior.
+4. Add the released model to `supply-chain/supplemental-component-inventory.json` and SBOM/provenance/NOTICE evidence as applicable.
+5. Exercise the exact packaged artifact on supported Windows and macOS using rights-cleared real audio, recognized source-separation metrics and explicit uncertainty/claim boundaries.
+6. Keep #770 as the scientific-accuracy owner; model-delivery/licensing evidence must not substitute for MIR-quality evidence.
 
 ## References
 
 Défossez, A., Usunier, N., Bottou, L., & Bach, F. (2021). Music source separation in the waveform domain. *Transactions of the International Society for Music Information Retrieval, 4*(1), 197–208. https://doi.org/10.5334/tismir.76
 
 Rouard, S., Massa, F., & Défossez, A. (2023). Hybrid transformers for music source separation. *Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)*. https://doi.org/10.1109/ICASSP49357.2023.10097003
+
+Défossez, A. (2022). Re: License of pre-trained models (Issue comment 1134828611). *facebookresearch/demucs* (Issue #327). https://github.com/facebookresearch/demucs/issues/327#issuecomment-1134828611
 
 Meta Platforms, Inc. (2023). `demucs.pretrained`: loading pretrained models. *facebookresearch/demucs*. https://github.com/facebookresearch/demucs/blob/main/demucs/pretrained.py
 
