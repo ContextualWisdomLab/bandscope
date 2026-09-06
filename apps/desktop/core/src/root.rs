@@ -6,7 +6,8 @@
 //! callers keep one canonical crate-root API.
 
 #[path = "lib.rs"]
-mod runtime_core;
+pub(crate) mod runtime_core;
+pub(crate) use runtime_core as core;
 mod audio_resource;
 mod content_sha256;
 mod project_format;

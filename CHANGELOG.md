@@ -11,10 +11,18 @@
 
 ### Changed
 
+- Consolidated Bandit, dependency audits, supplemental secret checks, and Trivy into one trusted-branch security backstop, delegated CodeQL to GitHub default setup, and removed duplicate local PR security and release-preflight runs.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
 
+- Enforce one canonical local-audio resource policy across native local-file/YouTube bootstrap intake, the desktop bridge, Python request preflight, temporal decoding, and stem separation so oversized, overlong, malformed, wrong-rate, or non-finite input fails before bootstrap storage or expensive analysis/model work.
+- Preflight source-container duration, sample rate, and channel count from the already-open audio handle before temporal, stem, or bass-transcription decoders resample, downmix, or truncate it; successful metadata probes rewind the handle and malformed probes fail closed.
+- Bound the admitted canonical decoded mono buffer to 317,520,000 bytes as well as the existing 39,690,000-sample ceiling, so decoder dtype expansion cannot stay within the sample count while exceeding the explicit in-memory audio budget.
+- Fail closed on malformed known YouTube duration metadata before `download=True`; Boolean, non-numeric, non-finite, zero, negative, and non-canonical numeric-subtype duration evidence can no longer authorize a media download through Python numeric coercion or subclass semantics.
+- Align YouTube download admission with that same 100 MiB encoded-byte ceiling: abort in-flight with yt-dlp `max_filesize` and a progress hook, reject announced oversize before `download=True`, delete owned `.part` / `.ytdl` / `-Frag*` siblings from that import directory on abort, reject a completed path that resolves outside the current import cache before post-download validation, cleanup, or success, and delete owned post-download artifacts that still exceed the policy. A 60 MiB import that the old 50 MB check rejected is now accepted; a file one byte over 100 MiB is not.
+- Bound native stored-score PDF reads to the 25 MiB product limit before heap allocation and revalidate PDF magic on the same opened descriptor, preventing an attached score that later grows from bypassing the local resource boundary.
+- Treat every zero-element NumPy layout as empty chord input, including shapes whose first dimension is non-zero, before feature extraction.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 - Stage and sync new project saves before non-clobbering publication, and enforce the existing 5 MiB project limit during the file read itself so a selected project cannot grow past a metadata preflight into an unbounded load allocation.
 - Reject directly selected project symlinks before reading so a chosen `.bscope` path cannot silently redirect the loader to different file content.
