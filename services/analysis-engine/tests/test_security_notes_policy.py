@@ -1,7 +1,7 @@
 """Regression coverage for the repository Security Notes documentation contract."""
 
-from pathlib import Path
 import runpy
+from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
