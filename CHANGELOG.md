@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- Preserve a reopened v3 project's native source selector and stored playback-source preference across an Open Project → Save Project round trip, so resaving cannot silently drop `sourceReference` or reset a non-default stem intent to Full mix.
 - Enforce one canonical local-audio resource policy across native local-file/YouTube bootstrap intake, the desktop bridge, Python request preflight, temporal decoding, and stem separation so oversized, overlong, malformed, wrong-rate, or non-finite input fails before bootstrap storage or expensive analysis/model work.
 - Preflight source-container duration, sample rate, and channel count from the already-open audio handle before temporal, stem, or bass-transcription decoders resample, downmix, or truncate it; successful metadata probes rewind the handle and malformed probes fail closed.
 - Bound the admitted canonical decoded mono buffer to 317,520,000 bytes as well as the existing 39,690,000-sample ceiling, so decoder dtype expansion cannot stay within the sample count while exceeding the explicit in-memory audio budget.
