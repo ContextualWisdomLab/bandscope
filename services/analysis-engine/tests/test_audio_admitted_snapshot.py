@@ -18,6 +18,13 @@ def _same_size_bytes(seed: bytes, marker: int) -> bytes:
     return bytes(payload)
 
 
+def _separator() -> AudioStemSeparator:
+    """Build the bounded separator used by the byte-continuity regressions."""
+    return AudioStemSeparator(
+        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=1_000_000)
+    )
+
+
 def test_admitted_separator_rejects_same_size_replacement_before_decode(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -34,12 +41,9 @@ def test_admitted_separator_rejects_same_size_replacement_before_decode(
         return np.ones(8, dtype=np.float32), 8_000
 
     monkeypatch.setattr(audio_separator_module, "decode_mono_audio", fake_decode)
-    separator = AudioStemSeparator(
-        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=1_000_000)
-    )
 
     with pytest.raises(ValueError, match="source changed before decode"):
-        separator.separate_admitted(
+        _separator().separate_admitted(
             audio_path,
             expected_file_size_bytes=len(original),
             expected_content_sha256=hashlib.sha256(original).hexdigest(),
@@ -76,11 +80,8 @@ def test_admitted_separator_decodes_verified_snapshot_after_path_replacement(
             "other": np.zeros(audio.size, dtype=np.float32),
         },
     )
-    separator = AudioStemSeparator(
-        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=1_000_000)
-    )
 
-    separator.separate_admitted(
+    _separator().separate_admitted(
         audio_path,
         expected_file_size_bytes=len(original),
         expected_content_sha256=hashlib.sha256(original).hexdigest(),
@@ -88,3 +89,60 @@ def test_admitted_separator_decodes_verified_snapshot_after_path_replacement(
 
     assert observed_decode_bytes == original
     assert audio_path.read_bytes() == replacement
+
+
+def test_plain_separator_consumes_scoped_native_evidence(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Require the production worker entrypoint to honor native admission evidence."""
+    original = b"RIFF-admitted-audio"
+    audio_path = tmp_path / "source.wav"
+    audio_path.write_bytes(_same_size_bytes(original, ord("Z")))
+    decode_called = False
+
+    def fake_decode(*_args, **_kwargs):
+        nonlocal decode_called
+        decode_called = True
+        return np.ones(8, dtype=np.float32), 8_000
+
+    monkeypatch.setenv("BANDSCOPE_ADMITTED_AUDIO_BYTES", str(len(original)))
+    monkeypatch.setenv("BANDSCOPE_ADMITTED_AUDIO_SHA256", hashlib.sha256(original).hexdigest())
+    monkeypatch.setattr(audio_separator_module, "decode_mono_audio", fake_decode)
+    monkeypatch.setattr(
+        AudioStemSeparator,
+        "_separate_signal",
+        lambda _self, audio, _sample_rate: {
+            "vocals": np.zeros(audio.size, dtype=np.float32),
+            "bass": np.zeros(audio.size, dtype=np.float32),
+            "drums": np.zeros(audio.size, dtype=np.float32),
+            "other": np.zeros(audio.size, dtype=np.float32),
+        },
+    )
+
+    with pytest.raises(ValueError, match="source changed before decode"):
+        _separator().separate(audio_path)
+
+    assert decode_called is False
+
+
+def test_plain_separator_rejects_partial_native_evidence(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fail closed when a child process receives only half of native evidence."""
+    audio_path = tmp_path / "source.wav"
+    audio_path.write_bytes(b"RIFF-admitted-audio")
+    decode_called = False
+
+    def fake_decode(*_args, **_kwargs):
+        nonlocal decode_called
+        decode_called = True
+        return np.ones(8, dtype=np.float32), 8_000
+
+    monkeypatch.setenv("BANDSCOPE_ADMITTED_AUDIO_BYTES", str(audio_path.stat().st_size))
+    monkeypatch.delenv("BANDSCOPE_ADMITTED_AUDIO_SHA256", raising=False)
+    monkeypatch.setattr(audio_separator_module, "decode_mono_audio", fake_decode)
+
+    with pytest.raises(ValueError, match="source changed before decode"):
+        _separator().separate(audio_path)
+
+    assert decode_called is False
