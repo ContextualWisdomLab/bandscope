@@ -97,6 +97,9 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
 fn analysis_process_receives_native_evidence_without_global_environment_mutation() {
     assert!(MAIN_SOURCE.contains("BANDSCOPE_ADMITTED_AUDIO_BYTES"));
     assert!(MAIN_SOURCE.contains("BANDSCOPE_ADMITTED_AUDIO_SHA256"));
-    assert!(MAIN_SOURCE.contains("command.env("));
+    assert!(MAIN_SOURCE.contains(".env_remove(ADMITTED_AUDIO_BYTES_ENV)"));
+    assert!(MAIN_SOURCE.contains(".env_remove(ADMITTED_AUDIO_SHA256_ENV)"));
+    assert!(MAIN_SOURCE.contains("ADMITTED_AUDIO_BYTES_ENV,"));
+    assert!(MAIN_SOURCE.contains("ADMITTED_AUDIO_SHA256_ENV, &identity.content_sha256"));
     assert!(!MAIN_SOURCE.contains("std::env::set_var(\"BANDSCOPE_ADMITTED_AUDIO_"));
 }
