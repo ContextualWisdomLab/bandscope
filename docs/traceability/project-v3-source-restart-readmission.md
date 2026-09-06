@@ -11,7 +11,7 @@ The Save path keeps the original user path out of durable project truth and stor
 - Resource Admission owns audio byte admission and `LocalAudioPublicationIdentity`; Project Persistence owns the durable v3 document; Active Player owns fresh playback authority.
 - Persisted JSON is evidence, not permission to open a path.
 - Durable fields must be validated before an opener receives any derived artifact path.
-- The app-local project root must already exist, remain a real directory rather than a symlink/reparse point, and remain bound to the same BandScope project aggregate. Reopen must never call the provisioning path for that root.
+- The Tauri-provided app-local base and the project root below it must already exist as real directories rather than symlinks/reparse points. Reopen must never call the provisioning path for that project root.
 - The final artifact descriptor must come from the native platform opener so O_NOFOLLOW/reparse-point and file-identity primitives are not copied into the core reverse ACL.
 - Size is a bounded preflight, not content identity. SHA-256 equality is required for the opened bytes.
 - The verifier must stop after the expected byte length plus a one-byte growth probe rather than hashing an unexpectedly large object.
@@ -28,6 +28,8 @@ The later native-opener RED `66ed5ec328d498bae59af2814b20a16884f30bae` required 
 
 `9cd4681ccc8fb1f1ed9e5cacc9f6da5e12086f06` then required the production `load_project` command itself to receive native app/state authority and invoke one restart adapter before returning a persisted v3 document. That predecessor had the reusable core ACL but no production call site, so the contract failed by construction until the following production fix.
 
+`1c8bc3d0668d505dbd94ebe23d58584270d6b09b` adds the app-local-base authority regression. It constructs a valid project directory below a real app-local fixture, exposes that fixture only through a symlinked base path, and requires reopen root resolution to reject the linked base instead of treating the ordinary child directory reached through it as app-owned authority. The predecessor checked only the final project child and therefore admitted that redirection.
+
 The deterministic PCM/WAV-like bytes used by the core and native filesystem contracts are unit fixtures only. They validate bounded content identity and filesystem authority composition, not MIR or decoder quality. They are not production scientific acceptance; rights-cleared real decoded audio remains required for release acceptance.
 
 ## Selected design
@@ -38,7 +40,7 @@ The deterministic PCM/WAV-like bytes used by the core and native filesystem cont
 
 Native opener coverage through `909d54f64889b977dc1b7e7eba10999f503005a9` verifies an exact regular app-owned source can be re-admitted, traversal-like durable artifact evidence is rejected before an opener is invoked, and a Unix symlink at the final `source.wav` component is refused by no-follow handle acquisition. Core coverage in `b975843d57a6642fe54c36e242693473f8d25852` also proves a project-root mismatch fails before filesystem authority is requested.
 
-The read-side resolver introduced at `f7e868564ac4fb88953b660709b96dee40b604e9` is deliberately distinct from `app_owned_root`. It validates the BandScope project id, derives the app-local child, requires that child to already exist as a real directory rather than a symlink or Windows reparse point, and never invokes `create_dir_all`. Cache and temp workspaces remain provisionable runtime resources, but production reopen creates them only after the persisted source has passed project-root and exact-byte re-admission.
+The read-side resolver introduced at `f7e868564ac4fb88953b660709b96dee40b604e9` is deliberately distinct from `app_owned_root`. It validates the BandScope project id, derives the app-local child, requires that child to already exist as a real directory rather than a symlink or Windows reparse point, and never invokes `create_dir_all`. `a839b5b495ccdb70ee3c37e253d58f438f6c58be` additionally validates the Tauri-provided app-local base itself before joining the project id, so a directly linked/reparse app-local base cannot redirect reopen into another subtree. Cache and temp workspaces remain provisionable runtime resources, but production reopen creates them only after the persisted source has passed project-root and exact-byte re-admission.
 
 Production integration `0f20b072a245feca59c72ac29b21968b41982f46` wires this sequence into `load_project`. After recovery and bounded project parsing, a v3 document with `sourceReference` resolves the existing app-local project root, reopens the fixed source through `project_persistence::open_project_file`, verifies exact byte length and SHA-256, provisions cache/temp runtime roots, and atomically acquires both native state locks before restoring `LocalAudioPublicationIdentityState` and the matching `ProjectBootstrapSummaryPayload`. A legacy document without `sourceReference` returns without inventing source authority. `ddeff8b48b59ef9e43804d9cd6a569ee2c4aefbb` is formatting-only follow-up for the new resolver.
 
@@ -49,6 +51,8 @@ The restored bootstrap keeps `source_path` transient in native memory. The durab
 **Trust the persisted digest after schema validation.** Rejected because a syntactically valid digest only states what bytes are expected; it does not prove the current app-owned artifact still contains those bytes.
 
 **Reuse `app_owned_root` during load.** Rejected because that function calls `create_dir_all`. A missing or replaced project aggregate must make reopen fail, not cause the read path to manufacture a directory that did not back the persisted evidence.
+
+**Trust a linked app-local base because its project child is a regular directory.** Rejected because the child check occurs after ancestor traversal. A stable-looking app-local path can otherwise redirect native reopen into a different subtree before the child metadata is inspected.
 
 **Accept `artifactName` as a pathname.** Rejected because typed durable data is still untrusted. The adapter first reconstructs the canonical Resource Admission identity and derives the fixed artifact name from the admitted extension; forged path-like text fails before the opener is invoked.
 
@@ -64,19 +68,19 @@ The restored bootstrap keeps `source_path` transient in native memory. The durab
 
 ### Attack surface and trust boundary
 
-The `.bscope` document and renderer-visible data are untrusted. `sourceReference` crosses Project Persistence as passive evidence. The reverse ACL validates every durable identity field before any filesystem opener is called. Tauri derives the app-local project base from its native path API; the read-side resolver requires the exact project child to pre-exist without link/reparse indirection, and the core ACL requires that child to remain bound to the same BandScope project id.
+The `.bscope` document and renderer-visible data are untrusted. `sourceReference` crosses Project Persistence as passive evidence. The reverse ACL validates every durable identity field before any filesystem opener is called. Tauri derives the app-local project base from its native path API; the read-side resolver requires that base and the exact project child to pre-exist without direct link/reparse indirection, and the core ACL requires that child to remain bound to the same BandScope project id.
 
 ### Allowlist and validation
 
-The Resource Admission identity builder validates the BandScope project-id grammar, admitted extension allowlist, fixed `source.<extension>` artifact name, positive bounded size, and canonical lowercase 64-hex SHA-256 representation. The project-root adapter reuses those canonical rules and additionally rejects a root whose final component does not equal the validated project id. The Tauri read-side resolver refuses missing or linked project directories rather than provisioning them.
+The Resource Admission identity builder validates the BandScope project-id grammar, admitted extension allowlist, fixed `source.<extension>` artifact name, positive bounded size, and canonical lowercase 64-hex SHA-256 representation. The project-root adapter reuses those canonical rules and additionally rejects a root whose final component does not equal the validated project id. The Tauri read-side resolver refuses a missing, linked, or reparse app-local base/project directory rather than provisioning it.
 
 ### Mitigations
 
-Project Persistence supplies path-free durable evidence; the read-side resolver selects only an already-existing project aggregate; the project-root ACL validates the evidence and derives one fixed source path; the injected native opener establishes supported-platform final-component no-follow/reparse and file-identity authority; Resource Admission verifies the opened bytes against the persisted bounded receipt. Native publication and bootstrap state are restored only after all those steps succeed.
+Project Persistence supplies path-free durable evidence; the read-side resolver selects only an already-existing project aggregate below a directly non-linked app-local base; the project-root ACL validates the evidence and derives one fixed source path; the injected native opener establishes supported-platform final-component no-follow/reparse and file-identity authority; Resource Admission verifies the opened bytes against the persisted bounded receipt. Native publication and bootstrap state are restored only after all those steps succeed.
 
 ### Safe failure
 
-Malformed durable evidence, forged artifact names, cross-project root substitution, a missing or linked project root, opener failure, size changes, growth, truncation, and SHA-256 mismatch all return the bounded project-workspace diagnosis. No failed re-admission restores native publication/bootstrap state or playback capability.
+Malformed durable evidence, forged artifact names, cross-project root substitution, a missing or directly linked/reparse app-local base or project root, opener failure, size changes, growth, truncation, and SHA-256 mismatch all return the bounded project-workspace diagnosis. No failed re-admission restores native publication/bootstrap state or playback capability.
 
 ### Logging and privacy
 
@@ -84,17 +88,17 @@ The reverse ACL never receives the original user-selected path. SHA-256 remains 
 
 ### Test points
 
-`apps/desktop/core/tests/local_audio_restart_readmission.rs` covers exact-byte success, same-size mutation, growth, truncation, forged artifact identity, malformed durable identity, bounded read failure, exact fixed-path derivation, and cross-project-root rejection. `apps/desktop/src-tauri/tests/project_persistence_open_authority.rs` composes the root ACL with the canonical native opener and now also proves the read-side project-root resolver accepts an existing regular aggregate, refuses a missing aggregate without creating it, and rejects Unix directory symlinks. `apps/desktop/src-tauri/tests/local_audio_publication_contract.rs` requires production `load_project` to restore source authority before returning the document and forbids the provisioning `app_owned_root(..., "projects", ...)` path inside that command. Existing Resource Admission tests remain canonical for bounded copy/publication receipts, known-answer SHA-256 vectors, maximum-size enforcement, and staging/publication failure separation.
+`apps/desktop/core/tests/local_audio_restart_readmission.rs` covers exact-byte success, same-size mutation, growth, truncation, forged artifact identity, malformed durable identity, bounded read failure, exact fixed-path derivation, and cross-project-root rejection. `apps/desktop/src-tauri/tests/project_persistence_open_authority.rs` composes the root ACL with the canonical native opener and proves the read-side project-root resolver accepts an existing regular aggregate, refuses a missing aggregate without creating it, and rejects Unix directory symlinks. `apps/desktop/src-tauri/tests/project_root_existing_authority.rs` adds the direct app-local-base redirection regression. `apps/desktop/src-tauri/tests/local_audio_publication_contract.rs` requires production `load_project` to restore source authority before returning the document and forbids the provisioning `app_owned_root(..., "projects", ...)` path inside that command. Existing Resource Admission tests remain canonical for bounded copy/publication receipts, known-answer SHA-256 vectors, maximum-size enforcement, and staging/publication failure separation.
 
 ### Realistic threats
 
-Relevant threats are local project corruption after reported Save, same-size replacement of `source.<extension>`, truncation or append caused by interrupted or external writes, tampered `.bscope` identity fields, attempts to smuggle traversal-like artifact names, substitution or deletion of the persisted project root, and final-component link/reparse redirection. Hash equality is not treated as protection against a privileged attacker who can modify both the project document and app-owned artifact; that stronger local-compromise model requires separate platform storage and integrity controls.
+Relevant threats are local project corruption after reported Save, same-size replacement of `source.<extension>`, truncation or append caused by interrupted or external writes, tampered `.bscope` identity fields, attempts to smuggle traversal-like artifact names, substitution or deletion of the persisted project root, direct link/reparse redirection of the app-local base or project root, and final-component link/reparse redirection. Hash equality is not treated as protection against a privileged attacker who can modify both the project document and app-owned artifact; that stronger local-compromise model requires separate platform storage and integrity controls.
 
 ### Remaining risk
 
 Production `load_project` now restores verified full-mix publication identity and native bootstrap state, but it does not yet establish release-grade end-to-end playback authority. The verified file descriptor is consumed by SHA-256 verification and a transient path is retained for the later analysis process. A local mutation or replacement after verification but before the analysis/decoder opens that path is therefore a remaining time-of-check/time-of-use gap; a descriptor/capability-bound handoff or an equivalent immutable snapshot design is required before claiming strict byte continuity into decode/playback.
 
-Descriptor-bound parent-directory authority also remains a known gap: final-component O_NOFOLLOW/reparse protection and a non-link project-root check do not prevent a concurrently replaced ancestor. A directory-handle-relative design or equivalent supported-platform primitive is required for that stronger guarantee. Restart fault injection, actual decoder re-admission, Active Player source reconciliation, preferred-stem-to-Full-mix fallback, and rights-cleared Windows/macOS real-audio acceptance remain required evidence.
+Descriptor-bound parent-directory authority also remains a known gap: direct app-local-base/project-root checks and final-component O_NOFOLLOW/reparse protection do not prevent concurrent replacement of those directories or redirection through an ancestor above the checked base. A directory-handle-relative design or equivalent supported-platform primitive is required for that stronger guarantee. Restart fault injection, actual decoder re-admission, Active Player source reconciliation, preferred-stem-to-Full-mix fallback, and rights-cleared Windows/macOS real-audio acceptance remain required evidence.
 
 ## Standards traceability
 
