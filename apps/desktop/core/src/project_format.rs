@@ -154,15 +154,19 @@ fn validate_document(document: ProjectDocumentPayload) -> Result<ProjectDocument
 /// Admit a renderer-supplied current project document before publication.
 ///
 /// Security Notes: renderer IPC values are untrusted. The document, nested
-/// preferences, stable playback-source enum, source reference, and rehearsal-
-/// song DTO all use typed allowlists/`deny_unknown_fields`. Source references
-/// admit only a valid project id, a fixed app-owned artifact basename, a closed
-/// audio extension, a byte length within the Resource Admission ceiling, and a
-/// canonical lowercase SHA-256 digest; filesystem paths and revocable playback
-/// URLs therefore fail closed before any filesystem mutation.
+/// preferences, stable playback-source enum, and rehearsal-song DTO use typed
+/// allowlists/`deny_unknown_fields`. Renderer-supplied `sourceReference` is
+/// rejected even when structurally valid because filesystem byte identity and
+/// digest evidence must come from native Resource Admission state. After #866
+/// enters this branch's ancestry, the Tauri persistence adapter may inject that
+/// verified native identity before serialization; renderer JSON never authors
+/// filesystem paths, artifact identity, byte evidence, or playback authority.
 pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayload, String> {
     let document = serde_json::from_value::<ProjectDocumentPayload>(value)
         .map_err(|_| "Invalid project document payload".to_string())?;
+    if document.source_reference.is_some() {
+        return Err("Invalid project document payload".to_string());
+    }
     validate_document(document)
 }
 
