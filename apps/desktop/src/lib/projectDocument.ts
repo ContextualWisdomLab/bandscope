@@ -39,6 +39,7 @@ const PROJECT_SOURCE_EXTENSIONS = new Set<ProjectSourceReference["extension"]>([
 ]);
 const PROJECT_ID_PATTERN = /^project-\d+-\d+$/;
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
+const MAX_PROJECT_SOURCE_REFERENCE_BYTES = 100 * 1024 * 1024;
 
 type OwnDataProperty =
   | { ok: true; value: unknown }
@@ -160,6 +161,7 @@ function parseProjectSourceReference(value: unknown): ProjectSourceReference {
     typeof fileSizeBytes !== "number" ||
     !Number.isSafeInteger(fileSizeBytes) ||
     fileSizeBytes <= 0 ||
+    fileSizeBytes > MAX_PROJECT_SOURCE_REFERENCE_BYTES ||
     typeof contentSha256 !== "string" ||
     !SHA256_HEX_PATTERN.test(contentSha256)
   ) {
@@ -178,7 +180,8 @@ function parseProjectSourceReference(value: unknown): ProjectSourceReference {
 /**
  * Validate the renderer-visible project document without accepting filesystem paths,
  * runtime capability URLs, generation tokens, prototype-bearing records, accessors,
- * trapped record enumeration, ambiguous source digests, or unknown preference/source-reference fields.
+ * trapped record enumeration, impossible source byte claims, ambiguous source digests,
+ * or unknown preference/source-reference fields.
  */
 export function parseProjectDocument(value: unknown): ProjectDocument {
   if (
