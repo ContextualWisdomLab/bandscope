@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import UTC, datetime
 
@@ -11,6 +12,9 @@ from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_an
 from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+_ADMITTED_AUDIO_BYTES_ENV = "BANDSCOPE_ADMITTED_AUDIO_BYTES"
+_ADMITTED_AUDIO_SHA256_ENV = "BANDSCOPE_ADMITTED_AUDIO_SHA256"
 
 
 def failed_cli_response(message: str) -> dict[str, object]:
@@ -26,6 +30,14 @@ def failed_cli_response(message: str) -> dict[str, object]:
             "message": message,
         },
     }
+
+
+def _native_admission_is_scoped() -> bool:
+    """Return whether this child process carries native audio identity evidence."""
+    return (
+        os.environ.get(_ADMITTED_AUDIO_BYTES_ENV) is not None
+        or os.environ.get(_ADMITTED_AUDIO_SHA256_ENV) is not None
+    )
 
 
 def main() -> int:
@@ -75,10 +87,12 @@ def main() -> int:
 
     request = payload.get("request")
 
-    # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
-    # before full orchestrator integration
+    # Compatibility-only probe for direct/manual callers. Native desktop jobs
+    # carry Resource Admission evidence and must not reopen the mutable pathname
+    # before the content-bound separation/decode path consumes that evidence.
     if (
-        isinstance(request, dict)
+        not _native_admission_is_scoped()
+        and isinstance(request, dict)
         and request.get("sourceKind") == "local_audio"
         and "localSource" in request
     ):
@@ -90,7 +104,7 @@ def main() -> int:
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
-                logging.info(f"Extracted BPM: {features['bpm']}")
+                logging.info("Extracted BPM: %s", features["bpm"])
             except Exception:
                 logging.warning(
                     "Temporal analysis failed for %s; continuing with safe fallback.",
