@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 
 import bandscope_analysis.separation.audio_separator as audio_separator_module
-from bandscope_analysis.separation.audio_separator import AudioSeparationConfig, AudioStemSeparator
 
 
 def _same_size_bytes(seed: bytes, marker: int) -> bytes:
@@ -18,10 +17,13 @@ def _same_size_bytes(seed: bytes, marker: int) -> bytes:
     return bytes(payload)
 
 
-def _separator() -> AudioStemSeparator:
+def _separator() -> audio_separator_module.AudioStemSeparator:
     """Build the bounded separator used by the byte-continuity regressions."""
-    return AudioStemSeparator(
-        AudioSeparationConfig(target_sample_rate=8_000, max_file_bytes=1_000_000)
+    return audio_separator_module.AudioStemSeparator(
+        audio_separator_module.AudioSeparationConfig(
+            target_sample_rate=8_000,
+            max_file_bytes=1_000_000,
+        )
     )
 
 
@@ -71,7 +73,7 @@ def test_admitted_separator_decodes_verified_snapshot_after_path_replacement(
 
     monkeypatch.setattr(audio_separator_module, "decode_mono_audio", fake_decode)
     monkeypatch.setattr(
-        AudioStemSeparator,
+        audio_separator_module.AudioStemSeparator,
         "_separate_signal",
         lambda _self, audio, _sample_rate: {
             "vocals": np.zeros(audio.size, dtype=np.float32),
@@ -109,7 +111,7 @@ def test_plain_separator_consumes_scoped_native_evidence(
     monkeypatch.setenv("BANDSCOPE_ADMITTED_AUDIO_SHA256", hashlib.sha256(original).hexdigest())
     monkeypatch.setattr(audio_separator_module, "decode_mono_audio", fake_decode)
     monkeypatch.setattr(
-        AudioStemSeparator,
+        audio_separator_module.AudioStemSeparator,
         "_separate_signal",
         lambda _self, audio, _sample_rate: {
             "vocals": np.zeros(audio.size, dtype=np.float32),
