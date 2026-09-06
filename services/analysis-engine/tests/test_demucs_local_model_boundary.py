@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import pickle
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -231,3 +232,37 @@ def test_demucs_model_load_rejects_checkpoint_growth_after_descriptor_preflight(
         audio_separator_module.AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
+
+
+def test_demucs_model_load_bounds_pytorch_weights_only_incompatibility(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep PyTorch 2.6+ weights-only failures inside the local-model boundary."""
+    checkpoint_bytes = b"legacy-demucs-package-fixture"
+    checksum_prefix = hashlib.sha256(checkpoint_bytes).hexdigest()[:8]
+    checkpoint_name = f"955717e8-{checksum_prefix}.th"
+    checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
+    checkpoint_root.mkdir(parents=True)
+    (checkpoint_root / checkpoint_name).write_bytes(checkpoint_bytes)
+
+    def incompatible_weights_only_load(_name: str, **_kwargs: object) -> _FakeModel:
+        raise pickle.UnpicklingError(
+            "Weights only load failed: unsupported GLOBAL demucs.htdemucs.HTDemucs"
+        )
+
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_DEMUCS_LOCAL_CHECKPOINTS",
+        {"htdemucs": checkpoint_name},
+    )
+    _install_fake_runtime(
+        monkeypatch,
+        torch_hub_dir=str(tmp_path / "torch-hub"),
+        get_model=incompatible_weights_only_load,
+    )
+
+    with pytest.raises(ValueError, match="model weights are not installed locally") as failure:
+        audio_separator_module.AudioStemSeparator()._load_model()
+
+    assert "HTDemucs" not in str(failure.value)
