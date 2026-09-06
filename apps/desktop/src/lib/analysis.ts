@@ -355,9 +355,18 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
   }
 }
 
-/** Persist one current versioned project document through the native Project Persistence owner. */
+/**
+ * Persist renderer-owned project state without accepting native source identity from the WebView.
+ *
+ * Native Resource Admission owns `sourceReference` evidence. Until the native
+ * persistence adapter injects that retained identity after #866 ancestry
+ * adoption, renderer-authored source evidence fails before persistence IPC.
+ */
 export async function saveProjectDocument(projectDocument: ProjectDocument): Promise<void> {
   const parsedDocument = parseProjectDocument(projectDocument);
+  if (parsedDocument.sourceReference) {
+    throw new Error("Invalid project document");
+  }
   await invokeAnalysis("save_project", { payload: parsedDocument });
 }
 
