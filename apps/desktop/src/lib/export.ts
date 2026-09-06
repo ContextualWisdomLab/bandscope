@@ -11,7 +11,7 @@ import {
 
 // Security notes:
 // 1. Filename sanitization to prevent directory traversal or invalid characters.
-// 2. CSV formula injection prevention (fields starting with =, +, -, @ must be prefixed with a single quote).
+// 2. CSV formula injection prevention (dangerous ASCII/full-width formula or control initiators receive a single-quote prefix).
 
 /** Documented. */
 export function sanitizeFilename(title: string): string {
@@ -22,8 +22,9 @@ export function sanitizeFilename(title: string): string {
 /** Documented. */
 export function escapeCsvField(value: string): string {
   let escapedValue = value;
-  // Prevent CSV formula injection by prefixing problematic leading characters with a single quote
-  if (/^[\s\uFEFF\xA0]*[=+\-@\t\r\n]/.test(value)) {
+  // Spreadsheet/parser disagreement can make a leading C0 control security-significant even when it precedes an operator.
+  // eslint-disable-next-line no-control-regex
+  if (/^[\s\uFEFF\xA0]*[\x00-\x1F=+\-@\uFF1D\uFF0B\uFF0D\uFF20]/.test(value)) {
     escapedValue = `'${value}`;
   }
   // Enclose in double quotes if there's a comma, newline, or double quote
