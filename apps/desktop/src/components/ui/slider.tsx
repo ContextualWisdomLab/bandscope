@@ -37,7 +37,10 @@ function Slider({
       )}
       {...props}
     >
-      <SliderPrimitive.Control className="flex w-full items-center">
+      <SliderPrimitive.Control
+        data-slot="slider-control"
+        className="flex min-h-6 w-full items-center"
+      >
         <SliderPrimitive.Track
           data-slot="slider-track"
           className="relative h-1.5 w-full grow rounded-full bg-primary/20"
