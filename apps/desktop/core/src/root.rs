@@ -36,4 +36,7 @@ pub use publication_identity::{
 };
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
-pub use source_readmission::re_admit_local_audio_publication;
+pub use source_readmission::{
+    re_admit_local_audio_publication, re_admit_local_audio_publication_from_project_root,
+    ReAdmittedLocalAudioPublication,
+};
