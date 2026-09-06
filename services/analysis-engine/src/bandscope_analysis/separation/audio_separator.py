@@ -9,10 +9,12 @@ consume.
 Security Notes:
 - Treats the selected audio file as untrusted input: the path is normalized and
   verified to be a file, and a maximum byte size is enforced before decode.
-- Native-admitted sources can carry exact byte-count + SHA-256 evidence. Those
-  bytes are copied once from the opened descriptor into a private spooled file,
-  verified against the evidence, and decoded from that same snapshot. A later
-  pathname replacement therefore cannot change the bytes entering MIR/model work.
+- Native-admitted sources carry exact byte-count + SHA-256 evidence in the
+  per-analysis child-process environment. Partial or malformed evidence fails
+  closed. Those bytes are copied once from the opened descriptor into a private
+  spooled file, verified against the evidence, and decoded from that same
+  snapshot. A later pathname replacement therefore cannot change the bytes
+  entering MIR/model work.
 - Decoded audio is revalidated against the same versioned resource policy before
   Demucs/model work so overlong, malformed, or non-finite decoder output fails
   closed instead of being silently truncated or normalized.
@@ -38,7 +40,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO, cast
+from typing import Any, cast
 
 import numpy as np
 
@@ -58,6 +60,8 @@ _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
 _MODEL_OUTPUT_ERROR = "Stem separation produced invalid audio."
 _ADMITTED_SOURCE_CHANGED_ERROR = "Stem separation source changed before decode."
+_ADMITTED_AUDIO_BYTES_ENV = "BANDSCOPE_ADMITTED_AUDIO_BYTES"
+_ADMITTED_AUDIO_SHA256_ENV = "BANDSCOPE_ADMITTED_AUDIO_SHA256"
 _SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
 _COPY_CHUNK_BYTES = 64 * 1024
 
@@ -80,6 +84,29 @@ def _valid_sha256_hex(value: object) -> bool:
         and value == value.lower()
         and all(character in "0123456789abcdef" for character in value)
     )
+
+
+def _admitted_audio_evidence_from_environment() -> tuple[int, str] | None:
+    """Read the native-owned evidence scoped to one analysis process.
+
+    The desktop process sets both variables on the child ``Command`` rather than
+    mutating its own environment, so concurrent analysis jobs cannot overwrite
+    one another's evidence. Missing evidence preserves compatibility for direct
+    library callers; a partial pair is treated as a broken trust handoff.
+    """
+    raw_size = os.environ.get(_ADMITTED_AUDIO_BYTES_ENV)
+    digest = os.environ.get(_ADMITTED_AUDIO_SHA256_ENV)
+    if raw_size is None and digest is None:
+        return None
+    if raw_size is None or digest is None:
+        raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
+    try:
+        expected_size = int(raw_size, 10)
+    except ValueError as error:
+        raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR) from error
+    if str(expected_size) != raw_size or expected_size <= 0 or not _valid_sha256_hex(digest):
+        raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
+    return expected_size, digest
 
 
 @dataclass(frozen=True)
@@ -110,9 +137,17 @@ class AudioStemSeparator:
         self._model: Any = None
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
-        """Separate one local path through the compatibility decode boundary."""
+        """Separate one local source under the active native-admission contract."""
+        evidence = _admitted_audio_evidence_from_environment()
         path = self._resolve_audio_file(audio_path)
-        audio, sample_rate = self._load_audio(path)
+        if evidence is None:
+            audio, sample_rate = self._load_audio(path)
+        else:
+            audio, sample_rate = self._load_admitted_audio(
+                path,
+                expected_file_size_bytes=evidence[0],
+                expected_content_sha256=evidence[1],
+            )
         return self._separate_loaded_audio(audio, sample_rate)
 
     def separate_admitted(
