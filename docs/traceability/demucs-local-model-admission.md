@@ -12,7 +12,9 @@ The next implementation still verified the mutable torch-cache object and then l
 
 That private snapshot introduced a separate resource-admission gap: a regular cache object with the canonical filename could be arbitrarily large. Checksum mismatch was detected only after copying the object, so corrupted local state could consume unbounded temporary storage before failing. A 128 MiB ceiling repaired the unbounded-copy case, but the copy still streamed until EOF rather than binding materialization to the descriptor size observed at `fstat`. If the file grew after preflight while remaining below the ceiling, extra bytes could still enter the private snapshot before checksum rejection. The current boundary therefore snapshots exactly the descriptor-reported byte count, rejects short reads, and rejects any byte beyond that admitted count before resolver/deserialization.
 
-The live analysis lock now resolves `torch==2.12.1`. PyTorch changed `torch.load` so releases starting with 2.6 use `weights_only=True` by default when a custom `pickle_module` is not supplied. Native Demucs packages contain more than a plain tensor `state_dict`: upstream loading consumes serialized class/constructor metadata. A compatibility package may therefore raise `pickle.UnpicklingError` when the weights-only unpickler rejects a serialized global. That failure is security-relevant as well as operational: BandScope must not surface internal serialized class names to a buyer, silently switch to `weights_only=False`, or turn a compatibility failure into remote/model fallback. The current Signal/MIR boundary converts this incompatibility to the existing bounded local-model-unavailable diagnostic while leaving the release serialization decision with Distribution.
+The live analysis lock now resolves `torch==2.12.1`. PyTorch changed `torch.load` so releases starting with 2.6 use `weights_only=True` by default when a custom `pickle_module` is not supplied. Native Demucs packages contain more than a plain tensor `state_dict`: upstream loading consumes serialized class/constructor metadata. A compatibility package may therefore raise `pickle.UnpicklingError` when the weights-only unpickler rejects a serialized global. That failure is security-relevant as well as operational: BandScope must not surface internal serialized class names to a buyer, silently switch to `weights_only=False`, or turn a compatibility failure into remote/model fallback. The Signal/MIR boundary converts this incompatibility to the existing bounded local-model-unavailable diagnostic while leaving the release serialization decision with Distribution.
+
+PyTorch also documents a process-level override, `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD`, that makes an implicit `torch.load` use `weights_only=False` when the call site did not pass the argument. Upstream Demucs 4.x uses that implicit form for native packages. Relying only on PyTorch's safer default therefore left a downgrade path outside BandScope's model-admission code: a truthy inherited environment value could reactivate unrestricted pickle loading before any BandScope exception boundary ran. The current loader rejects that unsafe override before Demucs import/resolution or checkpoint deserialization and returns the same bounded local-model-unavailable diagnostic.
 
 A commercial review exposed an independent rights blocker. The upstream Demucs issue about distributing pretrained models commercially received an explicit maintainer response that the model weights are not covered by the MIT code license and are provided only for scientific purposes. Technical integrity, local-only loading, a third-party mirror, conversion of the same weights, or a PyTorch compatibility workaround cannot create commercial rights. BandScope issue #1181 owns that release blocker.
 
@@ -22,10 +24,10 @@ A commercial review exposed an independent rights blocker. The upstream Demucs i
 - Runtime code must not silently download model artifacts.
 - A local model cache object is untrusted input: type, identity, byte size, and checksum evidence must be bounded before deserialization.
 - The private compatibility snapshot is temporary runtime authority, not a released model artifact or provenance statement.
-- A PyTorch weights-only incompatibility must not silently authorize unsafe legacy pickle loading; any broader deserialization policy belongs to a fully admitted immutable release artifact and explicit Distribution decision.
+- A PyTorch weights-only incompatibility must not silently authorize unsafe legacy pickle loading; process environment must not downgrade an implicit Demucs `torch.load` to `weights_only=False`; any broader deserialization policy belongs to a fully admitted immutable release artifact and explicit Distribution decision.
 - The upstream pretrained Demucs weights must not be bundled, auto-downloaded, or represented as commercially licensed unless an explicit commercial-use/redistribution grant covering the exact artifact is obtained.
 - Model artifacts are supply-chain inputs: usage/redistribution rights, provenance, exact full integrity evidence, package placement, SBOM/supplemental inventory coverage, signing and update/rollback behavior belong to Distribution rather than MIR inference code.
-- A missing, modified, oversized, size-racing, incompatible, or commercially inadmissible model must fail safely rather than fall back to the retired FFT mask or claim successful separation.
+- A missing, modified, oversized, size-racing, incompatible, environment-downgraded, or commercially inadmissible model must fail safely rather than fall back to the retired FFT mask or claim successful separation.
 - Unit fixtures may mock a model boundary; release/scientific acceptance still requires rights-cleared real decoded audio and an actually admissible released model artifact.
 
 ## RED evidence
@@ -42,6 +44,8 @@ Commit `f4ef3dc86e34432936b2febb152991af70e57bd1` adds the descriptor-size conti
 
 Commit `5789562e716d955c758a7eb728140c5fcb02f779` adds the PyTorch weights-only compatibility RED. A checksum-valid local fixture reaches the mocked Demucs resolver, which raises the same `pickle.UnpicklingError` class used when a weights-only load rejects a serialized global such as `demucs.htdemucs.HTDemucs`. The contract requires the public exception to remain `Stem separation model weights are not installed locally.` and forbids the serialized class name from leaking through that buyer-facing message. The predecessor propagated the unpickling failure. The production descendant followed immediately, so no hosted RED-failure receipt is claimed for the intermediate head.
 
+Commit `3ae3646087f6fe2ae6a9aa709025720fc40beb6c` adds the environment-downgrade RED. For every documented truthy form of `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` plus uppercase `TRUE`, a checksum-valid local fixture forbids the Demucs resolver from being called. The predecessor entered `get_model`, so an upstream implicit `torch.load` could have observed the unsafe process override. The production descendant followed immediately, so no hosted RED-failure receipt is claimed for the intermediate head.
+
 ## Selected repair
 
 Commit `61b629baaef0d6da15967fe272b9d9f109d18eaf` established the first narrow admission guard: the production `htdemucs` checkpoint must already exist locally, be a regular non-symlink object, and unsupported/missing inputs fail with the bounded message `Stem separation model weights are not installed locally.`
@@ -55,6 +59,8 @@ Commit `c21c6c4476f7c9ae937a24dda77eb841515ed315` bounds that compatibility snap
 Commit `0d0c6c3263e9b72b5aec554c1824de3d004b5831` binds snapshot materialization to that admitted descriptor size. The copy reads exactly `descriptor_stat.st_size` bytes, fails on an early EOF, and probes one additional byte without copying it; any post-`fstat` growth therefore fails before Demucs resolution instead of entering the snapshot. SHA-256 verification of those exact bytes against the canonical filename prefix remains required. A checksum mismatch, size violation, file-identity mismatch, size race, or I/O failure removes the owned snapshot and returns the same bounded model-unavailable result before Demucs deserialization.
 
 Commit `d395c6055bb16cfc4a76f490f16e9e6540590fae` keeps the PyTorch 2.6+ compatibility failure inside that same local-model boundary. `_load_model` catches only `pickle.UnpicklingError` from the admitted `get_model(signature, repo=snapshot_root)` call and converts it to the existing bounded local-model-unavailable `ValueError`. It does not set `weights_only=False`, broaden remote resolution, weaken snapshot checks, or treat incompatible bytes as successful model authority. Other unexpected exceptions remain visible to engineering rather than being swallowed by a broad catch.
+
+Commit `0d9fb9f983a093fe3868106945677dfa58d10bba` rejects PyTorch's documented no-weights-only process override before Demucs import/resolution. The guard recognizes the documented truthy values case-insensitively and does not mutate global process environment or rewrite upstream loader code. An unsafe inherited override therefore cannot turn the admitted compatibility path into unrestricted pickle deserialization; it fails with the existing bounded model-unavailable diagnostic.
 
 The 128 MiB ceiling is a defensive compatibility resource limit, not a claim about the exact commercial artifact. Distribution #1180 must replace this cache-compatibility assumption with an immutable admitted artifact whose exact byte size, full digest/signature, serialization contract, package placement, and update/rollback compatibility are release inputs. The exact packaged artifact must be demonstrated under the release PyTorch/model-loader stack rather than assuming that either `weights_only=True` or `weights_only=False` is safe or compatible.
 
@@ -82,6 +88,10 @@ Rejected. A generic maximum prevents unbounded storage but does not preserve the
 
 Rejected for the compatibility cache path. PyTorch documents that legacy pickle loading can execute arbitrary functions encoded by the checkpoint. The current eight-hex filename suffix and private snapshot establish local compatibility integrity, not the full release provenance needed to authorize a code-bearing object graph. Distribution may choose a native checkpoint only after exact rights/provenance, immutable full integrity evidence, loader isolation and removal conditions are documented under #1180.
 
+### Rely on PyTorch's default without guarding its environment override
+
+Rejected. Upstream Demucs does not pass `weights_only` explicitly at the native package call site, and PyTorch documents that a truthy `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` changes such calls to `weights_only=False`. A secure default is not an invariant if inherited process state can reverse it. BandScope rejects the downgrade before entering the third-party loader rather than modifying global environment or patching Demucs.
+
 ### Broadly catch every model-loader exception
 
 Rejected. A broad catch would hide implementation defects and incompatible scientific behavior. The current repair handles the identified `pickle.UnpicklingError` compatibility boundary while preserving fail-fast engineering visibility for unrelated failures.
@@ -106,11 +116,11 @@ Rejected. The retired heuristic is not a scientifically acceptable substitute fo
 
 ### Attack surface
 
-The model-loading boundary crosses the local Python process into third-party Demucs/torch deserialization. Cache pathname state, opened model bytes, descriptor size, temporary snapshots, serialized object graphs, PyTorch loader behavior, and release model artifacts are security-, availability-, scientific-integrity-, and supply-chain-sensitive inputs.
+The model-loading boundary crosses the local Python process into third-party Demucs/torch deserialization. Cache pathname state, opened model bytes, descriptor size, temporary snapshots, serialized object graphs, inherited PyTorch loader environment, loader behavior, and release model artifacts are security-, availability-, scientific-integrity-, and supply-chain-sensitive inputs.
 
 ### Trust boundary
 
-Signal/MIR may consume a technically admitted local model for Draft analysis, but it does not own remote acquisition, commercial-use/redistribution rights, or release packaging. The private snapshot binds one load to the regular descriptor, its admitted byte count, and verified local bytes; it does not make those bytes commercially admissible. The eight-hex checksum is upstream compatibility integrity evidence, not BandScope release provenance. PyTorch's weights-only policy is a loader security boundary, not a model-rights or scientific-acceptance statement. #1180 owns Distribution artifact delivery and #1181 owns the pretrained-weight rights blocker.
+Signal/MIR may consume a technically admitted local model for Draft analysis, but it does not own remote acquisition, commercial-use/redistribution rights, or release packaging. The private snapshot binds one load to the regular descriptor, its admitted byte count, and verified local bytes; it does not make those bytes commercially admissible. The eight-hex checksum is upstream compatibility integrity evidence, not BandScope release provenance. PyTorch's weights-only policy is a loader security boundary, not a model-rights or scientific-acceptance statement, and BandScope requires that inherited process state cannot downgrade that policy on this implicit upstream call. #1180 owns Distribution artifact delivery and #1181 owns the pretrained-weight rights blocker.
 
 ### Realistic threats
 
@@ -122,7 +132,8 @@ Signal/MIR may consume a technically admitted local model for Draft analysis, bu
 - a cache descriptor grows or shrinks after size preflight and changes the bytes copied into the private repository;
 - a corrupted canonical-name object is extremely large and exhausts temporary storage before checksum rejection;
 - a legacy serialized package is incompatible with the locked PyTorch weights-only default and leaks internal class/global names through an error;
-- an operator responds to that incompatibility by enabling unsafe legacy pickle loading on a merely compatibility-admitted cache object;
+- inherited `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` state silently turns an implicit upstream load into unrestricted pickle deserialization;
+- an operator responds to compatibility failure by enabling unsafe legacy pickle loading on a merely compatibility-admitted cache object;
 - a technically valid upstream checkpoint is shipped or advertised commercially despite the stated scientific-purpose restriction;
 - a third-party mirror or converted artifact is mistaken for a new commercial license grant.
 
@@ -135,8 +146,9 @@ Signal/MIR may consume a technically admitted local model for Draft analysis, bu
 - streaming SHA-256 verification against the canonical Demucs checksum prefix;
 - private temporary local repository built from the verified descriptor bytes;
 - explicit `repo=snapshot_root`, keeping upstream model resolution on `LocalRepo` instead of `RemoteRepo`;
+- reject a truthy `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` before the upstream loader can deserialize a native package;
 - bounded `pickle.UnpicklingError` handling without setting `weights_only=False` or exposing serialized class details;
-- bounded failure before Demucs deserialization/use for missing, modified, oversized, size-racing, or otherwise inadmissible cache state;
+- bounded failure before Demucs deserialization/use for missing, modified, oversized, size-racing, environment-downgraded, or otherwise inadmissible cache state;
 - no heuristic-success fallback;
 - #1181 blocks commercial packaging/auto-download/rights claims until explicit rights or an admissible replacement exists;
 - #1180 retains ownership of immutable release artifact, full digest/signature, serialization policy, inventory, package, signing, and updater/rollback evidence.
@@ -145,7 +157,7 @@ Signal/MIR may consume a technically admitted local model for Draft analysis, bu
 
 The current path is still a compatibility bridge around a developer/runtime torch cache, not a commercial release artifact boundary. The eight-hex suffix is truncated upstream integrity evidence, not a repository-owned full SHA-256, signature, provenance receipt, or exact package manifest. The 128 MiB ceiling is deliberately a generic safety limit rather than the exact size of an admitted release artifact.
 
-Demucs/torch deserialization still consumes a trusted technical snapshot in its native checkpoint format. Current PyTorch may reject legacy object graphs under the safer weights-only default; BandScope now fails closed rather than weakening that default in the compatibility path. A commercially admitted release should prefer a non-code-executing or materially narrower model format where scientifically equivalent, or bind unavoidable native deserialization to immutable package/signature provenance, an explicitly documented allowed object graph/loader policy, isolation and a removal condition. The upstream pretrained `htdemucs` weights remain blocked for commercial release by #1181 even if every technical integrity and compatibility check passes.
+Demucs/torch deserialization still consumes a trusted technical snapshot in its native checkpoint format. Current PyTorch may reject legacy object graphs under the safer weights-only default; BandScope now fails closed rather than weakening that default or allowing PyTorch's documented no-weights-only environment override to weaken it on the implicit Demucs call. A commercially admitted release should prefer a non-code-executing or materially narrower model format where scientifically equivalent, or bind unavoidable native deserialization to immutable package/signature provenance, an explicitly documented allowed object graph/loader policy, isolation and a removal condition. The upstream pretrained `htdemucs` weights remain blocked for commercial release by #1181 even if every technical integrity and compatibility check passes.
 
 ### Test points
 
@@ -156,19 +168,20 @@ Demucs/torch deserialization still consumes a trusted technical snapshot in its 
 - checkpoint larger than the active resource ceiling: resolver call count remains zero;
 - descriptor preflight smaller than readable bytes: extra bytes do not enter the snapshot and resolver call count remains zero;
 - weights-only incompatibility: `pickle.UnpicklingError` becomes the bounded local-model-unavailable diagnostic and serialized class names are absent from the public message;
+- truthy `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD`: resolver/deserialization call count remains zero and the bounded local-model-unavailable diagnostic is returned;
 - unsupported model name and symlink/non-regular object: fail closed;
 - commercial release: exact rights evidence exists for the immutable artifact or the upstream weights are absent from release inputs;
 - released admissible model: exact full digest/signature, exact size, serialization/loader policy, inventory, package/signing/notarization, rollback, and offline Windows/macOS real-audio acceptance are linked.
 
 ## Effect
 
-Ordinary missing-model execution no longer begins an implicit model download. Modified, oversized, or size-racing cache objects fail before Demucs resolution, and the model resolver consumes a private snapshot derived from exactly the descriptor byte count BandScope admitted rather than reopening the mutable torch-cache pathname or accepting later growth. The PyTorch 2.6+ weights-only compatibility failure is now bounded without silently enabling legacy pickle loading. These controls establish a technical local-first compatibility boundary; they do not prove that the upstream package loads successfully under the current locked stack, establish scientific accuracy, or authorize commercial use of the upstream weights.
+Ordinary missing-model execution no longer begins an implicit model download. Modified, oversized, or size-racing cache objects fail before Demucs resolution, and the model resolver consumes a private snapshot derived from exactly the descriptor byte count BandScope admitted rather than reopening the mutable torch-cache pathname or accepting later growth. The PyTorch 2.6+ weights-only compatibility failure is bounded without silently enabling legacy pickle loading, and inherited PyTorch environment state cannot opt the implicit Demucs load back into unrestricted pickle mode. These controls establish a technical local-first compatibility boundary; they do not prove that the upstream package loads successfully under the current locked stack, establish scientific accuracy, or authorize commercial use of the upstream weights.
 
 ## Follow-up
 
 1. Resolve #1181: obtain explicit commercial-use/redistribution rights for the exact upstream weights or select/train a commercially admissible replacement with traceable training-data/model rights.
 2. Under #1180, establish the admitted model's exact version, exact byte size, full digest/signature, serialization/loader contract, package location, supplemental inventory/SBOM/NOTICE, signing/notarization, and update/rollback policy.
-3. Exercise the exact released model with the exact locked PyTorch/loader stack. If a native checkpoint is retained, document the allowed object graph and loader/isolation policy; do not treat a blanket `weights_only=False` compatibility toggle as an admission control.
+3. Exercise the exact released model with the exact locked PyTorch/loader stack. If a native checkpoint is retained, document the allowed object graph and loader/isolation policy; do not treat a blanket `weights_only=False` compatibility toggle or environment override as an admission control.
 4. Replace torch-cache compatibility discovery with a Distribution-owned immutable local artifact path/manifest. Retain the descriptor-bound/private-load principle and no-remote-fallback invariant.
 5. Evaluate whether a lower-risk model serialization format can replace native checkpoint deserialization without sacrificing supported-platform behavior or scientific accuracy; document the decision and removal condition if not.
 6. Exercise the exact packaged artifact on supported Windows and macOS using rights-cleared real audio, recognized source-separation metrics, and explicit uncertainty/claim boundaries under #770.
@@ -186,5 +199,7 @@ Gawarecki, M. (2024, November 4). BC-breaking change: `torch.load` is being flip
 Meta Platforms, Inc. (2023). `demucs.pretrained`: loading pretrained models. *facebookresearch/demucs*. https://github.com/facebookresearch/demucs/blob/v4.0.1/demucs/pretrained.py
 
 Meta Platforms, Inc. (2023). `demucs.repo`: remote and local model repositories. *facebookresearch/demucs*. https://github.com/facebookresearch/demucs/blob/v4.0.1/demucs/repo.py
+
+PyTorch Contributors. (2026). Miscellaneous environment variables. *PyTorch documentation*. https://docs.pytorch.org/docs/stable/miscellaneous_environment_variables.html
 
 PyTorch Contributors. (2026). Serialization semantics: `torch.load` with `weights_only=True`. *PyTorch documentation*. https://docs.pytorch.org/docs/stable/notes/serialization.html#torch-load-with-weights-only-true
