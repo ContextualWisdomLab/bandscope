@@ -1,4 +1,4 @@
-"""Local audio source separation using a bundled Demucs model.
+"""Local audio source separation using a local Demucs model.
 
 Replaces the previous FFT band-masking heuristic — which scored around -39 dB
 SI-SDR on a realistic mix (i.e. not real separation) — with Demucs (htdemucs), a
@@ -20,11 +20,11 @@ Security Notes:
   closed instead of being silently truncated or normalized.
 - Empty, non-finite, or float32-overflowed model stems fail closed before they
   can become successful silence or downstream rehearsal evidence.
-- Inference runs locally with no network access. Accelerator outputs cross back
-  to CPU before NumPy conversion so configured device execution cannot fail at
-  the device/host boundary. The model weights are loaded from the local Demucs
-  cache or a configured bundled path; offline weight bundling is tracked in the
-  supplemental component inventory.
+- Inference does not intentionally acquire model weights from the network. The
+  canonical htdemucs checkpoint must already exist as a regular file in the
+  local torch checkpoint cache before Demucs's resolver is entered. Release
+  bundling and full artifact provenance remain supply-chain work rather than a
+  hidden first-run download.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -60,10 +60,14 @@ _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
 _MODEL_OUTPUT_ERROR = "Stem separation produced invalid audio."
 _ADMITTED_SOURCE_CHANGED_ERROR = "Stem separation source changed before decode."
+_LOCAL_MODEL_UNAVAILABLE_ERROR = "Stem separation model weights are not installed locally."
 _ADMITTED_AUDIO_BYTES_ENV = "BANDSCOPE_ADMITTED_AUDIO_BYTES"
 _ADMITTED_AUDIO_SHA256_ENV = "BANDSCOPE_ADMITTED_AUDIO_SHA256"
 _SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
 _COPY_CHUNK_BYTES = 64 * 1024
+_DEMUCS_LOCAL_CHECKPOINTS = {
+    "htdemucs": "955717e8-8726e21a.th",
+}
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
@@ -107,6 +111,29 @@ def _admitted_audio_evidence_from_environment() -> tuple[int, str] | None:
     if str(expected_size) != raw_size or expected_size <= 0 or not _valid_sha256_hex(digest):
         raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
     return expected_size, digest
+
+
+def _local_demucs_checkpoint(model_name: str) -> Path | None:
+    """Return the exact already-cached checkpoint accepted for offline inference.
+
+    Demucs's default ``get_model`` path uses ``RemoteRepo`` and delegates missing
+    checkpoints to ``torch.hub.load_state_dict_from_url``. BandScope therefore
+    checks the canonical cache object before entering that resolver. Unsupported
+    model names, missing files, directories, and symlinks fail closed instead of
+    turning local analysis into an implicit network operation.
+    """
+    checkpoint_name = _DEMUCS_LOCAL_CHECKPOINTS.get(model_name)
+    if checkpoint_name is None:
+        return None
+    try:
+        import torch
+
+        checkpoint_path = Path(torch.hub.get_dir()) / "checkpoints" / checkpoint_name
+        if checkpoint_path.is_symlink() or not checkpoint_path.is_file():
+            return None
+    except (ImportError, OSError, TypeError, ValueError):
+        return None
+    return checkpoint_path
 
 
 @dataclass(frozen=True)
@@ -220,15 +247,14 @@ class AudioStemSeparator:
         return {name: _as_float_array(sources[name]) for name in _STEM_ORDER}
 
     def _load_model(self) -> Any:
-        """Lazily load and cache the Demucs model.
+        """Lazily load the canonical Demucs model without an implicit download.
 
         Demucs (and torch) are installed only on platforms with current torch
         wheels (see pyproject platform markers); elsewhere separation fails with a
-        clear error the pipeline already surfaces safely.
-
-        The first load fetches model weights, whose download progress torch may
-        print to stdout — that would corrupt the CLI's JSON stdout protocol, so
-        stdout is redirected to stderr while the model is obtained.
+        clear error the pipeline already surfaces safely. The upstream resolver
+        is entered only when the exact canonical checkpoint already exists as a
+        regular local cache file. A missing checkpoint therefore fails closed
+        instead of becoming a first-run network dependency.
         """
         if self._model is None:
             try:
@@ -239,6 +265,9 @@ class AudioStemSeparator:
                 raise ValueError(
                     "Stem separation is not available on this platform (demucs/torch not installed)"
                 ) from error
+
+            if _local_demucs_checkpoint(self.config.model_name) is None:
+                raise ValueError(_LOCAL_MODEL_UNAVAILABLE_ERROR)
 
             with contextlib.redirect_stdout(sys.stderr):
                 model = get_model(self.config.model_name)
