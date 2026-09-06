@@ -1,7 +1,7 @@
 use bandscope_desktop_core::{
     re_admit_local_audio_publication, ProjectSourceReferencePayload,
 };
-use std::io::Cursor;
+use std::io::{Cursor, Error, ErrorKind, Read, Result as IoResult};
 
 const WAV_BYTES: &[u8] = &[
     0x52, 0x49, 0x46, 0x46, 0x2c, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45, 0x66, 0x6d,
@@ -11,6 +11,22 @@ const WAV_BYTES: &[u8] = &[
 ];
 const WAV_SHA256: &str =
     "6edea6da3400897a1eae8dede07c13843cffd02a91dc3599cd1f542a9a888be5";
+
+struct RejectRead;
+
+impl Read for RejectRead {
+    fn read(&mut self, _buf: &mut [u8]) -> IoResult<usize> {
+        panic!("malformed durable evidence must be rejected before reading the artifact");
+    }
+}
+
+struct FailingReader;
+
+impl Read for FailingReader {
+    fn read(&mut self, _buf: &mut [u8]) -> IoResult<usize> {
+        Err(Error::new(ErrorKind::PermissionDenied, "private OS detail"))
+    }
+}
 
 fn source_reference() -> ProjectSourceReferencePayload {
     ProjectSourceReferencePayload {
@@ -60,11 +76,11 @@ fn restart_re_admission_rejects_growth_and_truncation() {
 }
 
 #[test]
-fn restart_re_admission_revalidates_fixed_app_owned_artifact_identity() {
+fn restart_re_admission_revalidates_fixed_app_owned_artifact_identity_before_reading() {
     let mut forged = source_reference();
     forged.artifact_name = "../source.wav".to_string();
 
-    let error = re_admit_local_audio_publication(&forged, Cursor::new(WAV_BYTES))
+    let error = re_admit_local_audio_publication(&forged, RejectRead)
         .expect_err("typed but forged artifact identity must fail the reverse ACL");
 
     assert_eq!(error, "Could not prepare the local project workspace.");
@@ -79,8 +95,17 @@ fn restart_re_admission_rejects_malformed_durable_identity_before_reading() {
     invalid_extension.artifact_name = "source.WAV".to_string();
 
     for malformed in [invalid_project, invalid_extension] {
-        let error = re_admit_local_audio_publication(&malformed, Cursor::new(WAV_BYTES))
+        let error = re_admit_local_audio_publication(&malformed, RejectRead)
             .expect_err("malformed persisted identity must fail before becoming runtime authority");
         assert_eq!(error, "Could not prepare the local project workspace.");
     }
+}
+
+#[test]
+fn restart_re_admission_does_not_expose_reader_failures() {
+    let error = re_admit_local_audio_publication(&source_reference(), FailingReader)
+        .expect_err("a failed app-owned read must not regain runtime authority");
+
+    assert_eq!(error, "Could not prepare the local project workspace.");
+    assert!(!error.contains("private OS detail"));
 }
