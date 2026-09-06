@@ -334,7 +334,10 @@ class AudioStemSeparator:
                 actual_size = os.fstat(fileobj.fileno()).st_size
                 if actual_size != expected_file_size_bytes:
                     raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
-                with tempfile.SpooledTemporaryFile(max_size=_SNAPSHOT_MEMORY_BYTES, mode="w+b") as snapshot:
+                with tempfile.SpooledTemporaryFile(
+                    max_size=_SNAPSHOT_MEMORY_BYTES,
+                    mode="w+b",
+                ) as snapshot:
                     digest = hashlib.sha256()
                     remaining = expected_file_size_bytes
                     while remaining:
