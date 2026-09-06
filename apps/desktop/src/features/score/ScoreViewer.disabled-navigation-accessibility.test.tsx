@@ -72,6 +72,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
       "group-focus-within:opacity-100",
       "motion-reduce:transition-none"
     );
+    expect(previousReason).not.toHaveClass("pointer-events-none");
     previousButton.focus();
     expect(previousButton).toHaveFocus();
     expect(nextButton).not.toHaveAttribute("aria-describedby");
@@ -93,6 +94,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
       "group-focus-within:opacity-100",
       "motion-reduce:transition-none"
     );
+    expect(nextReason).not.toHaveClass("pointer-events-none");
     nextButton.focus();
     expect(nextButton).toHaveFocus();
     expect(previousButton).not.toHaveAttribute("aria-describedby");
