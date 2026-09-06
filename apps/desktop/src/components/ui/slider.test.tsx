@@ -32,12 +32,14 @@ describe("Slider accessibility contract", () => {
     expect(track?.contains(thumb)).toBe(true)
   })
 
-  it("keeps a 24 CSS px thumb and Base UI disabled/focus state selectors", () => {
+  it("keeps a 24 CSS px pointer target and Base UI disabled/focus state selectors", () => {
     const { container } = render(
       <Slider defaultValue={50} aria-label="Volume" disabled />
     )
+    const control = container.querySelector('[data-slot="slider-control"]')
     const thumb = container.querySelector('[data-slot="slider-thumb"]')
 
+    expect(control?.className).toContain("min-h-6")
     expect(thumb?.className).toContain("size-6")
     expect(thumb?.className).toContain("data-[disabled]:pointer-events-none")
     expect(thumb?.className).toContain("has(input:focus-visible)")
