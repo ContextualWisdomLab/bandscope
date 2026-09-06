@@ -17,6 +17,15 @@ describe("project document save authority", () => {
     delete tauriWindow.__TAURI_INVOKE__;
   });
 
+  it("fails closed when browser preview has no durable project-save authority", async () => {
+    await expect(
+      saveProjectDocument({
+        song: createDemoRehearsalSong(),
+        preferences: { selectedPlaybackSource: "full_mix" }
+      })
+    ).rejects.toThrow("Local project save is not available in browser preview.");
+  });
+
   it("rejects renderer-authored source identity before persistence IPC", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
     tauriWindow.__TAURI_INVOKE__ = invoke;
