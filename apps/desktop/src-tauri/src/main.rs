@@ -1,8 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod analysis_source;
 mod project_persistence;
 mod project_root;
 
+use analysis_source::revalidate_local_audio_bootstrap_for_analysis;
 use bandscope_desktop_core::*;
 use rfd::FileDialog;
 use serde_json::{json, Value};
@@ -750,6 +752,7 @@ fn start_analysis_job(
     request: Value,
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
 ) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
     let mut parsed_request = match parse_request_payload(request) {
@@ -774,6 +777,37 @@ fn start_analysis_job(
             );
         };
         let bootstrap = match lookup_bootstrap_source(&state, &project_id) {
+            Ok(bootstrap) => bootstrap,
+            Err(message) => {
+                return failed_status(
+                    "invalid-job".into(),
+                    requested_at,
+                    AnalysisJobErrorCode::NotFound,
+                    &message,
+                )
+            }
+        };
+        let identity = match publication_state
+            .0
+            .lock()
+            .ok()
+            .and_then(|identities| identities.get(&project_id).cloned())
+        {
+            Some(identity) => identity,
+            None => {
+                return failed_status(
+                    "invalid-job".into(),
+                    requested_at,
+                    AnalysisJobErrorCode::NotFound,
+                    "Analysis job source was not found. Choose local audio again.",
+                )
+            }
+        };
+        let bootstrap = match revalidate_local_audio_bootstrap_for_analysis(
+            &bootstrap,
+            &identity,
+            project_persistence::open_project_file,
+        ) {
             Ok(bootstrap) => bootstrap,
             Err(message) => {
                 return failed_status(
