@@ -19,6 +19,9 @@ use std::{
 use tauri::{Emitter, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
+const ADMITTED_AUDIO_BYTES_ENV: &str = "BANDSCOPE_ADMITTED_AUDIO_BYTES";
+const ADMITTED_AUDIO_SHA256_ENV: &str = "BANDSCOPE_ADMITTED_AUDIO_SHA256";
+
 /// Native-only cache of verified local-audio publication identities.
 ///
 /// Security Notes: entries are keyed only by BandScope-minted project ids and
@@ -567,6 +570,7 @@ fn run_analysis_engine(
     app: tauri::AppHandle<impl Runtime>,
     job_id: String,
     request: AnalysisJobRequest,
+    admitted_identity: Option<LocalAudioPublicationIdentity>,
     requested_at: String,
 ) -> AnalysisJobStatus {
     let (working_dir, program, mut args) = analysis_command();
@@ -581,14 +585,25 @@ fn run_analysis_engine(
     }
     args.push("--progress-jsonl".into());
 
-    let mut process = match Command::new(program)
+    let mut command = Command::new(program);
+    command
         .args(args)
         .current_dir(working_dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-    {
+        .env_remove(ADMITTED_AUDIO_BYTES_ENV)
+        .env_remove(ADMITTED_AUDIO_SHA256_ENV);
+    if let Some(identity) = admitted_identity.as_ref() {
+        command
+            .env(
+                ADMITTED_AUDIO_BYTES_ENV,
+                identity.file_size_bytes.to_string(),
+            )
+            .env(ADMITTED_AUDIO_SHA256_ENV, &identity.content_sha256);
+    }
+
+    let mut process = match command.spawn() {
         Ok(process) => process,
         Err(_) => {
             return failed_status(
@@ -766,6 +781,7 @@ fn start_analysis_job(
             )
         }
     };
+    let mut admitted_identity = None;
 
     if parsed_request.source_kind == "local_audio" {
         let Some(project_id) = parsed_request.project_id.clone() else {
@@ -818,6 +834,7 @@ fn start_analysis_job(
                 )
             }
         };
+        admitted_identity = Some(identity);
         parsed_request.source_label = bootstrap.source.file_name.clone();
         parsed_request.cache_root = Some(bootstrap.cache_root.clone());
         parsed_request.temp_root = Some(bootstrap.temp_root.clone());
@@ -871,6 +888,7 @@ fn start_analysis_job(
             worker_app_handle.clone(),
             job_id,
             parsed_request,
+            admitted_identity,
             requested_at,
         );
         store_status_and_emit(&app_state, &worker_app_handle, &finished);
