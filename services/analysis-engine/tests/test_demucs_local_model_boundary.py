@@ -10,7 +10,6 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 import bandscope_analysis.separation.audio_separator as audio_separator_module
-from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 
 
 class _FakeModel:
@@ -61,7 +60,7 @@ def test_demucs_model_load_fails_closed_before_remote_lookup_when_checkpoint_mis
     )
 
     with pytest.raises(ValueError, match="model weights are not installed locally"):
-        AudioStemSeparator()._load_model()
+        audio_separator_module.AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
 
@@ -102,7 +101,7 @@ def test_demucs_model_load_uses_verified_private_snapshot_in_local_repo(
         get_model=fake_local_lookup,
     )
 
-    model = AudioStemSeparator()._load_model()
+    model = audio_separator_module.AudioStemSeparator()._load_model()
 
     assert isinstance(model, _FakeModel)
     assert len(calls) == 1
@@ -139,7 +138,7 @@ def test_demucs_model_load_rejects_tampered_cached_checkpoint(
     )
 
     with pytest.raises(ValueError, match="model weights are not installed locally"):
-        AudioStemSeparator()._load_model()
+        audio_separator_module.AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
 
@@ -179,7 +178,7 @@ def test_demucs_model_load_rejects_checkpoint_over_resource_limit_before_resolve
     )
 
     with pytest.raises(ValueError, match="model weights are not installed locally"):
-        AudioStemSeparator()._load_model()
+        audio_separator_module.AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
 
@@ -229,6 +228,6 @@ def test_demucs_model_load_rejects_checkpoint_growth_after_descriptor_preflight(
     )
 
     with pytest.raises(ValueError, match="model weights are not installed locally"):
-        AudioStemSeparator()._load_model()
+        audio_separator_module.AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
