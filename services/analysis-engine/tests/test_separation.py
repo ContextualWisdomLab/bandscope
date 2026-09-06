@@ -39,22 +39,22 @@ def test_categorize_role_bass() -> None:
 
 
 def test_categorize_role_keys() -> None:
-    """Test keyboard role type is categorized correctly."""
+    """Test keyboard role is categorized correctly."""
     assert _categorize_role("keys-right", "Keyboard 1 Right Hand", "hand") == StemCategory.KEYS
 
 
 def test_categorize_role_piano() -> None:
-    """Test piano role type is categorized correctly."""
+    """Test piano role is categorized correctly."""
     assert _categorize_role("piano-1", "Piano", "instrument") == StemCategory.KEYS
 
 
 def test_categorize_role_guitar() -> None:
-    """Test guitar role type is categorized correctly."""
+    """Test guitar role is categorized correctly."""
     assert _categorize_role("guitar-1", "Electric Guitar", "instrument") == StemCategory.GUITAR
 
 
 def test_categorize_role_drums() -> None:
-    """Test drum role type is categorized correctly."""
+    """Test drum role is categorized correctly."""
     assert _categorize_role("drum-kit", "Drum Kit", "instrument") == StemCategory.DRUMS
 
 
