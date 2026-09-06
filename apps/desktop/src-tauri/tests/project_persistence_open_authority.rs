@@ -89,7 +89,10 @@ fn restart_adapter_reopens_the_exact_regular_app_owned_source() {
 
 #[test]
 fn restart_adapter_rejects_artifact_traversal_before_opening() {
-    use std::{fs, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
