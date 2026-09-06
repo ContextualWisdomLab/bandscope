@@ -36,12 +36,13 @@ import {
   getAnalysisJobStatus,
   importYoutubeUrl,
   isSupportedYoutubeUrl,
-  loadProject,
+  loadProjectDocument,
   MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
-  startAnalysisJob
+  startAnalysisJob,
+  type SelectedPlaybackSource
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
@@ -255,6 +256,7 @@ export function App() {
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
   const [jobResultPublicationProjectId, setJobResultPublicationProjectId] = useState<string | null>(null);
+  const [jobResultSelectedPlaybackSource, setJobResultSelectedPlaybackSource] = useState<SelectedPlaybackSource>("full_mix");
   const [jobError, setJobError] = useState<string | null>(null);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
@@ -291,6 +293,7 @@ export function App() {
       setJobResult(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
       setJobResultPublicationProjectId(activeAnalysisPublicationProjectId);
+      setJobResultSelectedPlaybackSource("full_mix");
       setActiveAnalysisBootstrap(null);
       setActiveAnalysisPublicationProjectId(null);
       setJobError(null);
@@ -410,6 +413,7 @@ export function App() {
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
         setJobResultPublicationProjectId(submittedPublicationProjectId);
+        setJobResultSelectedPlaybackSource("full_mix");
         setActiveAnalysisBootstrap(null);
         setActiveAnalysisPublicationProjectId(null);
       } else {
@@ -488,10 +492,11 @@ export function App() {
   /** Documented. */
   const handleLoadProject = async () => {
     try {
-      const song = await loadProject();
-      setJobResult(song);
+      const projectDocument = await loadProjectDocument();
+      setJobResult(projectDocument.song);
       setJobResultBootstrap(null);
-      setJobResultPublicationProjectId(null);
+      setJobResultPublicationProjectId(projectDocument.sourceReference?.projectId ?? null);
+      setJobResultSelectedPlaybackSource(projectDocument.preferences.selectedPlaybackSource);
       setJobError(null);
       setSelectedBootstrap(null);
       setSelectedPublicationProjectId(null);
@@ -508,11 +513,11 @@ export function App() {
   /** Documented. */
   const handleSaveProject = async () => {
     try {
-      if (jobResultPublicationProjectId) {
-        await saveProject(jobResult!, "full_mix", jobResultPublicationProjectId);
-      } else {
-        await saveProject(jobResult!);
-      }
+      await saveProject(
+        jobResult!,
+        jobResultSelectedPlaybackSource,
+        jobResultPublicationProjectId ?? undefined
+      );
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
