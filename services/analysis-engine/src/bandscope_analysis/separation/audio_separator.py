@@ -9,6 +9,10 @@ consume.
 Security Notes:
 - Treats the selected audio file as untrusted input: the path is normalized and
   verified to be a file, and a maximum byte size is enforced before decode.
+- Native-admitted sources can carry exact byte-count + SHA-256 evidence. Those
+  bytes are copied once from the opened descriptor into a private spooled file,
+  verified against the evidence, and decoded from that same snapshot. A later
+  pathname replacement therefore cannot change the bytes entering MIR/model work.
 - Decoded audio is revalidated against the same versioned resource policy before
   Demucs/model work so overlong, malformed, or non-finite decoder output fails
   closed instead of being silently truncated or normalized.
@@ -27,12 +31,14 @@ Security Notes:
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import logging
 import os
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, BinaryIO, cast
 
 import numpy as np
 
@@ -51,6 +57,9 @@ logger = logging.getLogger(__name__)
 _STEM_ORDER: tuple[AudioStemName, ...] = ("vocals", "bass", "drums", "other")
 _EMPTY_RANGE_EPS = 1e-9
 _MODEL_OUTPUT_ERROR = "Stem separation produced invalid audio."
+_ADMITTED_SOURCE_CHANGED_ERROR = "Stem separation source changed before decode."
+_SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
+_COPY_CHUNK_BYTES = 64 * 1024
 
 
 def _contains_parent_path_segment(path: Path) -> bool:
@@ -61,6 +70,16 @@ def _contains_parent_path_segment(path: Path) -> bool:
         if separator and separator != "/":
             normalized_path_text = normalized_path_text.replace(separator, "/")
     return any(part == ".." for part in normalized_path_text.split("/"))
+
+
+def _valid_sha256_hex(value: object) -> bool:
+    """Return whether value is one canonical lowercase SHA-256 hex digest."""
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and value == value.lower()
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 @dataclass(frozen=True)
@@ -91,11 +110,39 @@ class AudioStemSeparator:
         self._model: Any = None
 
     def separate(self, audio_path: str | Path) -> AudioSeparationResult:
-        """Separate local audio into vocals, bass, drums, and other stems."""
+        """Separate one local path through the compatibility decode boundary."""
         path = self._resolve_audio_file(audio_path)
         audio, sample_rate = self._load_audio(path)
+        return self._separate_loaded_audio(audio, sample_rate)
+
+    def separate_admitted(
+        self,
+        audio_path: str | Path,
+        *,
+        expected_file_size_bytes: int,
+        expected_content_sha256: str,
+    ) -> AudioSeparationResult:
+        """Separate bytes that reproduce native Resource Admission evidence.
+
+        The source pathname is resolved and opened once. Before any decoder or
+        model call, the opened bytes are copied into a private spooled snapshot
+        while exact encoded length and SHA-256 are checked. Decode then consumes
+        that snapshot rather than reopening the pathname.
+        """
+        path = self._resolve_audio_file(audio_path)
+        audio, sample_rate = self._load_admitted_audio(
+            path,
+            expected_file_size_bytes=expected_file_size_bytes,
+            expected_content_sha256=expected_content_sha256,
+        )
+        return self._separate_loaded_audio(audio, sample_rate)
+
+    def _separate_loaded_audio(
+        self, audio: AudioStemArray, sample_rate: int
+    ) -> AudioSeparationResult:
+        """Separate one already-decoded admitted mono signal."""
         if audio.size == 0:
-            raise ValueError(f"Stem separation decode failed for {path.name}")
+            raise ValueError("Stem separation decode failed for selected audio")
 
         stem_arrays = self._separate_signal(audio, sample_rate)
         stems: AudioStemPayload = {
@@ -207,7 +254,7 @@ class AudioStemSeparator:
         return path
 
     def _load_audio(self, path: Path) -> tuple[AudioStemArray, int]:
-        """Load bounded mono audio through the canonical decoder authority."""
+        """Load bounded mono audio through the compatibility decoder authority."""
         try:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
@@ -218,6 +265,54 @@ class AudioStemSeparator:
                 except ValueError as error:
                     raise ValueError("Audio file is too large for stem separation") from error
                 y, sr = decode_mono_audio(fileobj, policy=self.resource_policy)
+        except ValueError:
+            raise
+        except Exception as error:
+            raise ValueError(f"Stem separation decode failed for {path.name}") from error
+
+        if y.size == 0:
+            raise ValueError(f"Stem separation decode failed for {path.name}")
+        return _as_float_array(y), int(sr)
+
+    def _load_admitted_audio(
+        self,
+        path: Path,
+        *,
+        expected_file_size_bytes: int,
+        expected_content_sha256: str,
+    ) -> tuple[AudioStemArray, int]:
+        """Snapshot and decode exactly the bytes admitted by native Resource Admission."""
+        if (
+            not isinstance(expected_file_size_bytes, int)
+            or isinstance(expected_file_size_bytes, bool)
+            or expected_file_size_bytes <= 0
+            or not _valid_sha256_hex(expected_content_sha256)
+        ):
+            raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
+        try:
+            self.resource_policy.validate_encoded_file_bytes(expected_file_size_bytes)
+        except ValueError as error:
+            raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR) from error
+
+        try:
+            with path.open("rb") as fileobj:
+                actual_size = os.fstat(fileobj.fileno()).st_size
+                if actual_size != expected_file_size_bytes:
+                    raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
+                with tempfile.SpooledTemporaryFile(max_size=_SNAPSHOT_MEMORY_BYTES, mode="w+b") as snapshot:
+                    digest = hashlib.sha256()
+                    remaining = expected_file_size_bytes
+                    while remaining:
+                        chunk = fileobj.read(min(_COPY_CHUNK_BYTES, remaining))
+                        if not chunk:
+                            raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
+                        snapshot.write(chunk)
+                        digest.update(chunk)
+                        remaining -= len(chunk)
+                    if fileobj.read(1) or digest.hexdigest() != expected_content_sha256:
+                        raise ValueError(_ADMITTED_SOURCE_CHANGED_ERROR)
+                    snapshot.seek(0)
+                    y, sr = decode_mono_audio(snapshot, policy=self.resource_policy)
         except ValueError:
             raise
         except Exception as error:
