@@ -15,12 +15,13 @@ const ANALYSIS_SOURCE_NOT_FOUND: &str =
 /// through the Project Persistence ACL, the fixed `source.<extension>` artifact
 /// is reopened by the supplied no-follow/reparse-aware native opener, and the
 /// current bytes must reproduce the retained bounded size and SHA-256 before
-/// they can be sent to the analysis process. OS/file-system details are reduced
-/// to the stable buyer-facing re-selection error.
-///
-/// This narrows the restart-to-dispatch mutation window but does not claim
-/// descriptor-to-decoder continuity: the analysis process still opens the
-/// returned transient path after this function releases the verified reader.
+/// they can be sent to the analysis process. Cache and temporary workspaces are
+/// namespaced by that same canonical digest so a same-path/same-size replacement
+/// cannot alias analysis or stem-work artifacts from another content identity.
+/// OS/file-system details are reduced to the stable buyer-facing re-selection
+/// error. Decoder-byte continuity is completed downstream by the per-process
+/// identity handoff and verified snapshot; this adapter does not mint a second
+/// content identity.
 pub fn revalidate_local_audio_bootstrap_for_analysis<R, F>(
     bootstrap: &ProjectBootstrapSummaryPayload,
     identity: &LocalAudioPublicationIdentity,
@@ -43,9 +44,18 @@ where
     )
     .map_err(|_| ANALYSIS_SOURCE_NOT_FOUND.to_string())?;
 
+    let content_sha256 = reopened.identity.content_sha256.clone();
     let mut refreshed = bootstrap.clone();
     refreshed.source.source_path = reopened.source_path.to_string_lossy().into_owned();
     refreshed.source.extension = reopened.identity.extension;
     refreshed.source.file_size_bytes = reopened.identity.file_size_bytes;
+    refreshed.cache_root = Path::new(&bootstrap.cache_root)
+        .join(&content_sha256)
+        .to_string_lossy()
+        .into_owned();
+    refreshed.temp_root = Path::new(&bootstrap.temp_root)
+        .join(&content_sha256)
+        .to_string_lossy()
+        .into_owned();
     Ok(refreshed)
 }
