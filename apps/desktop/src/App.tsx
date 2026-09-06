@@ -36,12 +36,13 @@ import {
   getAnalysisJobStatus,
   importYoutubeUrl,
   isSupportedYoutubeUrl,
-  loadProject,
+  loadProjectDocument,
   MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
-  startAnalysisJob
+  startAnalysisJob,
+  type SelectedPlaybackSource
 } from "./lib/analysis";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
@@ -254,11 +255,15 @@ export function App() {
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [jobResultPublicationProjectId, setJobResultPublicationProjectId] = useState<string | null>(null);
+  const [jobResultSelectedPlaybackSource, setJobResultSelectedPlaybackSource] = useState<SelectedPlaybackSource>("full_mix");
   const [jobError, setJobError] = useState<string | null>(null);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [selectedPublicationProjectId, setSelectedPublicationProjectId] = useState<string | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [activeAnalysisPublicationProjectId, setActiveAnalysisPublicationProjectId] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -287,14 +292,18 @@ export function App() {
     if (nextStatus.state === "succeeded" && nextStatus.result) {
       setJobResult(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
+      setJobResultPublicationProjectId(activeAnalysisPublicationProjectId);
+      setJobResultSelectedPlaybackSource("full_mix");
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobError(null);
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
-  }, [activeAnalysisBootstrap, t]);
+  }, [activeAnalysisBootstrap, activeAnalysisPublicationProjectId, t]);
 
   useEffect(() => {
     const targetPercent = jobStatus?.progressPercent;
@@ -388,11 +397,14 @@ export function App() {
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    const submittedPublicationProjectId = selectedPublicationProjectId;
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
+    setJobResultPublicationProjectId(null);
     setJobStatus(null);
     setActiveAnalysisBootstrap(submittedBootstrap);
+    setActiveAnalysisPublicationProjectId(submittedPublicationProjectId);
     setIsStarting(true);
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
@@ -400,13 +412,17 @@ export function App() {
         setJobStatus(nextStatus);
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
+        setJobResultPublicationProjectId(submittedPublicationProjectId);
+        setJobResultSelectedPlaybackSource("full_mix");
         setActiveAnalysisBootstrap(null);
+        setActiveAnalysisPublicationProjectId(null);
       } else {
         applyJobStatus(nextStatus);
       }
     } catch {
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobError(t("analysisCouldNotStart"));
     } finally {
       setIsStarting(false);
@@ -420,10 +436,12 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
+      setSelectedPublicationProjectId(selection.bootstrap.projectId);
       return;
     }
 
     setSelectedBootstrap(null);
+    setSelectedPublicationProjectId(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setSelectionErrorSource("local");
     setJobStatus(null);
@@ -451,6 +469,7 @@ export function App() {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
+        setSelectedPublicationProjectId(null);
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
@@ -473,12 +492,16 @@ export function App() {
   /** Documented. */
   const handleLoadProject = async () => {
     try {
-      const song = await loadProject();
-      setJobResult(song);
+      const projectDocument = await loadProjectDocument();
+      setJobResult(projectDocument.song);
       setJobResultBootstrap(null);
+      setJobResultPublicationProjectId(projectDocument.sourceReference?.projectId ?? null);
+      setJobResultSelectedPlaybackSource(projectDocument.preferences.selectedPlaybackSource);
       setJobError(null);
       setSelectedBootstrap(null);
+      setSelectedPublicationProjectId(null);
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
@@ -490,7 +513,11 @@ export function App() {
   /** Documented. */
   const handleSaveProject = async () => {
     try {
-      await saveProject(jobResult!);
+      await saveProject(
+        jobResult!,
+        jobResultSelectedPlaybackSource,
+        jobResultPublicationProjectId ?? undefined
+      );
     } catch (e) {
       if (!isUserCancellation(e)) {
         setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);

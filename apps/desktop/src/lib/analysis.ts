@@ -7,7 +7,6 @@ import {
   parseAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
-  parseRehearsalSong,
   type AnalysisJobError,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
@@ -15,6 +14,14 @@ import {
   type RehearsalSong
 } from "@bandscope/shared-types";
 import { listen } from "@tauri-apps/api/event";
+import {
+  createProjectDocument,
+  parseProjectDocument,
+  type ProjectDocument,
+  type SelectedPlaybackSource
+} from "./projectDocument";
+
+export type { ProjectDocument, SelectedPlaybackSource } from "./projectDocument";
 
 type TauriInvoke = (command: string, args?: Record<string, unknown>) => Promise<unknown>;
 
@@ -35,8 +42,14 @@ const BROWSER_PROGRESS_STEPS = [
   { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
 ] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
+const LOCAL_AUDIO_TOO_LARGE_MESSAGE = "Choose a shorter or smaller song file to start analysis.";
+const LOCAL_AUDIO_POLICY_MESSAGE =
+  "Selected audio file metadata violates the analysis resource policy.";
+const MAX_LOCAL_AUDIO_FILE_BYTES = 100 * 1024 * 1024;
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
+  LOCAL_AUDIO_TOO_LARGE_MESSAGE,
+  LOCAL_AUDIO_POLICY_MESSAGE,
   "Could not read the selected audio file.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
@@ -45,7 +58,7 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 
-export { MAX_YOUTUBE_URL_LENGTH };
+export { MAX_LOCAL_AUDIO_FILE_BYTES, MAX_YOUTUBE_URL_LENGTH };
 
 /** Documented. */
 export type LocalAudioSelectionResult =
@@ -177,7 +190,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "save_project") {
-    return;
+    throw new Error("Local project save is not available in browser preview.");
   }
 
   if (command === "import_youtube_url") {
@@ -217,6 +230,34 @@ async function invokeAnalysis(command: string, args?: Record<string, unknown>): 
   return browserFallback(command, args);
 }
 
+/** Preserve only bounded native intake diagnostics approved for buyer-visible display. */
+function localAudioErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : null;
+  return message && SAFE_LOCAL_AUDIO_MESSAGES.has(message)
+    ? message
+    : UNSUPPORTED_LOCAL_AUDIO_MESSAGE;
+}
+
+/**
+ * Parse a native/import bootstrap and enforce policy-v1 encoded-byte parity
+ * before the selection is allowed to become desktop project state.
+ *
+ * Python service and descriptor checks remain authoritative for analysis; this
+ * bridge check is defense in depth so local-file and imported-file intake fail
+ * at the same 100 MiB boundary instead of waiting for a later analysis stage.
+ */
+function parseBoundedAudioBootstrap(response: unknown): ProjectBootstrapSummary {
+  const bootstrap = parseProjectBootstrapSummary(response);
+  const fileSizeBytes = bootstrap.source.fileSizeBytes;
+  if (!Number.isSafeInteger(fileSizeBytes)) {
+    throw new Error(LOCAL_AUDIO_POLICY_MESSAGE);
+  }
+  if (fileSizeBytes > MAX_LOCAL_AUDIO_FILE_BYTES) {
+    throw new Error(LOCAL_AUDIO_TOO_LARGE_MESSAGE);
+  }
+  return bootstrap;
+}
+
 /** Documented. */
 export function createDefaultAnalysisRequest(): AnalysisJobRequest {
   return createDemoAnalysisJobRequest();
@@ -228,17 +269,14 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
     const response = await invokeAnalysis("select_local_audio_source");
     return {
       ok: true,
-      bootstrap: parseProjectBootstrapSummary(response)
+      bootstrap: parseBoundedAudioBootstrap(response)
     };
   } catch (error) {
     return {
       ok: false,
       error: {
         code: "invalid_request",
-        message:
-          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
-            ? error.message
-            : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
+        message: localAudioErrorMessage(error)
       }
     };
   }
@@ -328,10 +366,10 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
     const response = await invokeAnalysis("import_youtube_url", { url });
     return {
       ok: true,
-      bootstrap: parseProjectBootstrapSummary(response)
+      bootstrap: parseBoundedAudioBootstrap(response)
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
+    const message = error instanceof Error ? error.message : typeof error === "string" ? error : "YouTube import failed.";
     return {
       ok: false,
       error: {
@@ -342,14 +380,44 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
   }
 }
 
-/** Documented. */
-export async function saveProject(song: RehearsalSong): Promise<void> {
-  const parsedSong = parseRehearsalSong(song);
-  await invokeAnalysis("save_project", { payload: parsedSong });
+/**
+ * Persist renderer-owned project state without accepting native source identity from the WebView.
+ *
+ * Native Resource Admission owns `sourceReference` evidence. Renderer-authored
+ * source evidence fails before persistence IPC. When the caller owns an already-
+ * minted project aggregate, it may pass only that project id; Tauri resolves the
+ * retained publication identity and injects the path-free reference natively.
+ */
+export async function saveProjectDocument(
+  projectDocument: ProjectDocument,
+  projectId?: string
+): Promise<void> {
+  const parsedDocument = parseProjectDocument(projectDocument);
+  if (parsedDocument.sourceReference) {
+    throw new Error("Invalid project document");
+  }
+  await invokeAnalysis("save_project", {
+    payload: parsedDocument,
+    ...(projectId === undefined ? {} : { projectId })
+  });
 }
 
-/** Documented. */
-export async function loadProject(): Promise<RehearsalSong> {
+/** Reopen one current versioned project document, including durable Project Persistence state. */
+export async function loadProjectDocument(): Promise<ProjectDocument> {
   const response = await invokeAnalysis("load_project");
-  return parseRehearsalSong(response);
+  return parseProjectDocument(response);
+}
+
+/** Compatibility save for callers that do not yet own a playback-source preference. */
+export async function saveProject(
+  song: RehearsalSong,
+  selectedPlaybackSource: SelectedPlaybackSource = "full_mix",
+  projectId?: string
+): Promise<void> {
+  await saveProjectDocument(createProjectDocument(song, selectedPlaybackSource), projectId);
+}
+
+/** Compatibility load for existing song-only consumers while mounted reopen composition remains separate work. */
+export async function loadProject(): Promise<RehearsalSong> {
+  return (await loadProjectDocument()).song;
 }
