@@ -71,3 +71,41 @@ fn local_audio_selection_retains_verified_path_free_identity_in_native_state() {
         "the native publication identity state must be registered with the Tauri runtime"
     );
 }
+
+#[test]
+fn project_save_binds_only_explicit_project_id_to_retained_native_source_identity() {
+    let source = include_str!("../src/main.rs");
+    let save_start = source
+        .find("fn save_project(")
+        .expect("native project save command must remain present");
+    let save_tail = &source[save_start..];
+    let save_end = save_tail
+        .find("\n}\n\n#[tauri::command]\nfn load_project")
+        .expect("save command boundary must remain inspectable");
+    let save_command = &save_tail[..save_end];
+
+    assert!(
+        source.contains("fn project_document_with_retained_source_reference("),
+        "native persistence needs one explicit retained-identity adapter"
+    );
+    assert!(
+        save_command.contains("project_id: Option<String>"),
+        "renderer may submit only the already-minted project id as the save selector"
+    );
+    assert!(
+        save_command.contains("publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>"),
+        "save must read verified source identity from native state instead of renderer evidence"
+    );
+    assert!(
+        save_command.contains("project_document_with_retained_source_reference("),
+        "save must inject the native source reference before project serialization"
+    );
+    assert!(
+        !save_command.contains("source_reference = serde_json"),
+        "save must never reconstruct source identity from renderer JSON"
+    );
+    assert!(
+        !source.contains("last_selected_project"),
+        "multiple project aggregates forbid a global last-selected shortcut"
+    );
+}
