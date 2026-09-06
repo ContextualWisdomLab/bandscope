@@ -149,6 +149,8 @@
   "practiceProgressLabel": "Practice Progress",
   "decreasePracticeProgressLabel": "Decrease progress",
   "increasePracticeProgressLabel": "Increase progress",
+  "scoreViewerPrevPageDisabled": "Already at the first page",
+  "scoreViewerNextPageDisabled": "Already at the last page",
   "workspaceFirstRangeTitle": "Tonight's first range",
   "workspaceFirstRangeCheck": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Check that span on your instrument before the {sectionLabel}.",
   "workspaceFirstRangeClash": "{roleName} sits {lowestNote}–{highestNote} in {sectionLabel}. Hear that clash on your instrument before the {sectionLabel}.",
