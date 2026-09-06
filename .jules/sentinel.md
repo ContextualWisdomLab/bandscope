@@ -6,7 +6,7 @@
 ## 2024-07-07 - Unsanitized Directory Input Paths API Validation
 **Vulnerability:** The API logic allowed user-controlled local data directory paths (`cacheRoot` and `tempRoot`) to be directly used without mitigating cross-platform path traversal vulnerabilities.
 **Learning:** Checking for '..' sequences in untrusted paths fails to parse cross-platform separators reliably for untrusted inputs (e.g., Windows backslashes on POSIX). Relying solely on `os.sep` or `os.altsep` is inadequate because absolute paths can bypass restrictions if not resolved correctly, or if `os.altsep` is None.
-**Prevention:** Manually replace backslashes with forward slashes and split by forward slash (e.g., `if '..' in path.replace('\\', '/').split('/')`) to enforce path traversal protections explicitly for restricted directory inputs provided via the API. Do not block `~` for user-selected input files.
+**Prevention:** Manually replace backslashes with forward slashes and split by forward slash (e.g. `if '..' in path.replace('\\', '/').split('/')`) to enforce path traversal protections explicitly for restricted directory inputs provided via the API. Do not block `~` for user-selected input files.
 
 ## 2024-05-20 - Python Path Traversal Mitigation bypass
 **Vulnerability:** Path traversal detection in Python backend APIs relied solely on checking the input path string or basic parsed parts which might not adequately catch sequences like `..` when intermixed with different path separators.
@@ -29,7 +29,7 @@
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
 
-## 2025-02-15 - CSV Formula Injection NUL Byte Bypass
-**Vulnerability:** CSV formula injection mitigation was incomplete, missing the NUL byte (`\x00`) in its control character check.
-**Learning:** Regular expressions for CSV escaping must explicitly include NUL bytes, as some parsers might skip them and execute the subsequent formula.
-**Prevention:** Include `\x00` in the regex for problematic characters (e.g. `/^[\s\uFEFF\xA0]*[=+\-@\t\r\n\x00]/`), and explicitly suppress ESLint `no-control-regex` to allow it.
+## 2026-09-05 - CSV Formula Injection C0 Control Prefix Bypass
+**Vulnerability:** CSV formula-injection mitigation was incomplete when a cell began with a C0 control character (`\x00`-`\x1F`) that could be interpreted differently by downstream spreadsheet or parser implementations before a formula token.
+**Learning:** NUL is only one member of the parser-disagreement boundary. Security policy must not depend on every downstream consumer preserving leading control bytes exactly, and executable regressions must include non-whitespace controls such as ESC as well as NUL.
+**Prevention:** In `escapeCsvField`, treat any leading C0 control after permitted whitespace/BOM/NBSP as dangerous, prefix the entire original field before structural CSV quoting, and retain regressions for NUL-only, repeated NUL, whitespace+control, ESC-prefixed formula-shaped values, and full-width formula operators. Keep the lint exception scoped only to the intentional control-character regular expression.
