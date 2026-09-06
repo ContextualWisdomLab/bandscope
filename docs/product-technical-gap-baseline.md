@@ -1,16 +1,14 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-09-06
-Evidence capture: live GitHub state is dated at observation; protected refs are revalidated when identified as current
+Last updated: 2026-09-07
+Evidence capture: live GitHub state is dated at observation; protected refs are revalidated before merge/release claims
 Protected product truth: `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 
 ## Purpose
 
-This document is the canonical live product/technical gap synthesis for BandScope. It is governed by `AGENTS.md`, `ARCHITECTURE.md`, the security/repository/engineering sources they reference, and `docs/brand-story.md`; if this synthesis conflicts with those owning sources, the owning source wins and this baseline must be repaired. Mechanical enforcement remains in the repository's tests, root verification scripts, workflows, and protected-branch rules rather than in prose alone.
+This document is the canonical live product/technical gap synthesis for BandScope. `AGENTS.md`, `CLAUDE.md`, `ARCHITECTURE.md`, owning ADR/PRD/TRD/security/test/release documents, protected source, and live GitHub state remain the detailed authorities. If this synthesis conflicts with an owning source, the owning source wins and this file must be repaired.
 
-It separates protected shipped truth from active pull-request work, research/acceptance work, superseded work, and external control-plane dependencies. A PR body, predecessor check, model review, screenshot, remembered SHA, or generated routing manifest is never shipped truth.
-
-BandScope is a local-first rehearsal decision product. The commercial loop is complete only when a musician can admit a real local recording, obtain evidence-backed rehearsal guidance, rehearse a precise passage, save and recover the project, share a bounded handoff, diagnose failures without leaking private media, and install, update, repair, or roll back a verifiable signed build.
+BandScope is a local-first rehearsal decision product. Commercial completion means a musician can admit an authorized real recording, obtain reproducible evidence-backed rehearsal guidance, move directly into audible rehearsal, preserve and recover the project without silent data loss, hand off only bounded intended data, diagnose failures without leaking private media, and install/update/rollback a verifiable signed build.
 
 BandScope is not a DAW, notation editor, mandatory cloud service, or an authority that presents uncertain machine analysis as unquestionable musical truth.
 
@@ -21,127 +19,110 @@ BandScope is not a DAW, notation editor, mandatory cloud service, or an authorit
 The product must let a working musician or band member:
 
 1. select an authorized local recording and reach useful rehearsal guidance without first exporting media to a cloud service;
-2. understand form, section boundaries, harmony, groove/timing, entries/dropouts, range, overlap, handoffs, setup cues, and role-specific preparation with uncertainty visible where the evidence does not justify certainty;
-3. move from an insight to audible rehearsal in the same product through one transport authority supporting play/pause/seek/stop, precise section/range loop, count-in, playback rate, cue navigation, and source-backed stem controls where real stems exist;
+2. understand form, section boundaries, harmony, groove/timing, entries/dropouts, range, overlap, handoffs, setup cues, and role-specific preparation with uncertainty visible where evidence does not justify certainty;
+3. move from an insight to audible rehearsal through one transport authority supporting play/pause/seek/stop, section/range loop, count-in, playback rate, cue navigation, and source-backed stem controls where admitted stems actually exist;
 4. correct machine evidence without erasing the original estimate, confidence, model identity, source identity, or user-confirmed provenance;
 5. close and reopen work, survive interrupted writes and migrations, and recover the last known-good project without a partial write replacing it;
 6. export a bounded collaboration handoff without creating a second authoritative project store;
 7. inspect redacted diagnostics and a user-previewable offline support bundle without ordinary logs containing raw audio, project payloads, credentials, or absolute paths;
-8. install and update a build whose version, signature, checksum, SBOM, provenance, rollout state, and rollback/repair path can be verified.
+8. install and update a build whose version, signature, checksum, SBOM, provenance, rollout state, model/dependency inventory, and rollback/repair path can be verified.
 
-Representative user stories are intentionally end-to-end rather than one-card micro-features:
+Representative end-to-end stories remain deliberately broader than micro-features:
 
-- As a player, I can open my local song, see the first high-value rehearsal action, start the relevant passage, count it in, and loop it without rebuilding transport in another tool.
-- As a band member, I can see section × role guidance and distinguish machine evidence from a user-confirmed correction.
-- As a returning user, I can reopen the same project after a crash or interrupted save and recover the last known-good rehearsal state, including transport/loop state where the format supports it.
+- As a player, I can open my local song, see the first high-value rehearsal action, start the relevant passage, count it in, and loop it without rebuilding transport elsewhere.
+- As a returning user, I can reopen the same project after a crash or interrupted save and recover the last known-good rehearsal state and durable source intent without silently manufacturing new source authority.
 - As a user of keyboard or assistive technology, I can perform the same primary rehearsal actions and obtain exact-value alternatives to visual-only maps, timelines, or waveforms.
-- As a maintainer or support recipient, I can preview exactly what diagnostic evidence will leave the machine and verify that private media and credentials are excluded.
-- As an installer, I can distinguish an unsigned validation artifact from a verifiable production release and can roll back a bad staged update.
+- As an installer, I can distinguish an unsigned validation artifact from a verifiable production release and roll back a bad staged update without app/model/dependency identity drifting silently.
 
-### 1.2 Commercial acceptance boundaries
+### 1.2 Commercial acceptance boundary
 
-A buyer-visible capability is complete only when its production path, negative/error states, persistence/recovery behavior where applicable, security boundary, accessibility contract, and release evidence are all integrated on one protected identity. A static card, Storybook-only state, Figma-only mock, generated array, direct feature matrix, synthetic audio fixture, or predecessor-head check cannot substitute for the relevant production acceptance path.
+A buyer-visible capability is complete only when its production path, negative/error states, persistence/recovery behavior where applicable, security boundary, accessibility contract, real-audio/scientific evidence where applicable, and release evidence are integrated on one protected identity. Storybook/Figma-only states, generated arrays, synthetic audio, direct feature matrices, predecessor-head checks, model reviews, or screenshots cannot substitute for the relevant production acceptance path.
 
-The near-term product order remains: merge-train convergence; trusted distribution; active rehearsal player; crash-safe project; real-audio science/resource admission; diagnostics; activation; accessibility/design parity; 100% repository-owned production statement/branch coverage and public API documentation.
+Near-term order remains: merge-train convergence; trusted distribution; active rehearsal player; crash-safe project; real-audio science/resource admission; diagnostics; activation; accessibility/design parity; 100% repository-owned production statement/branch/edge coverage and public API documentation.
 
 ## 2. Live delivery authority
 
-A complete accessible-repository sweep begun at **2026-09-02 21:56 KST** queried all **74** repositories visible under `ContextualWisdomLab` at that observation individually. The sequential per-repository counts summed to **2,940 open pull requests**. A subsequent organization-wide aggregate returned **2,941 open pull requests** with `incomplete_results=false`. The one-PR difference is a non-atomic observation, not attribution to a particular repository: PR creation and closure can occur during or after the sequential sweep, so this census remains dated evidence rather than permanent product truth.
+A complete accessible-repository census begun 2026-09-02 21:56 KST observed 74 `ContextualWisdomLab` repositories. Sequential counts summed to 2,940 open pull requests and the subsequent organization aggregate returned 2,941 with `incomplete_results=false`; the one-PR difference is non-atomic observation, not attribution. BandScope had 194 open PRs and 19 open issues in that dated capture. Later counts are not inferred from it.
 
-At this census `ContextualWisdomLab/bandscope` had **194 open pull requests** and the same capture's issue search returned **19 open issues**, so it remained the selected delivery boundary at that observation. High-backlog peers observed in that capture were `ContextualWisdomLab/naruon` (148), `ContextualWisdomLab/OriginWeave` (142), `ContextualWisdomLab/newsdom-api` (139), `ContextualWisdomLab/pg-erd-cloud` (138), `ContextualWisdomLab/TEPP` (130), `ContextualWisdomLab/.github` (128), `ContextualWisdomLab/html4tree` (127), `ContextualWisdomLab/Orgmetra` (117), and `ContextualWisdomLab/LineageWeave` (113). BandScope is selected not by name alone but because it combines a large observed queue with direct buyer-facing rehearsal responsibility and high-leverage release/security/workflow reuse boundaries.
+The current protected BandScope product source is `develop@314ddeae7b775a4957594b599358c8255617eb2e`. The recorded protection contract contains 14 required contexts, including retired producer names `Analyze (javascript-typescript)` and `Analyze (python)`. Issue #1172 owns migration to the central producer names `CodeQL compatibility analysis (javascript-typescript)` and `CodeQL compatibility analysis (python)`. Restoring a duplicate repository scanner or weakening/removing CodeQL coverage is not an acceptable workaround.
 
-The exact 74-repository set for this same capture is enumerated verbatim in `docs/doctoring/product-gap-baseline-2026-09-01.md`; capitalization there is the GitHub repository identity and is not normalized. Because PR creation and closure can occur during a sequential organization census, later counts are historical observations unless a new complete sweep is performed.
-
-A protected-branch read on **2026-09-06** confirms `develop@314ddeae7b775a4957594b599358c8255617eb2e` is protected with exactly these 14 required contexts after protected PR #1165 consolidated repository-local security backstops: `ci / build-and-test`, `dependency-review`, `sbom`, `gate / build / windows`, `gate / build / macos`, `trivy-fs`, `coverage-evidence`, `opencode-review`, `strix`, `scan-pr-queue`, `osv-scan`, `scorecard`, `Analyze (javascript-typescript)`, and `Analyze (python)`. `security-audit` and `release-preflight` are no longer protected required-context names at this capture; their underlying security/release obligations remain product/release acceptance requirements where applicable. Fresh #1172 evidence also shows the last two protected names are retired producer names: the central CodeQL workflow emits `CodeQL compatibility analysis (javascript-typescript)` and `CodeQL compatibility analysis (python)`. Until branch protection is migrated to those exact producer names, the protection contract is internally unsatisfiable even when central CodeQL succeeds. The repair is a context-name migration, not restoration of a duplicate repository scanner or removal of CodeQL coverage. Merge decisions still re-fetch protection because this is capture-time evidence.
-
-Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change prevents predecessor review/check receipts from transferring to the successor head; the original historical evidence remains preserved. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
-
-Merge readiness is re-evaluated per unchanged exact PR head; an organization-wide approval search is not a substitute for per-head proof.
+Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change invalidates predecessor review/check receipts for readiness. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
 
 ## 3. Shipped protected truth
 
-Only behavior reachable from protected `develop@314ddeae7b775a4957594b599358c8255617eb2e` belongs in this section.
+Only behavior reachable from protected `develop@314ddeae7b775a4957594b599358c8255617eb2e` is shipped truth.
 
-- BandScope is a React/Vite desktop workspace hosted by Tauri with local orchestration and a Python analysis service plus Rust/PyO3 numerical kernels.
-- Typed Tauri IPC and bounded local process boundaries are the intended local execution model; ordinary rehearsal analysis does not require a public cloud service.
-- Protected dependency-security repair #783 is already in `develop` ancestry. Open branches must not reframe its historical dependency findings as an unmerged product blocker or suppress them locally.
-- Protected dependency update #1027 advances the independently built Tauri lockfile to `uuid 1.25.0`; branches that predate it must adopt the protected lockfile result rather than overwrite it accidentally while restacking unrelated work.
-- Protected workflow consolidation #1165 removes duplicate repository PR scans and keeps bounded trusted-branch backstops while central required workflows own their PR evidence; product lanes must adopt that control-plane result rather than recreate removed Bandit/CodeQL/Trivy/secret-scan writers locally.
-- The product already renders rehearsal-oriented section/role evidence, but protected truth does **not** yet satisfy the complete active-player, crash-recovery, real-audio acceptance, diagnostics, activation, accessibility-parity, or trusted-distribution contracts below.
-- The latest immutable GitHub Release revalidated on **2026-09-06** remains `v0.1.3`, published 2026-04-28 UTC. It is historical release evidence, not proof that the current protected head satisfies the commercial release gate.
+- BandScope is a React/Vite desktop workspace hosted by Tauri with local orchestration, a Python analysis service, and Rust/PyO3 numerical/native kernels.
+- Typed Tauri IPC and bounded local process/stdin-stdout boundaries are the intended local execution model; ordinary rehearsal analysis does not require a public cloud service.
+- Protected workflow consolidation #1165 removes duplicate repository PR scanners while central required workflows own PR evidence. Product branches must adopt that result rather than recreate removed security writers locally.
+- Protected truth still does not satisfy the complete active-player, crash-recovery, rights-cleared real-audio, diagnostics, activation, accessibility-parity, or trusted-distribution contracts below.
+- The latest immutable public GitHub release revalidated in the current delivery lineage remains `v0.1.3`, published 2026-04-28 UTC. It is historical release evidence, not proof that the current protected head is commercially release-ready.
 
 ## 4. Canonical active workstreams
 
-Active work is not shipped truth until it is normally integrated into protected `develop` with current-head gates and qualifying independent review.
+Active work is Draft/unshipped until normally integrated into protected `develop` with current-head gates and qualifying independent review.
 
 | Boundary | Canonical live owner / evidence | Current status |
 |---|---|---|
-| Merge-train control plane | Issue #966 with executable queue lane PR #968 | #968 remains Draft; its unique queue machinery must survive every restack and its exact current head is non-passing until hosted/current-head evidence exists |
-| Canonical baseline | PR #1116, this file | Draft; this branch is an ordinary descendant of current protected `develop`; every source repair requires fresh exact-head evidence and a non-force reconciliation of #968 before integration |
-| Workspace role naming | PR #1130 | The **active owner branch** uses `RehearsalRoleOption.roleId`/`roleName` with primary `roleOptions`; the previous `{ id, name }[]` projection exists only as a deprecated component compatibility input there. Protected `develop` is not claimed to contain this projection before integration |
-| Score attachment naming | PR #1092 | Persisted project-format `scoreAttachments` retains compatibility keys `id`/`fileName`, while `trustedScoreAttachment` translates them immediately to workspace-owned `scoreId`/`scoreFileName`; recorded exact-head evidence is historical until re-fetched; no database or persisted-wire migration is introduced |
-| Repository-local Trivy PR-head contract | PR #1119 | Quoted/commented YAML activity-list normalization is repaired on its canonical branch; current-head workflows remain non-passing until fresh terminal evidence exists |
-| Trusted distribution | Issue #960; active release-identity lane PR #1126 | Semantic release-identity naming is active work; Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, and complete version-identity parity remain incomplete as one integrated protected-head receipt |
-| Active rehearsal player | Issue #961; canonical transport #971 with source-to-audible stack #1159 → #1160 | #971 `09bedd835475015379716292e63e6be376fceec9` owns one playback authority/state machine; #1159 `c27f3781ddcbcc013dce07a26c0baf6080e4b2ac` owns the real PCM16 stem-publication/path-free-reference layer; #1160 `332240dbba957602f217dc6e4e6a82a59d4d39b2` contains the mounted five-source selector, exact same-project source-switch transaction, stale prior-resource `play()` retirement, selected-stem revocation/fallback, EN/KO selector/loading copy, and distinct verified Full-mix-only versus retryable discovery-error states. All remain Draft/unshipped. Project Persistence #970 `83127b55d121deff612160ed014e7a83abaf06c4` owns the Draft v3 native/TypeScript document bridge with durable selected-source semantic and optional path-free source reference, including fail-closed rejection of source byte claims above the 100 MiB Resource Admission ceiling. Resource Admission #866 `9a13d2bb91c05039481bc9eaef552f2222fcad2a` now has publication-bound byte evidence, a typed path-free publication identity contract, and production Tauri native retention of that identity after publication verification. Remaining buyer work is ordinary #866 ancestry adoption into #970, consumption of retained native identity as durable `sourceReference`, restart source re-admission, mounted #1160 Save/Reopen composition, fresh-authority reopen resolution/fallback, wider locale/a11y evidence, responsive/browser/screen-reader current-head evidence, and rights-cleared audible Windows/macOS acceptance |
-| Crash-safe project | Issue #962; implementation lane #970 `83127b55d121deff612160ed014e7a83abaf06c4` | Draft/unshipped and an ordinary descendant of protected develop at the current capture. It implements adjacent staged publication/recovery, a strict `projectFormatVersion: 3` envelope, deterministic legacy/v1/v2 migration, durable `preferences.selectedPlaybackSource = full_mix | vocals | bass | drums | other`, optional path-free `sourceReference` with validated project id, fixed app-owned artifact name, admitted extension, byte count bounded to the 100 MiB Resource Admission ceiling and lowercase SHA-256, typed renderer/native current-document admission, symmetric Tauri/TypeScript save/load bridge, shared-song/domain closure, Security Notes enforcement, Windows persistence-trigger coverage and exact 5 MiB project-file size diagnostics. Historical migration never invents source evidence. #866 `9a13d2…` now supplies the matching typed path-free identity value/builder and retains verified publication identity in native Tauri state; #970 has not yet ordinarily adopted that ancestry or consumed the retained identity when constructing durable `sourceReference`. Restart re-admission, mounted Save/Reopen composition, backup rotation, global startup recovery, autosave, Restore/Compare/Discard UX, broader player-state persistence, descriptor-bound parent authority, downgrade/application-rollback policy and exhaustive power-loss/fault injection remain open |
-| Real-audio science | Issue #770 and active benchmark lanes | Rights-safe decoded-audio MIR acceptance, recognized metrics, uncertainty and reproducible evidence remain incomplete |
-| Resource admission/decode | Issue #781; canonical PR #866 `9a13d2bb91c05039481bc9eaef552f2222fcad2a`; commercial dependency defect #1129 | #866 production materialization stages selected bytes with `LocalAudioCopyReceipt { file_size_bytes, content_sha256 }`, synchronizes the stage, publishes app-owned `source.<extension>` through same-filesystem no-clobber hard-link creation, removes the private stage name, reopens the published object, and requires exact size+SHA-256 receipt equality before bootstrap authority returns. The core defines/exports path-free `LocalAudioPublicationIdentity { project_id, artifact_name, extension, file_size_bytes, content_sha256 }`, with artifact name derived as `source.<extension>` and strict project-id/extension/size/lowercase-digest admission. RED `106ae75cad85553e56964a9844ea7a01f6ce456c` and fix `e4e2ba734bc80304a754ce2eb52e473fd9ee3631` make native retention production code: materialization derives the identity only after publication verification, selection stores it in `LocalAudioPublicationIdentityState` keyed by the BandScope project id before bootstrap authority returns, and Tauri registers that state. Atomic platform no-follow descriptor acquisition, parent-directory crash durability, ordinary #970 adoption/consumption of retained identity, restart re-admission and #1160 private SHA-256 consolidation remain open. No synthetic/mock success substitutes for production real-audio/resource evidence; #1129 still owns removal of the libsndfile-backed LGPL runtime boundary with equivalent cross-platform real-audio/SBOM proof |
-| Diagnostics/supportability | Issue #963 | Typed redacted crash/hang evidence and user-previewable offline support bundle remain incomplete |
-| Activation | Issue #964 | A measured production-path first rehearsal remains incomplete |
-| Accessibility/design parity | Issue #965; reusable Slider infrastructure #1169 `4b4e6faaccaa55edab4d210e1b58c87b9f181f51` | WCAG 2.2 AA, keyboard/screen-reader parity, KO/EN/JA/ZH/VI/ES/DE/FR expansion, exact-value alternatives and current-head UI evidence remain incomplete. #1169 repairs the reusable Base UI slider's single-horizontal-scalar API, Thumb-level accessible naming/description, Track→Thumb anatomy, 24 CSS px Thumb and Control target, Base UI disabled state and nested-input focus-visible handling, with Storybook coverage; it remains Draft infrastructure and is not yet adoption/evidence for the material rehearsal seek/range path. #1160's EN/KO playback-source states are another active child slice, not completion of this owner |
-| Quality floor | PR #1057 and successors | Repository-owned production statement/branch coverage and public API documentation target remain 100%; lower configured thresholds are a gap |
+| Merge-train control plane | Issue #966; queue lane PR #968 | #968 `7c773cdda932855c0e1b9d114c70bb14acc5adea` is Draft on #1116 and owns exactly 22 queue-control workflow/ADR/reference/manifest/script/test files. Every #1116 source move requires ordinary non-force reconciliation preserving those files and a non-divergent baseline blob. |
+| Canonical baseline | PR #1116, this file | Draft. This source is the single writer for `docs/product-technical-gap-baseline.md`; active PR behavior is described as Draft evidence, never promoted into shipped truth. |
+| Trusted distribution | Issue #960; release-identity lane #1126; dependency/model blockers #1129/#1180/#1181 | Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, `libsndfile` removal, and a commercially admissible immutable separation model are not yet one integrated protected-head receipt. |
+| Active rehearsal player | Issue #961; #971 with source stack #1159 → #1160 | #1160 `332240dbba957602f217dc6e4e6a82a59d4d39b2` remains Draft and has not yet adopted current #970. Native stem admission/playback/source switching exists on that branch, but persisted source intent must be reconciled with fresh Full mix/current-stem audible authority after reopen. Missing preferred stems must fail closed to Full mix. |
+| Crash-safe project | Issue #962; PR #970 | #970 exact Draft head `767b87e3e2fec3116ec274c22db6995cbb2defc2` has ordinarily adopted Resource Admission #866 `841e1c9b7329dba6d0ff16daecc009a2c3face0c`. It implements v3 Save/load, path-free source evidence, restart exact-content re-admission, analysis-time source revalidation and snapshot-bound decode, local model admission, and mounted Open→Save preservation of native project selection plus `selectedPlaybackSource`. Autosave/global recovery UX, broader fault injection, descriptor-bound higher-parent authority, and Active Player audible-authority reconstruction remain open. |
+| Real-audio science | Issue #770 and active benchmark lanes | Rights-cleared decoded-audio MIR acceptance, recognized task metrics, uncertainty and reproducibility remain incomplete. Synthetic/generated audio remains unit-test evidence only. |
+| Resource admission/decode | Issue #781; PR #866; commercial dependency defect #1129 | #866 exact `841e1c9b7329dba6d0ff16daecc009a2c3face0c` owns app-owned audio materialization/publication and `LocalAudioPublicationIdentity`. #970 consumes it through typed persistence/re-admission ACLs. #1129 still owns removal of the `soundfile`/`libsndfile` LGPL runtime path with equivalent supported-platform real-audio/SBOM evidence. |
+| Commercial separation model | Issue #1180; rights blocker #1181 | #970's local Demucs compatibility admission is technical Draft evidence only. Distribution still requires an immutable commercially admissible exact artifact with full provenance/size/digest-or-signature, safer or justified serialization, release inventory, updater/rollback behavior, and rights-cleared Windows/macOS real-audio evidence. #1181 independently blocks upstream pretrained weights absent explicit commercial-use/redistribution rights. |
+| Diagnostics/supportability | Issue #963 | Typed redacted crash/hang evidence and a user-previewable offline support bundle remain incomplete. |
+| Activation | Issue #964 | A measured production-path first rehearsal remains incomplete. |
+| Accessibility/design parity | Issue #965 and active component/player lanes | WCAG 2.2 AA, keyboard/screen-reader parity, KO/EN/JA/ZH/VI/ES/DE/FR expansion, CJK/text expansion/font fallback, exact-value alternatives, and current-head material-UI evidence remain incomplete. |
+| Quality floor | PR #1057 and successors | Repository-owned production Docstring/rustdoc, Test, and Edge Case Coverage targets remain 100%; denominator reduction, skip/xfail, generated-code relabeling, or source-text-only success cannot manufacture compliance. |
 
-The product boundary, tests, contracts, and unique behavior decide succession—not PR number or title. Duplicate closure requires a technical succession receipt naming the unique behavior/tests preserved in the successor. Checks, approvals, and model output never transfer to a changed successor head.
+The product boundary, tests, contracts, and unique behavior decide succession, not PR number or title. Duplicate closure requires a technical succession receipt naming the unique behavior/tests preserved in the successor. Checks, approvals, and model output do not transfer to a changed successor head.
 
 ## 5. Merge-train and succession contract
 
-Backlog convergence is the primary engineering risk because micro-PR fan-out creates duplicate writers, stale evidence, dependency ambiguity, competing local state, and review/check churn.
+Backlog convergence is an engineering risk because micro-PR fan-out creates duplicate writers, stale evidence, dependency ambiguity, competing local state, and review/check churn.
 
-PR #968 owns the unique executable queue machinery needed by #966: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, symlink-safe atomic publication, reviewed dependency/succession metadata, network-independent validation, deterministic human projection/parity, and exact-head artifact preservation. It must not be discarded as stale documentation.
+PR #968 owns the executable #966 queue machinery: bounded GitHub pagination, exact active-head capture, independent base-tip resolution, deterministic ordering, malformed/incomplete/duplicate rejection, symlink-safe atomic publication, dependency/succession metadata, network-independent validation, deterministic human projection/parity, and exact-head artifact preservation. It must not be discarded as stale documentation.
 
-The canonical baseline branch must contain protected `develop@314ddeae7b775a4957594b599358c8255617eb2e` in its ancestry through an ordinary non-force reconciliation. PR #968 targets this baseline branch rather than protected `develop` directly. Every #1116 branch advance therefore changes #968's target tip: #968 must be re-resolved against that new base and obtain fresh exact-head checks/reviews before readiness, while preserving its unique queue-control source through ordinary non-force reconciliation. Historical #1116/#968 SHAs remain audit evidence only and are not described as current identities after either branch advances.
+The canonical baseline branch must remain an ordinary descendant of current protected `develop`. PR #968 targets #1116 rather than protected `develop` directly. Every #1116 advance therefore changes #968's target tip and requires another ordinary non-force descendant on #968 that preserves its queue-owned files. Historical SHAs remain audit evidence only.
 
-A previously recorded #1117 snapshot was `refactor/temporal-features-api@b98f266d2356d56be624fb617580b5252e85baaa` with then-base `develop@749511c3ad4000090048718f685c6bee6b3d2c25`. Its visible review threads were independently resolved in that historical capture; that evidence belongs to #1117 and never substitutes for #1116 or #968 evidence. #1117 does not own `docs/product-technical-gap-baseline.md`, and the current protected product tip is now `develop@314ddeae7b775a4957594b599358c8255617eb2e`; any #1117 merge decision must re-fetch its live head/base and evidence rather than reuse this snapshot.
-
-PR #1007 is the canonical first-part-handoff lane only to the extent that its live semantic diff still preserves mounted selected-role wiring and the scientific prohibition against manufacturing handoffs from heuristic fallback. Any succession decision is rechecked against the independently resolved live head rather than a remembered PR-body SHA.
-
-Draft status is used only for a real unverified or blocked boundary and is never toggled solely to manufacture CI.
+Review/check waiting is lane-local rather than a global blocker: while one head waits for hosted evidence, other independent canonical work may proceed. Failed checks are RCA/fix/rerun work, not justification to weaken gates.
 
 ## 6. Domain model and ownership
 
-For a musician, these boundaries serve one simple flow: pick a song, understand what matters tonight, rehearse it, save it safely, and share only what was intended. The technical split below exists so those actions do not fight over authority or expose private media.
+For the musician the flow is simple: pick a song, understand what matters tonight, rehearse it, save it safely, and share only what was intended. The technical split exists so those actions do not fight over authority or expose private media.
 
-BandScope keeps these bounded contexts distinct:
+BandScope bounded contexts remain:
 
 1. **Audio Ingestion** — user-selected source authority and intake intent.
-2. **Resource Admission & Decode** — codec/MIME/path/resource/cancellation boundaries.
-3. **Signal/MIR Analysis** — decoded-audio evidence and uncertainty.
+2. **Resource Admission & Decode** — codec/MIME/path/resource/cancellation boundaries and admitted bytes.
+3. **Signal/MIR Analysis** — decoded-audio evidence, model identity, uncertainty, reproducibility.
 4. **Rehearsal Insight** — section × role decisions, cues, confidence and correction provenance.
-5. **Active Player** — one authoritative transport state machine for play/pause/seek/stop/loop/count-in/rate/cue navigation and source-backed stem controls.
-6. **Project Persistence** — format version, atomic publication, autosave, migration, backup/recovery and portable export.
+5. **Active Player** — one authoritative transport state machine and fresh audible source/stem authority.
+6. **Project Persistence** — versioned project format, atomic publication, migration, backup/recovery and portable export.
 7. **Collaboration Handoff** — bounded share/export contracts, never a second project source of truth.
-8. **Diagnostics/Support** — typed redacted evidence and support bundle lifecycle.
-9. **Distribution/Update** — signed identity, SBOM/provenance, updater verification, rollout and rollback.
-10. **UI/Interaction** — accessible, localized rendering of domain state; no duplicated transport/project stores.
+8. **Diagnostics/Support** — typed redacted evidence and support-bundle lifecycle.
+9. **Distribution/Update** — signed identity, SBOM/provenance, model/dependency inventory, updater verification, rollout and rollback.
+10. **UI/Interaction** — accessible localized rendering of domain state; no duplicated transport/project stores.
 
-Generic `utils`, `helpers`, `common`, `services`, `shared`, `core`, or `models` dumping that erases these responsibilities is a defect. Cross-context persistence and duplicated local transport stores are also defects.
+Generic `utils`, `helpers`, `common`, `services`, `shared`, `core`, or `models` dumping that erases responsibility is a defect. Cross-context SQL, mutable sibling PR dependencies, source copying from canonical sibling owners, or parallel writable project/transport truth is prohibited. Released/versioned contracts and narrow anti-corruption layers are the integration mechanism.
 
-### 6.1 Ubiquitous language, aggregates, invariants, and events
+### 6.1 Ubiquitous language and invariants
 
 | Term | Meaning | Invariant / transaction boundary |
 |---|---|---|
-| `RehearsalProject` | durable work for one admitted rehearsal source | one published format version; a partial write never replaces the last known-good snapshot |
-| `AudioSourceRef` | authorized local source identity plus bounded metadata | source authority is explicit; raw media is not copied into ordinary logs or EA truth |
-| `SongSection` | stable-ID time-bounded structural region | ordered, finite range inside admitted media duration; display label is not identity |
-| `RehearsalRole` | instrument, vocal function, or useful subdivision | guidance belongs to project/section and retains evidence provenance |
+| `RehearsalProject` | durable work for one admitted rehearsal source | one published format version; a partial write never silently replaces last known-good truth |
+| `LocalAudioPublicationIdentity` | path-free native receipt for app-owned admitted audio | project id, fixed artifact name, extension, exact byte count and SHA-256 remain validated; renderer does not mint it |
+| `ProjectSourceReference` | durable Project Persistence projection of admitted source identity | evidence only, not a filesystem capability; restart must re-admit current bytes before runtime authority returns |
 | `AnalysisEvidence` | versioned machine estimate | confidence/model/source provenance survives correction |
-| `ManualOverride` | user-confirmed correction | original machine evidence remains auditable; confirmation is not silently reclassified as model truth |
-| `RehearsalCue` | actionable entry/stop/pickup/handoff/range/setup/timing instruction | referenced section/time/role remains resolvable |
+| `ManualOverride` | user-confirmed correction | original machine evidence remains auditable |
 | `RehearsalTransport` | count-in/loop/playback/navigation state | one authoritative state machine; no competing mounted/local stores |
-| `SupportBundle` | user-previewable redacted diagnostic export | excludes raw audio/project payloads, credentials and absolute local paths by default |
-| `ReleaseIdentity` | version/artifact/signature/checksum/provenance tuple | updater accepts only policy-valid signed identity and preserves rollback target |
+| `SelectedPlaybackSource` | durable `full_mix | vocals | bass | drums | other` intent | never itself grants audible authority; current media must be freshly admitted after reopen |
+| `PlaybackAuthority` | revocable runtime authority over an admitted audible source | stale/replaced/missing media cannot retain authority merely because prior analysis or persistence succeeded |
+| `ReleaseIdentity` | app/model/artifact/signature/checksum/provenance tuple | updater accepts only policy-valid signed compatible identity and preserves rollback target |
 
-Candidate domain events include `AudioSourceAdmitted`, `AnalysisCompleted`, `CueConfirmed`, `SectionBoundaryCorrected`, `LoopActivated`, `ProjectSnapshotPublished`, `ProjectRecovered`, `SupportBundlePrepared`, `UpdateStaged`, and `UpdateRollbackCompleted`.
+Candidate domain events include `AudioSourceAdmitted`, `AnalysisCompleted`, `CueConfirmed`, `SectionBoundaryCorrected`, `LoopActivated`, `ProjectSnapshotPublished`, `ProjectRecovered`, `PlaybackSourceReadmitted`, `SupportBundlePrepared`, `UpdateStaged`, and `UpdateRollbackCompleted`.
 
 ### 6.2 Context map
 
@@ -179,26 +160,22 @@ flowchart LR
     HANDOFF --> SK
 ```
 
-The diagram is logical responsibility, not a claim that each box is a separate process. Shared contracts stay small and versioned; external codec/model/platform types remain behind anti-corruption layers.
-
-`context-graph-contracts` remains the contract-only shared kernel for canonical refs, authority/truth status, bitemporal/provenance Context Assertions, CloudEvents, schemas and conformance. `enterprise-architecture-core` remains the EA Decision Plane. BandScope projects deployable/runtime/version/risk facts through released contracts and does not copy rehearsal audio/analysis/user truth into EA authoritative storage.
+`context-graph-contracts` remains the contract-only shared kernel for canonical refs, authority/truth status, bitemporal/provenance Context Assertions, CloudEvents, schemas and conformance. `enterprise-architecture-core` remains the EA Decision Plane. BandScope does not copy rehearsal audio/analysis/user truth into sibling authoritative storage.
 
 ## 7. Technical design contract (TRD)
 
-The technical design has one rehearsal-facing goal: every click should keep the musician on the same trusted song and project while the app does the complicated validation and analysis out of sight.
-
 ### 7.1 Production topology and ports
 
-Protected `develop` is a local desktop architecture with these principal implementation surfaces:
+Principal surfaces are:
 
-- `apps/desktop`: React/Vite UI rendered inside the Tauri desktop shell;
-- `apps/desktop/src-tauri`: native command/orchestration boundary and platform integration;
-- `apps/desktop/core`: Rust-owned local authority/input-validation helpers where currently implemented;
+- `apps/desktop`: React/Vite UI inside Tauri;
+- `apps/desktop/src-tauri`: native command/orchestration and platform boundary;
+- `apps/desktop/core`: Rust-owned local authority/input-validation helpers where implemented;
 - `packages/shared-types`: versioned cross-layer request/response/domain contracts;
-- `services/analysis-engine`: Python orchestration/compatibility plus still-mixed analysis code during migration;
-- `services/analysis-engine/rust`: `bandscope_numeric` Rust/PyO3 numerical kernels.
+- `services/analysis-engine`: Python orchestration/compatibility during Rust-first migration;
+- `services/analysis-engine/rust`: Rust/PyO3 numerical kernels.
 
-Typed allowlisted Tauri IPC and bounded local process/stdin-stdout boundaries are the intended orchestration ports. If an owning adapter requires loopback transport it is limited to `127.0.0.1`; public HTTP and other network-dependent paths are not ordinary local-analysis authority. Codec libraries, source-separation/model runtimes, filesystem/platform APIs, accelerators, update services, and external handoff contracts are adapters behind owning-context ports.
+Typed allowlisted Tauri IPC and bounded local process/stdin-stdout are the normal orchestration ports. Public HTTP is not ordinary local-analysis authority. Codec/model/platform/accelerator/update services remain behind owning-context ports.
 
 ### 7.2 End-to-end rehearsal sequence
 
@@ -218,90 +195,50 @@ sequenceDiagram
     Decode->>MIR: bounded decoded audio
     MIR->>Insight: evidence + uncertainty + provenance
     Insight-->>UI: section/role/cue decisions
-    User->>Player: play/seek/count-in/loop/rate/cue
-    Player->>Project: persist accepted transport/project state
+    User->>Player: play/seek/count-in/loop/rate/cue/source
+    Player->>Project: persist accepted intent/state
     Project-->>UI: published snapshot or recoverable failure
 ```
 
-If decode, analysis, persistence, or playback fails, the error remains typed and bounded; a synthetic analysis object is not substituted as production success.
+Decode, analysis, persistence, and playback failures remain typed and bounded. Production never substitutes a synthetic analysis object or stale playback source as success.
 
-### 7.3 Transport, source replacement, and project state ownership
+### 7.3 Project Persistence / Resource Admission truth
 
-```mermaid
-stateDiagram-v2
-    [*] --> NoSource
-    NoSource --> InitialSourceSelecting: choose source
-    NoSource --> RecoveringWithoutSource: project recovery requested
-    InitialSourceSelecting --> Ready: source admitted
-    InitialSourceSelecting --> NoSource: cancelled/failed initial selection
-    Ready --> ReplacementSourceSelecting: replace source
-    ReplacementSourceSelecting --> Ready: replacement admitted
-    ReplacementSourceSelecting --> Ready: cancelled/failed replacement keeps prior source
-    Ready --> Playing: play
-    Playing --> Paused: pause
-    Paused --> Playing: resume
-    Playing --> Looping: precise loop active
-    Looping --> LoopPaused: pause (loop retained)
-    LoopPaused --> Looping: resume
-    Looping --> Playing: loop cleared
-    LoopPaused --> Paused: loop cleared
-    Playing --> Ready: stop
-    Paused --> Ready: stop
-    Looping --> Ready: stop
-    LoopPaused --> Ready: stop
-    Playing --> ReplacementSourceSelecting: replace source requested / stop transport
-    Paused --> ReplacementSourceSelecting: replace source requested
-    Looping --> ReplacementSourceSelecting: replace source requested / stop transport
-    LoopPaused --> ReplacementSourceSelecting: replace source requested
-    Ready --> NoSource: clear source
-    Ready --> RecoveringWithSource: project recovery requested
-    RecoveringWithoutSource --> Ready: last-known-good restored
-    RecoveringWithoutSource --> RecoveryFailedWithoutSource: no valid recoverable snapshot
-    RecoveryFailedWithoutSource --> NoSource: recovery failure acknowledged
-    RecoveringWithSource --> Ready: last-known-good restored
-    RecoveringWithSource --> RecoveryFailedWithSource: no valid recoverable snapshot
-    RecoveryFailedWithSource --> Ready: recovery failure acknowledged / keep prior source
-```
+Current Draft #970 has ordinarily adopted #866 rather than duplicating its audio-publication policy.
 
-The production player owns one transport state machine. Loop activation never removes pause or stop authority: active-loop playback may pause with the loop retained, resume into that loop, clear the loop into ordinary playback/paused state, or stop directly. Initial admission and replacement use distinct selection-intent states so cancellation has one unambiguous outcome: a cancelled or failed initial selection returns to no source, while a cancelled or failed replacement returns to the prior admitted source. Source replacement is transactional: a pending replacement must not erase the prior admitted source; conflicting source/import/analysis actions remain unavailable until selection resolves. Recovery likewise preserves its origin: acknowledging a failed recovery requested from `NoSource` returns to `NoSource`, while a failed recovery requested from `Ready` returns to `Ready` with the prior admitted source unchanged. Either state can explicitly request recovery again, and failure never manufactures a successful recovered state. UI components, cue cards, map cursors, and persisted project data project from the owning authority rather than creating competing writable state. Project publication **must become** atomic and crash-safe in protected product truth; #970 has an active Draft implementation, but this diagram does not promote it into a shipped guarantee.
+`#866@841e1c9b7329dba6d0ff16daecc009a2c3face0c` owns selected-local-audio copy/admission/publication. It stages selected bytes, synchronizes and publishes the app-owned `source.<extension>`, reopens the published object, verifies exact size + SHA-256 receipt equality, then creates a path-free `LocalAudioPublicationIdentity`. Native state retains that verified identity keyed by BandScope project id.
 
-### 7.4 Persistence and contract versioning
+`#970@767b87e3e2fec3116ec274c22db6995cbb2defc2` consumes that identity. Draft `projectFormatVersion: 3` stores `song`, `preferences.selectedPlaybackSource`, and optional path-free `sourceReference = projectId + artifactName + extension + fileSizeBytes + contentSha256`. Legacy/v1/v2 input is migrated deterministically and never invents missing source evidence. Renderer-authored path, artifact name, byte count, digest, or `sourceReference` is rejected; the renderer may return only an already-minted project selector and durable playback-source intent to native Save.
 
-Protected `.bscope` documentation currently validates loaded JSON against the `RehearsalSong` contract and states that a format-version field **may be introduced** when future structural changes require one; protected `develop` does not yet establish `projectFormatVersion` as shipped persisted behavior. Active canonical #970 `83127b55d121deff612160ed014e7a83abaf06c4` introduces Draft/unreleased `projectFormatVersion: 3` with typed `song`, `preferences`, and optional path-free `sourceReference`. It keeps legacy raw-song plus v1/v2 input readable through deterministic migration; migration defaults the durable playback source intent to `full_mix` where required and never invents missing source evidence. The closed durable preference remains `full_mix | vocals | bass | drums | other`; `sourceReference` admits only a validated BandScope project id, fixed app-owned `source.<extension>` artifact name, admitted extension, positive byte count no greater than the current 100 MiB Resource Admission ceiling and canonical lowercase SHA-256. Revocable playback URLs and user filesystem paths are not durable project truth.
+On restart, production `load_project` resolves only an existing app-local aggregate, opens the fixed source through the canonical native opener, re-verifies exact bounded bytes, and restores native publication/bootstrap state only after that reverse admission succeeds. A persisted source reference is evidence, not authority.
 
-Resource Admission #866 exact head `9a13d2bb91c05039481bc9eaef552f2222fcad2a` includes production receipt integration `bdf8f87d5e5c9db423537c7633e7ff4b92bec5b6`, no-clobber publication fix `eb972e951ef090c92b595c752b18d66f11f6b96e`, and production native-retention fix `e4e2ba734bc80304a754ce2eb52e473fd9ee3631`. The local-file materializer consumes the native staging receipt, synchronizes the same-project stage, creates app-owned `source.<extension>` with a same-filesystem hard link that fails if the destination already exists, removes the private stage name, then reopens the published object and requires `verify_local_audio_publication_receipt` size+SHA-256 equality before returning bootstrap authority. The core defines/exports `LocalAudioPublicationIdentity` and `build_local_audio_publication_identity`, deriving the fixed artifact name and admitting only validated project id, canonical extension, positive bounded size and lowercase SHA-256. After publication verification, production materialization returns that identity with the runtime source payload, selection stores the identity in `LocalAudioPublicationIdentityState` keyed by the BandScope project id before bootstrap authority returns, and Tauri registers the state. Current Rust/TypeScript/Python runtime `LocalAudioSource` remains the narrower analysis contract without `contentSha256`, so durable path-free identity stays a separate persistence handoff rather than an unversioned strict-analysis field injection. The remaining cross-owner gap is #970 consumption: #970 has not yet ordinarily adopted #866 or consumed that retained native identity when constructing v3 `sourceReference`. Portable path checks still do not claim atomic platform `O_NOFOLLOW`/reparse-point semantics, and the project directory is not yet explicitly synchronized after destination-link creation/stage unlink. Restart/reopen therefore remains incomplete: Project Persistence must receive the retained publication-bound path-free identity from native state, resolve only the app-owned artifact, re-establish regular/no-link containment, bounded size/SHA-256 and applicable decode/admission, reconstruct a fresh bootstrap, and only then let #1160 resolve persisted selected-source intent against fresh native availability. A missing preferred stem fails closed to Full mix.
+Before `start_analysis_job` queue admission, retained publication identity is revalidated again. The child process receives exact admitted byte count and SHA-256 through its bounded process contract. The analysis process copies the opened source into a private spooled snapshot, verifies exact size and SHA-256, and decodes that same snapshot. The earlier admitted-audio pathname replacement gap between verification and analysis decode is therefore closed for this Draft path.
 
-Atomic replacement, last-known-good backup/recovery, deterministic/idempotent migration receipts, autosave/recovery UX, downgrade/application-rollback policy, parent-directory crash durability and fault injection for partial/truncated writes, disk-full conditions, interrupted migration and failed replacement remain required before crash-safe persistence is complete. Portable export is versioned independently from in-memory implementation types.
+Mounted Open→Save previously dropped the reopened source selector and reset non-default `selectedPlaybackSource`. RED `9ceeb2faa73317e591a1741a0d246b82f9311423` and fix `9a9151d1a5420c83218ac220d29cb144c9e3b45d` make `App` retain the validated path-free project selector plus versioned playback intent and return them through native-authoritative Save. It still cannot mint source evidence.
 
-Tauri IPC, shared types, project files, handoff schemas, updater manifests, and externally released event/contracts are versioned boundaries. A rename or ownership cleanup is never permission for an in-place breaking wire-format change.
+Residual persistence work includes global/startup recovery policy, autosave/backup rotation and Restore/Compare/Discard UX, broader power-loss/disk-full/interrupted-migration fault injection, application downgrade/rollback policy, and descriptor-bound protection against concurrent replacement of higher parent directories.
 
-### 7.5 Identifier-policy migration boundary
+### 7.4 Active Player authority
 
-The organization naming policy applies prospectively to new or materially changed **organization-owned internal identifiers**. Casing follows the host language/framework. Semantic multiword names such as `section_id`, `sectionId`, `SectionId`, `firstGrooveChange`, and `SectionRoadmap` are valid. Generic single-word organization-owned names such as bare `id`, `name`, `status`, `data`, `value`, `type`, `key`, `item`, `record`, `result`, `config`, `event`, `user`, or `role` are defects when a bounded-context name is available.
+Project Persistence and analysis authority do not imply audible authority. On reopen, persisted `selectedPlaybackSource` is intent only. #1160 must ordinarily adopt current #970/#866 ancestry, remove its private duplicate SHA-256 implementation in favor of the canonical desktop-core reader, re-admit current Full mix and current stem artifacts, and only then mint fresh `PlaybackAuthority`. If the preferred persisted stem no longer exists or fails admission, the product falls back to Full mix without preserving stale prior authority.
 
-When an existing bare field is already part of a persisted or cross-boundary contract, a semantic rename follows the owning contract's compatibility mechanism:
+The material UI must prove source selection, play/pause/seek/stop/loop/count-in/rate/cue navigation, source replacement, stale async/media events, persistence/reload, and exact accessible alternatives with actual admitted media.
 
-- project files: first introduce an explicit format-version field (target name `project_format_version`) through the canonical persistence evolution path, then introduce any renamed persisted field behind that versioned migration; readers accept supported prior representations, migration is deterministic/idempotent, and writers emit one canonical current representation after migration;
-- Tauri IPC/shared API: use an additive/versioned request or response contract or a bounded compatibility alias; do not remove the previous key until supported callers have migrated and contract tests prove interoperability;
-- database-owned schemas: use explicit schema migration with backward-compatible read/write sequencing, foreign-key/index/constraint/ORM/query updates, rollback evidence, normalized ownership, UPSERT-path validation, and locking/hot-partition review rather than an uncoordinated column rename;
-- released handoff/events/context contracts: retain mandated released spelling until the owning contract publishes a compatible version; anti-corruption layers translate at the boundary;
-- external/vendor fields: preserve external spelling exactly and map into semantically owned internal names after admission.
+### 7.5 Signal/MIR model admission and distribution boundary
 
-Every compatibility-changing rename requires fixtures from the previous supported version, round-trip/no-data-loss tests, deterministic repeated migration, rollback/recovery evidence where persistence is involved, and removal criteria for any temporary alias. There is never dual writable truth after migration.
+#970's Draft compatibility path for Demucs local model loading is not release provenance. It rejects missing/non-regular/symlinked/empty/oversized/checksum-mismatched cache objects before resolution, materializes only the preflight descriptor size into a private temporary `LocalRepo`, rejects early EOF or any extra post-`fstat` byte, and resolves locally so mutation/deletion of the original cache pathname cannot change bytes for that load or reactivate `RemoteRepo`.
 
-Current examples demonstrate the intended direction without breaking compatibility. PR #1130's active owner branch makes `roleId`, `roleName`, and `roleOptions` the switcher-owned vocabulary while accepting the old component projection only at one deprecated adapter input; protected `develop` is not claimed to contain that projection before normal integration. PR #1092 keeps the established persisted score attachment keys `id` and `fileName` unchanged but makes `trustedScoreAttachment` an explicit anti-corruption boundary that validates those keys and returns `scoreId` and `scoreFileName` for workspace logic. Its focused RED contract was commit `35dc521f03711d749771751ecf39b904f193057d`; the production semantic translation was commit `8cd6756ef242d99fc323181b21b58f96fe24c731`; subsequent documentation commits aligned `ARCHITECTURE.md`, `AGENTS.md`, `CHANGELOG.md`, and `CLAUDE.md` with the same live-workspace/fallback invariant. No database object or persisted project wire key changed in that repair.
+The 128 MiB model ceiling and Demucs eight-hex filename checksum remain compatibility/integrity controls only. They are not exact release size, full digest/signature, provenance, or rights evidence. Upstream native Demucs checkpoint loading uses PyTorch serialization with class/constructor metadata, so it remains a trusted code-bearing deserialization boundary.
+
+Issue #1180 therefore owns an immutable commercially admissible model artifact: exact identity/version/size/full digest or signed manifest, provenance/NOTICE/SBOM inventory, supported-platform placement, local-only loading, explicit serialization choice/removal condition, updater compatibility/rollback, and rights-cleared real-audio acceptance. #1181 separately owns the commercial-use/redistribution rights prerequisite for upstream pretrained weights; mirrors, conversions, or renamed files do not create rights.
 
 ### 7.6 Rust compute ownership
 
-Protected code is still mixed: selected numerical kernels are Rust/PyO3 while material analysis orchestration and some arithmetic remain Python/NumPy. The target architecture is Rust-first for repository-owned DSP, mathematical, vector, linear/matrix, data-science/ranking, and token-size core arithmetic.
-
-Python is bounded orchestration/compatibility/fixture/reporting during migration. CPU reference behavior should be deterministic `f64` where scientifically appropriate, with bounded multithreading and unnecessary context switching removed. CUDA/OpenCL/MLX paths require real backend execution, parity and resource evidence where configured. A hidden Python numerical fallback is not the target architecture.
-
-Migration order follows buyer impact and dependency leverage: temporal/beat and harmony; range/pitch/role features; prioritization/weighting; source-separation integration; then remaining repository-owned vector/matrix utilities. Rust↔Python parity is migration evidence, not justification for permanent duplicated production arithmetic.
+Repository-owned DSP, mathematical, vector/matrix, ranking/data-science and performance/security hot paths are Rust-first. Python remains bounded orchestration/compatibility/fixture/reporting only where no practical Rust replacement exists and must have documented rationale/removal conditions. Deterministic CPU reference behavior comes first; configured CPU multithreading/MLX/CUDA/OpenCL paths require actual backend execution, parity and resource evidence. Hidden Python numerical fallback is not the target architecture.
 
 ## 8. Persistence ERD and database discipline
 
-BandScope's current durable project authority is file/project-format based rather than an organization-owned relational production schema. No database DDL changed in the #1092 naming repair. If relational persistence is introduced, database objects must use specific multiword snake_case names, be normalized to at least 3NF where relevant, and preserve one authoritative write path.
+Current durable project authority is file/project-format based; BandScope does not currently require a separate organization-owned relational authoritative store.
 
 ```mermaid
 erDiagram
@@ -313,71 +250,92 @@ erDiagram
     REHEARSAL_PROJECT ||--|| REHEARSAL_TRANSPORT : persists
 ```
 
-Any future SQL migration must verify foreign keys, indexes, constraints, sequences, ORM/query mappings, UPSERT semantics, hot-partition risk, lock duration, read/write separation, backward compatibility, rollback and recovery before it is considered complete.
+If relational persistence is introduced, objects use specific multiword snake_case names, normalize to at least 3NF where relevant, and retain one authoritative write path. Any SQL migration must verify foreign keys, indexes, constraints, sequences, ORM/query mappings, UPSERT/idempotency semantics, hot-partition risk, lock duration, read/write separation, backward compatibility, rollback and recovery. Cross-service SQL remains prohibited.
 
 ## 9. Real-audio scientific acceptance
 
-Synthetic arrays, mocked UI journeys, direct feature matrices, source-text assertions, or generated audio may support unit tests but cannot prove product accuracy.
+Synthetic arrays, generated/mock audio, mocked UI journeys, direct feature matrices, or source-text assertions may support unit tests but cannot prove product accuracy.
 
-Commercial acceptance requires rights-safe real audio to pass the production intake → decode → analysis → UI path with exact fixture, annotation, integrity and license provenance. Metrics remain task-specific: chord/harmony evaluation uses a recognized chord metric such as benchmark-defined weighted chord recall; beat/timing uses recognized event metrics; separation uses SI-SDR plus task-appropriate robustness/perceptual evidence; range/pitch/transcription uses declared note/frame/event metrics; section/cue boundaries use tolerances derived from annotation uncertainty and rehearsal cost rather than an invented constant.
+Commercial scientific acceptance requires rights-cleared real audio through production intake → decode → analysis → UI/playback with exact fixture identity, annotation, integrity and license provenance. Metrics remain task-specific: chord/harmony uses a recognized chord metric such as benchmark-defined weighted chord recall; beat/timing uses recognized event metrics; separation uses SI-SDR plus task-appropriate perceptual/robustness evidence; range/pitch/transcription uses declared note/frame/event metrics; section/cue boundaries use tolerances tied to annotation uncertainty and rehearsal cost rather than an invented constant.
 
-Acceptance criteria are preregistered before tuning and report uncertainty across tracks. Candidate-vs-baseline comparisons disclose sample count, aggregation, confidence interval or other justified uncertainty method, exclusions, and missing-data handling. Configured GPU lanes must actually execute and report parity/peak-resource evidence; unsupported hardware is not converted into a passing claim.
+Acceptance criteria are preregistered before tuning and report uncertainty across tracks. Candidate-vs-baseline comparisons disclose sample count, aggregation, confidence interval or another justified uncertainty method, exclusions, and missing-data handling. Configured accelerator lanes must actually execute and report parity/peak-resource evidence.
 
 ## 10. Security and privacy baseline
 
-Local files, URLs, MIME/codec claims, decoder outputs, model artifacts, project files, updater manifests, subprocess output and support exports are untrusted.
+Local files, URLs, MIME/codec claims, decoder outputs, model artifacts, project files, updater manifests, subprocess output, and support exports are untrusted.
 
-Owning contexts must fail closed on path/symlink/reparse traversal, oversized/decompression/resource exhaustion, unsafe subprocess authority, credential/secret propagation and prompt-injection crossings. Valid source-backed GHAS/CodeQL/Semgrep/Strix/AppGuardrail findings are deduplicated by root cause and repaired in the canonical product lane. Scanner/control-plane defects remain with their owning repository; BandScope does not blanket-mask findings or weaken gates.
+Owning contexts fail closed on traversal/symlink/reparse substitution, oversized/decompression/resource exhaustion, stale descriptor/path races, unsafe subprocess authority, credential/secret propagation, and prompt-injection crossings where an LLM boundary exists. Valid GHAS/CodeQL/Semgrep/Strix/AppGuardrail findings are deduplicated by root cause and repaired in the canonical lane. Scanner/control-plane defects remain with their owning repository; BandScope does not blanket-mask findings or weaken gates.
 
-Ordinary logs/support bundles must not contain raw audio/project payloads, credentials or absolute local paths. Authorization is purpose-bound and least-privilege with field minimization, retention and access/export audit where relevant.
+Ordinary logs/support bundles exclude raw audio/project payloads, credentials and absolute local paths. Authorization is purpose-bound and least-privilege with field minimization, retention and access/export audit where relevant.
 
 ### Security Notes
 
-- **IPC/network boundary:** ordinary local analysis uses allowlisted Tauri IPC, bounded stdin/stdout, or an explicitly required loopback adapter limited to `127.0.0.1`. Public HTTP and other network-dependent paths are not local-analysis authority.
-- **Input admission:** project/media/codec/model/update/subprocess inputs are untrusted and require strict schema/type/size/path validation before domain use.
-- **Subprocess authority:** use argument arrays with non-shell execution (`shell=False`-equivalent); do not interpolate untrusted input into shell commands.
-- **Privacy:** diagnostics and support exports redact credentials, raw audio/project payloads and absolute local paths by default, with user-previewable bounded export.
-- **Artifact trust:** installers/updaters require owning-boundary signature, checksum, SBOM and provenance verification; staged rollout and rollback evidence remain part of release acceptance.
-- **Verification status:** queued, pending, neutral, skipped-required, cancelled, stale, predecessor or inaccessible-protection evidence is non-passing and cannot be promoted into security assurance.
+#### Attack surface
 
-The most recently recorded central control-plane head in this document is `ContextualWisdomLab/.github@f610598c585d8dfdabe6fd82204173e23ad09841`; it is historical evidence until that owner is freshly revalidated. Issue `.github#712` remains the recorded organization-wide Actions queue-health/runner-admission causal owner. The associated historical cross-repository evidence showed jobs waiting before checkout with no runner assignment across both `ubuntu-latest` and explicit `ubuntu-24.04`, including an unchanged Wardnet head that previously completed successfully on the same label. That evidence falsified a simple leaf runner-label defect for that observation but did not identify whether the remaining owner cause was hosted-runner capacity, organization concurrency/admission policy, billing/quota, or provider scheduling. Earlier protected `.github#1658`, `.github#1656`, `.github#1665`, `.github#1645`, and subsequent scheduler fixes reduce avoidable load/review-routing/cancellation ambiguity but do not convert a queued current-head check into success.
+Audio/model/project acquisition, filesystem lookup/publication/recovery, decoder/model loading, IPC/subprocess boundaries, playback media authority, diagnostics export, installer/updater and rollback.
 
-A prior #1092 exact-head capture on `8099e3b2525723474aca09db4d669167035263b3` observed 27 check runs, with required/security lanes such as `dependency-review`, `scorecard`, and `trivy-fs` still queued at that capture. It is historical evidence and must be re-fetched before any #1092 merge decision. A skipped manual-evidence helper is not a substitute for required evidence. No predecessor-head success is transferred.
+#### Trust boundary
+
+Audio Ingestion owns user source intent; Resource Admission owns admitted app-local bytes; Project Persistence stores only versioned path-free evidence; Signal/MIR consumes admitted snapshots; Active Player separately owns fresh audible authority; Distribution owns remotely acquired/shipped artifact provenance. No lower layer may treat a persisted string, renderer payload, previous analysis result, or mutable sibling branch as authority.
+
+#### Mitigations
+
+Strict type/schema/size/path validation, regular/no-link or descriptor-bound acquisition where implemented, exact byte receipts, private immutable-for-use snapshots, no-shell subprocess invocation, local-only model resolution, redacted diagnostics, signed release/update manifests, exact model/dependency inventory, fail-closed stale-source handling, and ordinary protected-branch gates.
+
+#### Realistic threats
+
+A moved/replaced local source or model is consumed after validation; an interrupted save publishes candidate bytes without recoverable ordering; a persisted source preference is mistaken for current playback authority; a malformed/corrupt/oversized artifact reaches decoder/deserializer; an implicit network model fetch occurs; release rights are inferred from code licensing; a stale updater/model combination changes rehearsal output; logs expose private local state.
+
+#### Safe failure
+
+Invalid/stale/missing authority is rejected with bounded buyer-facing diagnostics. The product does not manufacture synthetic analysis, reuse stale audible authority, silently downgrade to an unverified model/provider, or weaken required checks to make a run pass.
+
+#### Test points
+
+Moved/replaced/truncated/growing audio and model files; symlink/reparse and linked-parent cases; exact-size/hash mismatch; disk-full/interrupted publication/recovery; process-restart source re-admission; stale preferred stem fallback; malformed IPC/project data; corrupt/object-graph model artifacts where applicable; updater interruption/rollback; redacted support bundles; supported-platform real-audio execution.
+
+#### Remaining risk
+
+Higher-parent directory authority is not yet descriptor-bound against every concurrent replacement. Commercial model/dependency rights and release provenance remain unresolved. Active Player still needs fresh audible Full mix/stem authority on current #970 ancestry. Global autosave/recovery UX and broad fault injection remain incomplete.
 
 ## 11. UI/UX evidence gate
 
-The canonical Figma identity must be rediscovered from current protected BandScope docs/source before a material UI merge; the latest baseline reference is `zthWmqfNKUgJBECvv002Qk`, treated as a resolved design authority rather than a permanent remembered constant.
+Figma is the reviewed interaction/visual specification, Storybook the executable component/state inventory, and the shipped Tauri application the final acceptance target. The canonical Figma identity must be rediscovered from current protected docs/source before a material UI merge rather than treated as a permanent remembered constant.
 
-Storybook is the executable component/state inventory, Figma is the reviewed interaction/visual specification, and the shipped Tauri application is the final acceptance target. Material UI work must verify real pointer/touch/keyboard interaction, section/time-axis identity, playback cursor, persistence/reload, stale-response races, loading/partial/error/unsupported-codec/missing-stem states, responsive window sizes, visible focus, reduced motion, non-color-only status, screen-reader names/states, KO/EN/JA/ZH/VI/ES/DE/FR expansion and exact-value/list/table alternatives for graph/timeline/waveform content.
+Material UI work must verify actual pointer/touch/keyboard interaction, section/time-axis identity, playback cursor, persistence/reload, stale-response/media races, normal/loading/empty/error/permission/unsupported-codec/missing-stem states, responsive window sizes, visible focus, reduced motion, non-color-only status, screen-reader names/states, KO/EN/JA/ZH/VI/ES/DE/FR expansion, CJK/text expansion/font fallback, and exact-value/list/table alternatives for graph/timeline/waveform content.
 
-Active #1160 distinguishes source-discovery loading, authoritative Full-mix-only empty, retryable discovery error, and normal multi-source selection. Empty/error copy is EN/KO only, native error detail is redacted, retry uses the existing discovery receipt path, and the selected source remains an opaque native authority at runtime. Project Persistence #970 `83127b55d121deff612160ed014e7a83abaf06c4` provides the Draft v3 native/TypeScript Save/Reopen document bridge and stable selected-source semantic, but #1160 still has to compose that preference with publication-bound/re-admitted source evidence and fresh native availability before a new opaque authority is minted. This is Draft source evidence only; wider localization, responsive/browser/screen-reader evidence and rights-cleared desktop audible acceptance remain open.
+Current #970 preserves reopened project id and `selectedPlaybackSource` through mounted Open→Save, but that does not prove Active Player delivery. #1160 must still compose persisted intent with fresh native audible availability on the current Project Persistence/Resource Admission ancestry. Wider locale/accessibility/browser/screen-reader and rights-cleared desktop audible evidence remain open.
 
-Reusable Slider infrastructure #1169 `4b4e6faaccaa55edab4d210e1b58c87b9f181f51` is also Draft-only evidence. It re-establishes Base UI 1.7.0's Thumb-inside-Track anatomy, puts accessible name/description on the actual nested range input, restricts the wrapper to one horizontal scalar thumb, uses Base UI disabled/nested-input focus state, and makes both the Thumb and Control at least 24 CSS px in the pointer-target dimension. The default Storybook story is named and uses the repository's installed `@storybook/react-vite` integration. This does not prove material rehearsal UI delivery until the actual player seek/range controls adopt the primitive and current-head browser/touch/keyboard/screen-reader/responsive evidence exists.
+Anti-Slop is a delivery filter rather than a replacement visual style: components, copy, cards, decoration and motion must exist for actual rehearsal tasks/information hierarchy, not template completion. Displayed controls must work; generic marketing copy, decorative fake interactions, unverifiable metrics, and repetitive AI-default visual treatments do not pass material UI acceptance.
 
-For the #1092 ready-workspace slice, product guidance now states the actual accessibility/authority condition consistently: the map names a score to open only when attachment metadata is validated and a live Score workspace is available; reopened metadata-only projects or untrusted score metadata fall back to adding a score or checking the range by ear. A screenshot from a predecessor head, a Storybook-only state, or a Figma-only mock is not shipped UI evidence.
+**UI Delivery Gate: FAIL** until the material rehearsal player has current-head browser/Tauri evidence for real admitted audio, persistence/reload, stale authority, responsive states, keyboard/touch/pointer/screen-reader parity and required locales.
 
 ## 12. Quality and operability floor
 
-Repository-owned production statement coverage, branch/edge-case coverage, and public/repository-owned API documentation target **100%**. A lower configured JavaScript/Python threshold is a gap rather than equivalent evidence; denominator reduction, skip/xfail, generated-code relabeling, or source-text assertions cannot manufacture compliance.
+Repository-owned production Docstring/rustdoc, Test, and Edge Case Coverage targets are each 100%. Lower configured thresholds are gaps, not equivalent evidence. Denominator reduction, skip/xfail, source-text matching, generated-code relabeling, mocked production success, or shrinking performance samples cannot manufacture compliance.
 
-Production-path tests include supported sample rates/channels, short/long recordings, pickup before bar one, odd meter and tempo changes where supported, silence near boundaries, unsupported codecs, moved/replaced files, cancellation, memory/CPU bounds, disk-full/partial-write recovery, corrupted project state, stale async response, missing stems, device changes, keyboard/screen-reader operation, locale expansion, updater rollback, and redacted support export. Applicable scenarios are proven at the owning boundary rather than all forced into one test layer.
+Production-path tests include supported sample rates/channels, short/long recordings, pickup before bar one, odd meter/tempo change where supported, silence near boundaries, unsupported codecs, moved/replaced files, cancellation, memory/CPU/disk bounds, corrupted project state, stale async/media responses, missing stems, device changes, keyboard/screen-reader operation, locale expansion, updater rollback and redacted support export.
 
-For behavior- or contract-affecting renames, focused regressions must fail on old/new mismatches before production repair whenever practical, then prove serialization/deserialization, adapter compatibility, persistence behavior, migrations and rollback where applicable. Valid tests are never weakened, skipped, xfailed, suppressed, or quote-obfuscated to obtain green.
+Applicable buyer-facing web/API paths target measured p95 ≤20 ms where that budget is meaningful. Measurements exclude unrealistic warm-cache-only claims and are profiled before optimization. JS bundle/heap/DOM/hydration/main-thread/GC and native/process cleanup remain part of operability review.
 
 ## 13. Release gate
 
-A release may be created only from one exact integrated protected head where all applicable CI/security/SAST/dependency/coverage/documentation/real-audio/build/package gates, Windows signing, macOS signing/notarization, checksums, SBOM/provenance, reproducibility, independent review, project migration/recovery, accessibility/supportability, updater rollback and operability evidence are terminal-success on that same identity.
+A release may be created only from one exact integrated protected head where all applicable CI/security/SAST/dependency/coverage/documentation/real-audio/build/package gates, Windows signing, macOS signing/notarization, checksums, SBOM/provenance, reproducibility, independent review, project migration/recovery, accessibility/supportability, updater rollback, model/dependency rights and operability evidence are terminal-success on that same identity.
 
-Unsigned validation artifacts are not releases. Queued evidence, stale Figma versions and mock-only audio journeys cannot establish release readiness. Merge requires all live required checks terminal-success, zero valid unresolved review findings/threads, a qualifying independent non-author approval current for the last push, and ordinary branch protection without bypass.
+Unsigned validation artifacts are not releases. Queued evidence, stale Figma states, mock-only audio journeys, predecessor check receipts, developer model caches, scientific-use-only pretrained weights, or package-name-only dependency substitutions cannot establish release readiness.
+
+Commercial blockers currently include #1129 (`libsndfile` LGPL runtime path) and #1181 (upstream pretrained Demucs weight rights); #1180 owns the resulting immutable commercially admissible model artifact contract. No immutable release beyond historical `v0.1.3` is claimed by current Draft work.
 
 ## 14. Traceability
 
-Primary normative/research anchors for this baseline include:
+Primary normative/research anchors include:
 
 - World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*. https://www.w3.org/TR/WCAG22/
-- Base UI. (2026). *Slider*. https://base-ui.com/react/components/slider
 - National Institute of Standards and Technology. (2022). *Secure Software Development Framework (SSDF) Version 1.1 (NIST SP 800-218)*. https://csrc.nist.gov/pubs/sp/800/218/final
+- National Institute of Standards and Technology. (2015). *Secure Hash Standard (SHS) (FIPS PUB 180-4)*. https://doi.org/10.6028/NIST.FIPS.180-4
 - Music Information Retrieval Evaluation eXchange. (n.d.). *MIREX*. https://www.music-ir.org/mirex/
 - Raffel, C., McFee, B., Humphrey, E. J., Salamon, J., Nieto, O., Liang, D., Ellis, D. P. W., & Raffel, C. C. (2014). mir_eval: A transparent implementation of common MIR metrics. *Proceedings of the 15th International Society for Music Information Retrieval Conference*, 367–372.
+- Défossez, A., Usunier, N., Bottou, L., & Bach, F. (2021). Music source separation in the waveform domain. *Transactions of the International Society for Music Information Retrieval, 4*(1), 197–208. https://doi.org/10.5334/tismir.76
+- Rouard, S., Massa, F., & Défossez, A. (2023). Hybrid transformers for music source separation. *Proceedings of the IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)*. https://doi.org/10.1109/ICASSP49357.2023.10097003
 
-Repository ADRs, PRD/TRD, architecture/context-map documents, security/threat-model material, test strategy, operability/recovery guidance, UI/Storybook inventory and doctoring traceability must remain code-current. Active PRs, planned work and research results are never promoted into the shipped section before protected integration.
+Repository ADRs, PRD/TRD, architecture/context-map documents, security/threat-model material, test strategy, operability/recovery guidance, UI/Storybook inventory, doctoring traceability and release documentation must remain code-current. Active PRs, planned work and research results are never promoted into shipped truth before protected integration.
