@@ -7,7 +7,6 @@ import {
   parseAnalysisJobStatus,
   parseAnalysisJobRequest,
   parseProjectBootstrapSummary,
-  parseRehearsalSong,
   type AnalysisJobError,
   type AnalysisJobRequest,
   type AnalysisJobStatus,
