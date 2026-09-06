@@ -6,23 +6,19 @@
 //! song parser remains the migration authority for historical inputs; this
 //! module owns the current envelope presented to external crate consumers.
 
-use crate::core::{
-    is_valid_project_id, project_payload_from_content as project_v1_payload_from_content,
-    RehearsalSongPayload, AUDIO_EXTENSIONS,
+use crate::{
+    audio_resource::MAX_LOCAL_AUDIO_FILE_BYTES,
+    core::{
+        is_valid_project_id, project_payload_from_content as project_v1_payload_from_content,
+        RehearsalSongPayload, AUDIO_EXTENSIONS,
+    },
+    publication_identity::LocalAudioPublicationIdentity,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Current on-disk project format version, independent of the app version.
 pub const CURRENT_PROJECT_FORMAT_VERSION: u16 = 3;
-
-/// Maximum admitted full-mix bytes a durable source reference may claim.
-///
-/// This mirrors the current Resource Admission ceiling so an untrusted project
-/// document cannot turn an impossible source identity into restart authority.
-/// Once the #866 foundation enters this branch's ancestry, consume its exported
-/// canonical constant instead of maintaining two declarations.
-const MAX_PROJECT_SOURCE_REFERENCE_BYTES: u64 = 100 * 1024 * 1024;
 
 /// Stable playback-source identity stored in project preferences.
 ///
@@ -129,7 +125,7 @@ fn sha256_hex_is_canonical(value: &str) -> bool {
 fn source_reference_is_valid(reference: &ProjectSourceReferencePayload) -> bool {
     if !is_valid_project_id(&reference.project_id)
         || reference.file_size_bytes == 0
-        || reference.file_size_bytes > MAX_PROJECT_SOURCE_REFERENCE_BYTES
+        || reference.file_size_bytes > MAX_LOCAL_AUDIO_FILE_BYTES
         || !AUDIO_EXTENSIONS.contains(&reference.extension.as_str())
         || !sha256_hex_is_canonical(&reference.content_sha256)
     {
@@ -138,6 +134,31 @@ fn source_reference_is_valid(reference: &ProjectSourceReferencePayload) -> bool 
 
     let expected_artifact_name = format!("source.{}", reference.extension);
     reference.artifact_name == expected_artifact_name
+}
+
+/// Project verified Resource Admission evidence into the durable Project Persistence schema.
+///
+/// Security Notes: this is the anti-corruption layer between the two bounded
+/// contexts. It copies only the path-free identity fields and re-validates the
+/// resulting Project Persistence reference before serialization. This matters
+/// even for a typed input because internal callers or deserialization can still
+/// construct a `LocalAudioPublicationIdentity` without going through the
+/// Resource Admission builder. User filesystem paths and playback capabilities
+/// therefore cannot cross this handoff.
+pub fn project_source_reference_from_publication_identity(
+    identity: &LocalAudioPublicationIdentity,
+) -> Result<ProjectSourceReferencePayload, String> {
+    let reference = ProjectSourceReferencePayload {
+        project_id: identity.project_id.clone(),
+        artifact_name: identity.artifact_name.clone(),
+        extension: identity.extension.clone(),
+        file_size_bytes: identity.file_size_bytes,
+        content_sha256: identity.content_sha256.clone(),
+    };
+    if !source_reference_is_valid(&reference) {
+        return Err("Invalid project document payload".to_string());
+    }
+    Ok(reference)
 }
 
 fn validate_document(document: ProjectDocumentPayload) -> Result<ProjectDocumentPayload, String> {
@@ -157,10 +178,10 @@ fn validate_document(document: ProjectDocumentPayload) -> Result<ProjectDocument
 /// preferences, stable playback-source enum, and rehearsal-song DTO use typed
 /// allowlists/`deny_unknown_fields`. Renderer-supplied `sourceReference` is
 /// rejected even when structurally valid because filesystem byte identity and
-/// digest evidence must come from native Resource Admission state. After #866
-/// enters this branch's ancestry, the Tauri persistence adapter may inject that
-/// verified native identity before serialization; renderer JSON never authors
-/// filesystem paths, artifact identity, byte evidence, or playback authority.
+/// digest evidence must come from native Resource Admission state. Native
+/// persistence code may inject that verified identity through the typed ACL
+/// above before serialization; renderer JSON never authors filesystem paths,
+/// artifact identity, byte evidence, or playback authority.
 pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayload, String> {
     let document = serde_json::from_value::<ProjectDocumentPayload>(value)
         .map_err(|_| "Invalid project document payload".to_string())?;
