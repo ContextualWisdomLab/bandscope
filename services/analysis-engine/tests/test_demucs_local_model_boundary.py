@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -49,7 +50,7 @@ def test_demucs_model_load_fails_closed_before_remote_lookup_when_checkpoint_mis
     """Keep first-run local analysis from turning into a model network download."""
     calls = {"count": 0}
 
-    def forbidden_remote_lookup(_name: str) -> _FakeModel:
+    def forbidden_remote_lookup(_name: str, **_kwargs: object) -> _FakeModel:
         calls["count"] += 1
         raise AssertionError("remote Demucs lookup must not run without a local checkpoint")
 
@@ -65,21 +66,29 @@ def test_demucs_model_load_fails_closed_before_remote_lookup_when_checkpoint_mis
     assert calls["count"] == 0
 
 
-def test_demucs_model_load_allows_checksum_matching_cached_htdemucs_checkpoint(
+def test_demucs_model_load_uses_verified_private_snapshot_in_local_repo(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Preserve offline use when cached bytes match the registered checkpoint checksum."""
+    """Deserialize the verified bytes, not a later replacement of the cache pathname."""
     checkpoint_bytes = b"cached-checkpoint-fixture"
     checksum_prefix = hashlib.sha256(checkpoint_bytes).hexdigest()[:8]
     checkpoint_name = f"955717e8-{checksum_prefix}.th"
     checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
     checkpoint_root.mkdir(parents=True)
-    (checkpoint_root / checkpoint_name).write_bytes(checkpoint_bytes)
-    calls: list[str] = []
+    checkpoint_path = checkpoint_root / checkpoint_name
+    checkpoint_path.write_bytes(checkpoint_bytes)
+    calls: list[tuple[str, Path]] = []
 
-    def fake_local_lookup(name: str) -> _FakeModel:
-        calls.append(name)
+    def fake_local_lookup(name: str, *, repo: Path | None = None) -> _FakeModel:
+        assert name == "955717e8"
+        assert repo is not None
+        snapshot_path = repo / checkpoint_name
+        assert snapshot_path.read_bytes() == checkpoint_bytes
+
+        checkpoint_path.write_bytes(b"cache-path-replaced-after-snapshot")
+        assert snapshot_path.read_bytes() == checkpoint_bytes
+        calls.append((name, repo))
         return _FakeModel()
 
     monkeypatch.setattr(
@@ -96,7 +105,9 @@ def test_demucs_model_load_allows_checksum_matching_cached_htdemucs_checkpoint(
     model = AudioStemSeparator()._load_model()
 
     assert isinstance(model, _FakeModel)
-    assert calls == ["htdemucs"]
+    assert len(calls) == 1
+    assert calls[0][0] == "955717e8"
+    assert not calls[0][1].exists()
 
 
 def test_demucs_model_load_rejects_tampered_cached_checkpoint(
@@ -112,7 +123,7 @@ def test_demucs_model_load_rejects_tampered_cached_checkpoint(
     (checkpoint_root / checkpoint_name).write_bytes(b"tampered-checkpoint-fixture")
     calls = {"count": 0}
 
-    def forbidden_lookup(_name: str) -> _FakeModel:
+    def forbidden_lookup(_name: str, **_kwargs: object) -> _FakeModel:
         calls["count"] += 1
         raise AssertionError("tampered checkpoint must not reach Demucs deserialization")
 
