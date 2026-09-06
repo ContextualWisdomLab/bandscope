@@ -66,7 +66,7 @@ def test_separator_rejects_zero_byte_file_before_decoder(
         raise AssertionError("zero-byte input must be rejected before decoder invocation")
 
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.librosa.load",
+        "bandscope_analysis.audio_decode.librosa.load",
         fail_if_decoder_runs,
     )
 
