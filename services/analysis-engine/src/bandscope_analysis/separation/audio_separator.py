@@ -140,10 +140,11 @@ def _snapshot_local_demucs_checkpoint(model_name: str, snapshot_root: Path) -> s
     The mutable torch cache pathname is used only to acquire the source descriptor.
     The descriptor must represent the same regular file observed by ``lstat``;
     ``O_NOFOLLOW`` is requested where the host exposes it. The admitted object is
-    size-bounded before and during the copy so cache corruption cannot consume
-    unbounded snapshot storage. The copied bytes must reproduce the checksum
-    prefix encoded in the canonical checkpoint filename. Demucs later
-    deserializes only the private snapshot.
+    size-bounded before the copy, and the snapshot must reproduce exactly the
+    descriptor size observed at admission. Short reads or later growth fail
+    closed before resolver/deserialization. The copied bytes must also reproduce
+    the checksum prefix encoded in the canonical checkpoint filename. Demucs
+    later deserializes only the private snapshot.
     """
     checkpoint_name = _DEMUCS_LOCAL_CHECKPOINTS.get(model_name)
     identity = (
@@ -178,15 +179,18 @@ def _snapshot_local_demucs_checkpoint(model_name: str, snapshot_root: Path) -> s
                 return None
 
             digest = hashlib.sha256()
-            copied_bytes = 0
             with os.fdopen(descriptor, "rb", closefd=False) as checkpoint_file:
                 with snapshot_path.open("xb") as snapshot_file:
-                    while chunk := checkpoint_file.read(_COPY_CHUNK_BYTES):
-                        copied_bytes += len(chunk)
-                        if copied_bytes > _MAX_LOCAL_DEMUCS_CHECKPOINT_BYTES:
-                            raise ValueError("local Demucs checkpoint exceeds resource limit")
+                    remaining = descriptor_stat.st_size
+                    while remaining:
+                        chunk = checkpoint_file.read(min(_COPY_CHUNK_BYTES, remaining))
+                        if not chunk:
+                            raise ValueError("local Demucs checkpoint changed during snapshot")
                         digest.update(chunk)
                         snapshot_file.write(chunk)
+                        remaining -= len(chunk)
+                    if checkpoint_file.read(1):
+                        raise ValueError("local Demucs checkpoint changed during snapshot")
                     snapshot_file.flush()
                     os.fsync(snapshot_file.fileno())
         finally:
