@@ -142,3 +142,43 @@ def test_demucs_model_load_rejects_tampered_cached_checkpoint(
         AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
+
+
+def test_demucs_model_load_rejects_checkpoint_over_resource_limit_before_resolver(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject an oversized cache object before copying or deserializing it."""
+    checkpoint_bytes = b"oversized-checkpoint-fixture"
+    checksum_prefix = hashlib.sha256(checkpoint_bytes).hexdigest()[:8]
+    checkpoint_name = f"955717e8-{checksum_prefix}.th"
+    checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
+    checkpoint_root.mkdir(parents=True)
+    (checkpoint_root / checkpoint_name).write_bytes(checkpoint_bytes)
+    calls = {"count": 0}
+
+    def forbidden_lookup(_name: str, **_kwargs: object) -> _FakeModel:
+        calls["count"] += 1
+        raise AssertionError("oversized checkpoint must not reach Demucs deserialization")
+
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_DEMUCS_LOCAL_CHECKPOINTS",
+        {"htdemucs": checkpoint_name},
+    )
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_MAX_LOCAL_DEMUCS_CHECKPOINT_BYTES",
+        len(checkpoint_bytes) - 1,
+        raising=False,
+    )
+    _install_fake_runtime(
+        monkeypatch,
+        torch_hub_dir=str(tmp_path / "torch-hub"),
+        get_model=forbidden_lookup,
+    )
+
+    with pytest.raises(ValueError, match="model weights are not installed locally"):
+        AudioStemSeparator()._load_model()
+
+    assert calls["count"] == 0
