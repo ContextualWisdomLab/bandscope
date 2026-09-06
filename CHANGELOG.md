@@ -33,7 +33,7 @@
 - Reject a stale existing-project replacement when the selected target changes file identity while replacement bytes are staged; native exchange/backup publication restores the competing target instead of clobbering it.
 - Recover an interrupted existing-project replacement from a bounded, same-directory identity journal when the target is selected again, while leaving mismatched files untouched.
 - Keep renderer project admission passive and path-free: custom prototypes, enumeration/descriptor traps, accessors, runtime playback authorities, unknown fields, invalid app-owned source references, unsafe byte-size values, and missing/non-canonical SHA-256 source identity fail closed before persistence IPC.
-- Keep local Demucs loading offline and bounded by resolving a private snapshot copied from the verified cache descriptor through `LocalRepo`; reject missing, modified, empty, non-regular, or over-128-MiB checkpoint state before model deserialization so mutable cache replacement and oversized local artifacts cannot alter or exhaust one analysis load.
+- Keep local Demucs loading offline and bounded by resolving a private snapshot copied from the verified cache descriptor through `LocalRepo`; reject missing, modified, empty, non-regular, over-128-MiB, or descriptor-size-racing checkpoint state before model deserialization so mutable cache replacement, post-preflight growth/shrink, and oversized local artifacts cannot alter or exhaust one analysis load.
 
 ## [0.1.3] - 2026-04-29
 
