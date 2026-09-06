@@ -2,72 +2,102 @@
 
 ## Problem
 
-Project v3 restart re-admission proves that the persisted `sourceReference` still matches the app-owned `source.<extension>` before native bootstrap authority is restored. That proof can become stale while a project remains open. Before this change, `start_analysis_job` reused the previously stored transient `source_path` without rechecking the retained Resource Admission byte identity, so a same-size mutation after load could reach the decoder under stale authority.
+Project v3 restart re-admission proves that the persisted `sourceReference` still matches the app-owned `source.<extension>` before native bootstrap authority is restored. The first dispatch repair repeated that proof immediately before queue admission, but then released the verified native reader. The Python analysis process subsequently reopened `local_source.sourcePath`, leaving a smaller TOCTOU window in which different bytes could reach decode after the native check.
 
 ## Constraints
 
-- Resource Admission remains the owner of local-audio byte identity; Project Persistence remains the owner of durable `sourceReference`; the analysis adapter consumes both without minting a second digest contract.
-- Renderer IPC supplies only the BandScope project id for local audio. It cannot submit a path, byte count, digest, artifact name, or `localSource` payload.
-- The current app-owned artifact must reproduce the retained bounded size and SHA-256 through the existing no-follow/reparse-aware native opener before a job is queued.
-- Operating-system path and I/O details must collapse to the stable buyer-facing re-selection message.
-- This is a dispatch-time freshness check, not descriptor-to-decoder continuity. The child analysis process still opens the returned transient path after the verified native reader has been released.
+- Resource Admission remains the owner of local-audio byte identity; Project Persistence remains the owner of durable `sourceReference`; analysis consumes the retained identity without minting a second digest contract.
+- Renderer IPC supplies only the BandScope project id for local audio. It cannot submit a path, byte count, digest, artifact name, `sourceReference`, or native-admission evidence.
+- Exact byte count and SHA-256 must survive the Rust-to-Python process boundary without process-global mutation because BandScope allows concurrent analysis jobs.
+- The Python decoder must consume the same verified byte snapshot, not a pathname reopened after verification.
+- Operating-system path and I/O failures remain bounded; raw local paths and native diagnostics do not become buyer-facing errors.
+- Deterministic RIFF/WAVE byte strings in this lane are security/unit fixtures only. They are not MIR accuracy, decoder-quality, or production scientific acceptance evidence.
 
-## RED evidence
+## RED and repair evidence
 
-`90f60a744f5dec46f364ae8d3c5e401af68983b7` adds `analysis_dispatch_revalidation.rs`. The contract requires unchanged app-owned bytes to regain dispatch authority and a same-size byte mutation to fail before analysis dispatch. The RED references a not-yet-existing `analysis_source` adapter, so its predecessor cannot compile that contract. An immediate descendant was pushed; no hosted RED failure receipt is claimed.
+`90f60a744f5dec46f364ae8d3c5e401af68983b7` introduced dispatch-time native revalidation. `ae1f568591c9b9901ef2331f91068a6e1f91d561` composed the retained `LocalAudioPublicationIdentity` with the Project Persistence reverse ACL, and `b84ed0e39d533ef5524d25c7d86bc0fcf0197d16` wired it into `start_analysis_job`. That repair narrowed the stale interval but did not bind decoder bytes.
 
-The deterministic twelve-byte RIFF/WAVE fixture tests content identity only. It is not MIR, decoder-quality, or production scientific acceptance evidence.
+`9dc5336d7bbd4673f4ba0722a1548596d3085bfa` adds the decoder-bound RED contracts. They require a same-size replacement to fail before decode and require decoding to continue from already-verified bytes even when the pathname changes after snapshot creation. The predecessor had no `separate_admitted` boundary, so no hosted RED receipt is claimed.
+
+`93d2c99aef316fa42b8796b3b05bfea2cd46c7ed` adds the explicit admitted-source snapshot path. `65baf71db5ea47b607753a297908483900be9215` then adds a second RED requiring the production `AudioStemSeparator.separate` entrypoint to consume process-scoped native evidence and to reject a partial evidence pair. `e0bec865005e4e4b836fe76af66a6587d9f5743d` implements that fail-closed adapter.
+
+`404586a2eae752fa329dfc87768b22148ce9411a` adds the Rust-side process-handoff RED. `a0809cdee41100296e478c18653ab1e7f3305559` passes the retained byte count and SHA-256 only on the spawned analysis `Command`, first removing any inherited values so demo/manual jobs cannot accidentally consume ambient evidence. It does not call process-global `std::env::set_var`, so the two allowed in-flight jobs cannot overwrite each other's identity evidence.
+
+`cbaaf868f7fa6d1050b62eec109bdb54d69e07d0` adds the CLI RED proving that a native-admitted job must not run the earlier temporary `TemporalAnalyzer` pathname probe. `a1136c5270cfbd940d9e3e3cea7cc55b6ce1cdb9` skips that compatibility-only probe whenever native evidence is scoped, leaving the content-bound separator as the first production audio decode path. `e1b50929f7d112cf8fb417ede97c98af6a3c2b41` pins the child-process environment contract; `88beb62d7f1cad5fc141b73da0c7f75ec9d785fe` is formatting-only.
 
 ## Selected design
 
-`ae1f568591c9b9901ef2331f91068a6e1f91d561` introduces the GUI-independent `revalidate_local_audio_bootstrap_for_analysis` adapter. It projects the retained `LocalAudioPublicationIdentity` through the existing Project Persistence source-reference ACL, reopens only the fixed app-owned artifact through the injected native opener, and reuses the existing bounded re-admission verifier. On success it refreshes only transient source path/extension/size fields; it does not create durable evidence.
+The selected design is an identity-equivalent immutable snapshot rather than cross-platform descriptor inheritance.
 
-`b84ed0e39d533ef5524d25c7d86bc0fcf0197d16` wires the adapter into the production `start_analysis_job` command. The command now obtains the project-keyed native publication identity, revalidates current bytes before filling `local_source`, and fails with `NotFound` plus the existing re-selection message when the native identity or current artifact cannot be re-established. `f5730fd0c237b02259cf25cf5570cbc0987a92c3` is a formatting/borrow-check-safe cleanup of the focused regression test; it does not alter the product contract.
+1. `start_analysis_job` obtains the project-keyed native `LocalAudioPublicationIdentity` and revalidates the current app-owned source through the existing no-follow/reparse-aware native opener.
+2. The worker receives that same retained identity. `run_analysis_engine` removes inherited BandScope admission variables, then sets exact `file_size_bytes` and `content_sha256` only on that job's child `Command`.
+3. The Python CLI skips the compatibility temporal pathname probe when either native evidence variable is present. A partial pair therefore reaches the separator and fails closed rather than silently falling back to an unverified decode.
+4. `AudioStemSeparator.separate` validates the canonical evidence pair, opens the selected source once, checks descriptor size, copies exactly the expected number of bytes into a private `SpooledTemporaryFile` while hashing them, performs a one-byte growth probe, and compares SHA-256.
+5. Only a matching snapshot is rewound and passed to the existing `decode_mono_audio` `BinaryIO` boundary. Later pathname replacement cannot change the encoded bytes consumed by decoder/MIR/model work for that analysis invocation.
+
+This keeps BandScope audio truth in BandScope and reuses Resource Admission identity rather than adding a second digest owner. The environment variables are a per-process native-to-analysis capability envelope, not renderer API, durable project schema, provider configuration, or cross-service state.
 
 ## Rejected alternatives
 
-**Trust restart verification for the lifetime of the open project.** Rejected because native bootstrap state is cached and can outlive later file mutation.
+**Trust restart or dispatch verification until decode.** Rejected because CWE-367 describes exactly the failure mode where a resource can change between check and use.
 
-**Let the renderer resubmit a digest immediately before analysis.** Rejected because renderer data is not Resource Admission authority and would recreate the source-evidence forgery path already removed from v3 Save.
+**Let the renderer carry the digest into the analysis request.** Rejected because renderer data is not Resource Admission authority and would recreate the source-evidence forgery path removed from Project v3 Save.
 
-**Rehash through a second analysis-specific implementation.** Rejected because the canonical bounded receipt verifier and source-reference ACL already exist. The dispatch adapter composes those contracts instead of creating another hash/file-size policy.
+**Mutate the desktop process environment before spawning Python.** Rejected because `MAX_IN_FLIGHT_JOBS` permits concurrent jobs; process-global mutation would create a cross-job race.
 
-**Claim strict byte continuity after the dispatch check.** Rejected because the child decoder still performs a later pathname open. The residual interval is smaller but non-zero.
+**Pass only the transient pathname and rehash it independently in Python.** Rejected because it would duplicate the digest contract and still permit another pathname read after the check.
+
+**Require one OS descriptor inheritance mechanism across Windows and macOS immediately.** Rejected for this increment because platform handle inheritance semantics differ. The selected bounded snapshot is portable and ties decode bytes to the canonical native content identity without claiming that filesystem ancestry itself is descriptor-bound.
 
 ## Security Notes
 
 ### Attack surface and trust boundary
 
-The renderer-visible project id is a selector only. Native `LocalAudioPublicationIdentityState` supplies the path-free expected identity, and native bootstrap state supplies the app-owned project root. The adapter requires both to name the same BandScope project and derives the fixed artifact from canonical identity fields.
+The renderer-visible project id remains a selector only. Native `LocalAudioPublicationIdentityState` owns the expected content evidence. The Rust worker scopes that evidence to one analysis child. The Python process may see the transient app-owned pathname, but it cannot promote different bytes: size, exact bounded read, growth probe, and SHA-256 must all match before decode.
 
 ### Mitigations
 
-The same no-follow/reparse-aware Project Persistence opener used for restart re-admission is invoked again immediately before queue admission. Exact size and SHA-256 are rechecked with the existing expected-length-plus-one-byte-growth bound. Failure occurs before `parsed_request.local_source` receives dispatch authority.
+The repair combines two checks with different purposes. Native re-admission confirms the app-owned project/source contract immediately before queue admission. Python then creates a private content snapshot and verifies the same identity at the consuming decode boundary. The decoder reads the verified snapshot itself, eliminating the previous check-then-reopen byte gap.
 
 ### Safe failure
 
-Missing retained identity, project mismatch, malformed identity, native open failure, growth, truncation, or same-size mutation returns `Analysis job source was not found. Choose local audio again.` and the job is not queued. Raw filesystem diagnostics do not cross into buyer-facing status.
+Missing native identity, project mismatch, native re-open failure, malformed or partial child evidence, growth, truncation, or same-size mutation fails before separation/model work. Native paths and OS diagnostics are not returned as buyer-facing detail. Existing direct/manual library callers with no native evidence retain the compatibility path; production desktop local-audio jobs always provide evidence.
 
 ### Test points
 
-`apps/desktop/src-tauri/tests/analysis_dispatch_revalidation.rs` covers exact-byte success and same-size mutation failure at the dispatch adapter. Existing restart re-admission tests remain canonical for malformed durable evidence, root substitution, no-follow/reparse behavior, growth, truncation, and exact SHA-256 identity.
+- `apps/desktop/src-tauri/tests/analysis_dispatch_revalidation.rs` covers current-byte native revalidation and asserts per-child evidence scoping without process-global environment mutation.
+- `services/analysis-engine/tests/test_audio_admitted_snapshot.py` covers same-size replacement rejection, verified-snapshot decode after pathname change, production `separate` evidence consumption, and partial-evidence rejection.
+- `services/analysis-engine/tests/test_cli_native_admission_boundary.py` proves native-admitted jobs do not execute the legacy temporary pathname probe.
+- Existing Project Persistence restart tests remain canonical for malformed durable evidence, root substitution, final-component no-follow/reparse behavior, growth, truncation, and exact SHA-256 identity.
 
-### Remaining risk
+### Remaining risk and next causal work
 
-The verified descriptor is released before the Python analysis process opens `local_source.sourcePath`. A local replacement or mutation in that interval can therefore still create a TOCTOU gap. Release-grade byte continuity requires a descriptor/capability-bound decoder handoff or an equivalent supported-platform immutable-snapshot mechanism whose identity is retained through decode. Parent-directory descriptor binding and higher-ancestor replacement remain separate filesystem-authority work.
+Content-byte continuity is now designed end to end for the production local-audio worker, but hosted exact-head GREEN and supported-platform real-audio acceptance are still required before this becomes release evidence.
+
+The analysis/feature cache key currently uses project id, transient source path/name, and byte count rather than the retained content digest. Normal BandScope publication is no-clobber and project-specific, but the cache contract should still include the canonical digest so cache provenance is cryptographically tied to the same source identity and cannot depend on publication-history assumptions.
+
+The Python path open is content-bound, not full filesystem-ancestry authority. A higher ancestor can still be replaced between native checks and Python open; different content fails the digest, but directory-handle-relative authority remains separate hardening if BandScope must prove that the bytes came from the same filesystem object rather than merely the same admitted content.
+
+`SpooledTemporaryFile` provides bounded, automatically cleaned temporary storage and may roll larger encoded sources to an OS-managed temporary file. That temporary-copy privacy/resource behavior needs supported Windows/macOS fault-injection and crash evidence before release. It is not a durable BandScope project artifact.
 
 ## Standards traceability
 
-NIST FIPS 180-4 remains the published Secure Hash Standard defining SHA-256. NIST has decided to revise the standard, but its current publication page still identifies FIPS 180-4; the announced revision has not superseded it.
+MITRE CWE-367 defines the relevant weakness as checking resource state and then using a resource whose state can change before use. Its mitigation guidance notes that merely reducing the check/use interval does not remove the underlying identity problem. The selected snapshot instead verifies and then uses the same copied bytes.
 
-NIST SP 800-218 v1.1 remains the released SSDF baseline. SP 800-218 Rev. 1 / SSDF 1.2 is still identified by NIST as an Initial Public Draft with the comment period closed on January 30, 2026. The repair follows the released SSDF principle of preventing recurrence by placing verification at the actual consuming boundary instead of relying on an earlier check.
+NIST FIPS 180-4 remains the published Secure Hash Standard defining SHA-256. NIST decided to revise FIPS 180-4, but the current NIST publication page still identifies FIPS 180-4 as the published standard; the announced revision has not superseded it.
+
+Python's `tempfile` documentation identifies `SpooledTemporaryFile` as a cross-platform high-level temporary-file interface with automatic cleanup and context-manager support. BandScope relies on those lifecycle semantics only for the transient snapshot; the cryptographic acceptance rule remains BandScope-owned.
+
+NIST SP 800-218 v1.1 remains the released SSDF baseline. The repair follows its recurrence-prevention intent by moving verification to the actual consuming boundary instead of relying on a stale earlier check.
 
 ## References
+
+MITRE. (2026). *CWE-367: Time-of-check time-of-use (TOCTOU) race condition* (CWE 4.20). https://cwe.mitre.org/data/definitions/367.html
 
 National Institute of Standards and Technology. (2015). *Secure Hash Standard (SHS)* (Federal Information Processing Standards Publication 180-4). https://doi.org/10.6028/NIST.FIPS.180-4
 
 National Institute of Standards and Technology. (2023, March 7). *Decision to revise FIPS 180-4, Secure Hash Standard (SHS).* https://www.nist.gov/news-events/news/2023/03/decision-revise-fips-180-4-secure-hash-standard-shs
 
-Scarfone, K., Souppaya, M., & Dodson, D. (2022). *Secure Software Development Framework (SSDF) Version 1.1: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-218
+Python Software Foundation. (2026). *tempfile — Generate temporary files and directories* (Python 3.14.7 documentation). https://docs.python.org/3/library/tempfile.html
 
-Booth, H., Ogata, M., Kent, K., Souppaya, M., & Dodson, D. (2025). *Secure Software Development Framework (SSDF) Version 1.2: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218 Rev. 1, Initial Public Draft). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-218r1.ipd
+Scarfone, K., Souppaya, M., & Dodson, D. (2022). *Secure Software Development Framework (SSDF) Version 1.1: Recommendations for mitigating the risk of software vulnerabilities* (NIST Special Publication 800-218). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-218
