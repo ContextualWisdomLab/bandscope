@@ -9,6 +9,7 @@ const PROJECT_ROOT_ERROR: &str = "Could not prepare the local project workspace.
 #[cfg(windows)]
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
 
+/// Return whether an existing Windows project directory is a real directory, not a reparse point.
 #[cfg(windows)]
 fn metadata_is_safe_existing_project_directory(metadata: &fs::Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
@@ -16,6 +17,7 @@ fn metadata_is_safe_existing_project_directory(metadata: &fs::Metadata) -> bool 
     metadata.is_dir() && metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0
 }
 
+/// Return whether an existing non-Windows project directory is a real directory, not a symlink.
 #[cfg(not(windows))]
 fn metadata_is_safe_existing_project_directory(metadata: &fs::Metadata) -> bool {
     metadata.is_dir() && !metadata.file_type().is_symlink()
