@@ -52,7 +52,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     } as unknown as PDFDocumentLoadingTask);
   });
 
-  it("shows the unavailable boundary explanation on pointer hover or keyboard focus", async () => {
+  it("keeps boundary reasons hoverable, focusable, and dismissible with Escape", async () => {
     render(<ScoreViewer data={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
@@ -76,6 +76,15 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     previousButton.focus();
     expect(previousButton).toHaveFocus();
     expect(nextButton).not.toHaveAttribute("aria-describedby");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(previousButton).not.toHaveAttribute("aria-describedby");
+
+    previousButton.blur();
+    previousButton.focus();
+    expect(previousButton).toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Already at the first page");
 
     fireEvent.click(nextButton);
     fireEvent.click(nextButton);
