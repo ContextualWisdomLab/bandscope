@@ -123,7 +123,7 @@ fn project_load_re_admits_persisted_source_before_returning_document() {
     let load_command = &load_tail[..load_end];
 
     assert!(
-        source.contains("fn restore_project_source_after_restart("),
+        source.contains("fn restore_project_source_after_restart"),
         "restart needs one native adapter that restores source authority from persisted evidence"
     );
     assert!(
