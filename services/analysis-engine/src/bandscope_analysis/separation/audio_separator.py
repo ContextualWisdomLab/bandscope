@@ -23,9 +23,11 @@ Security Notes:
 - Inference does not intentionally acquire model weights from the network. The
   canonical htdemucs checkpoint must already exist as a regular file in the
   local torch checkpoint cache and reproduce the checksum prefix encoded in its
-  canonical filename before Demucs's resolver is entered. Release bundling and
-  full artifact provenance remain supply-chain work rather than a hidden
-  first-run download.
+  canonical filename. BandScope copies the verified descriptor bytes into a
+  private temporary local Demucs repository and resolves the checkpoint by its
+  signature there, so upstream deserialization cannot reopen or download from
+  the mutable cache pathname. Release bundling, full digest/signature provenance,
+  and model-rights evidence remain Distribution work.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -37,6 +39,7 @@ import contextlib
 import hashlib
 import logging
 import os
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -91,19 +94,20 @@ def _valid_sha256_hex(value: object) -> bool:
     )
 
 
-def _checkpoint_checksum_prefix(checkpoint_name: str) -> str | None:
-    """Return the canonical Demucs checksum prefix encoded in a checkpoint name."""
+def _checkpoint_signature_and_checksum(checkpoint_name: str) -> tuple[str, str] | None:
+    """Return the canonical Demucs signature/checksum encoded in a checkpoint name."""
     stem = Path(checkpoint_name).stem
     if "-" not in stem:
         return None
-    _signature, checksum_prefix = stem.rsplit("-", 1)
-    if (
-        len(checksum_prefix) != 8
-        or checksum_prefix != checksum_prefix.lower()
-        or any(character not in "0123456789abcdef" for character in checksum_prefix)
-    ):
-        return None
-    return checksum_prefix
+    signature, checksum_prefix = stem.rsplit("-", 1)
+    for value in (signature, checksum_prefix):
+        if (
+            len(value) != 8
+            or value != value.lower()
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            return None
+    return signature, checksum_prefix
 
 
 def _admitted_audio_evidence_from_environment() -> tuple[int, str] | None:
@@ -129,37 +133,63 @@ def _admitted_audio_evidence_from_environment() -> tuple[int, str] | None:
     return expected_size, digest
 
 
-def _local_demucs_checkpoint(model_name: str) -> Path | None:
-    """Return the exact already-cached checkpoint accepted for offline inference.
+def _snapshot_local_demucs_checkpoint(model_name: str, snapshot_root: Path) -> str | None:
+    """Copy one verified cache descriptor into a private local Demucs repository.
 
-    Demucs's default ``get_model`` path uses ``RemoteRepo`` and delegates missing
-    checkpoints to ``torch.hub.load_state_dict_from_url``. BandScope therefore
-    admits only the canonical regular cache object whose streamed SHA-256 matches
-    the checksum prefix encoded by Demucs in that checkpoint filename. Unsupported
-    names, missing/non-regular objects, symlinks, and modified bytes fail closed
-    before the upstream resolver can deserialize or remotely replace the model.
+    The mutable torch cache pathname is used only to acquire the source descriptor.
+    The descriptor must represent the same regular file observed by ``lstat``;
+    ``O_NOFOLLOW`` is requested where the host exposes it. The bytes copied from
+    that descriptor must reproduce the checksum prefix encoded in the canonical
+    checkpoint filename. Demucs later deserializes only the private snapshot.
     """
     checkpoint_name = _DEMUCS_LOCAL_CHECKPOINTS.get(model_name)
-    checksum_prefix = (
-        _checkpoint_checksum_prefix(checkpoint_name) if checkpoint_name is not None else None
+    identity = (
+        _checkpoint_signature_and_checksum(checkpoint_name) if checkpoint_name is not None else None
     )
-    if checkpoint_name is None or checksum_prefix is None:
+    if checkpoint_name is None or identity is None:
         return None
+    signature, checksum_prefix = identity
+
+    snapshot_path = snapshot_root / checkpoint_name
     try:
         import torch
 
         checkpoint_path = Path(torch.hub.get_dir()) / "checkpoints" / checkpoint_name
-        if checkpoint_path.is_symlink() or not checkpoint_path.is_file():
+        path_stat = os.lstat(checkpoint_path)
+        if not stat.S_ISREG(path_stat.st_mode):
             return None
-        digest = hashlib.sha256()
-        with checkpoint_path.open("rb") as checkpoint_file:
-            while chunk := checkpoint_file.read(_COPY_CHUNK_BYTES):
-                digest.update(chunk)
+
+        open_flags = os.O_RDONLY
+        open_flags |= getattr(os, "O_CLOEXEC", 0)
+        open_flags |= getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(checkpoint_path, open_flags)
+        try:
+            descriptor_stat = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(descriptor_stat.st_mode)
+                or descriptor_stat.st_dev != path_stat.st_dev
+                or descriptor_stat.st_ino != path_stat.st_ino
+            ):
+                return None
+
+            digest = hashlib.sha256()
+            with os.fdopen(descriptor, "rb", closefd=False) as checkpoint_file:
+                with snapshot_path.open("xb") as snapshot_file:
+                    while chunk := checkpoint_file.read(_COPY_CHUNK_BYTES):
+                        digest.update(chunk)
+                        snapshot_file.write(chunk)
+                    snapshot_file.flush()
+                    os.fsync(snapshot_file.fileno())
+        finally:
+            os.close(descriptor)
+
         if not digest.hexdigest().startswith(checksum_prefix):
+            snapshot_path.unlink(missing_ok=True)
             return None
     except (ImportError, OSError, TypeError, ValueError):
+        snapshot_path.unlink(missing_ok=True)
         return None
-    return checkpoint_path
+    return signature
 
 
 @dataclass(frozen=True)
@@ -273,15 +303,14 @@ class AudioStemSeparator:
         return {name: _as_float_array(sources[name]) for name in _STEM_ORDER}
 
     def _load_model(self) -> Any:
-        """Lazily load the canonical Demucs model without an implicit download.
+        """Lazily load the canonical Demucs model from one verified local snapshot.
 
         Demucs (and torch) are installed only on platforms with current torch
         wheels (see pyproject platform markers); elsewhere separation fails with a
-        clear error the pipeline already surfaces safely. The upstream resolver
-        is entered only when the canonical checkpoint is already present as a
-        regular local cache file and matches its encoded checksum prefix. A
-        missing or modified checkpoint therefore fails closed instead of becoming
-        a first-run network dependency or unverified deserialization input.
+        clear error the pipeline already surfaces safely. The canonical cache
+        checkpoint is copied from its verified descriptor into a private local
+        repository. Passing that repository explicitly keeps Demucs on LocalRepo
+        and prevents RemoteRepo/network fallback or a second open of the cache path.
         """
         if self._model is None:
             try:
@@ -293,13 +322,19 @@ class AudioStemSeparator:
                     "Stem separation is not available on this platform (demucs/torch not installed)"
                 ) from error
 
-            if _local_demucs_checkpoint(self.config.model_name) is None:
-                raise ValueError(_LOCAL_MODEL_UNAVAILABLE_ERROR)
+            with tempfile.TemporaryDirectory(prefix="bandscope-demucs-model-") as snapshot_dir:
+                snapshot_root = Path(snapshot_dir)
+                model_signature = _snapshot_local_demucs_checkpoint(
+                    self.config.model_name,
+                    snapshot_root,
+                )
+                if model_signature is None:
+                    raise ValueError(_LOCAL_MODEL_UNAVAILABLE_ERROR)
 
-            with contextlib.redirect_stdout(sys.stderr):
-                model = get_model(self.config.model_name)
-            model.eval()
-            self._model = model
+                with contextlib.redirect_stdout(sys.stderr):
+                    model = get_model(model_signature, repo=snapshot_root)
+                model.eval()
+                self._model = model
         return self._model
 
     def _apply_model(self, model: Any, audio: AudioStemArray) -> dict[str, np.ndarray[Any, Any]]:
