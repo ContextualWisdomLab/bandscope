@@ -303,3 +303,27 @@ def test_demucs_model_load_rejects_environment_override_that_disables_weights_on
         audio_separator_module.AudioStemSeparator()._load_model()
 
     assert calls["count"] == 0
+
+
+def test_demucs_model_load_rejects_backend_autoload_environment(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not let torch import auto-load out-of-tree backend extensions."""
+    calls = {"count": 0}
+
+    def forbidden_lookup(_name: str, **_kwargs: object) -> _FakeModel:
+        calls["count"] += 1
+        raise AssertionError("backend autoload must fail before Demucs or torch import")
+
+    monkeypatch.setenv("TORCH_DEVICE_BACKEND_AUTOLOAD", "1")
+    _install_fake_runtime(
+        monkeypatch,
+        torch_hub_dir=str(tmp_path / "torch-hub"),
+        get_model=forbidden_lookup,
+    )
+
+    with pytest.raises(ValueError, match="model weights are not installed locally"):
+        audio_separator_module.AudioStemSeparator()._load_model()
+
+    assert calls["count"] == 0
