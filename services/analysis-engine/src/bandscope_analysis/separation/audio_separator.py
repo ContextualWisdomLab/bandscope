@@ -22,9 +22,10 @@ Security Notes:
   can become successful silence or downstream rehearsal evidence.
 - Inference does not intentionally acquire model weights from the network. The
   canonical htdemucs checkpoint must already exist as a regular file in the
-  local torch checkpoint cache before Demucs's resolver is entered. Release
-  bundling and full artifact provenance remain supply-chain work rather than a
-  hidden first-run download.
+  local torch checkpoint cache and reproduce the checksum prefix encoded in its
+  canonical filename before Demucs's resolver is entered. Release bundling and
+  full artifact provenance remain supply-chain work rather than a hidden
+  first-run download.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -90,6 +91,21 @@ def _valid_sha256_hex(value: object) -> bool:
     )
 
 
+def _checkpoint_checksum_prefix(checkpoint_name: str) -> str | None:
+    """Return the canonical Demucs checksum prefix encoded in a checkpoint name."""
+    stem = Path(checkpoint_name).stem
+    if "-" not in stem:
+        return None
+    _signature, checksum_prefix = stem.rsplit("-", 1)
+    if (
+        len(checksum_prefix) != 8
+        or checksum_prefix != checksum_prefix.lower()
+        or any(character not in "0123456789abcdef" for character in checksum_prefix)
+    ):
+        return None
+    return checksum_prefix
+
+
 def _admitted_audio_evidence_from_environment() -> tuple[int, str] | None:
     """Read the native-owned evidence scoped to one analysis process.
 
@@ -118,18 +134,28 @@ def _local_demucs_checkpoint(model_name: str) -> Path | None:
 
     Demucs's default ``get_model`` path uses ``RemoteRepo`` and delegates missing
     checkpoints to ``torch.hub.load_state_dict_from_url``. BandScope therefore
-    checks the canonical cache object before entering that resolver. Unsupported
-    model names, missing files, directories, and symlinks fail closed instead of
-    turning local analysis into an implicit network operation.
+    admits only the canonical regular cache object whose streamed SHA-256 matches
+    the checksum prefix encoded by Demucs in that checkpoint filename. Unsupported
+    names, missing/non-regular objects, symlinks, and modified bytes fail closed
+    before the upstream resolver can deserialize or remotely replace the model.
     """
     checkpoint_name = _DEMUCS_LOCAL_CHECKPOINTS.get(model_name)
-    if checkpoint_name is None:
+    checksum_prefix = (
+        _checkpoint_checksum_prefix(checkpoint_name) if checkpoint_name is not None else None
+    )
+    if checkpoint_name is None or checksum_prefix is None:
         return None
     try:
         import torch
 
         checkpoint_path = Path(torch.hub.get_dir()) / "checkpoints" / checkpoint_name
         if checkpoint_path.is_symlink() or not checkpoint_path.is_file():
+            return None
+        digest = hashlib.sha256()
+        with checkpoint_path.open("rb") as checkpoint_file:
+            while chunk := checkpoint_file.read(_COPY_CHUNK_BYTES):
+                digest.update(chunk)
+        if not digest.hexdigest().startswith(checksum_prefix):
             return None
     except (ImportError, OSError, TypeError, ValueError):
         return None
@@ -252,9 +278,10 @@ class AudioStemSeparator:
         Demucs (and torch) are installed only on platforms with current torch
         wheels (see pyproject platform markers); elsewhere separation fails with a
         clear error the pipeline already surfaces safely. The upstream resolver
-        is entered only when the exact canonical checkpoint already exists as a
-        regular local cache file. A missing checkpoint therefore fails closed
-        instead of becoming a first-run network dependency.
+        is entered only when the canonical checkpoint is already present as a
+        regular local cache file and matches its encoded checksum prefix. A
+        missing or modified checkpoint therefore fails closed instead of becoming
+        a first-run network dependency or unverified deserialization input.
         """
         if self._model is None:
             try:

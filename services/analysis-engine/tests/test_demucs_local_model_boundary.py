@@ -65,20 +65,28 @@ def test_demucs_model_load_fails_closed_before_remote_lookup_when_checkpoint_mis
     assert calls["count"] == 0
 
 
-def test_demucs_model_load_allows_exact_cached_htdemucs_checkpoint(
+def test_demucs_model_load_allows_checksum_matching_cached_htdemucs_checkpoint(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Preserve offline use when the canonical checkpoint is already present."""
+    """Preserve offline use when cached bytes match the registered checkpoint checksum."""
+    checkpoint_bytes = b"cached-checkpoint-fixture"
+    checksum_prefix = hashlib.sha256(checkpoint_bytes).hexdigest()[:8]
+    checkpoint_name = f"955717e8-{checksum_prefix}.th"
     checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
     checkpoint_root.mkdir(parents=True)
-    (checkpoint_root / "955717e8-8726e21a.th").write_bytes(b"cached-checkpoint-fixture")
+    (checkpoint_root / checkpoint_name).write_bytes(checkpoint_bytes)
     calls: list[str] = []
 
     def fake_local_lookup(name: str) -> _FakeModel:
         calls.append(name)
         return _FakeModel()
 
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_DEMUCS_LOCAL_CHECKPOINTS",
+        {"htdemucs": checkpoint_name},
+    )
     _install_fake_runtime(
         monkeypatch,
         torch_hub_dir=str(tmp_path / "torch-hub"),
