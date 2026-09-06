@@ -191,7 +191,7 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "save_project") {
-    return;
+    throw new Error("Local project save is not available in browser preview.");
   }
 
   if (command === "import_youtube_url") {
