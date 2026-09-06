@@ -1,5 +1,7 @@
 #[path = "../src/project_persistence.rs"]
 mod project_persistence;
+#[path = "../src/project_root.rs"]
+mod project_root;
 
 use bandscope_desktop_core::{
     re_admit_local_audio_publication_from_project_root, sha256_hex_reader,
@@ -180,7 +182,7 @@ fn restart_lookup_requires_an_existing_regular_project_directory() {
     let project_root = base_root.join(project_id);
     fs::create_dir(&project_root).expect("project root should be created");
 
-    let resolved = project_persistence::resolve_existing_project_root(&base_root, project_id)
+    let resolved = project_root::resolve_existing_project_root(&base_root, project_id)
         .expect("an existing regular project directory should resolve");
 
     assert_eq!(resolved, project_root);
@@ -206,7 +208,7 @@ fn restart_lookup_does_not_create_a_missing_project_directory() {
     let project_id = "project-1-1";
     let project_root = base_root.join(project_id);
 
-    let error = project_persistence::resolve_existing_project_root(&base_root, project_id)
+    let error = project_root::resolve_existing_project_root(&base_root, project_id)
         .expect_err("restart must not provision a missing project directory");
 
     assert_eq!(error, "Could not prepare the local project workspace.");
@@ -239,7 +241,7 @@ fn restart_lookup_refuses_a_symlink_project_directory() {
     let project_id = "project-1-1";
     symlink(&external_root, base_root.join(project_id)).expect("fixture symlink should be created");
 
-    let error = project_persistence::resolve_existing_project_root(&base_root, project_id)
+    let error = project_root::resolve_existing_project_root(&base_root, project_id)
         .expect_err("restart must not follow a project-directory symlink");
 
     assert_eq!(error, "Could not prepare the local project workspace.");
