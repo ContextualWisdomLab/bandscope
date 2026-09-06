@@ -16,6 +16,7 @@ mod content_sha256;
 mod project_format;
 mod publication_identity;
 mod score_pdf;
+mod source_readmission;
 
 pub use audio_resource::{
     copy_bounded_local_audio, copy_bounded_local_audio_with_receipt,
@@ -35,3 +36,4 @@ pub use publication_identity::{
 };
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
+pub use source_readmission::re_admit_local_audio_publication;
