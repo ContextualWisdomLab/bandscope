@@ -6,7 +6,11 @@ use bandscope_desktop_core::{
     build_local_audio_publication_identity, LocalAudioCopyReceipt, LocalAudioSourcePayload,
     ProjectBootstrapSummaryPayload,
 };
-use std::{fs, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    fs,
+    path::PathBuf,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 const WAV_BYTES: &[u8] = b"RIFF\x04\x00\x00\x00WAVE";
 const WAV_SHA256: &str = "1fe5a351bf0314c8a1840b023fd1e4cab3f0f123468940c241bd7bf20e989ab8";
@@ -16,7 +20,9 @@ fn unique_project_root() -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after epoch")
         .as_nanos();
-    std::env::temp_dir().join(format!("bandscope-analysis-dispatch-{suffix}")).join("project-1-1")
+    std::env::temp_dir()
+        .join(format!("bandscope-analysis-dispatch-{suffix}"))
+        .join("project-1-1")
 }
 
 fn bootstrap(project_root: &std::path::Path) -> ProjectBootstrapSummaryPayload {
@@ -27,7 +33,10 @@ fn bootstrap(project_root: &std::path::Path) -> ProjectBootstrapSummaryPayload {
         cache_root: project_root.join("cache").to_string_lossy().into_owned(),
         temp_root: project_root.join("temp").to_string_lossy().into_owned(),
         source: LocalAudioSourcePayload {
-            source_path: project_root.join("source.wav").to_string_lossy().into_owned(),
+            source_path: project_root
+                .join("source.wav")
+                .to_string_lossy()
+                .into_owned(),
             file_name: "rehearsal.wav".to_string(),
             extension: "wav".to_string(),
             file_size_bytes: WAV_BYTES.len() as u64,
@@ -64,7 +73,8 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
     assert_eq!(refreshed.source.file_size_bytes, WAV_BYTES.len() as u64);
 
     let mut changed = WAV_BYTES.to_vec();
-    changed[changed.len() - 1] = b'A';
+    let last_byte = changed.len() - 1;
+    changed[last_byte] = b'A';
     fs::write(&source_path, changed).expect("same-size mutation should be written");
 
     let error = revalidate_local_audio_bootstrap_for_analysis(
@@ -73,7 +83,10 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
         fs::File::open,
     )
     .expect_err("same-size mutation must fail before analysis dispatch");
-    assert_eq!(error, "Analysis job source was not found. Choose local audio again.");
+    assert_eq!(
+        error,
+        "Analysis job source was not found. Choose local audio again."
+    );
 
     fs::remove_dir_all(project_root.parent().expect("project root should have parent"))
         .expect("fixture should be removed");
