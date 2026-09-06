@@ -7,6 +7,9 @@
 
 #[path = "lib.rs"]
 pub(crate) mod runtime_core;
+// Project Persistence still imports `crate::core`; keep that name as a
+// crate-private alias to the same compatibility module instead of restoring a
+// second crate root or copying Resource Admission ownership.
 pub(crate) use runtime_core as core;
 mod audio_resource;
 mod content_sha256;
