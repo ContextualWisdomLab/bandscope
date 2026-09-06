@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
+import bandscope_analysis.separation.audio_separator as audio_separator_module
 from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 
 
@@ -87,3 +89,37 @@ def test_demucs_model_load_allows_exact_cached_htdemucs_checkpoint(
 
     assert isinstance(model, _FakeModel)
     assert calls == ["htdemucs"]
+
+
+def test_demucs_model_load_rejects_tampered_cached_checkpoint(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject cached bytes that do not match the checkpoint filename checksum."""
+    trusted_bytes = b"trusted-checkpoint-fixture"
+    checksum_prefix = hashlib.sha256(trusted_bytes).hexdigest()[:8]
+    checkpoint_name = f"955717e8-{checksum_prefix}.th"
+    checkpoint_root = tmp_path / "torch-hub" / "checkpoints"
+    checkpoint_root.mkdir(parents=True)
+    (checkpoint_root / checkpoint_name).write_bytes(b"tampered-checkpoint-fixture")
+    calls = {"count": 0}
+
+    def forbidden_lookup(_name: str) -> _FakeModel:
+        calls["count"] += 1
+        raise AssertionError("tampered checkpoint must not reach Demucs deserialization")
+
+    monkeypatch.setattr(
+        audio_separator_module,
+        "_DEMUCS_LOCAL_CHECKPOINTS",
+        {"htdemucs": checkpoint_name},
+    )
+    _install_fake_runtime(
+        monkeypatch,
+        torch_hub_dir=str(tmp_path / "torch-hub"),
+        get_model=forbidden_lookup,
+    )
+
+    with pytest.raises(ValueError, match="model weights are not installed locally"):
+        AudioStemSeparator()._load_model()
+
+    assert calls["count"] == 0
