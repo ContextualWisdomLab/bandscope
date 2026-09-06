@@ -16,6 +16,14 @@ use serde_json::Value;
 /// Current on-disk project format version, independent of the app version.
 pub const CURRENT_PROJECT_FORMAT_VERSION: u16 = 3;
 
+/// Maximum admitted full-mix bytes a durable source reference may claim.
+///
+/// This mirrors the current Resource Admission ceiling so an untrusted project
+/// document cannot turn an impossible source identity into restart authority.
+/// Once the #866 foundation enters this branch's ancestry, consume its exported
+/// canonical constant instead of maintaining two declarations.
+const MAX_PROJECT_SOURCE_REFERENCE_BYTES: u64 = 100 * 1024 * 1024;
+
 /// Stable playback-source identity stored in project preferences.
 ///
 /// These values describe rehearsal intent. They are resolved against current
@@ -121,6 +129,7 @@ fn sha256_hex_is_canonical(value: &str) -> bool {
 fn source_reference_is_valid(reference: &ProjectSourceReferencePayload) -> bool {
     if !is_valid_project_id(&reference.project_id)
         || reference.file_size_bytes == 0
+        || reference.file_size_bytes > MAX_PROJECT_SOURCE_REFERENCE_BYTES
         || !AUDIO_EXTENSIONS.contains(&reference.extension.as_str())
         || !sha256_hex_is_canonical(&reference.content_sha256)
     {
@@ -148,9 +157,9 @@ fn validate_document(document: ProjectDocumentPayload) -> Result<ProjectDocument
 /// preferences, stable playback-source enum, source reference, and rehearsal-
 /// song DTO all use typed allowlists/`deny_unknown_fields`. Source references
 /// admit only a valid project id, a fixed app-owned artifact basename, a closed
-/// audio extension, a non-zero byte length, and a canonical lowercase SHA-256
-/// digest; filesystem paths and revocable playback URLs therefore fail closed
-/// before any filesystem mutation.
+/// audio extension, a byte length within the Resource Admission ceiling, and a
+/// canonical lowercase SHA-256 digest; filesystem paths and revocable playback
+/// URLs therefore fail closed before any filesystem mutation.
 pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayload, String> {
     let document = serde_json::from_value::<ProjectDocumentPayload>(value)
         .map_err(|_| "Invalid project document payload".to_string())?;
@@ -163,11 +172,12 @@ pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayloa
 /// `deny_unknown_fields` envelopes and closed playback-source semantics.
 /// Version 3 additionally validates the app-owned source reference without
 /// accepting any user filesystem path and requires canonical SHA-256 content
-/// identity so byte length alone can never be treated as sufficient re-admission
-/// evidence. Version 1 and legacy raw-song inputs are delegated to the existing
-/// strict parser and migrated in memory with the explicit `full_mix` default
-/// and no invented source reference. Unsupported versions fail before their
-/// body is interpreted as current truth.
+/// identity plus a byte length within Resource Admission's ceiling so byte
+/// length alone can never be treated as sufficient re-admission evidence.
+/// Version 1 and legacy raw-song inputs are delegated to the existing strict
+/// parser and migrated in memory with the explicit `full_mix` default and no
+/// invented source reference. Unsupported versions fail before their body is
+/// interpreted as current truth.
 pub fn project_document_from_content(content: &str) -> Result<ProjectDocumentPayload, String> {
     let root = serde_json::from_str::<Value>(content)
         .map_err(|_| "Invalid project file format".to_string())?;
