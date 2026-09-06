@@ -72,6 +72,14 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
     .expect("unchanged app-owned bytes should regain dispatch authority");
     assert_eq!(refreshed.source.source_path, source_path.to_string_lossy());
     assert_eq!(refreshed.source.file_size_bytes, WAV_BYTES.len() as u64);
+    assert_eq!(
+        PathBuf::from(&refreshed.cache_root),
+        project_root.join("cache").join(WAV_SHA256)
+    );
+    assert_eq!(
+        PathBuf::from(&refreshed.temp_root),
+        project_root.join("temp").join(WAV_SHA256)
+    );
 
     let mut changed = WAV_BYTES.to_vec();
     let last_byte = changed.len() - 1;
