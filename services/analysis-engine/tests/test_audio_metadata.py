@@ -57,7 +57,10 @@ def test_preflight_rejects_untrusted_source_metadata(
     assert error.value.reason == reason
 
 
-@pytest.mark.parametrize("dependency_error", [RuntimeError("decoder detail"), ValueError("decoder detail")])
+@pytest.mark.parametrize(
+    "dependency_error",
+    [RuntimeError("decoder detail"), ValueError("decoder detail")],
+)
 def test_preflight_maps_parser_failures_to_payload_free_policy_error(
     dependency_error: Exception,
 ) -> None:
