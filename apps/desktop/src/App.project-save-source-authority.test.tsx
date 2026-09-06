@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { vi, describe, it, expect } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
-const { mockSaveProject } = vi.hoisted(() => ({
+const { mockLoadProject, mockLoadProjectDocument, mockSaveProject } = vi.hoisted(() => ({
+  mockLoadProject: vi.fn(),
+  mockLoadProjectDocument: vi.fn(),
   mockSaveProject: vi.fn().mockResolvedValue(undefined)
 }));
 
@@ -51,11 +53,19 @@ vi.mock("./lib/analysis", async (importActual) => {
       result: createDemoRehearsalSong()
     }),
     subscribeToAnalysisJobUpdates: async () => () => undefined,
+    loadProject: (...args: unknown[]) => mockLoadProject(...args),
+    loadProjectDocument: (...args: unknown[]) => mockLoadProjectDocument(...args),
     saveProject: (...args: unknown[]) => mockSaveProject(...args)
   };
 });
 
 describe("App local-audio save authority", () => {
+  beforeEach(() => {
+    mockLoadProject.mockReset();
+    mockLoadProjectDocument.mockReset();
+    mockSaveProject.mockClear();
+  });
+
   it("saves the analyzed local project with its exact native project id", async () => {
     render(<App />);
 
@@ -72,6 +82,38 @@ describe("App local-audio save authority", () => {
         expect.objectContaining({ id: expect.any(String) }),
         "full_mix",
         "project-400-4"
+      );
+    });
+  });
+
+  it("preserves reopened source identity and playback-source intent on resave", async () => {
+    const song = createDemoRehearsalSong();
+    const projectDocument = {
+      song,
+      preferences: { selectedPlaybackSource: "vocals" as const },
+      sourceReference: {
+        projectId: "project-500-5",
+        artifactName: "source.wav",
+        extension: "wav" as const,
+        fileSizeBytes: 8192,
+        contentSha256: "a".repeat(64)
+      }
+    };
+    mockLoadProject.mockResolvedValueOnce(song);
+    mockLoadProjectDocument.mockResolvedValueOnce(projectDocument);
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /save project/i })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /save project/i }));
+
+    await waitFor(() => {
+      expect(mockSaveProject).toHaveBeenCalledWith(
+        expect.objectContaining({ id: expect.any(String) }),
+        "vocals",
+        "project-500-5"
       );
     });
   });
