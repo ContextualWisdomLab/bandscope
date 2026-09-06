@@ -28,6 +28,8 @@ Security Notes:
   signature there, so upstream deserialization cannot reopen or download from
   the mutable cache pathname. Release bundling, full digest/signature provenance,
   and model-rights evidence remain Distribution work.
+- PyTorch/Demucs checkpoint incompatibility fails with the same bounded local-model
+  diagnostic rather than exposing serialized class names or internal loader details.
 - Does not log or persist raw audio, separated stems, or full source paths.
 - Fails with bounded, filename-scoped errors so callers can surface a safe
   failure without leaking local directory structure.
@@ -39,6 +41,7 @@ import contextlib
 import hashlib
 import logging
 import os
+import pickle
 import stat
 import sys
 import tempfile
@@ -324,6 +327,8 @@ class AudioStemSeparator:
         checkpoint is copied from its verified descriptor into a private local
         repository. Passing that repository explicitly keeps Demucs on LocalRepo
         and prevents RemoteRepo/network fallback or a second open of the cache path.
+        PyTorch 2.6+ weights-only incompatibility is treated as an unavailable
+        admitted model; BandScope does not force unsafe legacy pickle loading here.
         """
         if self._model is None:
             try:
@@ -344,8 +349,11 @@ class AudioStemSeparator:
                 if model_signature is None:
                     raise ValueError(_LOCAL_MODEL_UNAVAILABLE_ERROR)
 
-                with contextlib.redirect_stdout(sys.stderr):
-                    model = get_model(model_signature, repo=snapshot_root)
+                try:
+                    with contextlib.redirect_stdout(sys.stderr):
+                        model = get_model(model_signature, repo=snapshot_root)
+                except pickle.UnpicklingError as error:
+                    raise ValueError(_LOCAL_MODEL_UNAVAILABLE_ERROR) from error
                 model.eval()
                 self._model = model
         return self._model
