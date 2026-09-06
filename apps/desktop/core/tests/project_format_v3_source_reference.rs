@@ -109,6 +109,13 @@ fn current_project_rejects_paths_and_untrusted_source_reference_shapes() {
             "projectId": "project-400-4",
             "artifactName": "source.wav",
             "extension": "wav",
+            "fileSizeBytes": 100 * 1024 * 1024 + 1,
+            "contentSha256": CONTENT_SHA256
+        }),
+        json!({
+            "projectId": "project-400-4",
+            "artifactName": "source.wav",
+            "extension": "wav",
             "fileSizeBytes": 4096,
             "contentSha256": CONTENT_SHA256,
             "sourcePath": "/Users/example/Music/private.wav"
