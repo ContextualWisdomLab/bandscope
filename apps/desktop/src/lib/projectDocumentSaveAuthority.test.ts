@@ -26,6 +26,22 @@ describe("project document save authority", () => {
     ).rejects.toThrow("Local project save is not available in browser preview.");
   });
 
+  it("forwards only an explicit project-id selector beside renderer-owned save state", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+    const document = {
+      song: createDemoRehearsalSong(),
+      preferences: { selectedPlaybackSource: "full_mix" as const }
+    };
+
+    await saveProjectDocument(document, "project-400-4");
+
+    expect(invoke).toHaveBeenCalledWith("save_project", {
+      payload: document,
+      projectId: "project-400-4"
+    });
+  });
+
   it("rejects renderer-authored source identity before persistence IPC", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
     tauriWindow.__TAURI_INVOKE__ = invoke;
