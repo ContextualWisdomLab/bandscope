@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react"
+import type { Meta, StoryObj } from "@storybook/react-vite"
 
 import { Slider } from "./slider"
 
@@ -8,6 +8,7 @@ const meta = {
   parameters: { layout: "centered" },
   args: {
     defaultValue: 50,
+    "aria-label": "Volume",
     className: "w-[60vw]"
   },
 } satisfies Meta<typeof Slider>
