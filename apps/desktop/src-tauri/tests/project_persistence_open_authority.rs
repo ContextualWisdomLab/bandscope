@@ -158,3 +158,90 @@ fn restart_adapter_refuses_a_symlink_source_artifact() {
     assert_eq!(error, "Could not prepare the local project workspace.");
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn restart_lookup_requires_an_existing_regular_project_directory() {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let base_root = std::env::temp_dir().join(format!(
+        "bandscope-existing-project-root-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&base_root).expect("base root should be created");
+    let project_id = "project-1-1";
+    let project_root = base_root.join(project_id);
+    fs::create_dir(&project_root).expect("project root should be created");
+
+    let resolved = project_persistence::resolve_existing_project_root(&base_root, project_id)
+        .expect("an existing regular project directory should resolve");
+
+    assert_eq!(resolved, project_root);
+    fs::remove_dir_all(base_root).expect("test directory should be removable");
+}
+
+#[test]
+fn restart_lookup_does_not_create_a_missing_project_directory() {
+    use std::{
+        fs,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let base_root = std::env::temp_dir().join(format!(
+        "bandscope-missing-project-root-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&base_root).expect("base root should be created");
+    let project_id = "project-1-1";
+    let project_root = base_root.join(project_id);
+
+    let error = project_persistence::resolve_existing_project_root(&base_root, project_id)
+        .expect_err("restart must not provision a missing project directory");
+
+    assert_eq!(error, "Could not prepare the local project workspace.");
+    assert!(
+        !project_root.exists(),
+        "read-side restart lookup must remain non-provisioning"
+    );
+    fs::remove_dir_all(base_root).expect("test directory should be removable");
+}
+
+#[cfg(unix)]
+#[test]
+fn restart_lookup_refuses_a_symlink_project_directory() {
+    use std::{
+        fs,
+        os::unix::fs::symlink,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let base_root = std::env::temp_dir().join(format!(
+        "bandscope-linked-project-root-{}-{nonce}",
+        std::process::id()
+    ));
+    let external_root = base_root.join("external");
+    fs::create_dir_all(&external_root).expect("external root should be created");
+    let project_id = "project-1-1";
+    symlink(&external_root, base_root.join(project_id)).expect("fixture symlink should be created");
+
+    let error = project_persistence::resolve_existing_project_root(&base_root, project_id)
+        .expect_err("restart must not follow a project-directory symlink");
+
+    assert_eq!(error, "Could not prepare the local project workspace.");
+    fs::remove_dir_all(base_root).expect("test directory should be removable");
+}
