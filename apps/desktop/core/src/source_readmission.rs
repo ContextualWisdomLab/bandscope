@@ -36,17 +36,7 @@ pub fn re_admit_local_audio_publication<R: Read>(
         return Err(LOCAL_AUDIO_RE_ADMISSION_ERROR.to_string());
     }
 
-    let verified_receipt = verify_local_audio_publication_receipt(reader, &expected_receipt)
+    verify_local_audio_publication_receipt(reader, &expected_receipt)
         .map_err(|_| LOCAL_AUDIO_RE_ADMISSION_ERROR.to_string())?;
-    let verified_identity = build_local_audio_publication_identity(
-        &reference.project_id,
-        &reference.extension,
-        &verified_receipt,
-    )
-    .map_err(|_| LOCAL_AUDIO_RE_ADMISSION_ERROR.to_string())?;
-
-    if verified_identity != expected_identity {
-        return Err(LOCAL_AUDIO_RE_ADMISSION_ERROR.to_string());
-    }
-    Ok(verified_identity)
+    Ok(expected_identity)
 }
