@@ -1,5 +1,8 @@
 use bandscope_desktop_core::is_valid_project_id;
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const PROJECT_ROOT_ERROR: &str = "Could not prepare the local project workspace.";
 
