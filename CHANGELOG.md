@@ -36,7 +36,7 @@
 - Keep renderer project admission passive and path-free: custom prototypes, enumeration/descriptor traps, accessors, runtime playback authorities, unknown fields, invalid app-owned source references, unsafe byte-size values, and missing/non-canonical SHA-256 source identity fail closed before persistence IPC.
 - Keep local Demucs loading offline and bounded by resolving a private snapshot copied from the verified cache descriptor through `LocalRepo`; reject missing, modified, empty, non-regular, over-128-MiB, or descriptor-size-racing checkpoint state before model deserialization so mutable cache replacement, post-preflight growth/shrink, and oversized local artifacts cannot alter or exhaust one analysis load.
 - Bound PyTorch 2.6+ weights-only checkpoint incompatibility at the admitted local-model boundary instead of leaking serialized class details or silently enabling legacy pickle loading; incompatible technical cache state now returns the existing local-model-unavailable diagnostic and remains a Distribution serialization/provenance decision.
-- Reject PyTorch's `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` downgrade at the local Demucs boundary, so inherited process environment cannot turn the upstream implicit checkpoint load back into unrestricted pickle deserialization.
+- Reject PyTorch runtime-environment widening at the local Demucs boundary: `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` cannot turn the upstream implicit checkpoint load back into unrestricted pickle deserialization, and `TORCH_DEVICE_BACKEND_AUTOLOAD=1` cannot auto-import out-of-tree backend extensions before model admission.
 
 ## [0.1.3] - 2026-04-29
 
