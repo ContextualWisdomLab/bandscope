@@ -10,6 +10,9 @@ Security Notes:
   third-party decoder exceptions are untrusted.
 - Encoded byte size is measured and admitted from the caller-owned seekable
   handle before metadata parsing or decode work begins.
+- Metadata parsing and decoding receive a bounded view whose logical EOF is the
+  admitted byte count, so source growth after admission cannot widen decoder
+  read authority beyond the resource-policy ceiling.
 - Source metadata is admitted before decode and the resulting PCM is revalidated
   against the same versioned policy before it can enter MIR or model work.
 - Decoder output must already be one-dimensional when ``mono=True``; a malformed
@@ -21,6 +24,7 @@ Security Notes:
 
 from __future__ import annotations
 
+import io
 import warnings
 from typing import BinaryIO, cast
 
@@ -36,6 +40,54 @@ from bandscope_analysis.audio_resource_policy import (
 )
 
 AudioMonoArray = NDArray[np.float32]
+
+
+class _BoundedEncodedSource(io.RawIOBase):
+    """Expose one seekable source with a fixed admitted logical end offset."""
+
+    def __init__(self, source: BinaryIO, admitted_bytes: int) -> None:
+        """Retain the caller-owned handle without acquiring path authority."""
+        super().__init__()
+        self._source = source
+        self._admitted_bytes = admitted_bytes
+
+    def readable(self) -> bool:
+        """Report the read capability required by decoder virtual I/O."""
+        return True
+
+    def seekable(self) -> bool:
+        """Report the seek capability required by container parsers."""
+        return True
+
+    def tell(self) -> int:
+        """Return the current position of the caller-owned handle."""
+        return int(self._source.tell())
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        """Seek relative to the admitted logical file rather than later growth."""
+        if whence == io.SEEK_SET:
+            target = offset
+        elif whence == io.SEEK_CUR:
+            target = self.tell() + offset
+        elif whence == io.SEEK_END:
+            target = self._admitted_bytes + offset
+        else:
+            raise ValueError("invalid seek mode")
+        if target < 0:
+            raise OSError("invalid encoded source seek")
+        return int(self._source.seek(target, io.SEEK_SET))
+
+    def read(self, size: int = -1) -> bytes:
+        """Read no farther than the byte extent admitted before decode."""
+        remaining = max(self._admitted_bytes - self.tell(), 0)
+        bounded_size = remaining if size < 0 else min(size, remaining)
+        return self._source.read(bounded_size)
+
+    def readinto(self, buffer: bytearray | memoryview) -> int:
+        """Fill decoder-owned buffers without crossing the admitted EOF."""
+        data = self.read(len(buffer))
+        buffer[: len(data)] = data
+        return len(data)
 
 
 def _malformed_decode_error() -> AudioResourcePolicyError:
@@ -60,15 +112,16 @@ def decode_mono_audio(
     policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> tuple[AudioMonoArray, int]:
     """Admit and decode one caller-owned source to bounded mono float32 PCM."""
-    policy.validate_encoded_file_bytes(_measure_encoded_source_bytes(source))
-    preflight_audio_metadata(source, policy)
+    admitted_bytes = policy.validate_encoded_file_bytes(_measure_encoded_source_bytes(source))
+    admitted_source = cast(BinaryIO, _BoundedEncodedSource(source, admitted_bytes))
+    preflight_audio_metadata(admitted_source, policy)
 
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
             warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
             decoded, sample_rate = librosa.load(
-                source,
+                admitted_source,
                 sr=policy.target_sample_rate,
                 mono=True,
                 duration=policy.decode_probe_duration_seconds,
