@@ -2,7 +2,11 @@ fn capability_permissions_include(value: &serde_json::Value, expected: &str) -> 
     value
         .pointer("/main-capability/permissions")
         .and_then(serde_json::Value::as_array)
-        .is_some_and(|permissions| permissions.iter().any(|permission| permission.as_str() == Some(expected)))
+        .is_some_and(|permissions| {
+            permissions
+                .iter()
+                .any(|permission| permission.as_str() == Some(expected))
+        })
 }
 
 fn desktop_schema_identifier_const(value: &serde_json::Value, expected: &str) -> bool {
