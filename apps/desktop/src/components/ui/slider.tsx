@@ -4,6 +4,7 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 
 import { cn } from "@/lib/utils"
 
+/** Render the root container for the slider. */
 function Slider({ className, ...props }: SliderPrimitive.Root.Props) {
   return (
     <SliderPrimitive.Root
@@ -17,6 +18,7 @@ function Slider({ className, ...props }: SliderPrimitive.Root.Props) {
   )
 }
 
+/** Render the interactive control area of the slider. */
 function SliderControl({ className, ...props }: SliderPrimitive.Control.Props) {
   return (
     <SliderPrimitive.Control
@@ -27,6 +29,7 @@ function SliderControl({ className, ...props }: SliderPrimitive.Control.Props) {
   )
 }
 
+/** Render the visual track of the slider. */
 function SliderTrack({ className, ...props }: SliderPrimitive.Track.Props) {
   return (
     <SliderPrimitive.Track
@@ -40,6 +43,7 @@ function SliderTrack({ className, ...props }: SliderPrimitive.Track.Props) {
   )
 }
 
+/** Render the filled portion of the slider track. */
 function SliderIndicator({
   className,
   ...props
@@ -53,6 +57,7 @@ function SliderIndicator({
   )
 }
 
+/** Render the draggable thumb of the slider. */
 function SliderThumb({ className, ...props }: SliderPrimitive.Thumb.Props) {
   return (
     <SliderPrimitive.Thumb
