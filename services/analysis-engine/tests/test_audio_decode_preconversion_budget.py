@@ -15,17 +15,17 @@ from bandscope_analysis.audio_resource_policy import AudioResourcePolicy, AudioR
 
 def _reject_float32_copy(monkeypatch: pytest.MonkeyPatch) -> None:
     """Fail if an over-budget decoder result is copied into canonical float32 PCM."""
-    original_asarray: Callable[..., np.ndarray[Any, Any]] = audio_decode.np.asarray
+    original_array: Callable[..., np.ndarray[Any, Any]] = audio_decode.np.array
 
-    def guarded_asarray(value: object, *args: object, **kwargs: object) -> np.ndarray[Any, Any]:
+    def guarded_array(value: object, *args: object, **kwargs: object) -> np.ndarray[Any, Any]:
         requested_dtype = kwargs.get("dtype")
         if requested_dtype is None and args:
             requested_dtype = args[0]
         if requested_dtype is not None and np.dtype(requested_dtype) == np.dtype(np.float32):
             pytest.fail("over-budget decoder output must be rejected before float32 normalization")
-        return original_asarray(value, *args, **kwargs)
+        return original_array(value, *args, **kwargs)
 
-    monkeypatch.setattr(audio_decode.np, "asarray", guarded_asarray)
+    monkeypatch.setattr(audio_decode.np, "array", guarded_array)
 
 
 def test_decode_rejects_sample_overflow_before_float32_copy(
@@ -58,6 +58,32 @@ def test_decode_rejects_intermediate_memory_overflow_before_float32_copy(
         max_duration_seconds=1.0,
         max_decoded_audio_bytes=16,
     )
+    monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
+    monkeypatch.setattr(
+        audio_decode.librosa,
+        "load",
+        lambda *_args, **_kwargs: (decoder_output, policy.target_sample_rate),
+    )
+    _reject_float32_copy(monkeypatch)
+
+    with pytest.raises(AudioResourcePolicyError) as caught:
+        audio_decode.decode_mono_audio(io.BytesIO(b"container"), policy=policy)
+
+    assert caught.value.reason == "memory_budget_exceeded"
+
+
+def test_decode_rejects_canonical_float32_expansion_before_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Budget the future canonical float32 allocation, not only the decoder view."""
+    decoder_output = np.zeros(8, dtype=np.float16)
+    policy = AudioResourcePolicy(
+        target_sample_rate=8,
+        max_duration_seconds=1.0,
+        max_decoded_audio_bytes=16,
+    )
+    assert decoder_output.nbytes == policy.max_decoded_audio_bytes
+    assert decoder_output.size * np.dtype(np.float32).itemsize > policy.max_decoded_audio_bytes
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
         audio_decode.librosa,
