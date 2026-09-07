@@ -103,3 +103,32 @@ def test_decode_rejects_canonical_float32_expansion_before_copy(
 
     assert caught.value.reason == "memory_budget_exceeded"
     assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+
+
+def test_decode_maps_canonical_copy_memory_error_to_budget_rejection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Allocator exhaustion must preserve the stable resource-policy failure contract."""
+    decoder_output = np.zeros(2, dtype=np.float64)
+    policy = AudioResourcePolicy(
+        target_sample_rate=2,
+        max_duration_seconds=1.0,
+        max_decoded_audio_bytes=16,
+    )
+    monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
+    monkeypatch.setattr(
+        audio_decode.librosa,
+        "load",
+        lambda *_args, **_kwargs: (decoder_output, policy.target_sample_rate),
+    )
+
+    def exhausted_array(*_args: object, **_kwargs: object) -> np.ndarray[Any, Any]:
+        raise MemoryError("simulated allocator pressure")
+
+    monkeypatch.setattr(audio_decode.np, "array", exhausted_array)
+
+    with pytest.raises(AudioResourcePolicyError) as caught:
+        audio_decode.decode_mono_audio(io.BytesIO(b"container"), policy=policy)
+
+    assert caught.value.reason == "memory_budget_exceeded"
+    assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
