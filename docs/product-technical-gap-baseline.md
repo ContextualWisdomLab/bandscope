@@ -1,6 +1,6 @@
 # BandScope product / technical gap baseline
 
-Last reviewed: 2026-09-07
+Last reviewed: 2026-09-08
 
 This document is the code-current buyer-gap baseline for BandScope. It does not replace `AGENTS.md`, `CLAUDE.md`, `ARCHITECTURE.md`, PRD/TRD/ADR material, security policy, or live protected-branch/PR/Issue state. When this file and a live owner disagree, the live canonical owner and protected repository state win and this file must be repaired.
 
@@ -12,13 +12,15 @@ Protected `develop` is `314ddeae7b775a4957594b599358c8255617eb2e`. Product delta
 
 | Bounded context | Canonical live owner | Current buyer truth | Material gap before commercial claim |
 | --- | --- | --- | --- |
-| Audio Ingestion / Resource Admission & Decode | #781 / PR #866 | Draft canonical 100 MiB encoded admission, source metadata preflight, 44.1 kHz mono canonical decode, policy-v3 native NumPy `float32`, decoded sample/byte ceiling, YouTube parity, path-free publication identity, and no-clobber crash-durability work | End-to-end peak RSS/VRAM is not bounded; direct-child cancellation is not process-tree containment; buyer-visible accessible cancellation and rights-cleared full-length real-audio cancellation/resource measurements remain open |
+| Audio Ingestion / Resource Admission & Decode | #781 / PR #866 | Draft canonical 100 MiB encoded admission, bounded logical EOF for parser/decoder virtual I/O after byte admission, source metadata preflight, 44.1 kHz mono canonical decode, policy-v3 native NumPy `float32`, decoded sample/byte ceiling, YouTube parity, path-free publication identity with validated deserialization, and no-clobber crash-durability work | End-to-end peak RSS/VRAM is not bounded; direct-child cancellation is not process-tree containment; buyer-visible accessible cancellation and rights-cleared full-length real-audio cancellation/resource measurements remain open |
 | Project Persistence | #962 / PR #970 | Draft path-free source reference and persisted `selectedPlaybackSource` intent; restart re-admission is native authority rather than renderer-authored evidence | Global/startup recovery, autosave/backup UX, broader power-loss/disk-full fault injection, and final protected adoption of current Resource Admission remain open |
 | Active Player / audible authority | #971 / PR #1160 | Draft native stem preflight and revocable playback authority; persisted source selection is intent only | Reopen must re-authorize Full mix and re-admit current stems before audible authority; real audio → playback evidence, stale-media races, pointer/touch/keyboard, Narrator/VoiceOver, responsive behavior, and locale coverage remain open |
 | Distribution / update | #1129, #1180, #1181 | Latest immutable public release remains v0.1.3; model and audio-I/O commercial admissibility are tracked separately from analysis correctness | Remove or replace the supported `libsndfile` LGPL runtime path; provide commercially admissible immutable separation-model provenance/serialization/update rollback; do not package upstream pretrained `htdemucs` weights without explicit commercial-use/redistribution authority or an admissible replacement |
 | Repository / merge control | PR #1176 plus #1172/#1183 and central CodeQL recovery owner | Product PRs inherit a protected-base Ruff-format failure and branch protection still names retired CodeQL compatibility contexts | Land the single formatter repair through normal protected ancestry; repair central authenticated CodeQL verdict publication and migrate required context names without synthetic status or duplicate scanners |
 
 ## Resource Admission and cancellation acceptance
+
+Encoded-byte admission is not a one-time size observation followed by unbounded reads. The canonical decoder fixes parser/decoder logical EOF to the accepted byte extent; `read`, `readinto`, and seek-from-end cannot consume later appended bytes. This closes post-admission growth as a resource-authority bypass, not same-range content replacement by a privileged local actor. Buyer source integrity continues to rely on app-owned immutable publication identity rather than treating size alone as content identity.
 
 The canonical decoded artifact ceiling is an artifact bound, not a process-memory promise. Decoder/resampler intermediates and downstream NumPy/PyTorch/model/accelerator allocations must be measured separately before setting CPU, RSS, GPU, or VRAM policy values. Sample reduction, unrealistic warm caches, or excluding expensive phases from the measurement do not satisfy this acceptance.
 
@@ -44,7 +46,7 @@ A release-ready protected head must have code-current version and CHANGELOG, ter
 
 ## Security Notes
 
-Untrusted boundaries include local audio and project files, URLs, score PDFs, subprocess/model outputs, IPC, model artifacts, update artifacts, metadata and logs. Keep allowlists and bounded reads at the owner boundary, keep external paths/PIDs/generic process handles out of renderer authority, fail closed with payload-safe diagnostics, and keep resource/security provenance path-free where it crosses product contracts. Security fixes belong to their canonical owner; do not weaken gates, add synthetic statuses, restore duplicate scanners, or copy mutable sibling source to make a consumer appear green.
+Untrusted boundaries include local audio and project files, URLs, score PDFs, subprocess/model outputs, IPC, model artifacts, update artifacts, metadata and logs. Keep allowlists and bounded reads at the owner boundary, keep external paths/PIDs/generic process handles out of renderer authority, fail closed with payload-safe diagnostics, and keep resource/security provenance path-free where it crosses product contracts. Path-free native publication identity must be validated on deserialization through the same project-id, extension, byte-range, digest and derived-artifact-name invariants used to mint it; Serde shape validation alone is not authority. Security fixes belong to their canonical owner; do not weaken gates, add synthetic statuses, restore duplicate scanners, or copy mutable sibling source to make a consumer appear green.
 
 ## Next causal sequence
 
