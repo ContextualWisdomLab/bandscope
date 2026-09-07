@@ -19,6 +19,61 @@ from bandscope_analysis.audio_resource_policy import (
 )
 
 
+def test_decode_mono_audio_rejects_encoded_size_before_metadata_or_decode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject an oversized encoded handle before parser or decoder work begins."""
+    source = io.BytesIO(b"oversized")
+    policy = AudioResourcePolicy(max_encoded_file_bytes=len(source.getvalue()) - 1)
+    monkeypatch.setattr(
+        audio_decode,
+        "preflight_audio_metadata",
+        lambda *_args: pytest.fail("metadata parser must not run for oversized encoded input"),
+    )
+    monkeypatch.setattr(
+        audio_decode.librosa,
+        "load",
+        lambda *_args, **_kwargs: pytest.fail("decoder must not run for oversized encoded input"),
+    )
+
+    with pytest.raises(AudioResourcePolicyError) as caught:
+        audio_decode.decode_mono_audio(source, policy=policy)
+
+    assert caught.value.reason == "encoded_file_too_large"
+    assert source.tell() == 0
+
+
+def test_decode_mono_audio_redacts_encoded_size_probe_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A handle that cannot expose a stable encoded size fails before parsing."""
+
+    class SizeProbeFails(io.BytesIO):
+        """Reject size inspection while retaining an otherwise readable handle."""
+
+        def tell(self) -> int:
+            """Simulate a local I/O failure without leaking its detail."""
+            raise OSError("/private/rehearsal/source.wav size probe failed")
+
+    monkeypatch.setattr(
+        audio_decode,
+        "preflight_audio_metadata",
+        lambda *_args: pytest.fail("metadata parser must not run after size-probe failure"),
+    )
+    monkeypatch.setattr(
+        audio_decode.librosa,
+        "load",
+        lambda *_args, **_kwargs: pytest.fail("decoder must not run after size-probe failure"),
+    )
+
+    with pytest.raises(AudioResourcePolicyError) as caught:
+        audio_decode.decode_mono_audio(SizeProbeFails(b"container"))
+
+    assert caught.value.reason == "malformed_header"
+    assert "/private/rehearsal/source.wav" not in str(caught.value)
+    assert isinstance(caught.value.__cause__, OSError)
+
+
 def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
