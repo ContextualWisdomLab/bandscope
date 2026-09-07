@@ -26,6 +26,7 @@ def test_deduplication_helpers_use_chart_domain_identifiers() -> None:
         "cues",
         "entry",
         "headline",
+        "lines",
         "name",
         "names",
         "node",
