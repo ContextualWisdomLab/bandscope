@@ -5,7 +5,7 @@ from pathlib import Path
 from bandscope_analysis.youtube import _remove_download_artifacts
 
 
-def test_transient_cleanup_preserves_same_id_nontransient_decoy(tmp_path: Path) -> None:
+def test_transient_cleanup_preserves_same_id_nontransient_decoys(tmp_path: Path) -> None:
     """An active video lease must not turn every same-ID filename into cleanup authority."""
     out_dir = tmp_path / "import-cache"
     out_dir.mkdir()
@@ -13,16 +13,18 @@ def test_transient_cleanup_preserves_same_id_nontransient_decoy(tmp_path: Path) 
     partial = out_dir / f"{video_id}.m4a.part"
     fragment = out_dir / f"{video_id}.m4a-Frag1"
     control = out_dir / f"{video_id}.m4a.ytdl"
-    decoy = out_dir / f"{video_id}.keep.m4a"
+    reported_decoy = out_dir / f"{video_id}.keep.m4a"
+    stem_decoy = out_dir / f"{video_id}.m4a.keep"
     partial.write_bytes(b"partial")
     fragment.write_bytes(b"fragment")
     control.write_bytes(b"control")
-    decoy.write_bytes(b"foreign-same-id-file")
+    reported_decoy.write_bytes(b"foreign-reported-file")
+    stem_decoy.write_bytes(b"foreign-stem-sibling")
 
     _remove_download_artifacts(
         {
             "tmpfilename": str(partial),
-            "filename": str(decoy),
+            "filename": str(reported_decoy),
         },
         str(out_dir),
         video_id,
@@ -31,4 +33,5 @@ def test_transient_cleanup_preserves_same_id_nontransient_decoy(tmp_path: Path) 
     assert not partial.exists()
     assert not fragment.exists()
     assert not control.exists()
-    assert decoy.read_bytes() == b"foreign-same-id-file"
+    assert reported_decoy.read_bytes() == b"foreign-reported-file"
+    assert stem_decoy.read_bytes() == b"foreign-stem-sibling"
