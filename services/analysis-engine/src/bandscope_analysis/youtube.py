@@ -368,11 +368,11 @@ def _video_id_from_status(status: dict[str, Any]) -> str | None:
 
 def _cleanup_stem(name: str) -> str:
     """Return the canonical yt-dlp stem shared by one authorized transient path."""
+    if "-Frag" in name:
+        name = name.rsplit("-Frag", maxsplit=1)[0]
     for suffix in (".part", ".ytdl"):
         if name.endswith(suffix):
             return name[: -len(suffix)]
-    if "-Frag" in name:
-        return name.rsplit("-Frag", maxsplit=1)[0]
     return name
 
 
