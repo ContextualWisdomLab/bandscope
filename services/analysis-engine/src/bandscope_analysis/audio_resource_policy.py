@@ -12,6 +12,9 @@ Security Notes:
 - Decoded audio is revalidated because container metadata and decoder behavior
   are untrusted; accepted artifacts are finite, mono, floating-point, at the
   configured sample rate, and within configured sample and memory budgets.
+- The default decoded-memory ceiling is derived from the canonical float32 mono
+  representation used by the production decoder, rather than a wider host
+  default dtype that would silently double the admitted buffer footprint.
 - Decoders receive a one-sample-over-budget probe duration so a longer source is
   rejected instead of being silently truncated to the accepted duration.
 - Policy arithmetic rejects unrepresentable limits before float/sample-count
@@ -30,7 +33,7 @@ from typing import Any, NoReturn, cast
 import numpy as np
 from numpy.typing import NDArray
 
-AUDIO_RESOURCE_POLICY_VERSION = "1"
+AUDIO_RESOURCE_POLICY_VERSION = "2"
 DEFAULT_TARGET_SAMPLE_RATE = 44_100
 DEFAULT_MIN_SOURCE_SAMPLE_RATE = 8_000
 DEFAULT_MAX_SOURCE_SAMPLE_RATE = 192_000
@@ -39,7 +42,7 @@ DEFAULT_MAX_SOURCE_CHANNELS = 2
 DEFAULT_MAX_ENCODED_FILE_BYTES = 100 * 1024 * 1024
 DEFAULT_MAX_DURATION_SECONDS = 15 * 60
 DEFAULT_MAX_DECODED_AUDIO_BYTES = (
-    DEFAULT_TARGET_SAMPLE_RATE * DEFAULT_MAX_DURATION_SECONDS * np.dtype(np.float64).itemsize
+    DEFAULT_TARGET_SAMPLE_RATE * DEFAULT_MAX_DURATION_SECONDS * np.dtype(np.float32).itemsize
 )
 _POLICY_ERROR = "Audio input violates the audio resource policy."
 
