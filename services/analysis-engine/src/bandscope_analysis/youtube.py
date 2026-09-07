@@ -4,6 +4,12 @@ This module provides a safe wrapper around yt-dlp to download audio from YouTube
 
 Security Notes:
     - URL intake remains host/path/query allowlisted before any network work.
+    - Each validated video ID acquires an atomic same-cache import lease before
+      yt-dlp starts. A second same-ID import cannot write or clean the first
+      import's predictable artifact names while the lease is held. A stale
+      lease fails closed rather than authorizing deletion.
+    - A completed artifact for the same video ID must not pre-exist the lease;
+      this prevents a later import from overwriting or claiming an older file.
     - Encoded-byte admission uses the same canonical 100 MiB policy as local
       audio. yt-dlp ``max_filesize`` and a progress hook abort in-flight
       transfers so a multi-gigabyte download cannot fill the cache root before
@@ -14,6 +20,9 @@ Security Notes:
       metadata cannot bypass the same 15-minute admission boundary.
     - Announced ``filesize`` / ``filesize_approx`` values over the policy
       ceiling reject the import before ``download=True``.
+    - yt-dlp metadata must retain the requested video ID before and after the
+      download. A changed ID cannot redirect the current lease to another
+      import's predictable filenames.
     - The completed download path must resolve beneath this import's ``out_dir``
       before post-download size checks, cleanup, or success metadata can use it.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
@@ -21,7 +30,7 @@ Security Notes:
       while retaining the correct buyer-facing rejection category.
     - In-flight abort deletes owned ``tmpfilename`` / ``filename`` siblings
       (``.part``, ``.ytdl``, ``-Frag*``) that stay inside this import's
-      ``out_dir``. Paths that escape the directory are ignored.
+      ``out_dir``. Same-ID cleanup runs only while the import lease is held.
     - Validation errors are payload-free and never include source paths, URLs,
       cookies, or audio content.
 """
@@ -71,40 +80,87 @@ class YoutubeResourceLimitError(Exception):
         self.message = message
 
 
-def validate_url(url: str) -> bool:
-    """
-    Validate that a URL is a standard YouTube or youtu.be URL.
+def _youtube_video_id(url: str) -> str | None:
+    """Return the one allowlisted YouTube video ID carried by ``url``.
 
     Args:
-        url: The URL to validate.
+        url: Candidate external URL.
 
     Returns:
-        True if the URL is valid, False otherwise.
+        The validated 11-character video ID, or ``None`` when the URL is outside
+        the supported HTTPS host/path/query contract.
     """
-    # Pragmatic upper bound to avoid spending parser/downloader work on oversized user input.
     if len(url) > MAX_YOUTUBE_URL_LENGTH:
-        return False
+        return None
 
     try:
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme != "https":
-            return False
+            return None
         host = parsed.netloc.lower().split(":")[0]
 
         if host == "youtu.be":
             path = parsed.path.strip("/")
-            return bool(YOUTUBE_VIDEO_ID_PATTERN.match(path))
+            return path if YOUTUBE_VIDEO_ID_PATTERN.fullmatch(path) else None
 
         if host in {"youtube.com", "www.youtube.com"}:
             if parsed.path != "/watch":
-                return False
+                return None
             query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
             video_ids = query.get("v", [])
-            return len(video_ids) == 1 and bool(YOUTUBE_VIDEO_ID_PATTERN.match(video_ids[0]))
+            if len(video_ids) != 1:
+                return None
+            video_id = video_ids[0]
+            return video_id if YOUTUBE_VIDEO_ID_PATTERN.fullmatch(video_id) else None
 
-        return False
+        return None
     except ValueError:
-        return False
+        return None
+
+
+def validate_url(url: str) -> bool:
+    """Return whether ``url`` is one supported YouTube video URL."""
+    return _youtube_video_id(url) is not None
+
+
+def _import_lease_path(out_dir: str, video_id: str) -> str:
+    """Return the path-free-on-error lease directory for one video/cache pair."""
+    return os.path.join(out_dir, f".bandscope-youtube-{video_id}.lock")
+
+
+def _acquire_import_lease(out_dir: str, video_id: str) -> str | None:
+    """Atomically reserve one video ID inside a shared cache directory.
+
+    The directory creation itself is the cross-process exclusion primitive. A
+    stale lease is intentionally not removed here: absence of current ownership
+    evidence must fail closed instead of deleting another process's state.
+    """
+    lease_path = _import_lease_path(out_dir, video_id)
+    try:
+        os.mkdir(lease_path, 0o700)
+    except OSError:
+        return None
+    return lease_path
+
+
+def _release_import_lease(lease_path: str) -> None:
+    """Release only the still-empty lease directory created by this import."""
+    try:
+        os.rmdir(lease_path)
+    except OSError:
+        return
+
+
+def _preexisting_final_artifact(out_dir: str, video_id: str) -> bool:
+    """Return whether this cache already contains a final artifact for ``video_id``.
+
+    A previous completed import is not current ownership evidence. Refusing to
+    overwrite it keeps same-ID cache reuse fail-closed even after a lease ends.
+    Partial files are intentionally excluded because the active lease is the
+    authority that distinguishes current cleanup from a concurrent writer.
+    """
+    final_extensions = (*SUPPORTED_AUDIO_EXTENSIONS, ".webm")
+    return any(os.path.lexists(os.path.join(out_dir, f"{video_id}{ext}")) for ext in final_extensions)
 
 
 def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
@@ -224,11 +280,10 @@ def _owned_file_path(path: object, out_dir: str) -> str | None:
 
 
 def _remove_owned_file(path: object, out_dir: str) -> None:
-    """Delete one owned regular file, ignoring missing-path races.
+    """Delete one lease-owned regular file, ignoring missing-path races.
 
-    Args:
-        path: Candidate path that must resolve inside ``out_dir``.
-        out_dir: Directory passed to this import call.
+    Callers that can derive a video-specific filename must hold that video's
+    import lease before invoking this helper.
     """
     owned = _owned_file_path(path, out_dir)
     if owned is None:
@@ -241,13 +296,7 @@ def _remove_owned_file(path: object, out_dir: str) -> None:
 
 
 def _remove_download_artifacts(status: dict[str, Any], out_dir: str) -> None:
-    """Delete the current download's partial, fragment, and control files.
-
-    Args:
-        status: yt-dlp progress-hook payload that may name ``tmpfilename``
-            and ``filename``.
-        out_dir: Directory passed to this import call.
-    """
+    """Delete the current leased download's partial, fragment, and control files."""
     stems: set[str] = set()
     for key in ("tmpfilename", "filename"):
         owned = _owned_file_path(status.get(key), out_dir)
@@ -274,12 +323,7 @@ def _remove_download_artifacts(status: dict[str, Any], out_dir: str) -> None:
 
 
 def _abort_over_budget_download(status: dict[str, Any], out_dir: str) -> None:
-    """Abort an in-flight download once encoded bytes exceed the policy ceiling.
-
-    Args:
-        status: yt-dlp progress-hook payload. Unknown statuses are ignored.
-        out_dir: Directory passed to this import call, used to delete partials.
-    """
+    """Abort an in-flight leased download once encoded bytes exceed the policy ceiling."""
     if status.get("status") not in {"downloading", "finished"}:
         return
     for key in ("downloaded_bytes", "total_bytes", "total_bytes_estimate"):
@@ -292,21 +336,10 @@ def _abort_over_budget_download(status: dict[str, Any], out_dir: str) -> None:
 
 
 def _make_abort_hook(out_dir: str) -> Any:
-    """Bind the in-flight abort hook to one import output directory.
-
-    Args:
-        out_dir: Directory passed to this import call.
-
-    Returns:
-        A yt-dlp progress hook that aborts and deletes owned partials.
-    """
+    """Bind the in-flight abort hook to the currently leased output directory."""
 
     def _bound_abort_over_budget_download(status: dict[str, Any]) -> None:
-        """Abort and delete owned partials for this import directory.
-
-        Args:
-            status: yt-dlp progress-hook payload.
-        """
+        """Abort and delete owned partials while the caller holds the video lease."""
         _abort_over_budget_download(status, out_dir)
 
     return _bound_abort_over_budget_download
@@ -344,17 +377,9 @@ def _handle_download_error(e: yt_dlp.utils.DownloadError) -> Dict[str, Any]:
 
 
 def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
-    """
-    Download audio from a YouTube URL to the specified directory.
-
-    Args:
-        url: The YouTube URL to download.
-        out_dir: The directory to save the audio file.
-
-    Returns:
-        A dictionary containing the result of the download.
-    """
-    if not validate_url(url):
+    """Download one YouTube audio artifact under a same-video exclusive lease."""
+    video_id = _youtube_video_id(url)
+    if video_id is None:
         return {
             "ok": False,
             "error": {
@@ -363,80 +388,94 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             },
         }
 
-    ydl_opts: Dict[str, Any] = {
-        "format": "bestaudio/best",
-        "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
-        "quiet": True,
-        "no_warnings": True,
-        "noprogress": True,
-        "noplaylist": True,
-        "postprocessors": [{"key": "FFmpegExtractAudio"}],
-        "geo_bypass": False,
-        "max_filesize": DEFAULT_MAX_ENCODED_FILE_BYTES,
-        "progress_hooks": [_make_abort_hook(out_dir)],
-    }
+    lease_path = _acquire_import_lease(out_dir, video_id)
+    if lease_path is None:
+        return _download_error_result()
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if info is None:
-                raise Exception("Failed to extract info")
-            duration_rejection = _reject_invalid_or_oversize_duration(info)
-            if duration_rejection is not None:
-                return duration_rejection
-            announced_rejection = _reject_announced_oversize(info)
-            if announced_rejection is not None:
-                return announced_rejection
+        if _preexisting_final_artifact(out_dir, video_id):
+            return _download_error_result()
 
-            info = ydl.extract_info(url, download=True)
-            if info is None:
-                raise Exception("Failed to extract info")
-            actual_filepath = ydl.prepare_filename(info)
-            actual_filepath = _find_downloaded_file(actual_filepath)
+        ydl_opts: Dict[str, Any] = {
+            "format": "bestaudio/best",
+            "outtmpl": os.path.join(out_dir, "%(id)s.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+            "noprogress": True,
+            "noplaylist": True,
+            "postprocessors": [{"key": "FFmpegExtractAudio"}],
+            "geo_bypass": False,
+            "max_filesize": DEFAULT_MAX_ENCODED_FILE_BYTES,
+            "progress_hooks": [_make_abort_hook(out_dir)],
+        }
 
-            if actual_filepath is None:
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if info is None:
+                    raise Exception("Failed to extract info")
+                if info.get("id") != video_id:
+                    return _download_error_result()
+                duration_rejection = _reject_invalid_or_oversize_duration(info)
+                if duration_rejection is not None:
+                    return duration_rejection
+                announced_rejection = _reject_announced_oversize(info)
+                if announced_rejection is not None:
+                    return announced_rejection
+
+                info = ydl.extract_info(url, download=True)
+                if info is None:
+                    raise Exception("Failed to extract info")
+                if info.get("id") != video_id:
+                    return _download_error_result()
+                actual_filepath = ydl.prepare_filename(info)
+                actual_filepath = _find_downloaded_file(actual_filepath)
+
+                if actual_filepath is None:
+                    return {
+                        "ok": False,
+                        "error": {
+                            "code": "file_not_found",
+                            "message": "Downloaded file could not be found.",
+                        },
+                    }
+
+                owned_filepath = _owned_file_path(actual_filepath, out_dir)
+                if owned_filepath is None:
+                    return _download_error_result()
+                actual_filepath = owned_filepath
+
+                duration_rejection = _reject_invalid_or_oversize_duration(info)
+                if duration_rejection is not None:
+                    _remove_owned_file(actual_filepath, out_dir)
+                    return duration_rejection
+
+                try:
+                    DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(
+                        os.path.getsize(actual_filepath)
+                    )
+                except AudioResourcePolicyError as error:
+                    _remove_owned_file(actual_filepath, out_dir)
+                    if error.reason == "encoded_file_too_large":
+                        return _size_exceeded_result()
+                    return _download_error_result()
                 return {
-                    "ok": False,
-                    "error": {
-                        "code": "file_not_found",
-                        "message": "Downloaded file could not be found.",
+                    "ok": True,
+                    "metadata": {
+                        "id": info.get("id"),
+                        "title": info.get("title"),
+                        "duration": info.get("duration"),
+                        "filepath": actual_filepath,
                     },
                 }
-
-            owned_filepath = _owned_file_path(actual_filepath, out_dir)
-            if owned_filepath is None:
-                return _download_error_result()
-            actual_filepath = owned_filepath
-
-            duration_rejection = _reject_invalid_or_oversize_duration(info)
-            if duration_rejection is not None:
-                _remove_owned_file(actual_filepath, out_dir)
-                return duration_rejection
-
-            try:
-                DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(
-                    os.path.getsize(actual_filepath)
-                )
-            except AudioResourcePolicyError as error:
-                _remove_owned_file(actual_filepath, out_dir)
-                if error.reason == "encoded_file_too_large":
-                    return _size_exceeded_result()
-                return _download_error_result()
-            return {
-                "ok": True,
-                "metadata": {
-                    "id": info.get("id"),
-                    "title": info.get("title"),
-                    "duration": info.get("duration"),
-                    "filepath": actual_filepath,
-                },
-            }
-    except YoutubeResourceLimitError:
-        return _size_exceeded_result()
-    except yt_dlp.utils.DownloadError as e:
-        return _handle_download_error(e)
-    except Exception:
-        return _download_error_result()
+        except YoutubeResourceLimitError:
+            return _size_exceeded_result()
+        except yt_dlp.utils.DownloadError as e:
+            return _handle_download_error(e)
+        except Exception:
+            return _download_error_result()
+    finally:
+        _release_import_lease(lease_path)
 
 
 def main() -> None:
