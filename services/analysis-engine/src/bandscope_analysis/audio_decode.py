@@ -12,6 +12,8 @@ Security Notes:
   handle before metadata parsing or decode work begins.
 - Source metadata is admitted before decode and the resulting PCM is revalidated
   against the same versioned policy before it can enter MIR or model work.
+- Decoder output must already be one-dimensional when ``mono=True``; a malformed
+  multi-channel shape is rejected rather than flattened into false mono PCM.
 - Decoder details remain exception causes only; the surfaced failure is the
   payload-free canonical resource-policy error.
 - This port adds no path, network, subprocess, or credential authority.
@@ -77,7 +79,12 @@ def decode_mono_audio(
         raise _malformed_decode_error() from error
 
     try:
-        pcm = np.ravel(np.asarray(decoded, dtype=np.float32))
+        decoded_array = np.asarray(decoded)
+        if decoded_array.ndim != 1:
+            raise _malformed_decode_error()
+        pcm = np.asarray(decoded_array, dtype=np.float32)
+    except AudioResourcePolicyError:
+        raise
     except (OverflowError, TypeError, ValueError) as error:
         raise _malformed_decode_error() from error
 
