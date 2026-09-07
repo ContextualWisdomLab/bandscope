@@ -71,6 +71,31 @@ fn final_job_commit_serializes_cancellation_against_terminal_status() {
 }
 
 #[test]
+fn cancel_command_holds_job_authority_while_accepting_a_request() {
+    let source = include_str!("../src/main.rs");
+    let command_start = source
+        .find("fn cancel_analysis_job(")
+        .expect("job-specific cancellation command must remain present");
+    let command_tail = &source[command_start..];
+    let command_end = command_tail
+        .find("\n}\n\n#[tauri::command]\nfn select_local_audio_source")
+        .expect("cancellation command boundary must remain inspectable");
+    let command = &command_tail[..command_end];
+
+    let jobs_guard = command
+        .find("let jobs = match state.0.jobs.lock()")
+        .expect("cancellation acceptance must retain the job-status lock guard");
+    let request = command
+        .find("cancellation_state.request(&job_id)")
+        .expect("queued or running jobs must record a cancellation request");
+
+    assert!(
+        jobs_guard < request,
+        "the job-status lock must remain in scope until cancellation acceptance is recorded"
+    );
+}
+
+#[test]
 fn cancellation_is_an_allowlisted_job_specific_tauri_command() {
     let source = include_str!("../src/main.rs");
 
