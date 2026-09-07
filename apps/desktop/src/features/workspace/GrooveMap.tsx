@@ -2,6 +2,7 @@ import { memo, useMemo } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { createTranslator, detectPreferredLocale, fillTranslation } from "../../i18n";
 
 const EMPTY_NOTES: TranscriptionNote[] = [];
 
@@ -16,6 +17,7 @@ interface GrooveMapProps {
 /** Render the selected role's transcription and optional first-entrance emphasis. */
 function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: GrooveMapProps) {
   const renderedNotes = notes ?? EMPTY_NOTES;
+  const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
@@ -53,10 +55,10 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: Groov
       >
         <span className="flex items-center font-medium text-teal-100">
           <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-          Checking the {roleName} line... 45%
+          {fillTranslation(t("grooveMapLoading"), { role: roleName })}
         </span>
         <Button variant="outline" size="sm" className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white">
-          Cancel
+          {t("grooveMapCancel")}
         </Button>
       </div>
     );
@@ -65,7 +67,7 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: Groov
   if (renderedNotes.length === 0) {
     return (
       <div className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-300">
-        No {roleName} transcription yet. Use it when you want to check the groove before rehearsal.
+        {fillTranslation(t("grooveMapEmpty"), { role: roleName })}
       </div>
     );
   }
@@ -75,13 +77,13 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: Groov
       className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
       role="region"
       tabIndex={0}
-      aria-label={`${roleName} transcription groove map`}
+      aria-label={fillTranslation(t("grooveMapRegionLabel"), { role: roleName })}
     >
       <div className="sr-only">
-        Transcription complete. {renderedNotes.length} notes analyzed.
+        {fillTranslation(t("grooveMapComplete"), { count: renderedNotes.length })}
       </div>
       <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-        {renderedNotes.length} notes mapped for rehearsal
+        {fillTranslation(t("grooveMapMapped"), { count: renderedNotes.length })}
       </p>
       
       <div style={{ position: "relative", minWidth: "100%", height: `${uniquePitches.length * 40}px` }}>
@@ -118,10 +120,10 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: Groov
                 left: `${leftPercent}%`,
                 width: `${widthPercent}%`
               }}
-              title={isEntrance ? `Tonight's entrance · ${noteLabel}` : noteLabel}
+              title={isEntrance ? fillTranslation(t("grooveMapEntranceTitle"), { note: noteLabel }) : noteLabel}
             >
               <span className="sr-only">
-                {isEntrance ? `Tonight's entrance. ${noteLabel}` : noteLabel}
+                {isEntrance ? fillTranslation(t("grooveMapEntranceAnnouncement"), { note: noteLabel }) : noteLabel}
               </span>
             </div>
           );

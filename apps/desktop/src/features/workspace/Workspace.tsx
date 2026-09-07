@@ -5,7 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze, playableRange } from "./firstRangeSqueeze";
-import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { createTranslator, detectPreferredLocale, fillTranslation } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -62,13 +62,6 @@ function nonBlankText(value: string | undefined): string | undefined {
 /** Remove terminal sentence punctuation before embedding a cue in a larger sentence. */
 function sentenceFragment(value: string): string {
   return value.replace(/[.!?。！？]+$/u, "").trimEnd();
-}
-
-const COPY_PLACEHOLDER_PATTERN = /\{(role|pitch|start|setup|low|high)\}/g;
-
-/** Interpolate the fixed rehearsal-copy placeholder vocabulary without constructing a runtime regular expression. */
-function fillCopy(template: string, values: Record<string, string>): string {
-  return template.replace(COPY_PLACEHOLDER_PATTERN, (_placeholder, key: string) => values[key]!);
 }
 
 /** Return the earliest analyzed note so setup can name the first attack. */
@@ -308,12 +301,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const setupActionLabel = !canArmTonightSetup
     ? setupUnavailableLabel
     : firstNote
-      ? fillCopy(t("workspaceSetupActionWithNote"), {
+      ? fillTranslation(t("workspaceSetupActionWithNote"), {
           role: roleName,
           pitch: firstNote.pitch,
           start: formatTimelineTime(firstNote.onset)
         })
-      : fillCopy(t("workspaceSetupActionWithRange"), {
+      : fillTranslation(t("workspaceSetupActionWithRange"), {
           role: roleName,
           low: roleRangeLow!,
           high: roleRangeHigh!
@@ -321,26 +314,26 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const setupAriaLabel = !canArmTonightSetup
     ? setupUnavailableLabel
     : firstNote
-      ? fillCopy(t("workspaceSetupAriaWithNote"), {
+      ? fillTranslation(t("workspaceSetupAriaWithNote"), {
           role: roleName,
           pitch: firstNote.pitch,
           start: formatTimelineTime(firstNote.onset),
           setup: setupSentenceCue
         })
-      : fillCopy(t("workspaceSetupAriaWithRange"), {
+      : fillTranslation(t("workspaceSetupAriaWithRange"), {
           role: roleName,
           low: roleRangeLow!,
           high: roleRangeHigh!,
           setup: setupSentenceCue
         });
   const setupStatus = firstNote
-    ? fillCopy(t("workspaceSetupArmedWithNote"), {
+    ? fillTranslation(t("workspaceSetupArmedWithNote"), {
         role: roleName,
         pitch: firstNote.pitch,
         start: formatTimelineTime(firstNote.onset),
         setup: setupSentenceCue
       })
-    : fillCopy(t("workspaceSetupArmedWithRange"), {
+    : fillTranslation(t("workspaceSetupArmedWithRange"), {
         role: roleName,
         low: roleRangeLow!,
         high: roleRangeHigh!,
@@ -523,13 +516,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
+                    aria-label={t("workspaceLoopUnavailable")}
+                    title={t("workspaceLoopUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
                     className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
                   >
-                    Loop section
+                    {t("workspaceLoopAction")}
                   </Button>
                   <Button
                     type="button"

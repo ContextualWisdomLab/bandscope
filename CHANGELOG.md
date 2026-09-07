@@ -21,6 +21,8 @@
   unavailable reason in each accessible name and tooltip.
 - Reject sentinel, malformed, and inverted setup ranges before they can enable
   a buyer-visible rehearsal action or render as playable evidence.
+- Localize Groove Map states and the unavailable Loop control through the
+  owned translation boundary, with literal fail-closed placeholder handling.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 - Keep the Groove Map role-aware for non-bass parts, preserve a visible keyboard focus indicator, emit only one first-entrance DOM anchor for simultaneous notes, and fail closed when setup lacks both an analyzed entrance and a playable range.
 
