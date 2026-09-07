@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-09-07
 
 ## Brand source
 
@@ -111,9 +111,10 @@ Last updated: 2026-03-11
 - Shared contracts live in `packages/shared-types` so the UI can evolve without importing Python internals.
 - Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.
 - The current shared-types baseline includes a rehearsal-domain fixture that exercises section, role, cue, confidence, provenance, and export-summary fields in the desktop shell before the full analysis pipeline lands.
-- Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener.
-- Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
-- Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
+- Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener. Renderer-visible commands are synchronized across the invoke handler, `AppManifest::commands`, generated command permissions, and the window capability; the WebView never receives a PID or generic process handle.
+- Local audio intake validates source metadata and encoded size before decode, stages admitted bytes into an app-owned project area, and commits the immutable project source with a path-free size/SHA-256 receipt. Unix publication uses a same-filesystem no-clobber hard link plus project-directory synchronization; Windows uses no-replace `MoveFileExW` with `MOVEFILE_WRITE_THROUGH`. A pre-existing project source is preserved rather than overwritten or deleted.
+- Those project and temp/cache roots resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
+- Analysis cancellation is job-specific. Queued work can terminate as typed `cancelled`; running work currently kills and reaps only the directly owned analysis child. This is not process-tree containment: descendant termination, inherited-handle closure, temp-artifact cleanup, and bounded cancellation latency remain acceptance work across Windows/macOS/Linux.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.
 
@@ -126,4 +127,4 @@ Last updated: 2026-03-11
 - Security docs and checks are part of the default quickcheck path so design drift is caught early.
 - Supply-chain docs, workflow pinning, and lockfile verification are part of the default quickcheck path so dependency drift is caught early.
 - Quickcheck and CI are expected to verify dependency review, audit, supplemental inventory, and SBOM baseline presence as part of bootstrap.
-- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path.
+- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path so dependency drift is caught early.
