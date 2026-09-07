@@ -10,7 +10,11 @@ import numpy as np
 import pytest
 
 from bandscope_analysis import audio_decode
-from bandscope_analysis.audio_resource_policy import AudioResourcePolicy, AudioResourcePolicyError
+from bandscope_analysis.audio_resource_policy import (
+    AUDIO_RESOURCE_POLICY_VERSION,
+    AudioResourcePolicy,
+    AudioResourcePolicyError,
+)
 
 
 def _reject_float32_copy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -46,6 +50,7 @@ def test_decode_rejects_sample_overflow_before_float32_copy(
         audio_decode.decode_mono_audio(io.BytesIO(b"container"), policy=policy)
 
     assert caught.value.reason == "decoded_sample_count_exceeded"
+    assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
 
 
 def test_decode_rejects_intermediate_memory_overflow_before_float32_copy(
@@ -70,6 +75,7 @@ def test_decode_rejects_intermediate_memory_overflow_before_float32_copy(
         audio_decode.decode_mono_audio(io.BytesIO(b"container"), policy=policy)
 
     assert caught.value.reason == "memory_budget_exceeded"
+    assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
 
 
 def test_decode_rejects_canonical_float32_expansion_before_copy(
@@ -96,3 +102,4 @@ def test_decode_rejects_canonical_float32_expansion_before_copy(
         audio_decode.decode_mono_audio(io.BytesIO(b"container"), policy=policy)
 
     assert caught.value.reason == "memory_budget_exceeded"
+    assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
