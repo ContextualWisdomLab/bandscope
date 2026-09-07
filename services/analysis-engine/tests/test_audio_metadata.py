@@ -9,7 +9,10 @@ from unittest.mock import patch
 import pytest
 
 from bandscope_analysis.audio_metadata import preflight_audio_metadata
-from bandscope_analysis.audio_resource_policy import AudioResourcePolicyError
+from bandscope_analysis.audio_resource_policy import (
+    AUDIO_RESOURCE_POLICY_VERSION,
+    AudioResourcePolicyError,
+)
 
 
 def _info(*, frames: int = 44_100, samplerate: int = 44_100, channels: int = 2) -> SimpleNamespace:
@@ -73,7 +76,7 @@ def test_preflight_maps_parser_failures_to_payload_free_policy_error(
             preflight_audio_metadata(io.BytesIO(b"bad-header"))
 
     assert error.value.reason == "malformed_header"
-    assert error.value.policy_version == "1"
+    assert error.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
     assert "decoder detail" not in str(error.value)
 
 
@@ -102,5 +105,5 @@ def test_preflight_maps_rewind_failures_to_payload_free_policy_error(mock_info: 
         preflight_audio_metadata(SeekFailsAfterProbe())
 
     assert error.value.reason == "malformed_header"
-    assert error.value.policy_version == "1"
+    assert error.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
     assert "rewind failed" not in str(error.value)
