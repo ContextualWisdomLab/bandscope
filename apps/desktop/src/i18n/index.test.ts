@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createTranslator, detectPreferredLocale } from "./index";
+import { createTranslator, detectPreferredLocale, fillTranslation } from "./index";
 import koCommon from "../locales/ko/common.json";
 
 describe("i18n", () => {
@@ -73,6 +73,16 @@ describe("i18n", () => {
       } finally {
         koDictionary.appSubtitle = originalSubtitle;
       }
+    });
+  });
+
+  describe("fillTranslation", () => {
+    it("keeps unknown placeholders and placeholder-shaped values literal", () => {
+      expect(
+        fillTranslation("Set up {role} in {range}", {
+          role: "{range}"
+        })
+      ).toBe("Set up {range} in {range}");
     });
   });
 });

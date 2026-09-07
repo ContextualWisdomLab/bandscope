@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong } from "@bandscope/shared-types";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GrooveMap } from "./GrooveMap";
 import { Workspace } from "./Workspace";
 
@@ -15,6 +15,10 @@ function replaceRole(song: ReturnType<typeof createDemoRehearsalSong>, roleId: s
 }
 
 describe("Workspace review regressions", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("keeps copy interpolation free of dynamically constructed regular expressions", () => {
     const source = readFileSync(resolve(process.cwd(), "src/features/workspace/Workspace.tsx"), "utf8");
     expect(source).not.toContain("new RegExp(");
@@ -44,6 +48,23 @@ describe("Workspace review regressions", () => {
 
     rerender(<GrooveMap roleName="Lead Guitar" notes={[]} isLoading />);
     expect(screen.getByText("Checking the Lead Guitar line... 45%")).toBeTruthy();
+  });
+
+  it("localizes GrooveMap states and the unavailable loop control", () => {
+    vi.stubGlobal("navigator", { language: "ko-KR" });
+    const song = createDemoRehearsalSong();
+    const roleName = song.sections[0]!.roles[0]!.name;
+    const { rerender } = render(<GrooveMap roleName={roleName} notes={[]} />);
+
+    expect(screen.getByText(`${roleName} 채보가 아직 없습니다. 합주 전에 그루브를 확인할 때 사용하세요.`)).toBeTruthy();
+
+    rerender(<GrooveMap roleName={roleName} notes={[]} isLoading />);
+    expect(screen.getByText(`${roleName} 파트를 확인하는 중... 45%`)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "취소" })).toBeTruthy();
+
+    rerender(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: roleName }));
+    expect(screen.getByRole("button", { name: /구간 반복/ })).toHaveTextContent("구간 반복");
   });
 
   it("keeps range-backed setup available when no exact first note exists", () => {
