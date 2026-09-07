@@ -24,13 +24,14 @@ Security Notes:
       download. A changed ID cannot redirect the current lease to another
       import's predictable filenames.
     - The completed download path must resolve beneath this import's ``out_dir``
-      before post-download size checks, cleanup, or success metadata can use it.
+      and carry the leased video-ID filename prefix before post-download size
+      checks, cleanup, or success metadata can use it.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
       download; oversized artifacts and malformed zero-byte outputs are deleted
       while retaining the correct buyer-facing rejection category.
-    - In-flight abort deletes owned ``tmpfilename`` / ``filename`` siblings
-      (``.part``, ``.ytdl``, ``-Frag*``) that stay inside this import's
-      ``out_dir``. Same-ID cleanup runs only while the import lease is held.
+    - In-flight abort deletes only the leased video's ``tmpfilename`` /
+      ``filename`` siblings (``.part``, ``.ytdl``, ``-Frag*``) beneath this
+      ``out_dir``. Directory containment alone never grants deletion authority.
     - Validation errors are payload-free and never include source paths, URLs,
       cookies, or audio content.
 """
@@ -160,7 +161,10 @@ def _preexisting_final_artifact(out_dir: str, video_id: str) -> bool:
     authority that distinguishes current cleanup from a concurrent writer.
     """
     final_extensions = (*SUPPORTED_AUDIO_EXTENSIONS, ".webm")
-    return any(os.path.lexists(os.path.join(out_dir, f"{video_id}{ext}")) for ext in final_extensions)
+    return any(
+        os.path.lexists(os.path.join(out_dir, f"{video_id}{ext}"))
+        for ext in final_extensions
+    )
 
 
 def _find_downloaded_file(actual_filepath: str) -> Optional[str]:
@@ -258,15 +262,7 @@ def _reject_announced_oversize(info: dict[str, Any]) -> Dict[str, Any] | None:
 
 
 def _owned_file_path(path: object, out_dir: str) -> str | None:
-    """Return a real path only when it stays inside this import's output directory.
-
-    Args:
-        path: Candidate filesystem path from yt-dlp status or sibling lookup.
-        out_dir: Directory passed to this import call.
-
-    Returns:
-        The resolved file path, or ``None`` when the value is unsafe or foreign.
-    """
+    """Return a real path only when it stays inside this import's output directory."""
     if not isinstance(path, str) or path == "":
         return None
     try:
@@ -279,11 +275,22 @@ def _owned_file_path(path: object, out_dir: str) -> str | None:
     return resolved
 
 
-def _remove_owned_file(path: object, out_dir: str) -> None:
-    """Delete one lease-owned regular file, ignoring missing-path races.
+def _owned_video_file_path(path: object, out_dir: str, video_id: str) -> str | None:
+    """Return a contained path only when its filename belongs to ``video_id``."""
+    owned = _owned_file_path(path, out_dir)
+    if owned is None:
+        return None
+    if not os.path.basename(owned).startswith(f"{video_id}."):
+        return None
+    return owned
 
-    Callers that can derive a video-specific filename must hold that video's
-    import lease before invoking this helper.
+
+def _remove_owned_file(path: object, out_dir: str) -> None:
+    """Delete one contained regular file, ignoring missing-path races.
+
+    This generic containment helper remains useful for tests and non-video
+    cleanup. YouTube production cleanup uses ``_remove_video_owned_file`` so
+    directory containment alone never grants current-import deletion authority.
     """
     owned = _owned_file_path(path, out_dir)
     if owned is None:
@@ -295,14 +302,47 @@ def _remove_owned_file(path: object, out_dir: str) -> None:
         return
 
 
-def _remove_download_artifacts(status: dict[str, Any], out_dir: str) -> None:
-    """Delete the current leased download's partial, fragment, and control files."""
+def _remove_video_owned_file(path: object, out_dir: str, video_id: str) -> None:
+    """Delete one regular file only when it carries the leased video identity."""
+    owned = _owned_video_file_path(path, out_dir, video_id)
+    if owned is None:
+        return
+    try:
+        if os.path.isfile(owned):
+            os.remove(owned)
+    except OSError:
+        return
+
+
+def _video_id_from_status(status: dict[str, Any]) -> str | None:
+    """Infer a validated video ID only for compatibility-focused helper tests."""
+    for key in ("tmpfilename", "filename"):
+        candidate = status.get(key)
+        if not isinstance(candidate, str):
+            continue
+        name = os.path.basename(candidate)
+        video_id = name.split(".", maxsplit=1)[0]
+        if YOUTUBE_VIDEO_ID_PATTERN.fullmatch(video_id):
+            return video_id
+    return None
+
+
+def _remove_download_artifacts(
+    status: dict[str, Any],
+    out_dir: str,
+    video_id: str | None = None,
+) -> None:
+    """Delete only one leased video's partial, fragment, and control files."""
+    cleanup_video_id = video_id or _video_id_from_status(status)
+    if cleanup_video_id is None:
+        return
+
     stems: set[str] = set()
     for key in ("tmpfilename", "filename"):
-        owned = _owned_file_path(status.get(key), out_dir)
+        owned = _owned_video_file_path(status.get(key), out_dir, cleanup_video_id)
         if owned is None:
             continue
-        _remove_owned_file(owned, out_dir)
+        _remove_video_owned_file(owned, out_dir, cleanup_video_id)
         name = os.path.basename(owned)
         if name.endswith(".part"):
             name = name[: -len(".part")]
@@ -314,15 +354,25 @@ def _remove_download_artifacts(status: dict[str, Any], out_dir: str) -> None:
     except OSError:
         return
     for entry in entries:
+        if not entry.startswith(f"{cleanup_video_id}."):
+            continue
         matches_stem = any(
             entry == stem or entry.startswith(f"{stem}.") or entry.startswith(f"{stem}-")
             for stem in stems
         )
         if matches_stem:
-            _remove_owned_file(os.path.join(out_dir, entry), out_dir)
+            _remove_video_owned_file(
+                os.path.join(out_dir, entry),
+                out_dir,
+                cleanup_video_id,
+            )
 
 
-def _abort_over_budget_download(status: dict[str, Any], out_dir: str) -> None:
+def _abort_over_budget_download(
+    status: dict[str, Any],
+    out_dir: str,
+    video_id: str | None = None,
+) -> None:
     """Abort an in-flight leased download once encoded bytes exceed the policy ceiling."""
     if status.get("status") not in {"downloading", "finished"}:
         return
@@ -331,16 +381,16 @@ def _abort_over_budget_download(status: dict[str, Any], out_dir: str) -> None:
         if isinstance(candidate, bool) or not isinstance(candidate, int):
             continue
         if candidate > DEFAULT_MAX_ENCODED_FILE_BYTES:
-            _remove_download_artifacts(status, out_dir)
+            _remove_download_artifacts(status, out_dir, video_id)
             raise YoutubeResourceLimitError("size_exceeded", YOUTUBE_SIZE_EXCEEDED_MESSAGE)
 
 
-def _make_abort_hook(out_dir: str) -> Any:
-    """Bind the in-flight abort hook to the currently leased output directory."""
+def _make_abort_hook(out_dir: str, video_id: str) -> Any:
+    """Bind the in-flight abort hook to the currently leased video identity."""
 
     def _bound_abort_over_budget_download(status: dict[str, Any]) -> None:
-        """Abort and delete owned partials while the caller holds the video lease."""
-        _abort_over_budget_download(status, out_dir)
+        """Abort and delete only this video's partials while its lease is held."""
+        _abort_over_budget_download(status, out_dir, video_id)
 
     return _bound_abort_over_budget_download
 
@@ -406,7 +456,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
             "postprocessors": [{"key": "FFmpegExtractAudio"}],
             "geo_bypass": False,
             "max_filesize": DEFAULT_MAX_ENCODED_FILE_BYTES,
-            "progress_hooks": [_make_abort_hook(out_dir)],
+            "progress_hooks": [_make_abort_hook(out_dir, video_id)],
         }
 
         try:
@@ -440,14 +490,14 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         },
                     }
 
-                owned_filepath = _owned_file_path(actual_filepath, out_dir)
+                owned_filepath = _owned_video_file_path(actual_filepath, out_dir, video_id)
                 if owned_filepath is None:
                     return _download_error_result()
                 actual_filepath = owned_filepath
 
                 duration_rejection = _reject_invalid_or_oversize_duration(info)
                 if duration_rejection is not None:
-                    _remove_owned_file(actual_filepath, out_dir)
+                    _remove_video_owned_file(actual_filepath, out_dir, video_id)
                     return duration_rejection
 
                 try:
@@ -455,7 +505,7 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         os.path.getsize(actual_filepath)
                     )
                 except AudioResourcePolicyError as error:
-                    _remove_owned_file(actual_filepath, out_dir)
+                    _remove_video_owned_file(actual_filepath, out_dir, video_id)
                     if error.reason == "encoded_file_too_large":
                         return _size_exceeded_result()
                     return _download_error_result()
