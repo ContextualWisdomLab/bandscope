@@ -84,7 +84,7 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
     """
     source = io.BytesIO(b"container")
     calls: list[tuple[str, object]] = []
-    decoder_output = np.array([[0.25, -0.5]], dtype=np.float64)
+    decoder_output = np.array([0.25, -0.5], dtype=np.float64)
 
     def preflight(candidate: object, policy: object) -> None:
         calls.append(("preflight", candidate))
@@ -123,6 +123,26 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
     assert calls[2][0] == "validate"
     np.testing.assert_array_equal(decoded, np.array([0.25, -0.5], dtype=np.float32))
     assert sample_rate == DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
+
+
+def test_decode_mono_audio_rejects_non_mono_decoder_shape_before_normalization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject multi-dimensional decoder output instead of flattening channels."""
+    monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
+    monkeypatch.setattr(
+        audio_decode.librosa,
+        "load",
+        lambda *_args, **_kwargs: (
+            np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32),
+            DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate,
+        ),
+    )
+
+    with pytest.raises(AudioResourcePolicyError) as caught:
+        audio_decode.decode_mono_audio(io.BytesIO(b"container"))
+
+    assert caught.value.reason == "malformed_header"
 
 
 def test_decode_mono_audio_preserves_resource_policy_rejection(
