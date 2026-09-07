@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
+import { Slider } from "./slider"
 import {
   Table,
   TableBody,
@@ -244,5 +245,15 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+})
+
+describe("Slider component", () => {
+  it("Slider mounts with track, indicator and thumb", () => {
+    const { container } = render(<Slider defaultValue={50} aria-label="vol" />)
+    expect(container.querySelector('[data-slot="slider"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-track"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-indicator"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-thumb"]')).toBeTruthy()
   })
 })
