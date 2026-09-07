@@ -22,8 +22,8 @@ Security Notes:
   silently change those selected decode parameters. Numerical output can still
   change when the decoder/resampler implementation or dependency versions change.
 - Decoder sample count and allocated bytes are checked before float32
-  normalization, so an over-budget wide or oversized decoder result cannot
-  trigger a second canonical-buffer allocation before rejection.
+  normalization, and a non-owning NumPy view is rejected so a small admitted
+  view cannot retain a larger hidden backing allocation beyond the byte budget.
 - Decoder details remain exception causes only; the surfaced failure is the
   payload-free canonical resource-policy error.
 - This port adds no path, network, subprocess, or credential authority.
@@ -145,6 +145,8 @@ def decode_mono_audio(
         decoded_array = np.asarray(decoded)
         if decoded_array.ndim != 1:
             raise _malformed_decode_error()
+        if not decoded_array.flags.owndata:
+            raise AudioResourcePolicyError("memory_budget_exceeded")
         if decoded_array.size > policy.max_decoded_samples:
             raise AudioResourcePolicyError("decoded_sample_count_exceeded")
         if decoded_array.nbytes > policy.max_decoded_audio_bytes:
