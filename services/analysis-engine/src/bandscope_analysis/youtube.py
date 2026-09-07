@@ -29,9 +29,10 @@ Security Notes:
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
       download; oversized artifacts and malformed zero-byte outputs are deleted
       while retaining the correct buyer-facing rejection category.
-    - In-flight abort deletes only the leased video's ``tmpfilename`` /
-      ``filename`` siblings (``.part``, ``.ytdl``, ``-Frag*``) beneath this
-      ``out_dir``. Directory containment alone never grants deletion authority.
+    - In-flight abort deletes only an exact canonical final artifact or the
+      leased video's explicitly transient ``.part``, ``.ytdl``, and ``-FragN``
+      filenames beneath this ``out_dir``. Same-ID prefix alone never grants
+      deletion authority.
     - Validation errors are payload-free and never include source paths, URLs,
       cookies, or audio content.
 """
@@ -300,6 +301,29 @@ def _owned_completed_video_file_path(
     return owned
 
 
+def _owned_transient_video_file_path(
+    path: object,
+    out_dir: str,
+    video_id: str,
+) -> str | None:
+    """Return only an explicitly transient yt-dlp artifact for the active lease."""
+    owned = _owned_video_file_path(path, out_dir, video_id)
+    if owned is None:
+        return None
+    name = os.path.basename(owned)
+    if name.endswith((".part", ".ytdl")):
+        return owned
+    fragment_tail = name.rsplit("-Frag", maxsplit=1)
+    if len(fragment_tail) != 2:
+        return None
+    fragment_number = fragment_tail[1]
+    if fragment_number.isdigit():
+        return owned
+    if fragment_number.endswith(".part") and fragment_number[: -len(".part")].isdigit():
+        return owned
+    return None
+
+
 def _remove_owned_file(path: object, out_dir: str) -> None:
     """Delete one contained regular file, ignoring missing-path races.
 
@@ -342,26 +366,36 @@ def _video_id_from_status(status: dict[str, Any]) -> str | None:
     return None
 
 
+def _cleanup_stem(name: str) -> str:
+    """Return the canonical yt-dlp stem shared by one authorized transient path."""
+    for suffix in (".part", ".ytdl"):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    if "-Frag" in name:
+        return name.rsplit("-Frag", maxsplit=1)[0]
+    return name
+
+
 def _remove_download_artifacts(
     status: dict[str, Any],
     out_dir: str,
     video_id: str | None = None,
 ) -> None:
-    """Delete only one leased video's partial, fragment, and control files."""
+    """Delete only one leased video's canonical final or explicit transient files."""
     cleanup_video_id = video_id or _video_id_from_status(status)
     if cleanup_video_id is None:
         return
 
     stems: set[str] = set()
     for key in ("tmpfilename", "filename"):
-        owned = _owned_video_file_path(status.get(key), out_dir, cleanup_video_id)
+        candidate = status.get(key)
+        owned = _owned_transient_video_file_path(candidate, out_dir, cleanup_video_id)
+        if owned is None:
+            owned = _owned_completed_video_file_path(candidate, out_dir, cleanup_video_id)
         if owned is None:
             continue
         _remove_video_owned_file(owned, out_dir, cleanup_video_id)
-        name = os.path.basename(owned)
-        if name.endswith(".part"):
-            name = name[: -len(".part")]
-        stems.add(name)
+        stems.add(_cleanup_stem(os.path.basename(owned)))
     if not stems:
         return
     try:
@@ -369,18 +403,16 @@ def _remove_download_artifacts(
     except OSError:
         return
     for entry in entries:
-        if not entry.startswith(f"{cleanup_video_id}."):
-            continue
-        matches_stem = any(
-            entry == stem or entry.startswith(f"{stem}.") or entry.startswith(f"{stem}-")
-            for stem in stems
+        transient = _owned_transient_video_file_path(
+            os.path.join(out_dir, entry),
+            out_dir,
+            cleanup_video_id,
         )
-        if matches_stem:
-            _remove_video_owned_file(
-                os.path.join(out_dir, entry),
-                out_dir,
-                cleanup_video_id,
-            )
+        if transient is None:
+            continue
+        transient_name = os.path.basename(transient)
+        if any(_cleanup_stem(transient_name) == stem for stem in stems):
+            _remove_video_owned_file(transient, out_dir, cleanup_video_id)
 
 
 def _abort_over_budget_download(
