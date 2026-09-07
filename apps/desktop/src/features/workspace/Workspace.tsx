@@ -4,7 +4,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
-import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
+import { fillRangeCopy, firstRangeSqueeze, playableRange } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -216,11 +216,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return notes;
   }, [activeRole, song.sections]);
   const firstNote = firstTranscriptionNote(activeRoleTranscription);
-  const roleRangeLow = nonBlankText(activeRoleDetails?.range.lowestNote);
-  const roleRangeHigh = nonBlankText(activeRoleDetails?.range.highestNote);
+  const activeRoleRange = playableRange(
+    activeRoleDetails?.range.lowestNote,
+    activeRoleDetails?.range.highestNote
+  );
+  const roleRangeLow = activeRoleRange?.lowestNote;
+  const roleRangeHigh = activeRoleRange?.highestNote;
   const setupCue = roleSetupCue(activeRoleDetails);
   const setupSentenceCue = setupCue ? sentenceFragment(setupCue) : "";
-  const hasPlayableRange = Boolean(roleRangeLow && roleRangeHigh);
+  const hasPlayableRange = activeRoleRange !== null;
   const hasStartEvidence = Boolean(firstNote || hasPlayableRange);
   const canArmTonightSetup = Boolean(setupCue && hasStartEvidence);
   const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
