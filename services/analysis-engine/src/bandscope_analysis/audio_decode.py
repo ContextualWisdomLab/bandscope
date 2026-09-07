@@ -27,8 +27,11 @@ Security Notes:
 - Decoder sample count, visible allocated bytes, and the predicted canonical
   float32 byte count are checked before normalization. A non-owning NumPy view
   is detached into an owned canonical buffer, so the returned MIR artifact cannot
-  retain a larger hidden backing allocation. Decoder-internal peak memory before
-  return remains a separate process-resource acceptance boundary.
+  retain a larger hidden backing allocation. If that bounded canonical allocation
+  still fails under host memory pressure, the port preserves the stable
+  ``memory_budget_exceeded`` resource-policy contract instead of surfacing a raw
+  allocator exception. Decoder-internal peak memory before return remains a
+  separate process-resource acceptance boundary.
 - Decoder details remain exception causes only; the surfaced failure is the
   payload-free canonical resource-policy error.
 - This port adds no path, network, subprocess, or credential authority.
@@ -166,6 +169,8 @@ def decode_mono_audio(
             pcm = np.array(decoded_array, dtype=np.float32, copy=True)
     except AudioResourcePolicyError:
         raise
+    except MemoryError as error:
+        raise AudioResourcePolicyError("memory_budget_exceeded") from error
     except (OverflowError, TypeError, ValueError) as error:
         raise _malformed_decode_error() from error
 
