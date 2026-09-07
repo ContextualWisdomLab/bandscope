@@ -148,6 +148,7 @@ def test_cli_main_reads_stdin_and_writes_stdout(monkeypatch: pytest.MonkeyPatch)
     )
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -160,6 +161,7 @@ def test_cli_main_handles_non_mapping_payload(monkeypatch: pytest.MonkeyPatch) -
     stdin = io.StringIO(json.dumps(["demo"]))
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -185,6 +187,7 @@ def test_cli_main_rejects_invalid_job_id(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -198,6 +201,7 @@ def test_cli_main_handles_malformed_json(monkeypatch: pytest.MonkeyPatch) -> Non
     stdin = io.StringIO("{")
     stdout = io.StringIO()
 
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
@@ -228,6 +232,7 @@ def test_cli_module_runs_as_main(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     stdout = io.StringIO()
 
+    monkeypatch.setattr(sys, "argv", ["cli.py"])
     monkeypatch.setattr(sys, "stdin", stdin)
     monkeypatch.setattr(sys, "stdout", stdout)
 
@@ -246,6 +251,7 @@ def test_cli_main_empty_input(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ensure empty input yields an error."""
     stdin = io.StringIO("")
     stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
     monkeypatch.setattr(cli.sys, "stdin", stdin)
     monkeypatch.setattr(cli.sys, "stdout", stdout)
     assert cli.main() == 0
@@ -487,3 +493,23 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     ]
     assert updates[-1]["state"] == "succeeded"
     assert updates[-1]["progressPercent"] == 100
+
+
+def test_cli_main_job_arg_rejects_large_file(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Ensure --job rejects files larger than MAX_JSON_FILE_SIZE."""
+    stdin = io.StringIO("")
+    stdout = io.StringIO()
+    job_file = tmp_path / "large_job.json"
+
+    # Create a dummy file larger than MAX_JSON_FILE_SIZE
+    from bandscope_analysis.cli import MAX_JSON_FILE_SIZE
+
+    with open(job_file, "wb") as f:
+        f.seek(MAX_JSON_FILE_SIZE + 1024)
+        f.write(b"0")
+
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py", "--job", str(job_file)])
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    assert cli.main() == 1
+    assert "Job file exceeds maximum size limit" in stdout.getvalue()
