@@ -184,6 +184,29 @@ def test_decode_mono_audio_bounds_growth_after_encoded_size_admission(
     assert source.getvalue() == initial + b"-post-admission-growth"
 
 
+def test_bounded_encoded_source_readinto_stops_at_admitted_eof() -> None:
+    """Keep virtual-I/O buffer fills inside the originally admitted byte extent."""
+    admitted = b"container"
+    source = io.BytesIO(admitted + b"-post-admission-growth")
+    bounded = audio_decode._BoundedEncodedSource(source, len(admitted))
+    buffer = bytearray(len(admitted) + 8)
+
+    read_count = bounded.readinto(buffer)
+
+    assert read_count == len(admitted)
+    assert bytes(buffer[:read_count]) == admitted
+    assert bytes(buffer[read_count:]) == b"\x00" * 8
+    assert bounded.tell() == len(admitted)
+    assert bounded.readinto(buffer) == 0
+
+    bounded.seek(-3, io.SEEK_END)
+    tail_buffer = bytearray(8)
+    tail_count = bounded.readinto(tail_buffer)
+    assert tail_count == 3
+    assert bytes(tail_buffer[:tail_count]) == admitted[-3:]
+    assert bounded.tell() == len(admitted)
+
+
 def test_decode_mono_audio_rejects_non_mono_decoder_shape_before_normalization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
