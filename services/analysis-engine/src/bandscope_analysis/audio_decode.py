@@ -17,6 +17,9 @@ Security Notes:
   against the same versioned policy before it can enter MIR or model work.
 - Decoder output must already be one-dimensional when ``mono=True``; a malformed
   multi-channel shape is rejected rather than flattened into false mono PCM.
+- The decoder call explicitly pins canonical ``float32`` output and the
+  band-limited ``soxr_hq`` resampler instead of inheriting third-party defaults,
+  so dependency upgrades cannot silently redefine the MIR input representation.
 - Decoder sample count and allocated bytes are checked before float32
   normalization, so an over-budget wide or oversized decoder result cannot
   trigger a second canonical-buffer allocation before rejection.
@@ -43,6 +46,7 @@ from bandscope_analysis.audio_resource_policy import (
 )
 
 AudioMonoArray = NDArray[np.float32]
+_CANONICAL_RESAMPLE_TYPE = "soxr_hq"
 
 
 class _BoundedEncodedSource(io.RawIOBase):
@@ -128,6 +132,8 @@ def decode_mono_audio(
                 sr=policy.target_sample_rate,
                 mono=True,
                 duration=policy.decode_probe_duration_seconds,
+                dtype=np.float32,
+                res_type=_CANONICAL_RESAMPLE_TYPE,
             )
     except AudioResourcePolicyError:
         raise
