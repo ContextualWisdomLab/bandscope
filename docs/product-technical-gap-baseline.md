@@ -1,0 +1,55 @@
+# BandScope product / technical gap baseline
+
+Last reviewed: 2026-09-07
+
+This document is the code-current buyer-gap baseline for BandScope. It does not replace `AGENTS.md`, `CLAUDE.md`, `ARCHITECTURE.md`, PRD/TRD/ADR material, security policy, or live protected-branch/PR/Issue state. When this file and a live owner disagree, the live canonical owner and protected repository state win and this file must be repaired.
+
+The commercial quality bar is a local-first rehearsal decision tool whose claims remain true on real audio, after process restart, under supported Windows/macOS packaging, and when the user exercises keyboard, pointer/touch, localization, accessibility, cancellation, recovery, and update paths. Synthetic arrays and isolated mocks are unit evidence only; they are not release-level scientific acceptance.
+
+## Current protected and owner boundaries
+
+Protected `develop` is `314ddeae7b775a4957594b599358c8255617eb2e`. Product deltas move through ordinary non-force ancestry. No sibling PR's checks, review, release evidence, or mutable source tree is inherited by assertion.
+
+| Bounded context | Canonical live owner | Current buyer truth | Material gap before commercial claim |
+| --- | --- | --- | --- |
+| Audio Ingestion / Resource Admission & Decode | #781 / PR #866 | Draft canonical 100 MiB encoded admission, source metadata preflight, 44.1 kHz mono canonical decode, policy-v3 native NumPy `float32`, decoded sample/byte ceiling, YouTube parity, path-free publication identity, and no-clobber crash-durability work | End-to-end peak RSS/VRAM is not bounded; direct-child cancellation is not process-tree containment; buyer-visible accessible cancellation and rights-cleared full-length real-audio cancellation/resource measurements remain open |
+| Project Persistence | #962 / PR #970 | Draft path-free source reference and persisted `selectedPlaybackSource` intent; restart re-admission is native authority rather than renderer-authored evidence | Global/startup recovery, autosave/backup UX, broader power-loss/disk-full fault injection, and final protected adoption of current Resource Admission remain open |
+| Active Player / audible authority | #971 / PR #1160 | Draft native stem preflight and revocable playback authority; persisted source selection is intent only | Reopen must re-authorize Full mix and re-admit current stems before audible authority; real audio → playback evidence, stale-media races, pointer/touch/keyboard, Narrator/VoiceOver, responsive behavior, and locale coverage remain open |
+| Distribution / update | #1129, #1180, #1181 | Latest immutable public release remains v0.1.3; model and audio-I/O commercial admissibility are tracked separately from analysis correctness | Remove or replace the supported `libsndfile` LGPL runtime path; provide commercially admissible immutable separation-model provenance/serialization/update rollback; do not package upstream pretrained `htdemucs` weights without explicit commercial-use/redistribution authority or an admissible replacement |
+| Repository / merge control | PR #1176 plus #1172/#1183 and central CodeQL recovery owner | Product PRs inherit a protected-base Ruff-format failure and branch protection still names retired CodeQL compatibility contexts | Land the single formatter repair through normal protected ancestry; repair central authenticated CodeQL verdict publication and migrate required context names without synthetic status or duplicate scanners |
+
+## Resource Admission and cancellation acceptance
+
+The canonical decoded artifact ceiling is an artifact bound, not a process-memory promise. Decoder/resampler intermediates and downstream NumPy/PyTorch/model/accelerator allocations must be measured separately before setting CPU, RSS, GPU, or VRAM policy values. Sample reduction, unrealistic warm caches, or excluding expensive phases from the measurement do not satisfy this acceptance.
+
+Cancellation authority stays narrow: the renderer may refer to a BandScope-minted analysis job id, not a PID or generic process handle. Accepted cancellation and terminal publication must be one ordered decision. The current direct-child kill/reap boundary must not be described as descendant containment. Commercial acceptance requires platform-correct containment and cleanup on Windows/macOS/Linux, bounded inherited-handle closure, child-created temp cleanup, and measured cancellation latency on rights-cleared full-length rehearsal audio.
+
+## Scientific and rehearsal acceptance
+
+MIR claims must be reproducible from rights-cleared decoded audio and reported against recognized task metrics appropriate to the feature. Confidence is a claim boundary, not decoration: section, chord, stem, range, transcription, groove, and rehearsal-priority outputs must distinguish observed evidence, model inference, uncertainty, and unavailable evidence. A mock/generated-array success cannot substitute for production scientific acceptance.
+
+The Active Player, Song Structure, Section Map, timeline and range controls must preserve the same actual-audio semantics through analysis, selection, persistence/reload, stale-source retirement, and playback. A persisted preference alone never authorizes stale media. Full mix fallback is the safe audible default when a requested stem cannot be freshly re-admitted.
+
+## UI / accessibility / localization delivery gate
+
+Current UI Delivery Gate: **FAIL**.
+
+The remaining acceptance includes normal/loading/empty/error/permission states; responsive desktop and intermediate widths; pointer, touch and keyboard operation; visible focus and exact accessible alternatives; Narrator and VoiceOver evidence; and KO/EN/JA/ZH/VI/ES/DE/FR with CJK fallback and text expansion. Translation resources remain a versioned screen-key resource/cache concern and must not be conflated with ontology labels.
+
+## Release delivery gate
+
+Current commercial Release Gate: **FAIL**.
+
+A release-ready protected head must have code-current version and CHANGELOG, terminal required CI/security evidence, Windows signing, macOS signing and notarization, packaged artifacts, SBOM/provenance, reproducibility evidence, immutable tag/release publication, and updater rollback evidence. Technical model compatibility does not establish model redistribution rights, and a successful local build does not establish signing/notarization or updater safety.
+
+## Security Notes
+
+Untrusted boundaries include local audio and project files, URLs, score PDFs, subprocess/model outputs, IPC, model artifacts, update artifacts, metadata and logs. Keep allowlists and bounded reads at the owner boundary, keep external paths/PIDs/generic process handles out of renderer authority, fail closed with payload-safe diagnostics, and keep resource/security provenance path-free where it crosses product contracts. Security fixes belong to their canonical owner; do not weaken gates, add synthetic statuses, restore duplicate scanners, or copy mutable sibling source to make a consumer appear green.
+
+## Next causal sequence
+
+1. Finish exact-head verification/review of #866 after every intervening delta; repair source-owned failures immediately and keep inherited formatter/control-plane failures with their canonical owners.
+2. Land #1176 and the central CodeQL/protected-context repairs through normal protected ancestry, then integrate #866 without force-push or destructive rebase.
+3. Reconcile #970 against the protected #866 result, then #1160 against #970/#866, removing duplicate security-sensitive utilities during adoption rather than preserving parallel implementations.
+4. Prove process-tree cancellation/resource cleanup and realistic peak-resource behavior with rights-cleared full-length audio, then complete buyer-visible cancellation and actual-audio playback E2E/a11y/localization evidence.
+5. Resolve #1129/#1180/#1181 distribution rights, signing, provenance and rollback requirements before publishing a successor immutable commercial release.
