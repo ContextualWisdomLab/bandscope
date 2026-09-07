@@ -17,11 +17,7 @@ describe("Slider accessibility contract", () => {
     // @ts-expect-error BandScope's wrapper intentionally exposes one horizontal scalar thumb.
     const rangeProps: SliderProps = { defaultValue: [25, 75], "aria-label": "Range" }
     // @ts-expect-error Vertical geometry is not part of the BandScope slider contract.
-    const verticalProps: SliderProps = {
-      orientation: "vertical",
-      defaultValue: 50,
-      "aria-label": "Vertical",
-    }
+    const verticalProps: SliderProps = { orientation: "vertical", defaultValue: 50 }
     expect([rangeProps, verticalProps]).toHaveLength(2)
   })
 
