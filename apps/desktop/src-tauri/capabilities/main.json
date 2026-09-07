@@ -8,6 +8,7 @@
     "core:event:allow-unlisten",
     "allow-start-analysis-job",
     "allow-get-analysis-job-status",
+    "allow-cancel-analysis-job",
     "allow-select-local-audio-source",
     "allow-import-youtube-url",
     "allow-save-project",
