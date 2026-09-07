@@ -26,6 +26,13 @@ import {
   DialogTitle,
 } from "./dialog"
 import {
+  Slider,
+  SliderControl,
+  SliderTrack,
+  SliderIndicator,
+  SliderThumb,
+} from "./slider"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -244,5 +251,19 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Slider mounts and renders accessible roles", () => {
+    render(
+      <Slider>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb />
+        </SliderControl>
+      </Slider>
+    )
+    expect(screen.getByRole("slider")).toBeInTheDocument()
   })
 })
