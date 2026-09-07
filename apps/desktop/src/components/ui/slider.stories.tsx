@@ -13,7 +13,9 @@ const meta = {
   },
 } satisfies Meta<typeof Slider>
 
+/** Storybook metadata for the reusable BandScope Slider primitive. */
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** Default single-thumb horizontal Slider example with an accessible name. */
 export const Default: Story = {}
