@@ -95,6 +95,18 @@ describe("Workspace review regressions", () => {
     ).toBeEnabled();
   });
 
+  it("keeps disabled stem controls discoverable by their visible labels", () => {
+    const song = createDemoRehearsalSong();
+
+    render(<Workspace song={song} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: song.sections[0]!.roles[0]!.name }));
+    expect(screen.getByRole("button", { name: /Play stem/ })).toHaveTextContent("Play stem");
+    expect(screen.getByRole("button", { name: /Solo \/ mute others/ })).toHaveTextContent(
+      "Solo / mute others"
+    );
+  });
+
   it("natively disables setup when a cue has neither an entrance nor a playable range", () => {
     const song = createDemoRehearsalSong();
     const roleId = song.sections[0]!.roles[0]!.id;
