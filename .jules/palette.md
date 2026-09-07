@@ -1,3 +1,6 @@
 ## 2024-05-19 - Replace HTML disabled with aria-disabled="true" for Accessible Tooltips
 **Learning:** Native HTML `disabled` attributes completely hide elements from screen readers and block all pointer/hover events, preventing tooltips from functioning for disabled elements.
 **Action:** Replace `disabled` with `aria-disabled="true"`, enforce block click handlers via `e.preventDefault()`, and add a title tooltip directly to the element to maintain full tooltip accessibility and keyboard focus support for visually impaired and mouse users.
+## 2026-09-07 - Accessible Disabled States
+**Learning:** When adding a dynamic `title` or tooltip to explain why an element is disabled (e.g., using `aria-disabled="true"` instead of native `disabled`), the tooltip text must actively explain *why* the element is disabled, and an explicit `sr-only` description element linked via `aria-describedby` must be rendered in the DOM to ensure screen readers announce the state explanation correctly.
+**Action:** When swapping native `disabled` to `aria-disabled`, update related tests to explicitly assert the exact strings or translation keys for the dynamically applied `title` and `aria-describedby` attributes, and ensure the screen-reader-only description node is rendered.

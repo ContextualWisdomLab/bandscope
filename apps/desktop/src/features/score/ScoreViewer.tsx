@@ -287,26 +287,36 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
+          <span id="score-viewer-prev-page-desc" className="sr-only">
+            {pageNumber <= 1 ? t("scoreViewerAtFirstPage") : ""}
+          </span>
           <Button
             variant="outline"
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
-            disabled={pageNumber <= 1}
-            onClick={goToPreviousPage}
+            aria-disabled={pageNumber <= 1 ? "true" : undefined}
+            aria-describedby="score-viewer-prev-page-desc"
+            title={pageNumber <= 1 ? t("scoreViewerAtFirstPage") : undefined}
+            onClick={pageNumber <= 1 ? undefined : goToPreviousPage}
           >
             <ChevronLeft className="size-6" aria-hidden="true" />
           </Button>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
+          <span id="score-viewer-next-page-desc" className="sr-only">
+            {pageNumber >= pageCount ? t("scoreViewerAtLastPage") : ""}
+          </span>
           <Button
             variant="outline"
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
-            disabled={pageNumber >= pageCount}
-            onClick={goToNextPage}
+            aria-disabled={pageNumber >= pageCount ? "true" : undefined}
+            aria-describedby="score-viewer-next-page-desc"
+            title={pageNumber >= pageCount ? t("scoreViewerAtLastPage") : undefined}
+            onClick={pageNumber >= pageCount ? undefined : goToNextPage}
           >
             <ChevronRight className="size-6" aria-hidden="true" />
           </Button>
