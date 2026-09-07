@@ -1,14 +1,22 @@
-fn json_contains_string(value: &serde_json::Value, expected: &str) -> bool {
-    match value {
-        serde_json::Value::String(candidate) => candidate == expected,
-        serde_json::Value::Array(values) => values
-            .iter()
-            .any(|candidate| json_contains_string(candidate, expected)),
-        serde_json::Value::Object(values) => values
-            .values()
-            .any(|candidate| json_contains_string(candidate, expected)),
-        _ => false,
-    }
+fn capability_permissions_include(value: &serde_json::Value, expected: &str) -> bool {
+    value
+        .pointer("/main-capability/permissions")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|permissions| permissions.iter().any(|permission| permission.as_str() == Some(expected)))
+}
+
+fn desktop_schema_identifier_const(value: &serde_json::Value, expected: &str) -> bool {
+    value
+        .pointer("/definitions/Identifier/oneOf")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|identifiers| {
+            identifiers.iter().any(|identifier| {
+                identifier
+                    .get("const")
+                    .and_then(serde_json::Value::as_str)
+                    == Some(expected)
+            })
+        })
 }
 
 #[test]
@@ -188,12 +196,12 @@ fn generated_tauri_schemas_include_the_cancellation_permission() {
             .expect("generated desktop schema must remain valid JSON");
 
     assert!(
-        json_contains_string(&generated_capabilities, "allow-cancel-analysis-job"),
-        "the generated capability snapshot must include the granted cancellation permission"
+        capability_permissions_include(&generated_capabilities, "allow-cancel-analysis-job"),
+        "the generated main capability must grant the cancellation permission in its permissions array"
     );
     assert!(
-        json_contains_string(&desktop_schema, "allow-cancel-analysis-job")
-            && json_contains_string(&desktop_schema, "deny-cancel-analysis-job"),
-        "the generated desktop schema must accept the generated allow/deny cancellation permission identifiers"
+        desktop_schema_identifier_const(&desktop_schema, "allow-cancel-analysis-job")
+            && desktop_schema_identifier_const(&desktop_schema, "deny-cancel-analysis-job"),
+        "the generated desktop schema must enumerate the cancellation allow/deny identifiers as permission constants"
     );
 }
