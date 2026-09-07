@@ -28,7 +28,7 @@ fn native_analysis_cancellation_reaches_the_running_child_boundary() {
 fn final_job_commit_serializes_cancellation_against_terminal_status() {
     let source = include_str!("../src/main.rs");
     let finalizer_start = source
-        .find("fn finalize_analysis_status_and_emit(")
+        .find("fn finalize_analysis_status_and_emit<")
         .expect("analysis worker needs one serialized terminal-status finalizer");
     let finalizer_tail = &source[finalizer_start..];
     let finalizer_end = finalizer_tail
@@ -166,11 +166,17 @@ fn cancellation_is_declared_and_granted_in_the_tauri_capability_boundary() {
 }
 
 #[test]
-fn generated_tauri_capability_snapshot_includes_cancellation_permission() {
+fn generated_tauri_schemas_include_the_cancellation_permission() {
     let generated_capabilities = include_str!("../gen/schemas/capabilities.json");
+    let desktop_schema = include_str!("../gen/schemas/desktop-schema.json");
 
     assert!(
         generated_capabilities.contains("\"allow-cancel-analysis-job\""),
-        "the generated capability snapshot must include the cancellation permission granted to the main window"
+        "the tracked generated capability snapshot must include the granted cancellation permission"
+    );
+    assert!(
+        desktop_schema.contains("\"const\": \"allow-cancel-analysis-job\"")
+            && desktop_schema.contains("\"const\": \"deny-cancel-analysis-job\""),
+        "the tracked desktop schema must accept the generated allow/deny cancellation permission identifiers"
     );
 }
