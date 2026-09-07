@@ -58,12 +58,6 @@ impl AnalysisJobCancellationRegistry {
             .map(|mut requests| requests.remove(job_id))
             .unwrap_or(true)
     }
-
-    fn clear(&self, job_id: &str) {
-        if let Ok(mut requests) = self.0.lock() {
-            requests.remove(job_id);
-        }
-    }
 }
 
 fn iso_timestamp_now() -> String {
@@ -821,8 +815,12 @@ fn start_analysis_job(
     std::thread::spawn(move || {
         if worker_cancellation_state.is_requested(&job_id) {
             let finished = cancelled_status(job_id.clone(), requested_at.clone());
-            worker_cancellation_state.clear(&job_id);
-            store_status_and_emit(&app_state, &worker_app_handle, &finished);
+            finalize_analysis_status_and_emit(
+                &app_state,
+                &worker_app_handle,
+                &worker_cancellation_state,
+                finished,
+            );
             release_job_slot(&app_state);
             return;
         }
@@ -1151,7 +1149,7 @@ fn remove_score_pdf(
     if !is_valid_score_id(&score_id) {
         return Err("Invalid score id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects", &project_id)?;
     let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
         Ok(path) => path,
         Err(_) => return Ok(false),
