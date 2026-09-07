@@ -17,6 +17,9 @@ Security Notes:
   against the same versioned policy before it can enter MIR or model work.
 - Decoder output must already be one-dimensional when ``mono=True``; a malformed
   multi-channel shape is rejected rather than flattened into false mono PCM.
+- Decoder sample count and allocated bytes are checked before float32
+  normalization, so an over-budget wide or oversized decoder result cannot
+  trigger a second canonical-buffer allocation before rejection.
 - Decoder details remain exception causes only; the surfaced failure is the
   payload-free canonical resource-policy error.
 - This port adds no path, network, subprocess, or credential authority.
@@ -135,6 +138,10 @@ def decode_mono_audio(
         decoded_array = np.asarray(decoded)
         if decoded_array.ndim != 1:
             raise _malformed_decode_error()
+        if decoded_array.size > policy.max_decoded_samples:
+            raise AudioResourcePolicyError("decoded_sample_count_exceeded")
+        if decoded_array.nbytes > policy.max_decoded_audio_bytes:
+            raise AudioResourcePolicyError("memory_budget_exceeded")
         pcm = np.asarray(decoded_array, dtype=np.float32)
     except AudioResourcePolicyError:
         raise
