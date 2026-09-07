@@ -129,4 +129,31 @@ describe("Workspace review regressions", () => {
     });
     expect(setupButton).toBeDisabled();
   });
+
+  it.each([
+    ["none", "none"],
+    ["E3", "C#2"],
+    ["low", "high"]
+  ])("rejects malformed setup range %s–%s", (lowestNote, highestNote) => {
+    const song = createDemoRehearsalSong();
+    const roleId = song.sections[0]!.roles[0]!.id;
+    replaceRole(song, roleId, (role) => ({
+      ...role,
+      setupNote: "Tune down a whole step.",
+      transcription: undefined,
+      range: {
+        ...role.range,
+        lowestNote,
+        highestNote
+      }
+    }));
+
+    render(<Workspace song={song} />);
+    fireEvent.click(screen.getByRole("tab", { name: song.sections[0]!.roles[0]!.name }));
+
+    const setupButton = screen.getByRole("button", {
+      name: "No first entrance or playable range yet. Stay on tonight's map."
+    });
+    expect(setupButton).toBeDisabled();
+  });
 });
