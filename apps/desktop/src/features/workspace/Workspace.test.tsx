@@ -370,7 +370,11 @@ describe("Workspace", () => {
     expect(document.activeElement?.id).toBe("workspace-role-setup");
     expect(document.getElementById("workspace-groove-entrance")).toBeTruthy();
     expect(scrollIntoView).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Isolation is not ready. Set up tonight's part first." })).toBeTruthy();
+    expect(
+      screen.getByRole("button", {
+        name: "Play stem. Isolation is not ready. Set up tonight's part first."
+      })
+    ).toBeTruthy();
   });
 
   it("keeps setup unavailable when the role has no setup cue", () => {
