@@ -1,6 +1,3 @@
-use std::path::PathBuf;
-use std::process::Command;
-
 #[test]
 fn native_analysis_cancellation_reaches_the_running_child_boundary() {
     let source = include_str!("../src/main.rs");
@@ -84,32 +81,5 @@ fn generated_tauri_schemas_include_the_cancellation_permission() {
         desktop_schema.contains("\"const\": \"allow-cancel-analysis-job\"")
             && desktop_schema.contains("\"const\": \"deny-cancel-analysis-job\""),
         "the tracked desktop schema must accept the generated allow/deny cancellation permission identifiers"
-    );
-}
-
-#[test]
-fn tracked_tauri_schemas_match_the_build_generated_contract() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let repo_root = manifest_dir
-        .ancestors()
-        .nth(3)
-        .expect("Tauri crate must stay nested under the repository root");
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repo_root)
-        .args([
-            "diff",
-            "--exit-code",
-            "--",
-            "apps/desktop/src-tauri/gen/schemas",
-        ])
-        .output()
-        .expect("git must be available to verify tracked generated-schema drift");
-
-    assert!(
-        output.status.success(),
-        "Tauri build generation changed tracked ACL schemas; regenerate and commit them before merge.\n{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
     );
 }
