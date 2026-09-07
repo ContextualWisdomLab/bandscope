@@ -101,6 +101,8 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
             "sr": DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate,
             "mono": True,
             "duration": DEFAULT_AUDIO_RESOURCE_POLICY.decode_probe_duration_seconds,
+            "dtype": np.float32,
+            "res_type": "soxr_hq",
         }
         return decoder_output, DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
 
