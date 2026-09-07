@@ -115,6 +115,7 @@ def test_decode_maps_canonical_copy_memory_error_to_budget_rejection(
         max_duration_seconds=1.0,
         max_decoded_audio_bytes=16,
     )
+    allocation_error = MemoryError("simulated allocator pressure")
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
         audio_decode.librosa,
@@ -123,7 +124,7 @@ def test_decode_maps_canonical_copy_memory_error_to_budget_rejection(
     )
 
     def exhausted_array(*_args: object, **_kwargs: object) -> np.ndarray[Any, Any]:
-        raise MemoryError("simulated allocator pressure")
+        raise allocation_error
 
     monkeypatch.setattr(audio_decode.np, "array", exhausted_array)
 
@@ -132,6 +133,7 @@ def test_decode_maps_canonical_copy_memory_error_to_budget_rejection(
 
     assert caught.value.reason == "memory_budget_exceeded"
     assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+    assert caught.value.__cause__ is allocation_error
 
 
 def test_decode_maps_array_materialization_memory_error_to_malformed_header(
@@ -139,6 +141,7 @@ def test_decode_maps_array_materialization_memory_error_to_malformed_header(
 ) -> None:
     """Pre-canonical materialization failure must not masquerade as a budget rejection."""
     policy = AudioResourcePolicy(target_sample_rate=2, max_duration_seconds=1.0)
+    materialization_error = MemoryError("simulated pre-canonical materialization pressure")
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
         audio_decode.librosa,
@@ -147,7 +150,7 @@ def test_decode_maps_array_materialization_memory_error_to_malformed_header(
     )
 
     def exhausted_asarray(*_args: object, **_kwargs: object) -> np.ndarray[Any, Any]:
-        raise MemoryError("simulated pre-canonical materialization pressure")
+        raise materialization_error
 
     monkeypatch.setattr(audio_decode.np, "asarray", exhausted_asarray)
 
@@ -156,3 +159,4 @@ def test_decode_maps_array_materialization_memory_error_to_malformed_header(
 
     assert caught.value.reason == "malformed_header"
     assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+    assert caught.value.__cause__ is materialization_error
