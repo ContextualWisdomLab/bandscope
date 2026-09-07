@@ -2,7 +2,7 @@ use crate::{
     audio_resource::{LocalAudioCopyReceipt, MAX_LOCAL_AUDIO_FILE_BYTES},
     runtime_core::{is_valid_project_id, AUDIO_EXTENSIONS},
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
 
 const LOCAL_AUDIO_PUBLICATION_IDENTITY_ERROR: &str =
     "Could not prepare the local project workspace.";
@@ -13,7 +13,7 @@ const LOCAL_AUDIO_PUBLICATION_IDENTITY_ERROR: &str =
 /// a BandScope-owned artifact and carries the exact native size/digest evidence
 /// produced by Resource Admission. It never contains an external or absolute
 /// filesystem path.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LocalAudioPublicationIdentity {
     /// Locally minted BandScope project id that owns the publication.
@@ -28,6 +28,39 @@ pub struct LocalAudioPublicationIdentity {
     pub content_sha256: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LocalAudioPublicationIdentityWire {
+    project_id: String,
+    artifact_name: String,
+    extension: String,
+    file_size_bytes: u64,
+    content_sha256: String,
+}
+
+impl<'de> Deserialize<'de> for LocalAudioPublicationIdentity {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let wire = LocalAudioPublicationIdentityWire::deserialize(deserializer)?;
+        let receipt = LocalAudioCopyReceipt {
+            file_size_bytes: wire.file_size_bytes,
+            content_sha256: wire.content_sha256,
+        };
+        let identity = build_local_audio_publication_identity(
+            &wire.project_id,
+            &wire.extension,
+            &receipt,
+        )
+        .map_err(D::Error::custom)?;
+        if wire.artifact_name != identity.artifact_name {
+            return Err(D::Error::custom(LOCAL_AUDIO_PUBLICATION_IDENTITY_ERROR));
+        }
+        Ok(identity)
+    }
+}
+
 fn is_lowercase_sha256(value: &str) -> bool {
     value.len() == 64
         && value
@@ -40,8 +73,9 @@ fn is_lowercase_sha256(value: &str) -> bool {
 /// Security Notes: callers must supply a project id minted under BandScope's
 /// existing project-id grammar and the canonical lowercase extension that was
 /// admitted by Resource Admission. The receipt must come from the verified
-/// publication path, not renderer input. Invalid ids, extensions, sizes, or
-/// digest encodings fail closed with the bounded project-workspace diagnosis.
+/// publication path, not renderer input. Invalid ids, extensions, sizes, digest
+/// encodings, or deserialized artifact-name mismatches fail closed with the
+/// bounded project-workspace diagnosis.
 pub fn build_local_audio_publication_identity(
     project_id: &str,
     extension: &str,
