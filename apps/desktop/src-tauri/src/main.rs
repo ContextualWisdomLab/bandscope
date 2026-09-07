@@ -52,6 +52,13 @@ impl AnalysisJobCancellationRegistry {
             .unwrap_or(true)
     }
 
+    fn take_requested(&self, job_id: &str) -> bool {
+        self.0
+            .lock()
+            .map(|mut requests| requests.remove(job_id))
+            .unwrap_or(true)
+    }
+
     fn clear(&self, job_id: &str) {
         if let Ok(mut requests) = self.0.lock() {
             requests.remove(job_id);
@@ -461,6 +468,42 @@ fn store_status_and_emit<R: Runtime>(
     let _ = app.emit("analysis-job-updated", status);
 }
 
+/// Commit one terminal job result while serializing late cancellation acceptance.
+///
+/// Security Notes: `cancel_analysis_job` acquires the job-status lock before it
+/// records a cancellation request. Holding that same lock while consuming the
+/// request makes "accepted cancel" and terminal status publication one ordered
+/// decision, so a renderer cannot receive a running acknowledgement and later
+/// observe an unqualified success from the same job.
+fn finalize_analysis_status_and_emit<R: Runtime>(
+    state: &AppState,
+    app: &tauri::AppHandle<R>,
+    cancellation_state: &AnalysisJobCancellationRegistry,
+    finished: AnalysisJobStatus,
+) {
+    let final_status = match state.0.jobs.lock() {
+        Ok(mut jobs) => {
+            let cancellation_requested =
+                cancellation_state.take_requested(&finished.job_id);
+            let final_status = if cancellation_requested {
+                cancelled_status(finished.job_id.clone(), finished.requested_at.clone())
+            } else {
+                finished.clone()
+            };
+            jobs.insert(finished.job_id.clone(), final_status.clone());
+            final_status
+        }
+        Err(_) => {
+            if cancellation_state.take_requested(&finished.job_id) {
+                cancelled_status(finished.job_id.clone(), finished.requested_at.clone())
+            } else {
+                finished
+            }
+        }
+    };
+    let _ = app.emit("analysis-job-updated", &final_status);
+}
+
 fn store_bootstrap_source(state: &AppState, summary: ProjectBootstrapSummaryPayload) {
     if let Ok(mut sources) = state.0.bootstrap_sources.lock() {
         sources.insert(summary.project_id.clone(), summary);
@@ -807,8 +850,12 @@ fn start_analysis_job(
             parsed_request,
             requested_at,
         );
-        worker_cancellation_state.clear(&job_id);
-        store_status_and_emit(&app_state, &worker_app_handle, &finished);
+        finalize_analysis_status_and_emit(
+            &app_state,
+            &worker_app_handle,
+            &worker_cancellation_state,
+            finished,
+        );
         release_job_slot(&app_state);
     });
 
@@ -839,12 +886,18 @@ fn cancel_analysis_job(
     state: tauri::State<'_, AppState>,
     cancellation_state: tauri::State<'_, AnalysisJobCancellationRegistry>,
 ) -> AnalysisJobStatus {
-    let current = state
-        .0
-        .jobs
-        .lock()
-        .ok()
-        .and_then(|jobs| jobs.get(&job_id).cloned());
+    let jobs = match state.0.jobs.lock() {
+        Ok(jobs) => jobs,
+        Err(_) => {
+            return failed_status(
+                job_id,
+                iso_timestamp_now(),
+                AnalysisJobErrorCode::EngineUnavailable,
+                "Could not cancel the analysis job.",
+            )
+        }
+    };
+    let current = jobs.get(&job_id).cloned();
     let Some(current) = current else {
         return failed_status(
             job_id,
