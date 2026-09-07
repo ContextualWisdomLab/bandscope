@@ -24,8 +24,8 @@ Security Notes:
       download. A changed ID cannot redirect the current lease to another
       import's predictable filenames.
     - The completed download path must resolve beneath this import's ``out_dir``
-      and carry the leased video-ID filename prefix before post-download size
-      checks, cleanup, or success metadata can use it.
+      and match one canonical ``{video_id}{extension}`` final-artifact name
+      before post-download size checks, cleanup, or success metadata can use it.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
       download; oversized artifacts and malformed zero-byte outputs are deleted
       while retaining the correct buyer-facing rejection category.
@@ -59,6 +59,7 @@ from bandscope_analysis.audio_resource_policy import (
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
 MAX_YOUTUBE_URL_LENGTH = 2000
 SUPPORTED_AUDIO_EXTENSIONS = (".opus", ".m4a", ".mp3", ".wav", ".aac", ".flac", ".ogg")
+YOUTUBE_COMPLETED_AUDIO_EXTENSIONS = (*SUPPORTED_AUDIO_EXTENSIONS, ".webm")
 YOUTUBE_DOWNLOAD_FAILED_MESSAGE = (
     "Failed to download audio from YouTube. Please use a local audio file instead."
 )
@@ -160,10 +161,9 @@ def _preexisting_final_artifact(out_dir: str, video_id: str) -> bool:
     Partial files are intentionally excluded because the active lease is the
     authority that distinguishes current cleanup from a concurrent writer.
     """
-    final_extensions = (*SUPPORTED_AUDIO_EXTENSIONS, ".webm")
     return any(
         os.path.lexists(os.path.join(out_dir, f"{video_id}{ext}"))
-        for ext in final_extensions
+        for ext in YOUTUBE_COMPLETED_AUDIO_EXTENSIONS
     )
 
 
@@ -281,6 +281,21 @@ def _owned_video_file_path(path: object, out_dir: str, video_id: str) -> str | N
     if owned is None:
         return None
     if not os.path.basename(owned).startswith(f"{video_id}."):
+        return None
+    return owned
+
+
+def _owned_completed_video_file_path(
+    path: object,
+    out_dir: str,
+    video_id: str,
+) -> str | None:
+    """Return only one canonical completed artifact owned by the active lease."""
+    owned = _owned_file_path(path, out_dir)
+    if owned is None:
+        return None
+    allowed_names = {f"{video_id}{ext}" for ext in YOUTUBE_COMPLETED_AUDIO_EXTENSIONS}
+    if os.path.basename(owned) not in allowed_names:
         return None
     return owned
 
@@ -490,7 +505,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                         },
                     }
 
-                owned_filepath = _owned_video_file_path(actual_filepath, out_dir, video_id)
+                owned_filepath = _owned_completed_video_file_path(
+                    actual_filepath,
+                    out_dir,
+                    video_id,
+                )
                 if owned_filepath is None:
                     return _download_error_result()
                 actual_filepath = owned_filepath
