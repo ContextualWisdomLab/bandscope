@@ -27,7 +27,7 @@ def test_decode_mono_audio_rejects_non_floating_decoder_dtype_before_canonicaliz
     monkeypatch: pytest.MonkeyPatch,
     decoder_output: np.ndarray,
 ) -> None:
-    """Do not reinterpret malformed integer, boolean, or complex decoder output as PCM."""
+    """Reject malformed dtypes before allocating canonical rehearsal PCM."""
     monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
     monkeypatch.setattr(
         audio_decode.librosa,
@@ -35,6 +35,13 @@ def test_decode_mono_audio_rejects_non_floating_decoder_dtype_before_canonicaliz
         lambda *_args, **_kwargs: (
             decoder_output,
             DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate,
+        ),
+    )
+    monkeypatch.setattr(
+        audio_decode.np,
+        "array",
+        lambda *_args, **_kwargs: pytest.fail(
+            "non-floating decoder output must be rejected before canonical allocation"
         ),
     )
 
