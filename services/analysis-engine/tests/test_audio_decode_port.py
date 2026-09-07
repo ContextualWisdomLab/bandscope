@@ -85,14 +85,18 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
     source = io.BytesIO(b"container")
     calls: list[tuple[str, object]] = []
     decoder_output = np.array([0.25, -0.5], dtype=np.float64)
+    admitted_source: object | None = None
 
     def preflight(candidate: object, policy: object) -> None:
+        nonlocal admitted_source
         calls.append(("preflight", candidate))
         assert policy is DEFAULT_AUDIO_RESOURCE_POLICY
+        assert candidate is not source
+        admitted_source = candidate
 
     def load(candidate: object, **kwargs: object) -> tuple[np.ndarray, int]:
         calls.append(("decode", candidate))
-        assert candidate is source
+        assert candidate is admitted_source
         assert kwargs == {
             "sr": DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate,
             "mono": True,
@@ -118,11 +122,66 @@ def test_decode_mono_audio_preflights_then_validates_one_owned_decode(
         policy=DEFAULT_AUDIO_RESOURCE_POLICY,
     )
 
-    assert calls[0] == ("preflight", source)
-    assert calls[1] == ("decode", source)
+    assert calls[0][0] == "preflight"
+    assert calls[1][0] == "decode"
     assert calls[2][0] == "validate"
     np.testing.assert_array_equal(decoded, np.array([0.25, -0.5], dtype=np.float32))
     assert sample_rate == DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
+
+
+def test_decode_mono_audio_bounds_growth_after_encoded_size_admission(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not let post-admission source growth expand parser or decoder authority."""
+
+    class GrowsAfterSizeProbe(io.BytesIO):
+        """Append bytes exactly when the initial size probe rewinds the source."""
+
+        def __init__(self, initial: bytes, growth: bytes) -> None:
+            """Retain deterministic initial and post-probe byte sequences."""
+            super().__init__(initial)
+            self._growth = growth
+            self._grew = False
+
+        def seek(self, offset: int, whence: int = 0) -> int:
+            """Grow once after the caller has measured the original end offset."""
+            position = super().seek(offset, whence)
+            if not self._grew and whence == 0 and offset == 0:
+                self._grew = True
+                current = super().tell()
+                super().seek(0, 2)
+                super().write(self._growth)
+                super().seek(current)
+            return position
+
+    initial = b"container"
+    source = GrowsAfterSizeProbe(initial, b"-post-admission-growth")
+    policy = AudioResourcePolicy(max_encoded_file_bytes=len(initial))
+    admitted_source: object | None = None
+
+    def preflight(candidate: object, _policy: object) -> None:
+        nonlocal admitted_source
+        admitted_source = candidate
+        assert candidate is not source
+        assert candidate.read() == initial  # type: ignore[attr-defined]
+        candidate.seek(0)  # type: ignore[attr-defined]
+
+    def load(candidate: object, **_kwargs: object) -> tuple[np.ndarray, int]:
+        assert candidate is admitted_source
+        assert candidate.read() == initial  # type: ignore[attr-defined]
+        return (
+            np.array([0.1], dtype=np.float32),
+            DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate,
+        )
+
+    monkeypatch.setattr(audio_decode, "preflight_audio_metadata", preflight)
+    monkeypatch.setattr(audio_decode.librosa, "load", load)
+
+    decoded, sample_rate = audio_decode.decode_mono_audio(source, policy=policy)
+
+    np.testing.assert_array_equal(decoded, np.array([0.1], dtype=np.float32))
+    assert sample_rate == DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
+    assert source.getvalue() == initial + b"-post-admission-growth"
 
 
 def test_decode_mono_audio_rejects_non_mono_decoder_shape_before_normalization(
