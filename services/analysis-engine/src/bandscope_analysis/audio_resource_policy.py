@@ -10,11 +10,14 @@ Security Notes:
 - Encoded byte counts are validated before decode/allocation work when the
   opened file descriptor can provide an authoritative size.
 - Decoded audio is revalidated because container metadata and decoder behavior
-  are untrusted; accepted artifacts are finite, mono, floating-point, at the
+  are untrusted; accepted artifacts are finite, mono, canonical float32, at the
   configured sample rate, and within configured sample and memory budgets.
 - The default decoded-memory ceiling is derived from the canonical float32 mono
   representation used by the production decoder, rather than a wider host
   default dtype that would silently double the admitted buffer footprint.
+- Noncanonical floating buffers fail closed even when their byte count is below
+  the memory ceiling; downstream MIR therefore receives one reproducible PCM
+  representation rather than dtype-dependent numerical inputs.
 - Decoders receive a one-sample-over-budget probe duration so a longer source is
   rejected instead of being silently truncated to the accepted duration.
 - Policy arithmetic rejects unrepresentable limits before float/sample-count
@@ -28,12 +31,12 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass
-from typing import Any, NoReturn, cast
+from typing import NoReturn, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
-AUDIO_RESOURCE_POLICY_VERSION = "2"
+AUDIO_RESOURCE_POLICY_VERSION = "3"
 DEFAULT_TARGET_SAMPLE_RATE = 44_100
 DEFAULT_MIN_SOURCE_SAMPLE_RATE = 8_000
 DEFAULT_MAX_SOURCE_SAMPLE_RATE = 192_000
@@ -225,7 +228,7 @@ class AudioResourcePolicy:
         self,
         audio: object,
         sample_rate: object,
-    ) -> NDArray[np.floating[Any]]:
+    ) -> NDArray[np.float32]:
         """Revalidate the canonical decoded artifact before feature analysis.
 
         Args:
@@ -233,7 +236,7 @@ class AudioResourcePolicy:
             sample_rate: Decoder-reported sample rate in Hz.
 
         Returns:
-            The original validated NumPy floating-point array without copying it.
+            The original validated canonical float32 mono array without copying it.
 
         Raises:
             AudioResourcePolicyError: If dtype, shape, sample rate, sample
@@ -256,9 +259,11 @@ class AudioResourcePolicy:
             _reject("decoded_sample_count_exceeded")
         if audio.nbytes > self.max_decoded_audio_bytes:
             _reject("memory_budget_exceeded")
+        if audio.dtype != np.dtype(np.float32):
+            _reject("decoded_dtype_unsupported")
         if not np.isfinite(audio).all():
             _reject("malformed_header")
-        return cast(NDArray[np.floating[Any]], audio)
+        return cast(NDArray[np.float32], audio)
 
 
 DEFAULT_AUDIO_RESOURCE_POLICY = AudioResourcePolicy()
