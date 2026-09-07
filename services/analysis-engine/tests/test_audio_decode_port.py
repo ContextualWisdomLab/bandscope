@@ -207,6 +207,25 @@ def test_bounded_encoded_source_readinto_stops_at_admitted_eof() -> None:
     assert bounded.tell() == len(admitted)
 
 
+def test_bounded_encoded_source_seek_modes_fail_closed() -> None:
+    """Cover the virtual-I/O seek contract without exposing bytes past admitted EOF."""
+    admitted = b"abcdef"
+    bounded = audio_decode._BoundedEncodedSource(io.BytesIO(admitted + b"extra"), len(admitted))
+
+    assert bounded.readable() is True
+    assert bounded.seekable() is True
+    assert bounded.seek(2, io.SEEK_SET) == 2
+    assert bounded.seek(2, io.SEEK_CUR) == 4
+    assert bounded.read(1) == b"e"
+    assert bounded.seek(0, io.SEEK_END) == len(admitted)
+    assert bounded.read() == b""
+
+    with pytest.raises(ValueError):
+        bounded.seek(0, 999)
+    with pytest.raises(OSError):
+        bounded.seek(-1, io.SEEK_SET)
+
+
 def test_decode_mono_audio_rejects_non_mono_decoder_shape_before_normalization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
