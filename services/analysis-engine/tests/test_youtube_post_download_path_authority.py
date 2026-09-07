@@ -127,3 +127,27 @@ def test_preexisting_same_video_artifact_is_never_overwritten_or_claimed(
     }
     assert existing.read_bytes() == b"previous-import-audio"
     mock_ydl_class.assert_not_called()
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_same_video_prefixed_noncanonical_file_is_not_claimed_as_completed_artifact(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A same-ID prefix alone must not authorize a noncanonical completed filename."""
+    out_dir = tmp_path / "shared-import-cache"
+    out_dir.mkdir()
+    decoy = out_dir / "abc123DEF45.keep.m4a"
+    decoy.write_bytes(b"preexisting-noncanonical-audio")
+    _configure_download(mock_ydl_class, decoy)
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        str(out_dir),
+    )
+
+    assert result == {
+        "ok": False,
+        "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
+    }
+    assert decoy.read_bytes() == b"preexisting-noncanonical-audio"
