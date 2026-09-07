@@ -2,7 +2,6 @@
 
 import ast
 import inspect
-
 from typing import Any
 
 from bandscope_analysis.exports import build_chart_text, build_cue_sheet_rows
@@ -44,7 +43,10 @@ def test_deduplication_helpers_use_chart_domain_identifiers() -> None:
     violations: set[tuple[str, str]] = set()
 
     for syntax_node in chart_syntax.body:
-        if not isinstance(syntax_node, ast.FunctionDef) or syntax_node.name not in deduplication_helpers:
+        if (
+            not isinstance(syntax_node, ast.FunctionDef)
+            or syntax_node.name not in deduplication_helpers
+        ):
             continue
         helper_identifiers = {
             child_node.id
