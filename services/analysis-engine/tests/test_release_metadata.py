@@ -65,7 +65,9 @@ def test_changelog_contains_root_package_release_entry() -> None:
 def test_changelog_preserves_dependency_security_baseline_as_fixed() -> None:
     """Keep the shipped dependency-security repair classified as a fix in Unreleased."""
     changelog = (repo_root() / "CHANGELOG.md").read_text(encoding="utf-8")
-    unreleased = changelog.split("## [0.1.3]", maxsplit=1)[0]
+    release_marker = "## [0.1.3]"
+    assert release_marker in changelog
+    unreleased = changelog.split(release_marker, maxsplit=1)[0]
     fixed = unreleased.split("### Fixed", maxsplit=1)[1]
     security_fix = "Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108"
 
