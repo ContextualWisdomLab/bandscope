@@ -25,6 +25,52 @@ fn native_analysis_cancellation_reaches_the_running_child_boundary() {
 }
 
 #[test]
+fn final_job_commit_serializes_cancellation_against_terminal_status() {
+    let source = include_str!("../src/main.rs");
+    let finalizer_start = source
+        .find("fn finalize_analysis_status_and_emit(")
+        .expect("analysis worker needs one serialized terminal-status finalizer");
+    let finalizer_tail = &source[finalizer_start..];
+    let finalizer_end = finalizer_tail
+        .find("\n}\n\nfn store_bootstrap_source")
+        .expect("terminal-status finalizer boundary must remain inspectable");
+    let finalizer = &finalizer_tail[..finalizer_end];
+
+    let jobs_lock = finalizer
+        .find("state.0.jobs.lock()")
+        .expect("finalization must hold the job-status lock");
+    let cancellation_take = finalizer
+        .find("cancellation_state.take_requested(&finished.job_id)")
+        .expect("finalization must consume any accepted cancellation request");
+    let terminal_store = finalizer
+        .find("jobs.insert(finished.job_id.clone(), final_status.clone())")
+        .expect("finalization must store exactly one terminal status while the job lock is held");
+
+    assert!(
+        jobs_lock < cancellation_take && cancellation_take < terminal_store,
+        "cancellation acceptance and terminal status publication must be serialized under the same job-status lock"
+    );
+
+    let worker_start = source
+        .find("let finished = run_analysis_engine(")
+        .expect("analysis worker must still delegate execution to the engine runner");
+    let worker_tail = &source[worker_start..];
+    let worker_end = worker_tail
+        .find("\n        release_job_slot(&app_state);")
+        .expect("analysis worker must still release its in-flight slot");
+    let worker_finalization = &worker_tail[..worker_end];
+
+    assert!(
+        worker_finalization.contains("finalize_analysis_status_and_emit("),
+        "the worker must route terminal publication through the serialized cancellation-aware finalizer"
+    );
+    assert!(
+        !worker_finalization.contains("worker_cancellation_state.clear(&job_id)"),
+        "the worker must not clear cancellation before terminal status is serialized"
+    );
+}
+
+#[test]
 fn cancellation_is_an_allowlisted_job_specific_tauri_command() {
     let source = include_str!("../src/main.rs");
 
