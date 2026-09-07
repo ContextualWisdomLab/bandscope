@@ -6,7 +6,11 @@ import numpy as np
 import pytest
 
 import bandscope_analysis.audio_resource_policy as resource_policy_module
-from bandscope_analysis.audio_resource_policy import AudioResourcePolicy
+from bandscope_analysis.audio_resource_policy import (
+    AUDIO_RESOURCE_POLICY_VERSION,
+    AudioResourcePolicy,
+    AudioResourcePolicyError,
+)
 
 
 @pytest.mark.parametrize("nonfinite_value", [np.nan, np.inf, -np.inf])
@@ -27,9 +31,11 @@ def test_finiteness_scan_caps_temporary_boolean_mask_and_preserves_rejection(
 
     monkeypatch.setattr(resource_policy_module.np, "isfinite", tracking_isfinite)
 
-    with pytest.raises(ValueError, match="audio resource policy"):
+    with pytest.raises(AudioResourcePolicyError) as captured:
         policy.validate_decoded_audio(audio, 44_100)
 
+    assert captured.value.reason == "malformed_header"
+    assert captured.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
     assert observed_samples
     assert max(observed_samples) * np.dtype(np.bool_).itemsize <= 1024 * 1024
     assert sum(observed_samples) == audio.size
