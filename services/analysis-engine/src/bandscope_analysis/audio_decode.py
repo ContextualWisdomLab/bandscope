@@ -17,6 +17,9 @@ Security Notes:
   against the same versioned policy before it can enter MIR or model work.
 - Decoder output must already be one-dimensional when ``mono=True``; a malformed
   multi-channel shape is rejected rather than flattened into false mono PCM.
+- Decoder output must remain floating-point before canonicalization. Integer,
+  boolean, object, or complex results are treated as a malformed decoder contract
+  rather than silently reinterpreted as real-valued rehearsal PCM.
 - The decoder call explicitly pins canonical ``float32`` output and the
   band-limited ``soxr_hq`` resampler so changes to third-party defaults cannot
   silently change those selected decode parameters. Numerical output can still
@@ -146,6 +149,8 @@ def decode_mono_audio(
     try:
         decoded_array = np.asarray(decoded)
         if decoded_array.ndim != 1:
+            raise _malformed_decode_error()
+        if not np.issubdtype(decoded_array.dtype, np.floating):
             raise _malformed_decode_error()
         if decoded_array.size > policy.max_decoded_samples:
             raise AudioResourcePolicyError("decoded_sample_count_exceeded")
