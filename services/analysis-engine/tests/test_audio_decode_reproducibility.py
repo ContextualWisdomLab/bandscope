@@ -35,6 +35,9 @@ def test_decode_mono_audio_pins_canonical_dtype_and_resampler(
     assert captured_kwargs["res_type"] == "soxr_hq"
     assert captured_kwargs["sr"] == DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
     assert captured_kwargs["mono"] is True
-    assert captured_kwargs["duration"] == DEFAULT_AUDIO_RESOURCE_POLICY.decode_probe_duration_seconds
+    assert (
+        captured_kwargs["duration"]
+        == DEFAULT_AUDIO_RESOURCE_POLICY.decode_probe_duration_seconds
+    )
     np.testing.assert_array_equal(decoded, np.array([0.25, -0.5], dtype=np.float32))
     assert sample_rate == DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate
