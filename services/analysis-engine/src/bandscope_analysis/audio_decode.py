@@ -18,8 +18,9 @@ Security Notes:
 - Decoder output must already be one-dimensional when ``mono=True``; a malformed
   multi-channel shape is rejected rather than flattened into false mono PCM.
 - The decoder call explicitly pins canonical ``float32`` output and the
-  band-limited ``soxr_hq`` resampler instead of inheriting third-party defaults,
-  so dependency upgrades cannot silently redefine the MIR input representation.
+  band-limited ``soxr_hq`` resampler so changes to third-party defaults cannot
+  silently change those selected decode parameters. Numerical output can still
+  change when the decoder/resampler implementation or dependency versions change.
 - Decoder sample count and allocated bytes are checked before float32
   normalization, so an over-budget wide or oversized decoder result cannot
   trigger a second canonical-buffer allocation before rejection.
