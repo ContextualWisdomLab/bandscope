@@ -19,12 +19,14 @@ from bandscope_analysis.audio_resource_policy import (
 
 def test_default_policy_has_stable_version_and_rehearsal_budget() -> None:
     """The default policy exposes one versioned budget shared by analyzers."""
-    assert AUDIO_RESOURCE_POLICY_VERSION == "1"
+    assert AUDIO_RESOURCE_POLICY_VERSION == "2"
     assert DEFAULT_AUDIO_RESOURCE_POLICY.max_encoded_file_bytes == 100 * 1024 * 1024
     assert DEFAULT_AUDIO_RESOURCE_POLICY.target_sample_rate == 44_100
     assert DEFAULT_AUDIO_RESOURCE_POLICY.max_duration_seconds == 15 * 60
     assert DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_samples == 44_100 * 15 * 60
-    assert DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes == 44_100 * 15 * 60 * 8
+    assert DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes == (
+        44_100 * 15 * 60 * np.dtype(np.float32).itemsize
+    )
 
 
 def test_oversized_encoded_file_exposes_stable_policy_reason() -> None:
