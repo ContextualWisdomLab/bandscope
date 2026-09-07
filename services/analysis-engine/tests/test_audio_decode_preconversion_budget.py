@@ -132,3 +132,27 @@ def test_decode_maps_canonical_copy_memory_error_to_budget_rejection(
 
     assert caught.value.reason == "memory_budget_exceeded"
     assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
+
+
+def test_decode_maps_array_materialization_memory_error_to_malformed_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pre-canonical materialization failure must not masquerade as a budget rejection."""
+    policy = AudioResourcePolicy(target_sample_rate=2, max_duration_seconds=1.0)
+    monkeypatch.setattr(audio_decode, "preflight_audio_metadata", lambda *_args: None)
+    monkeypatch.setattr(
+        audio_decode.librosa,
+        "load",
+        lambda *_args, **_kwargs: ([0.0, 0.0], policy.target_sample_rate),
+    )
+
+    def exhausted_asarray(*_args: object, **_kwargs: object) -> np.ndarray[Any, Any]:
+        raise MemoryError("simulated pre-canonical materialization pressure")
+
+    monkeypatch.setattr(audio_decode.np, "asarray", exhausted_asarray)
+
+    with pytest.raises(AudioResourcePolicyError) as caught:
+        audio_decode.decode_mono_audio(io.BytesIO(b"container"), policy=policy)
+
+    assert caught.value.reason == "malformed_header"
+    assert caught.value.policy_version == AUDIO_RESOURCE_POLICY_VERSION
