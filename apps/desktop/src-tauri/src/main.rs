@@ -27,6 +27,38 @@ struct LocalAudioPublicationIdentityState(
     std::sync::Mutex<std::collections::HashMap<String, LocalAudioPublicationIdentity>>,
 );
 
+/// Native owner for job-specific cancellation requests.
+///
+/// Security Notes: the renderer may request cancellation only by an already
+/// minted BandScope job id. It never receives a PID or generic process handle;
+/// the worker that owns the child remains the only code allowed to terminate it.
+#[derive(Clone, Default)]
+struct AnalysisJobCancellationRegistry(
+    std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+);
+
+impl AnalysisJobCancellationRegistry {
+    fn request(&self, job_id: &str) -> bool {
+        self.0
+            .lock()
+            .map(|mut requests| requests.insert(job_id.to_string()))
+            .unwrap_or(false)
+    }
+
+    fn is_requested(&self, job_id: &str) -> bool {
+        self.0
+            .lock()
+            .map(|requests| requests.contains(job_id))
+            .unwrap_or(true)
+    }
+
+    fn clear(&self, job_id: &str) {
+        if let Ok(mut requests) = self.0.lock() {
+            requests.remove(job_id);
+        }
+    }
+}
+
 fn iso_timestamp_now() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
@@ -396,6 +428,24 @@ fn failed_status(
     }
 }
 
+fn cancelled_status(job_id: String, requested_at: String) -> AnalysisJobStatus {
+    AnalysisJobStatus {
+        job_id,
+        state: AnalysisJobState::Failed,
+        requested_at,
+        updated_at: iso_timestamp_now(),
+        progress_label: Some("Analysis cancelled".into()),
+        progress_stage: None,
+        progress_percent: None,
+        cache_status: None,
+        result: None,
+        error: Some(AnalysisJobError {
+            code: AnalysisJobErrorCode::Cancelled,
+            message: "Analysis was cancelled.".into(),
+        }),
+    }
+}
+
 fn store_status(state: &AppState, status: &AnalysisJobStatus) {
     if let Ok(mut jobs) = state.0.jobs.lock() {
         jobs.insert(status.job_id.clone(), status.clone());
@@ -459,10 +509,15 @@ fn drain_analysis_status_updates(
 fn run_analysis_engine(
     state: AppState,
     app: tauri::AppHandle<impl Runtime>,
+    cancellation_state: AnalysisJobCancellationRegistry,
     job_id: String,
     request: AnalysisJobRequest,
     requested_at: String,
 ) -> AnalysisJobStatus {
+    if cancellation_state.is_requested(&job_id) {
+        return cancelled_status(job_id, requested_at);
+    }
+
     let (working_dir, program, mut args) = analysis_command();
 
     if program == MISSING_ANALYSIS_PYTHON {
@@ -569,6 +624,13 @@ fn run_analysis_engine(
     let exit_status;
     loop {
         drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
+        if cancellation_state.is_requested(&job_id) {
+            let _ = process.kill();
+            let _ = process.wait();
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return cancelled_status(job_id, requested_at);
+        }
         match process.try_wait() {
             Ok(Some(status)) => {
                 exit_status = status;
@@ -646,6 +708,7 @@ fn start_analysis_job(
     request: Value,
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    cancellation_state: tauri::State<'_, AnalysisJobCancellationRegistry>,
 ) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
     let mut parsed_request = match parse_request_payload(request) {
@@ -711,7 +774,15 @@ fn start_analysis_job(
 
     let app_state = state.inner().clone();
     let worker_app_handle = app.clone();
+    let worker_cancellation_state = cancellation_state.inner().clone();
     std::thread::spawn(move || {
+        if worker_cancellation_state.is_requested(&job_id) {
+            let finished = cancelled_status(job_id.clone(), requested_at.clone());
+            worker_cancellation_state.clear(&job_id);
+            store_status_and_emit(&app_state, &worker_app_handle, &finished);
+            release_job_slot(&app_state);
+            return;
+        }
         store_status_and_emit(
             &app_state,
             &worker_app_handle,
@@ -731,10 +802,12 @@ fn start_analysis_job(
         let finished = run_analysis_engine(
             app_state.clone(),
             worker_app_handle.clone(),
-            job_id,
+            worker_cancellation_state.clone(),
+            job_id.clone(),
             parsed_request,
             requested_at,
         );
+        worker_cancellation_state.clear(&job_id);
         store_status_and_emit(&app_state, &worker_app_handle, &finished);
         release_job_slot(&app_state);
     });
@@ -758,6 +831,42 @@ fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) ->
                 "Analysis job was not found.",
             )
         })
+}
+
+#[tauri::command]
+fn cancel_analysis_job(
+    job_id: String,
+    state: tauri::State<'_, AppState>,
+    cancellation_state: tauri::State<'_, AnalysisJobCancellationRegistry>,
+) -> AnalysisJobStatus {
+    let current = state
+        .0
+        .jobs
+        .lock()
+        .ok()
+        .and_then(|jobs| jobs.get(&job_id).cloned());
+    let Some(current) = current else {
+        return failed_status(
+            job_id,
+            iso_timestamp_now(),
+            AnalysisJobErrorCode::NotFound,
+            "Analysis job was not found.",
+        );
+    };
+
+    if !matches!(&current.state, AnalysisJobState::Queued | AnalysisJobState::Running) {
+        return current;
+    }
+    if !cancellation_state.request(&job_id) && !cancellation_state.is_requested(&job_id) {
+        return failed_status(
+            job_id,
+            current.requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Could not cancel the analysis job.",
+        );
+    }
+
+    current
 }
 
 #[tauri::command]
@@ -1002,11 +1111,13 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .manage(LocalAudioPublicationIdentityState::default())
+        .manage(AnalysisJobCancellationRegistry::default())
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
             import_youtube_url,
             start_analysis_job,
             get_analysis_job_status,
+            cancel_analysis_job,
             save_project,
             load_project,
             attach_score_pdf,
