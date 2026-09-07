@@ -18,6 +18,9 @@ Security Notes:
 - Noncanonical floating buffers fail closed even when their byte count is below
   the memory ceiling; downstream MIR therefore receives one reproducible PCM
   representation rather than dtype-dependent numerical inputs.
+- Finiteness validation scans the canonical PCM in chunks so the safety check
+  cannot allocate a second full-song boolean mask; each temporary finite mask
+  is capped at 1 MiB.
 - Decoders receive a one-sample-over-budget probe duration so a longer source is
   rejected instead of being silently truncated to the accepted duration.
 - Policy arithmetic rejects unrepresentable limits before float/sample-count
@@ -48,6 +51,7 @@ DEFAULT_MAX_DECODED_AUDIO_BYTES = (
     DEFAULT_TARGET_SAMPLE_RATE * DEFAULT_MAX_DURATION_SECONDS * np.dtype(np.float32).itemsize
 )
 _POLICY_ERROR = "Audio input violates the audio resource policy."
+_MAX_FINITE_CHECK_TEMP_BYTES = 1024 * 1024
 
 
 class AudioResourcePolicyError(ValueError):
@@ -63,6 +67,16 @@ class AudioResourcePolicyError(ValueError):
 def _reject(reason: str) -> NoReturn:
     """Fail closed without echoing untrusted resource metadata."""
     raise AudioResourcePolicyError(reason)
+
+
+def _all_samples_finite(audio: NDArray[np.float32]) -> bool:
+    """Check finiteness while bounding the temporary NumPy boolean mask."""
+    finite_mask_itemsize = np.dtype(np.bool_).itemsize
+    chunk_samples = max(_MAX_FINITE_CHECK_TEMP_BYTES // finite_mask_itemsize, 1)
+    for start in range(0, audio.size, chunk_samples):
+        if not np.isfinite(audio[start : start + chunk_samples]).all():
+            return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -199,7 +213,7 @@ class AudioResourcePolicy:
 
         Raises:
             AudioResourcePolicyError: If metadata is malformed or outside the
-                source bounds.
+            source bounds.
         """
         if isinstance(frames, bool) or not isinstance(frames, int) or frames <= 0:
             _reject("malformed_header")
@@ -261,9 +275,10 @@ class AudioResourcePolicy:
             _reject("memory_budget_exceeded")
         if audio.dtype != np.dtype(np.float32):
             _reject("decoded_dtype_unsupported")
-        if not np.isfinite(audio).all():
+        canonical_audio = cast(NDArray[np.float32], audio)
+        if not _all_samples_finite(canonical_audio):
             _reject("malformed_header")
-        return cast(NDArray[np.float32], audio)
+        return canonical_audio
 
 
 DEFAULT_AUDIO_RESOURCE_POLICY = AudioResourcePolicy()
