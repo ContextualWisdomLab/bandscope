@@ -1149,7 +1149,7 @@ fn remove_score_pdf(
     if !is_valid_score_id(&score_id) {
         return Err("Invalid score id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, "projects", &project_id)?;
+    let scores_root = scores_root_for_project(&app, &project_id)?;
     let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
         Ok(path) => path,
         Err(_) => return Ok(false),
