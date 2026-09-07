@@ -8,6 +8,8 @@ independently.
 Security Notes:
 - The caller-authorized binary handle, container metadata, decoder output, and
   third-party decoder exceptions are untrusted.
+- Encoded byte size is measured and admitted from the caller-owned seekable
+  handle before metadata parsing or decode work begins.
 - Source metadata is admitted before decode and the resulting PCM is revalidated
   against the same versioned policy before it can enter MIR or model work.
 - Decoder details remain exception causes only; the surfaced failure is the
@@ -39,12 +41,24 @@ def _malformed_decode_error() -> AudioResourcePolicyError:
     return AudioResourcePolicyError("malformed_header")
 
 
+def _measure_encoded_source_bytes(source: BinaryIO) -> int:
+    """Measure one seekable encoded source and restore it to the decode origin."""
+    try:
+        source.seek(0, 2)
+        file_size = source.tell()
+        source.seek(0)
+    except Exception as error:
+        raise _malformed_decode_error() from error
+    return file_size
+
+
 def decode_mono_audio(
     source: BinaryIO,
     *,
     policy: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
 ) -> tuple[AudioMonoArray, int]:
     """Admit and decode one caller-owned source to bounded mono float32 PCM."""
+    policy.validate_encoded_file_bytes(_measure_encoded_source_bytes(source))
     preflight_audio_metadata(source, policy)
 
     try:
