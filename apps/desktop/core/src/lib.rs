@@ -79,6 +79,7 @@ pub enum AnalysisJobErrorCode {
     InvalidRequest,
     NotFound,
     EngineUnavailable,
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
