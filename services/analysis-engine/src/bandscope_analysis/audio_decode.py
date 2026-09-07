@@ -21,9 +21,11 @@ Security Notes:
   band-limited ``soxr_hq`` resampler so changes to third-party defaults cannot
   silently change those selected decode parameters. Numerical output can still
   change when the decoder/resampler implementation or dependency versions change.
-- Decoder sample count and allocated bytes are checked before float32
-  normalization, and a non-owning NumPy view is rejected so a small admitted
-  view cannot retain a larger hidden backing allocation beyond the byte budget.
+- Decoder sample count and visible allocated bytes are checked before float32
+  normalization. A non-owning NumPy view is detached into an owned canonical
+  buffer, so the returned MIR artifact cannot retain a larger hidden backing
+  allocation. Decoder-internal peak memory before return remains a separate
+  process-resource acceptance boundary.
 - Decoder details remain exception causes only; the surfaced failure is the
   payload-free canonical resource-policy error.
 - This port adds no path, network, subprocess, or credential authority.
@@ -145,13 +147,14 @@ def decode_mono_audio(
         decoded_array = np.asarray(decoded)
         if decoded_array.ndim != 1:
             raise _malformed_decode_error()
-        if not decoded_array.flags.owndata:
-            raise AudioResourcePolicyError("memory_budget_exceeded")
         if decoded_array.size > policy.max_decoded_samples:
             raise AudioResourcePolicyError("decoded_sample_count_exceeded")
         if decoded_array.nbytes > policy.max_decoded_audio_bytes:
             raise AudioResourcePolicyError("memory_budget_exceeded")
-        pcm = np.asarray(decoded_array, dtype=np.float32)
+        if decoded_array.dtype == np.dtype(np.float32) and decoded_array.flags.owndata:
+            pcm = decoded_array
+        else:
+            pcm = np.array(decoded_array, dtype=np.float32, copy=True)
     except AudioResourcePolicyError:
         raise
     except (OverflowError, TypeError, ValueError) as error:
