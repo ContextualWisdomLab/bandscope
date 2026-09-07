@@ -71,6 +71,32 @@ fn final_job_commit_serializes_cancellation_against_terminal_status() {
 }
 
 #[test]
+fn queued_cancellation_uses_the_same_serialized_finalizer() {
+    let source = include_str!("../src/main.rs");
+    let worker_start = source
+        .find("std::thread::spawn(move || {")
+        .expect("analysis worker must remain present");
+    let worker_tail = &source[worker_start..];
+    let running_publish = worker_tail
+        .find("        store_status_and_emit(\n            &app_state,")
+        .expect("worker must still publish the running transition");
+    let queued_cancel_path = &worker_tail[..running_publish];
+
+    assert!(
+        queued_cancel_path.contains("worker_cancellation_state.is_requested(&job_id)"),
+        "queued cancellation must still be observed before running work starts"
+    );
+    assert!(
+        queued_cancel_path.contains("finalize_analysis_status_and_emit("),
+        "queued cancellation must use the same serialized terminal finalizer as running cancellation"
+    );
+    assert!(
+        !queued_cancel_path.contains("worker_cancellation_state.clear(&job_id)"),
+        "queued cancellation must not clear the registry before terminal status is committed"
+    );
+}
+
+#[test]
 fn cancel_command_holds_job_authority_while_accepting_a_request() {
     let source = include_str!("../src/main.rs");
     let command_start = source
