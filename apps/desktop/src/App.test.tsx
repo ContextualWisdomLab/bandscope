@@ -1150,7 +1150,7 @@ describe("App", () => {
     expect(input).not.toHaveAttribute("aria-describedby");
   });
 
-  it("handles YouTube import failure with a message", async () => {
+  it("redacts dependency-controlled YouTube import failure messages", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("This video is age restricted."));
 
     render(<App />);
@@ -1163,14 +1163,15 @@ describe("App", () => {
 
     await waitFor(() => {
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent(/This video is age restricted/i);
+      expect(alert).toHaveTextContent(/YouTube import failed\. Try again or choose a local audio file\./i);
+      expect(alert).not.toHaveTextContent(/This video is age restricted/i);
       expect(alert).toHaveAttribute("id", "selection-error");
       expect(input).toHaveAttribute("aria-invalid", "true");
       expect(input).toHaveAttribute("aria-describedby", alert.id);
     });
   });
 
-  it("handles generic exception during YouTube import", async () => {
+  it("redacts generic exceptions during YouTube import", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error("Network Error"));
 
     render(<App />);
@@ -1182,8 +1183,11 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Network Error/i)).toBeTruthy();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /YouTube import failed\. Try again or choose a local audio file\./i
+      );
     });
+    expect(screen.queryByText(/Network Error/i)).toBeNull();
   });
 
   it("rejects empty YouTube URL", async () => {
@@ -1511,7 +1515,7 @@ describe("App", () => {
     promptSpy.mockRestore();
   });
 
-  it("handles YouTube import failure with a missing message falling back to generic", async () => {
+  it("uses the same safe message when YouTube import failure omits details", async () => {
     tauriInvoke.mockRejectedValueOnce(new Error(""));
 
     render(<App />);
@@ -1523,7 +1527,9 @@ describe("App", () => {
     fireEvent.click(button);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to import YouTube URL./i)).toBeTruthy();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /YouTube import failed\. Try again or choose a local audio file\./i
+      );
     });
   });
 
