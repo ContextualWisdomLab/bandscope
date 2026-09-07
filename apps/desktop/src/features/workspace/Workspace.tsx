@@ -508,7 +508,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label={t("workspacePlayStemUnavailable")}
+                    aria-label={`Play stem. ${t("workspacePlayStemUnavailable")}`}
                     title={t("workspacePlayStemUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
@@ -530,7 +530,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   <Button
                     type="button"
                     aria-disabled={true}
-                    aria-label={t("workspaceSoloUnavailable")}
+                    aria-label={`Solo / mute others. ${t("workspaceSoloUnavailable")}`}
                     title={t("workspaceSoloUnavailable")}
                     onClick={preventUnavailableAction}
                     variant="outline"
