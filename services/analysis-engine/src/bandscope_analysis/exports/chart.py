@@ -202,7 +202,7 @@ def _footer_lines(
     section_payloads: list[Mapping[str, object]],
 ) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
-    lines: list[str] = []
+    footer_lines: list[str] = []
     rehearsal_priority_lines: dict[str, None] = {}
     for section_payload in section_payloads:
         for role_payload in _section_roles(section_payload):
@@ -213,14 +213,14 @@ def _footer_lines(
             priority_line = f"  - {display_name}: {rehearsal_priority}"
             rehearsal_priority_lines[priority_line] = None
     if rehearsal_priority_lines:
-        lines.append("Priorities:")
-        lines.extend(rehearsal_priority_lines)
+        footer_lines.append("Priorities:")
+        footer_lines.extend(rehearsal_priority_lines)
     export_summary = song_payload.get("exportSummary")
     if isinstance(export_summary, Mapping):
         focus_headline = export_summary.get("headline")
         if isinstance(focus_headline, str) and focus_headline:
-            lines.append(f"Focus: {focus_headline}")
-    return lines
+            footer_lines.append(f"Focus: {focus_headline}")
+    return footer_lines
 
 
 def build_chart_text(song: Mapping[str, object] | None) -> str:
