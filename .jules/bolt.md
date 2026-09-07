@@ -61,3 +61,6 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2026-09-07 - O(N) Array membership tests in tight loops
+**Learning:** Checking for element membership within an array (`if item not in list: list.append(item)`) inside nested loops results in O(N^2) time complexity.
+**Action:** Use an ordered dictionary (dict keys guarantee insertion order since Python 3.7) to keep track of elements (e.g. `d[item] = None`) and deduplicate keys with O(1) lookups, providing algorithmic performance improvements on large arrays while preserving order.
