@@ -95,6 +95,8 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Bind local backend only to `127.0.0.1` when a local HTTP surface exists.
 - Prefer direct IPC over a wider local HTTP surface when possible.
 - Allow only explicitly allowlisted IPC commands.
+- For Tauri application commands, keep invoke-handler registration, `AppManifest::commands`, generated allow/deny permissions, and the window capability grant in sync. A registered handler without runtime-authority permission is not a usable product capability; a broad capability grant is not an acceptable repair.
+- Job-control IPC must use BandScope-owned identifiers and typed operations. Do not expose PIDs, process handles, generic kill/exec commands, or arbitrary OS process authority to the WebView.
 - Validate all IPC and local backend payloads against strict schemas.
 - Reject unknown commands, unknown fields, and malformed payloads by default.
 - If a local HTTP service exists, consider per-session tokens or equivalent anti-cross-process protection.
@@ -157,6 +159,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 
 - Use fixed command templates plus allowlisted arguments.
 - Apply timeout, output path restriction, and resource bounds where possible.
+- Cancellation must terminate and reap the owned execution boundary rather than merely flip a UI flag. Direct-child `kill`/`wait` is only a bounded first step; do not claim process-tree containment until descendant termination, inherited-handle closure, temp cleanup, and cancellation latency are demonstrated on each supported OS.
 - Redact sensitive paths and tokens from surfaced stderr or stdout.
 - Track tool versions and their supply chain source.
 
@@ -218,6 +221,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 
 - Allow only required plugins and scopes.
 - Keep filesystem, network, and shell scopes minimal.
+- Keep application-command manifests and capability permissions explicit and narrow; capability configuration is part of the IPC security boundary, not packaging-only metadata.
 - Validate command handler payloads with explicit types.
 - Do not load remote content into a privileged Tauri context.
 
