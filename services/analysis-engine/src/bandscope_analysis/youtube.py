@@ -17,7 +17,8 @@ Security Notes:
     - The completed download path must resolve beneath this import's ``out_dir``
       before post-download size checks, cleanup, or success metadata can use it.
     - The opened-file size is revalidated with ``AudioResourcePolicy`` after
-      download; oversize artifacts are deleted.
+      download; oversized artifacts and malformed zero-byte outputs are deleted
+      while retaining the correct buyer-facing rejection category.
     - In-flight abort deletes owned ``tmpfilename`` / ``filename`` siblings
       (``.part``, ``.ytdl``, ``-Frag*``) that stay inside this import's
       ``out_dir``. Paths that escape the directory are ignored.
@@ -42,6 +43,7 @@ from bandscope_analysis.audio_resource_policy import (
     DEFAULT_AUDIO_RESOURCE_POLICY,
     DEFAULT_MAX_DURATION_SECONDS,
     DEFAULT_MAX_ENCODED_FILE_BYTES,
+    AudioResourcePolicyError,
 )
 
 YOUTUBE_VIDEO_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
@@ -415,10 +417,11 @@ def download_youtube_audio(url: str, out_dir: str) -> Dict[str, Any]:
                 DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(
                     os.path.getsize(actual_filepath)
                 )
-            except ValueError:
-                if os.path.exists(actual_filepath):
-                    os.remove(actual_filepath)
-                return _size_exceeded_result()
+            except AudioResourcePolicyError as error:
+                _remove_owned_file(actual_filepath, out_dir)
+                if error.reason == "encoded_file_too_large":
+                    return _size_exceeded_result()
+                return _download_error_result()
             return {
                 "ok": True,
                 "metadata": {
