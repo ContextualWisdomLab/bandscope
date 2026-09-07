@@ -1,15 +1,20 @@
 """Regression coverage for post-download YouTube path authority.
 
 The downloader owns only artifacts that resolve beneath the per-import output
-directory. Metadata returned by yt-dlp must not turn an arbitrary filesystem path
-into a successful import or deletion target.
+directory and belong to its active same-video lease. Metadata returned by yt-dlp
+must not turn an arbitrary or pre-existing filesystem path into a successful
+import or deletion target.
 """
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_MAX_ENCODED_FILE_BYTES
-from bandscope_analysis.youtube import YOUTUBE_IMPORT_FAILED_MESSAGE, download_youtube_audio
+from bandscope_analysis.youtube import (
+    YOUTUBE_IMPORT_FAILED_MESSAGE,
+    _import_lease_path,
+    download_youtube_audio,
+)
 
 
 def _configure_download(mock_ydl_class: MagicMock, filepath: Path) -> None:
@@ -72,3 +77,53 @@ def test_oversize_foreign_completed_path_is_not_deleted(
     }
     assert foreign.exists()
     assert foreign.stat().st_size == DEFAULT_MAX_ENCODED_FILE_BYTES + 1
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_same_video_active_lease_blocks_second_import_without_deleting_owner_artifact(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """A rejecting same-ID import cannot enter another import's cleanup authority."""
+    out_dir = tmp_path / "shared-import-cache"
+    out_dir.mkdir()
+    video_id = "abc123DEF45"
+    first_import_artifact = out_dir / f"{video_id}.m4a"
+    first_import_artifact.write_bytes(b"first-import-owned-audio")
+    Path(_import_lease_path(str(out_dir), video_id)).mkdir()
+
+    result = download_youtube_audio(
+        f"https://youtube.com/watch?v={video_id}",
+        str(out_dir),
+    )
+
+    assert result == {
+        "ok": False,
+        "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
+    }
+    assert first_import_artifact.read_bytes() == b"first-import-owned-audio"
+    mock_ydl_class.assert_not_called()
+
+
+@patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
+def test_preexisting_same_video_artifact_is_never_overwritten_or_claimed(
+    mock_ydl_class: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """An older same-ID final artifact is not ownership evidence for a new import."""
+    out_dir = tmp_path / "shared-import-cache"
+    out_dir.mkdir()
+    existing = out_dir / "abc123DEF45.m4a"
+    existing.write_bytes(b"previous-import-audio")
+
+    result = download_youtube_audio(
+        "https://youtube.com/watch?v=abc123DEF45",
+        str(out_dir),
+    )
+
+    assert result == {
+        "ok": False,
+        "error": {"code": "download_error", "message": YOUTUBE_IMPORT_FAILED_MESSAGE},
+    }
+    assert existing.read_bytes() == b"previous-import-audio"
+    mock_ydl_class.assert_not_called()
