@@ -151,6 +151,9 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
         }
       });
     }
+    if (existing.state === "failed" || existing.state === "succeeded") {
+      return existing;
+    }
     if (existing.state === "queued" || existing.state === "running") {
       const currentPercent = existing.progressPercent ?? 0;
       const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
@@ -180,6 +183,38 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
     });
     browserJobStore.set(jobId, succeeded);
     return succeeded;
+  }
+
+  if (command === "cancel_analysis_job") {
+    const jobId = String(args?.jobId ?? "");
+    const existing = browserJobStore.get(jobId);
+    if (!existing) {
+      return createAnalysisJobStatus({
+        jobId,
+        state: "failed",
+        error: {
+          code: "not_found",
+          message: "Analysis job was not found."
+        }
+      });
+    }
+    if (existing.state === "failed" || existing.state === "succeeded") {
+      return existing;
+    }
+    browserJobStore.set(
+      jobId,
+      createAnalysisJobStatus({
+        jobId,
+        state: "failed",
+        requestedAt: existing.requestedAt,
+        progressLabel: "Analysis cancelled",
+        error: {
+          code: "cancelled",
+          message: "Analysis was cancelled."
+        }
+      })
+    );
+    return existing;
   }
 
   if (command === "save_project") {
@@ -224,8 +259,8 @@ async function invokeAnalysis(command: string, args?: Record<string, unknown>): 
 }
 
 /**
- * Parse a native/import bootstrap and enforce policy-v1 encoded-byte parity
- * before the selection is allowed to become desktop project state.
+ * Parse a native/import bootstrap and enforce encoded-byte parity before the
+ * selection is allowed to become desktop project state.
  *
  * Python service and descriptor checks remain authoritative for analysis; this
  * bridge check is defense in depth so local-file and imported-file intake fail
@@ -299,6 +334,16 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
 /** Documented. */
 export async function getAnalysisJobStatus(jobId: string): Promise<AnalysisJobStatus> {
   const response = await invokeAnalysis("get_analysis_job_status", { jobId });
+  try {
+    return parseAnalysisJobStatus(response);
+  } catch {
+    throw new Error("Invalid analysis job status response");
+  }
+}
+
+/** Documented. */
+export async function cancelAnalysisJob(jobId: string): Promise<AnalysisJobStatus> {
+  const response = await invokeAnalysis("cancel_analysis_job", { jobId });
   try {
     return parseAnalysisJobStatus(response);
   } catch {
