@@ -17,15 +17,21 @@ def test_zero_byte_download_is_malformed_not_oversize(
     out_dir = tmp_path / "youtube-import"
     out_dir.mkdir()
     downloaded = out_dir / "abc123DEF45.m4a"
-    downloaded.write_bytes(b"")
 
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
-    mock_ydl.extract_info.return_value = {
-        "id": "abc123DEF45",
-        "title": "Empty postprocessor output",
-        "duration": 60,
-    }
+
+    def extract_info(_url: str, download: bool = False) -> dict[str, object]:
+        """Materialize the malformed artifact only after the import owns its lease."""
+        if download:
+            downloaded.write_bytes(b"")
+        return {
+            "id": "abc123DEF45",
+            "title": "Empty postprocessor output",
+            "duration": 60,
+        }
+
+    mock_ydl.extract_info.side_effect = extract_info
     mock_ydl.prepare_filename.return_value = str(downloaded)
 
     result = download_youtube_audio(
