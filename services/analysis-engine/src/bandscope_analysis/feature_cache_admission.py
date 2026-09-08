@@ -84,7 +84,9 @@ def _replay_policy(
             max_encoded_file_bytes=template.max_encoded_file_bytes,
             target_sample_rate=sample_rate,
             max_duration_seconds=template.max_duration_seconds,
-            max_decoded_audio_bytes=min(template.max_decoded_audio_bytes, canonical_bytes),
+            max_decoded_audio_bytes=min(
+                template.max_decoded_audio_bytes, canonical_bytes
+            ),
             min_source_sample_rate=template.min_source_sample_rate,
             max_source_sample_rate=template.max_source_sample_rate,
             min_source_channels=template.min_source_channels,
@@ -110,7 +112,9 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
 
 
-def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -> bool:
+def _has_canonical_stem_role_metadata(
+    arrays_path: Path, stem_keys: list[str]
+) -> bool:
     """Reject missing or persisted role metadata that contradicts canonical semantics."""
     metadata_path = arrays_path.with_suffix(".json")
     try:
