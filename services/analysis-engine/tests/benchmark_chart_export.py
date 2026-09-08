@@ -1,68 +1,83 @@
-"""Performance benchmarking script for rehearsal chart text and cue exports."""
+"""Measure chart-export runtime and traced allocation on a large song fixture."""
 
 import time
 import tracemalloc
+
 from bandscope_analysis.exports.chart import build_chart_text, build_cue_sheet_rows
 
-def make_large_song_fixture(num_sections=1000, roles_per_section=40):
-    """Realistic large-song export fixture for benchmarking."""
-    sections = []
-    for i in range(num_sections):
-        roles = []
-        part_graph = []
-        for j in range(roles_per_section):
-            role_id = f"role_{j % 5}"
-            roles.append({
-                "id": role_id,
-                "name": f"Role Name {role_id}",
-                "cue": {"value": f"Cue {j % 4}"},
-                "rehearsalPriority": f"Priority {j % 2}"
-            })
-            part_graph.append({"role_id": role_id, "is_active": True})
 
-        sections.append({
-            "label": f"Section {i}",
-            "timeRange": {"start": i * 10, "end": i * 10 + 5},
-            "roles": roles,
-            "partGraph": part_graph,
-            "confidence": {"level": "high"}
-        })
+def make_large_song_fixture(
+    section_count: int = 1000, roles_per_section: int = 40
+) -> dict[str, object]:
+    """Build a realistic large-song export fixture for benchmarking."""
+    song_sections: list[dict[str, object]] = []
+    for section_index in range(section_count):
+        section_roles: list[dict[str, object]] = []
+        part_graph_nodes: list[dict[str, object]] = []
+        for role_index in range(roles_per_section):
+            role_identifier = f"role_{role_index % 5}"
+            section_roles.append(
+                {
+                    "id": role_identifier,
+                    "name": f"Role Name {role_identifier}",
+                    "cue": {"value": f"Cue {role_index % 4}"},
+                    "rehearsalPriority": f"Priority {role_index % 2}",
+                }
+            )
+            part_graph_nodes.append({"role_id": role_identifier, "is_active": True})
+
+        song_sections.append(
+            {
+                "label": f"Section {section_index}",
+                "timeRange": {
+                    "start": section_index * 10,
+                    "end": section_index * 10 + 5,
+                },
+                "roles": section_roles,
+                "partGraph": part_graph_nodes,
+                "confidence": {"level": "high"},
+            }
+        )
 
     return {
         "title": "Benchmark Large Song",
         "bpm": 120,
         "key": "C major",
         "feel": "Straight",
-        "sections": sections,
-        "exportSummary": {"headline": "Benchmark"}
+        "sections": song_sections,
+        "exportSummary": {"headline": "Benchmark"},
     }
 
-def run_benchmark():
-    """Execute the large-song performance benchmark and report timing overhead."""
-    song = make_large_song_fixture()
 
-    # Warmup
-    for _ in range(2):
-        build_chart_text(song)
-        build_cue_sheet_rows(song)
+def chart_export_benchmark() -> None:
+    """Print runtime and traced peak allocation for repeated chart exports."""
+    benchmark_song = make_large_song_fixture()
+
+    for _warmup_iteration in range(2):
+        build_chart_text(benchmark_song)
+        build_cue_sheet_rows(benchmark_song)
 
     print("Running Benchmark...")
     tracemalloc.start()
-    t0 = time.perf_counter()
+    benchmark_started_at = time.perf_counter()
 
-    iterations = 50
-    for _ in range(iterations):
-        build_chart_text(song)
-        build_cue_sheet_rows(song)
+    benchmark_iteration_count = 50
+    for _benchmark_iteration in range(benchmark_iteration_count):
+        build_chart_text(benchmark_song)
+        build_cue_sheet_rows(benchmark_song)
 
-    t1 = time.perf_counter()
-    current, peak = tracemalloc.get_traced_memory()
+    benchmark_finished_at = time.perf_counter()
+    _current_allocation_bytes, peak_allocation_bytes = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
-    total_time = t1 - t0
-    print(f"Total time for {iterations} iterations: {total_time:.4f}s")
-    print(f"Average time per iteration: {(total_time / iterations) * 1000:.2f}ms")
-    print(f"Peak memory overhead: {peak / 1024 / 1024:.2f} MB")
+    total_duration_seconds = benchmark_finished_at - benchmark_started_at
+    print(f"Total time for {benchmark_iteration_count} iterations: {total_duration_seconds:.4f}s")
+    print(
+        "Average time per iteration: "
+        f"{(total_duration_seconds / benchmark_iteration_count) * 1000:.2f}ms"
+    )
+    print(f"Peak memory overhead: {peak_allocation_bytes / 1024 / 1024:.2f} MB")
+
 
 if __name__ == "__main__":
-    run_benchmark()
+    chart_export_benchmark()

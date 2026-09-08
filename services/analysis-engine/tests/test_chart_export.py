@@ -384,6 +384,7 @@ class TestNoPathLeakage:
         assert "/Users" not in rows_json
         assert "secret-demo" not in rows_json
 
+
 class TestPerformanceContract:
     """Performance-related export assertions (order and duplicates)."""
 
@@ -398,15 +399,15 @@ class TestPerformanceContract:
             {"role_id": "keys", "is_active": True},
             {"role_id": "drums", "is_active": True},
             {"role_id": "bass", "is_active": True},
-            {"role_id": "keys", "is_active": True}, # duplicate
-            {"role_id": "vocals", "is_active": True}
+            {"role_id": "keys", "is_active": True},  # duplicate
+            {"role_id": "vocals", "is_active": True},
         ]
         # Match the roles list
         section["roles"] = [
             _role("keys", "Keys", "Play the progression"),
             _role("drums", "Drums", "Four-count into the verse"),
             _role("bass", "Bass", "Enter on the downbeat"),
-            _role("keys", "Keys Copy", "Play the progression"), # duplicate id and cue
+            _role("keys", "Keys Copy", "Play the progression"),  # duplicate id and cue
             _role("vocals", "Vocals", "Sing"),
         ]
 
@@ -426,7 +427,7 @@ class TestPerformanceContract:
         section["roles"] = [
             _role("r1", "R1", "First cue"),
             _role("r2", "R2", "Second cue"),
-            _role("r3", "R3", "First cue"), # duplicate
+            _role("r3", "R3", "First cue"),  # duplicate
         ]
 
         rows = build_cue_sheet_rows(song)
@@ -443,8 +444,8 @@ class TestPerformanceContract:
         ]
         section["roles"] = [
             _role("r1", "🎸 Guitar", "🚀 Intro"),
-            _role("r2", "", ""), # Empty names/cues shouldn't break or create weird artifacts
-            _role("r3", "🎸 Guitar", "🚀 Intro"), # Duplicate unicode
+            _role("r2", "", ""),  # Empty names/cues shouldn't break or create weird artifacts
+            _role("r3", "🎸 Guitar", "🚀 Intro"),  # Duplicate unicode
         ]
 
         rows = build_cue_sheet_rows(song)
@@ -544,7 +545,7 @@ def test_chart_benchmark_uses_semantic_identifiers() -> None:
         "benchmark_song",
         "benchmark_started_at",
         "chart_export_benchmark",
-        "current_allocation_bytes",
+        "_current_allocation_bytes",
         "part_graph_nodes",
         "peak_allocation_bytes",
         "section_index",
