@@ -23,6 +23,14 @@ def test_model_output_rejects_empty_nonfinite_or_float32_overflow(values: np.nda
         _as_float_array(values)
 
 
+def test_model_output_rejects_non_mono_shape() -> None:
+    """Model output with an extra channel axis must not be flattened into rehearsal audio."""
+    values = np.array([[0.25, -0.5], [0.75, -0.25]], dtype=np.float32)
+
+    with pytest.raises(ValueError, match=r"^Stem separation produced invalid audio\.$"):
+        _as_float_array(values)
+
+
 def test_model_output_wraps_non_numeric_conversion_errors() -> None:
     """Non-numeric model output must fail with the stable payload-free error."""
     with pytest.raises(ValueError, match=r"^Stem separation produced invalid audio\.$"):
