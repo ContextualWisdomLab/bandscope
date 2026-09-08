@@ -267,7 +267,9 @@ def load_bounded_stem_archive(
                             ):
                                 canonical = stem_array
                             else:
-                                canonical = np.array(stem_array, dtype=np.float32, copy=True)
+                                canonical = np.array(
+                                    stem_array, dtype=np.float32, copy=True
+                                )
                         validated = policy.validate_decoded_audio(
                             canonical, sample_rate
                         )
