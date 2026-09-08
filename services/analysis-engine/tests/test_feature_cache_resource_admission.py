@@ -115,13 +115,8 @@ def test_feature_cache_replay_rejects_oversized_member_before_decompression(
     load_mock.assert_not_called()
 
 
-def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materialization(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Persisted stems must preserve one synchronized sample timeline before MIR reuse."""
-    metadata_path = tmp_path / "features.json"
-    arrays_path = tmp_path / "features.npz"
+def _write_two_stem_cache(metadata_path: Path, arrays_path: Path, *, drum_samples: int) -> None:
+    """Write canonical bass/drums cache data with a configurable drums timeline."""
     metadata_path.write_text(
         json.dumps(
             {
@@ -141,8 +136,31 @@ def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materializa
     np.savez_compressed(
         arrays_path,
         stem_bass=np.zeros(16, dtype=np.float32),
-        stem_drums=np.zeros(8, dtype=np.float32),
+        stem_drums=np.zeros(drum_samples, dtype=np.float32),
     )
+
+
+def test_feature_cache_replay_accepts_aligned_stem_timelines(tmp_path: Path) -> None:
+    """Canonical persisted stems with one shared sample timeline remain reusable."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_two_stem_cache(metadata_path, arrays_path, drum_samples=16)
+
+    loaded = _load_cached_local_audio_features(metadata_path, arrays_path)
+
+    assert loaded is not None
+    assert set(loaded["stems"]) == {"bass", "drums"}
+    assert loaded["stems"]["bass"].shape == loaded["stems"]["drums"].shape == (16,)
+
+
+def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persisted stems must preserve one synchronized sample timeline before MIR reuse."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_two_stem_cache(metadata_path, arrays_path, drum_samples=8)
 
     load_mock = Mock(side_effect=AssertionError("misaligned stems must fail before np.load"))
     monkeypatch.setattr("bandscope_analysis.feature_cache_admission.np.load", load_mock)
