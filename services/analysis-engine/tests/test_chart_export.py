@@ -1,9 +1,13 @@
 """Tests for the chart-style cue-sheet export builders."""
 
+import ast
+import inspect
 import json
+import textwrap
 from typing import Any
 
 from bandscope_analysis.exports import build_chart_text, build_cue_sheet_rows
+from bandscope_analysis.exports import chart as chart_module
 
 
 def _role(
@@ -257,6 +261,74 @@ class TestBuildCueSheetRows:
         )
         rows = build_cue_sheet_rows(song)
         assert rows[1]["roles"] == ["Drums"]
+
+    def test_duplicate_export_values_keep_first_occurrence_order(self) -> None:
+        """Dictionary-backed de-duplication preserves first-occurrence order."""
+        song = _demo_song()
+        verse_section = song["sections"][0]
+        verse_section["roles"].append(
+            _role("duplicate-drums", "Drums", "Four-count into the verse", "Lock the hi-hat")
+        )
+        verse_section["partGraph"].append(
+            {
+                "role_id": "duplicate-drums",
+                "is_active": True,
+                "handoff_to": [],
+                "handoff_from": [],
+            }
+        )
+
+        cue_sheet_rows = build_cue_sheet_rows(song)
+        chart_text = build_chart_text(song)
+
+        assert cue_sheet_rows[0]["roles"] == ["Drums", "Bass"]
+        assert cue_sheet_rows[0]["cue"] == "Four-count into the verse; Enter on the downbeat"
+        assert chart_text.count("  - Drums: Lock the hi-hat") == 1
+
+
+def test_deduplication_helpers_use_semantic_identifiers() -> None:
+    """Keep generic one-word locals out of the optimized export helpers."""
+    deduplication_helpers = (
+        chart_module._active_role_ids,
+        chart_module._active_role_names,
+        chart_module._section_cue,
+        chart_module._footer_lines,
+    )
+    forbidden_identifiers = {
+        "active",
+        "cue",
+        "cues",
+        "entry",
+        "headline",
+        "lines",
+        "name",
+        "node",
+        "priorities",
+        "priority",
+        "role",
+        "section",
+        "sections",
+        "song",
+        "summary",
+        "value",
+    }
+
+    for deduplication_helper in deduplication_helpers:
+        helper_tree = ast.parse(textwrap.dedent(inspect.getsource(deduplication_helper)))
+        helper_identifiers = {
+            syntax_node.id
+            for syntax_node in ast.walk(helper_tree)
+            if isinstance(syntax_node, ast.Name) and isinstance(syntax_node.ctx, ast.Store)
+        }
+        helper_identifiers.update(
+            argument_node.arg
+            for argument_node in ast.walk(helper_tree)
+            if isinstance(argument_node, ast.arg)
+        )
+        assert forbidden_identifiers.isdisjoint(helper_identifiers), (
+            deduplication_helper.__name__,
+            forbidden_identifiers & helper_identifiers,
+        )
 
 
 class TestSafeFailure:
