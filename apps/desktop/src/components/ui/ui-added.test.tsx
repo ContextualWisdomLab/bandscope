@@ -260,10 +260,38 @@ describe("added ui primitives (runtime render)", () => {
           <SliderTrack>
             <SliderIndicator />
           </SliderTrack>
-          <SliderThumb />
+          <SliderThumb aria-label="Test Slider" />
         </SliderControl>
       </Slider>
     )
-    expect(screen.getByRole("slider")).toBeInTheDocument()
+    expect(screen.getByRole("slider", { name: "Test Slider" })).toBeInTheDocument()
+  })
+
+  it("Slider mounts vertically and renders accessible roles", () => {
+    render(
+      <Slider orientation="vertical">
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Vertical Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    expect(screen.getByRole("slider", { name: "Vertical Slider" })).toHaveAttribute("aria-orientation", "vertical")
+  })
+
+  it("Slider correctly handles disabled state", () => {
+    render(
+      <Slider disabled>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Disabled Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    expect(screen.getByRole("slider", { name: "Disabled Slider" })).toBeDisabled()
   })
 })

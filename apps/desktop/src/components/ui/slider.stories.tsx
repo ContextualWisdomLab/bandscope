@@ -28,7 +28,7 @@ export const Default: Story = {
           <SliderTrack>
             <SliderIndicator />
           </SliderTrack>
-          <SliderThumb />
+          <SliderThumb aria-label="Volume" />
         </SliderControl>
       </Slider>
     </div>

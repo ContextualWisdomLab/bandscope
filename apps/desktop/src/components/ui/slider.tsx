@@ -9,10 +9,22 @@ function Slider({ className, ...props }: SliderPrimitive.Root.Props) {
   return (
     <SliderPrimitive.Root
       data-slot="slider"
-      className={cn(
-        "relative flex w-full touch-none select-none items-center",
-        className
-      )}
+      className={
+        typeof className === "function"
+          ? (state) =>
+              cn(
+                "relative flex w-full touch-none select-none items-center",
+                "data-[orientation=vertical]:flex-col data-[orientation=vertical]:w-auto data-[orientation=vertical]:h-full",
+                "data-disabled:opacity-50 data-disabled:pointer-events-none",
+                className(state)
+              )
+          : cn(
+              "relative flex w-full touch-none select-none items-center",
+              "data-[orientation=vertical]:flex-col data-[orientation=vertical]:w-auto data-[orientation=vertical]:h-full",
+              "data-disabled:opacity-50 data-disabled:pointer-events-none",
+              className
+            )
+      }
       {...props}
     />
   )
@@ -23,7 +35,20 @@ function SliderControl({ className, ...props }: SliderPrimitive.Control.Props) {
   return (
     <SliderPrimitive.Control
       data-slot="slider-control"
-      className={cn("relative flex w-full items-center", className)}
+      className={
+        typeof className === "function"
+          ? (state) =>
+              cn(
+                "relative flex w-full items-center",
+                "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
+                className(state)
+              )
+          : cn(
+              "relative flex w-full items-center",
+              "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
+              className
+            )
+      }
       {...props}
     />
   )
@@ -34,10 +59,20 @@ function SliderTrack({ className, ...props }: SliderPrimitive.Track.Props) {
   return (
     <SliderPrimitive.Track
       data-slot="slider-track"
-      className={cn(
-        "relative h-2 w-full grow overflow-hidden rounded-full bg-secondary",
-        className
-      )}
+      className={
+        typeof className === "function"
+          ? (state) =>
+              cn(
+                "relative h-2 w-full grow overflow-hidden rounded-full bg-secondary",
+                "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2",
+                className(state)
+              )
+          : cn(
+              "relative h-2 w-full grow overflow-hidden rounded-full bg-secondary",
+              "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2",
+              className
+            )
+      }
       {...props}
     />
   )
@@ -51,7 +86,20 @@ function SliderIndicator({
   return (
     <SliderPrimitive.Indicator
       data-slot="slider-indicator"
-      className={cn("h-full bg-primary", className)}
+      className={
+        typeof className === "function"
+          ? (state) =>
+              cn(
+                "h-full bg-primary",
+                "data-[orientation=vertical]:w-full data-[orientation=vertical]:h-auto",
+                className(state)
+              )
+          : cn(
+              "h-full bg-primary",
+              "data-[orientation=vertical]:w-full data-[orientation=vertical]:h-auto",
+              className
+            )
+      }
       {...props}
     />
   )
@@ -62,10 +110,18 @@ function SliderThumb({ className, ...props }: SliderPrimitive.Thumb.Props) {
   return (
     <SliderPrimitive.Thumb
       data-slot="slider-thumb"
-      className={cn(
-        "block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-        className
-      )}
+      className={
+        typeof className === "function"
+          ? (state) =>
+              cn(
+                "block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-disabled:pointer-events-none data-disabled:opacity-50",
+                className(state)
+              )
+          : cn(
+              "block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-disabled:pointer-events-none data-disabled:opacity-50",
+              className
+            )
+      }
       {...props}
     />
   )
