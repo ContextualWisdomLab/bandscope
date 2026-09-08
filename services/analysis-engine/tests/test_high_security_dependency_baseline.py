@@ -35,6 +35,7 @@ def test_manifests_pin_the_security_floors_without_semver_drift() -> None:
     root_manifest = _read_json("package.json")
     desktop_manifest = _read_json("apps/desktop/package.json")
 
+    assert root_manifest["devDependencies"]["jsdom"] == _JSDOM_VERSION  # type: ignore[index]
     assert root_manifest["devDependencies"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
     assert root_manifest["overrides"]["undici"] == "$undici"  # type: ignore[index]
     assert desktop_manifest["dependencies"]["pdfjs-dist"] == _PDFJS_VERSION  # type: ignore[index]
@@ -49,6 +50,7 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
 
     root_package = packages[""]
     assert isinstance(root_package, dict)
+    assert root_package["devDependencies"]["jsdom"] == _JSDOM_VERSION  # type: ignore[index]
     assert root_package["devDependencies"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
 
     desktop = packages["apps/desktop"]

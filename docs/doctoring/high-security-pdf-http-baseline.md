@@ -5,7 +5,8 @@
 BandScope treats the PDF parser, its transitive HTTP client, and the package-manager runtime that materializes their reviewed lock as one security-release boundary:
 
 - `pdfjs-dist` is pinned exactly to `6.2.108`;
-- `undici` is pinned exactly to `7.29.0` through the root npm override; and
+- `jsdom` is pinned exactly to `30.0.1` at both the root test-runner and desktop-workspace resolution boundaries;
+- `undici` is pinned exactly to `8.10.0` through the root npm override; and
 - npm `10.9.9` is the approved generator for reviewed root-workspace dependency updates. Primary CI activates that project-pinned npm through Node-bundled Corepack, verifies npm's own bundled `tar` is at least `7.5.19`, and only then consumes the committed lock through frozen validation rather than re-resolving it.
 
 Repository dependency/security tooling reported the protected-base `pdfjs-dist@6.1.200` as requiring a newer floor. That finding is kept distinct from the older, GitHub-reviewed CVE-2024-4367 / GHSA-wgrm-67xf-hhpq: the 2024 advisory affected `pdfjs-dist <=4.1.392` and was fixed in `4.2.67`, so it is historical parser-risk context and is **not** evidence that `6.1.200` was affected by that CVE. BandScope pins the current `6.2.108` artifact selected by the repository security baseline and requires current-head audit/security evidence rather than misattributing a scanner result to an unrelated advisory.
@@ -22,7 +23,7 @@ flowchart LR
     F --> C
     C --> W[Same-origin bundled worker]
     W --> R[Canvas render]
-    J[jsdom development path] --> U[undici 7.29.0 override]
+    J[jsdom 30.0.1 development path] --> U[undici 8.10.0 override]
     N[Corepack-activated npm 10.9.9] --> T[verify bundled tar >= 7.5.19]
     T --> L[Reviewed package-lock artifact]
     L --> V[npm ci frozen validation]
@@ -39,6 +40,16 @@ PDF bytes remain untrusted after the native magic-byte, size, and path checks. P
 The pinned PDF.js XML parser does not expose an external-entity resolver through this wrapper: its default `onDoctype()` hook is a no-op, and `onResolveEntity()` resolves only the built-in XML entities before returning an unknown named entity literally. This source-level observation narrows what BandScope can claim; it is not a general assertion that every future PDF.js XML path is immune to entity-processing defects. Any parser upgrade must re-check the upstream implementation and repeat adversarial PDF verification.
 
 Undici is currently a development dependency reached through jsdom, but development and CI parsers process attacker-controlled fixtures, generated HTML, and network-like request bodies. A dev-only label does not make header injection, shared-cache disclosure, retry desynchronization, or cookie-attribute injection acceptable in the trusted build boundary.
+
+## jsdom and Undici compatibility decision
+
+The initial Undici 8.10.0-only update failed before any desktop test could run because jsdom 29.1.1 imported the removed private path `undici/lib/handler/wrap-handler.js`. The override forced that incompatible major beneath both the desktop environment and Vitest's root-level optional jsdom peer. This was a dependency-graph defect, not a product-test failure.
+
+BandScope selected jsdom 30.0.1 because its published package contract requires Undici `^8.9.0`, while Undici 8.10.0 satisfies that range. Both manifests pin jsdom exactly so npm resolves Vitest's root peer and the desktop workspace to the same implementation; the root Undici override then deduplicates every admitted HTTP-client edge to 8.10.0. CI uses Node 22.22.3, which satisfies jsdom's `^22.22.2` and Undici's `>=22.19.0` engine floors.
+
+Retaining jsdom 29.1.1 was rejected because it left the missing-private-module failure intact. Removing the Undici override was rejected because it would permit two independently drifting HTTP clients inside the same test trust boundary. A local shim for Undici's removed private module was rejected because it would create an organization-owned copy of an unsupported upstream interface.
+
+The accepted graph adds no runtime or shipped desktop dependency: jsdom and Undici remain development/test-only. The operational risk is a changed simulated DOM and CSS implementation, so the desktop's full component suite, typecheck, production build, frozen-lock validation, audit, SBOM, and cross-platform build gates remain mandatory. If a test runner cannot create its jsdom environment, the failure must remain terminal and preserve the exact manifest, lock, Node/npm versions, and missing-module path; no fallback DOM or test exclusion is allowed.
 
 The package-manager runtime is also part of that build trust boundary. npm `10.9.8` bundled `tar 7.5.11`, which falls inside GitHub-reviewed GHSA-23hp-3jrh-7fpw / CVE-2026-59873 (`tar <=7.5.18`). npm `10.9.9` updates its bundled tar to `7.5.22`. BandScope therefore rejects the previous generator runtime rather than relying on `--ignore-scripts`: archive extraction occurs before lifecycle-script policy can make a vulnerable tar implementation safe.
 
@@ -70,6 +81,7 @@ The lock contract requires the exact public-registry tarball and SHA-512 SRI for
 The merge gate includes:
 
 - exact manifest and lock artifact tests;
+- one deduplicated jsdom 30.0.1 / Undici 8.10.0 test graph, including Vitest's root peer and the desktop workspace;
 - npm `10.9.9` plus bundled `tar >=7.5.19` runtime provenance before every primary CI dependency-consumption step;
 - a direct PDF.js wrapper test proving copied bytes, the locally bundled worker, `enableXfa: false`, `useWorkerFetch: false`, and no URL-bearing initialization member;
 - TypeScript compilation against the installed PDF.js `DocumentInitParameters` rather than an unsafe cast;
@@ -103,7 +115,9 @@ Mozilla. (2026). *PDF.js 6.2.108* [Software release]. https://github.com/mozilla
 
 Node.js contributors. (2026). *Corepack* [Software documentation]. GitHub. https://github.com/nodejs/corepack
 
-Node.js contributors. (2026). *Undici 7.29.0* [Software release]. https://github.com/nodejs/undici/releases/tag/v7.29.0
+jsdom contributors. (2026). *jsdom 30.0.1* [Software release]. https://github.com/jsdom/jsdom/releases/tag/v30.0.1
+
+Node.js contributors. (2026). *Undici 8.10.0* [Software release]. https://github.com/nodejs/undici/releases/tag/v8.10.0
 
 npm, Inc. (2026). *npm 10.9.9* [Software release]. GitHub. https://github.com/npm/cli/releases/tag/v10.9.9
 
