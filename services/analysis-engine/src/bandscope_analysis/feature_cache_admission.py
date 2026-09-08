@@ -19,6 +19,8 @@ Security Notes:
 - ZIP central-directory declarations and bounded NPY headers are checked before
   ``np.load`` can decompress a stem member. Extra or duplicate members fail
   closed rather than becoming hidden compressed payload.
+- Every admitted stem must declare the same non-zero sample count so replay
+  preserves the synchronized timeline produced by source separation.
 - Each member is one non-empty floating one-dimensional signal within the
   configured sample and visible-byte ceilings. Loaded legacy floating dtypes
   are converted to owned ``float32`` only after those pre-copy bounds pass.
@@ -147,6 +149,7 @@ def _preflight_npz(
             if len(member_names) != len(set(member_names)):
                 return False
 
+            expected_sample_count: int | None = None
             total_declared_bytes = 0
             for member in members:
                 if (
@@ -174,6 +177,10 @@ def _preflight_npz(
                     if not np.issubdtype(dtype, np.floating):
                         return False
                     sample_count = int(shape[0])
+                    if expected_sample_count is None:
+                        expected_sample_count = sample_count
+                    elif sample_count != expected_sample_count:
+                        return False
                     data_bytes = sample_count * dtype.itemsize
                     if (
                         sample_count > policy.max_decoded_samples
