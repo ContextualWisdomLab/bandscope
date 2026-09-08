@@ -617,19 +617,31 @@ fn run_analysis_engine(
     let expected_job_id = job_id.clone();
     let stdout_reader = thread::spawn(move || {
         let mut last_status = None;
-        let mut identity_rejected = false;
+        let mut protocol_rejected = false;
+        let mut terminal_status_seen = false;
         let result = read_bounded_process_lines(stdout, |line| {
-            if identity_rejected {
+            if protocol_rejected {
                 return;
             }
             if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(line) {
-                if status.job_id != expected_job_id {
-                    identity_rejected = true;
+                if status.job_id != expected_job_id || terminal_status_seen {
+                    protocol_rejected = true;
                     let _ = stdout_failure_tx.send(());
                     return;
                 }
-                last_status = Some(status.clone());
-                let _ = status_tx.send(status);
+                match &status.state {
+                    AnalysisJobState::Succeeded | AnalysisJobState::Failed => {
+                        terminal_status_seen = true;
+                        last_status = Some(status);
+                    }
+                    AnalysisJobState::Running => {
+                        let _ = status_tx.send(status);
+                    }
+                    _ => {
+                        protocol_rejected = true;
+                        let _ = stdout_failure_tx.send(());
+                    }
+                }
             }
         });
         if result.is_err() {
@@ -755,9 +767,7 @@ fn run_analysis_engine(
         );
     }
     drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
-    if last_status.is_none() {
-        last_status = reader_last_status;
-    }
+    last_status = reader_last_status.or(last_status);
 
     if !exit_status.success() {
         return failed_status(
@@ -1190,7 +1200,7 @@ fn read_score_pdf(
     if !is_valid_project_id(&project_id) {
         return Err("Invalid project id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects", project_id)?;
     let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
     read_validated_score_pdf(&path)
 }
