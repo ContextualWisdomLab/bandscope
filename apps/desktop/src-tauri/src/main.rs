@@ -9,59 +9,13 @@ use serde_json::{json, Value};
 use std::{
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
     sync::{atomic::Ordering, mpsc},
     thread,
     time::Instant,
 };
-#[cfg(unix)]
-use std::{ffi::c_int, os::unix::process::CommandExt};
 use tauri::{Emitter, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-const SIGKILL: c_int = 9;
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-extern "C" {
-    #[link_name = "kill"]
-    fn posix_kill(pid: c_int, signal: c_int) -> c_int;
-}
-
-/// Configure the analysis engine so ordinary descendants share one owned Unix process group.
-///
-/// Security Notes: on Linux and macOS, `process_group(0)` runs in the child before exec and
-/// makes the Python engine the leader of a fresh process group. This gives cancellation and
-/// timeout handling one OS-owned boundary that includes descendants which retain the inherited
-/// process group. Windows remains direct-child-only until the separate race-free Job Object
-/// boundary is implemented and verified.
-fn configure_analysis_process(command: &mut Command) {
-    #[cfg(unix)]
-    command.process_group(0);
-}
-
-/// Terminate the analysis execution boundary and reap the directly owned child.
-///
-/// Security Notes: Linux and macOS send SIGKILL to the negative process-group id, matching the
-/// POSIX `kill` group form. If group signalling is unavailable or fails, the function falls back
-/// to direct-child termination rather than reporting cancellation before the owned child is
-/// reaped. This is not a Windows descendant-containment claim.
-fn terminate_analysis_process(process: &mut Child) {
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    if let Ok(process_group_id) = c_int::try_from(process.id()) {
-        // SAFETY: `process_group(0)` makes the spawned child the leader of a fresh group whose
-        // id equals its PID on supported Unix targets. A negative pid targets that group; the
-        // signal constant is SIGKILL on both Linux and macOS. No renderer-controlled PID enters
-        // this call.
-        if unsafe { posix_kill(-process_group_id, SIGKILL) } == 0 {
-            let _ = process.wait();
-            return;
-        }
-    }
-
-    let _ = process.kill();
-    let _ = process.wait();
-}
 
 /// Native-only cache of verified local-audio publication identities.
 ///
@@ -619,7 +573,7 @@ fn run_analysis_engine(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    configure_analysis_process(&mut command);
+    configure_owned_process(&mut command);
 
     let mut process = match command.spawn() {
         Ok(process) => process,
@@ -638,7 +592,7 @@ fn run_analysis_engine(
         "request": request,
     });
     let Some(stdout) = process.stdout.take() else {
-        terminate_analysis_process(&mut process);
+        terminate_owned_process(&mut process);
         return failed_status(
             job_id,
             requested_at,
@@ -647,7 +601,7 @@ fn run_analysis_engine(
         );
     };
     let Some(stderr) = process.stderr.take() else {
-        terminate_analysis_process(&mut process);
+        terminate_owned_process(&mut process);
         return failed_status(
             job_id,
             requested_at,
@@ -685,7 +639,7 @@ fn run_analysis_engine(
 
     if let Some(mut stdin) = process.stdin.take() {
         if stdin.write_all(payload.to_string().as_bytes()).is_err() {
-            terminate_analysis_process(&mut process);
+            terminate_owned_process(&mut process);
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return failed_status(
@@ -706,7 +660,7 @@ fn run_analysis_engine(
     loop {
         drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
         if cancellation_state.is_requested(&job_id) {
-            terminate_analysis_process(&mut process);
+            terminate_owned_process(&mut process);
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return cancelled_status(job_id, requested_at);
@@ -718,7 +672,7 @@ fn run_analysis_engine(
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
-                    terminate_analysis_process(&mut process);
+                    terminate_owned_process(&mut process);
                     let _ = stdout_reader.join();
                     let _ = stderr_reader.join();
                     return failed_status(
@@ -734,7 +688,7 @@ fn run_analysis_engine(
                 thread::sleep(ANALYSIS_WAIT_POLL);
             }
             Err(_) => {
-                terminate_analysis_process(&mut process);
+                terminate_owned_process(&mut process);
                 let _ = stdout_reader.join();
                 let _ = stderr_reader.join();
                 return failed_status(
