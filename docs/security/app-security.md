@@ -159,7 +159,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 
 - Use fixed command templates plus allowlisted arguments.
 - Apply timeout, output path restriction, and resource bounds where possible.
-- Cancellation must terminate and reap the owned execution boundary rather than merely flip a UI flag. Direct-child `kill`/`wait` is only a bounded first step; do not claim process-tree containment until descendant termination, inherited-handle closure, temp cleanup, and cancellation latency are demonstrated on each supported OS.
+- Cancellation must terminate and reap the owned execution boundary rather than merely flip a UI flag. The Linux/macOS analysis runner establishes a dedicated process group before `exec` and targets that inherited group on cancellation, timeout, and runner errors before reaping the direct child. This covers ordinary descendants that remain in the group, not descendants that deliberately call `setsid()`/`setpgid()` or otherwise leave it. Windows remains direct-child-only until a race-free Job Object creation/assignment boundary is implemented. Do not claim commercial process-tree cleanup until Windows containment and rights-cleared full-length real-audio evidence demonstrate inherited-handle/pipe release, temp cleanup, and bounded cancellation latency.
 - Redact sensitive paths and tokens from surfaced stderr or stdout.
 - Track tool versions and their supply chain source.
 
