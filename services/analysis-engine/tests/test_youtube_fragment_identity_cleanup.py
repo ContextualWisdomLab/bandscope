@@ -20,6 +20,13 @@ def test_cleanup_stem_preserves_fragment_token_inside_valid_video_id() -> None:
     )
 
 
+def test_cleanup_stem_requires_ascii_fragment_number() -> None:
+    """Unicode digits must not widen yt-dlp's ASCII ``-FragN`` cleanup syntax."""
+    unicode_digit_name = f"{VIDEO_ID_WITH_FRAGMENT_TOKEN}.m4a.part-Frag２"
+
+    assert _cleanup_stem(unicode_digit_name) == unicode_digit_name
+
+
 def test_abort_cleanup_removes_fragment_when_video_id_contains_fragment_token(
     tmp_path: Path,
 ) -> None:
@@ -45,3 +52,22 @@ def test_abort_cleanup_removes_fragment_when_video_id_contains_fragment_token(
     assert not partial.exists()
     assert not fragment.exists()
     assert keep.exists()
+
+
+def test_abort_cleanup_preserves_unicode_digit_fragment_decoy(tmp_path: Path) -> None:
+    """Cleanup must not delete same-ID files outside yt-dlp's ASCII fragment grammar."""
+    out_dir = tmp_path / "import-cache"
+    out_dir.mkdir()
+    partial = out_dir / f"{VIDEO_ID_WITH_FRAGMENT_TOKEN}.m4a.part"
+    unicode_digit_decoy = out_dir / f"{VIDEO_ID_WITH_FRAGMENT_TOKEN}.m4a.part-Frag２"
+    partial.write_bytes(b"partial")
+    unicode_digit_decoy.write_bytes(b"preserve")
+
+    _remove_download_artifacts(
+        {"tmpfilename": str(partial)},
+        str(out_dir),
+        VIDEO_ID_WITH_FRAGMENT_TOKEN,
+    )
+
+    assert not partial.exists()
+    assert unicode_digit_decoy.exists()
