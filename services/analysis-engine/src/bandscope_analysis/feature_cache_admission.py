@@ -27,7 +27,7 @@ import os
 import stat
 import zipfile
 from pathlib import Path
-from typing import cast
+from typing import BinaryIO
 
 import numpy as np
 from numpy.typing import NDArray
@@ -45,14 +45,22 @@ _NPY_VERSION = (1, 0)
 _CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 
 
-def _replay_policy(sample_rate: object, template: AudioResourcePolicy) -> AudioResourcePolicy | None:
+def _replay_policy(
+    sample_rate: object,
+    template: AudioResourcePolicy,
+) -> AudioResourcePolicy | None:
     """Derive a bounded replay policy for the cache-declared analysis rate."""
     if isinstance(sample_rate, bool) or not isinstance(sample_rate, int):
         return None
-    if sample_rate < template.min_source_sample_rate or sample_rate > template.max_source_sample_rate:
+    if (
+        sample_rate < template.min_source_sample_rate
+        or sample_rate > template.max_source_sample_rate
+    ):
         return None
     try:
-        canonical_bytes = int(sample_rate * float(template.max_duration_seconds)) * _CANONICAL_ITEMSIZE
+        canonical_bytes = (
+            int(sample_rate * float(template.max_duration_seconds)) * _CANONICAL_ITEMSIZE
+        )
         return AudioResourcePolicy(
             max_encoded_file_bytes=template.max_encoded_file_bytes,
             target_sample_rate=sample_rate,
@@ -69,7 +77,11 @@ def _replay_policy(sample_rate: object, template: AudioResourcePolicy) -> AudioR
 
 def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     """Return the exact NPY member set for one bounded stem-key list."""
-    if not stem_keys or len(stem_keys) > _MAX_STEM_MEMBERS or len(set(stem_keys)) != len(stem_keys):
+    if (
+        not stem_keys
+        or len(stem_keys) > _MAX_STEM_MEMBERS
+        or len(set(stem_keys)) != len(stem_keys)
+    ):
         return None
     if not all(stem_key and stem_key.isidentifier() for stem_key in stem_keys):
         return None
@@ -77,7 +89,7 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
 
 
 def _preflight_npz(
-    archive_file: object,
+    archive_file: BinaryIO,
     stem_keys: list[str],
     policy: AudioResourcePolicy,
 ) -> bool:
@@ -89,7 +101,7 @@ def _preflight_npz(
     max_total_bytes = len(stem_keys) * max_member_bytes
 
     try:
-        with zipfile.ZipFile(cast(object, archive_file), mode="r") as archive:
+        with zipfile.ZipFile(archive_file, mode="r") as archive:
             members = archive.infolist()
             member_names = [member.filename for member in members]
             if len(members) != len(expected_names) or set(member_names) != expected_names:
@@ -180,12 +192,21 @@ def load_bounded_stem_archive(
                         return None
                     try:
                         with np.errstate(over="ignore", invalid="ignore"):
-                            if stem_array.dtype == np.dtype(np.float32) and stem_array.flags.owndata:
+                            if (
+                                stem_array.dtype == np.dtype(np.float32)
+                                and stem_array.flags.owndata
+                            ):
                                 canonical = stem_array
                             else:
                                 canonical = np.array(stem_array, dtype=np.float32, copy=True)
                         validated = policy.validate_decoded_audio(canonical, sample_rate)
-                    except (AudioResourcePolicyError, MemoryError, OverflowError, TypeError, ValueError):
+                    except (
+                        AudioResourcePolicyError,
+                        MemoryError,
+                        OverflowError,
+                        TypeError,
+                        ValueError,
+                    ):
                         return None
                     stems[stem_key] = validated
     except (OSError, ValueError, zipfile.BadZipFile):
