@@ -26,6 +26,9 @@ Security Notes:
   are converted to owned ``float32`` only after those pre-copy bounds pass.
 - Canonical finiteness, dtype, sample-rate, sample-count, and memory checks are
   reapplied before a replayed stem can return to MIR/rehearsal analysis.
+- Allocator exhaustion or truncated archive state encountered while preflighting
+  or opening an otherwise admitted cache fails closed as a cache miss instead of
+  escaping the persistence boundary and crashing the analysis job.
 - This bounds cache-member materialization; it does not claim a process-wide RSS
   ceiling for NumPy/ZIP internals or downstream MIR/model work.
 """
@@ -188,7 +191,14 @@ def _preflight_npz(
                         or npy_stream.tell() + data_bytes != member.file_size
                     ):
                         return False
-    except (EOFError, OSError, ValueError, zipfile.BadZipFile, zipfile.LargeZipFile):
+    except (
+        EOFError,
+        MemoryError,
+        OSError,
+        ValueError,
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+    ):
         return False
     return True
 
@@ -258,7 +268,7 @@ def load_bounded_stem_archive(
                     ):
                         return None
                     stems[stem_key] = validated
-    except (OSError, ValueError, zipfile.BadZipFile):
+    except (EOFError, MemoryError, OSError, ValueError, zipfile.BadZipFile):
         return None
     return stems
 
