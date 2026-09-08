@@ -311,12 +311,13 @@ def _owned_transient_video_file_path(
     if owned is None:
         return None
     name = os.path.basename(owned)
-    if name.endswith((".part", ".ytdl")):
-        return owned
-    fragment_tail = name.rsplit("-Frag", maxsplit=1)
-    if len(fragment_tail) != 2:
+    artifact_name = name[len(video_id) + 1 :]
+    fragment_tail = artifact_name.rsplit("-Frag", maxsplit=1)
+    if len(fragment_tail) == 2:
+        if re.fullmatch(r"[0-9]+(?:\.part)?", fragment_tail[1]) is not None:
+            return owned
         return None
-    if re.fullmatch(r"[0-9]+(?:\.part)?", fragment_tail[1]) is not None:
+    if name.endswith((".part", ".ytdl")):
         return owned
     return None
 
@@ -365,9 +366,17 @@ def _video_id_from_status(status: dict[str, Any]) -> str | None:
 
 def _cleanup_stem(name: str) -> str:
     """Return the canonical yt-dlp stem shared by one authorized transient path."""
-    fragment_match = re.search(r"-Frag[0-9]+(?:\.part)?$", name)
-    if fragment_match is not None:
-        name = name[: fragment_match.start()]
+    video_id, separator, artifact_name = name.partition(".")
+    if separator and YOUTUBE_VIDEO_ID_PATTERN.fullmatch(video_id):
+        fragment_tail = artifact_name.rsplit("-Frag", maxsplit=1)
+        if len(fragment_tail) == 2:
+            if re.fullmatch(r"[0-9]+(?:\.part)?", fragment_tail[1]) is None:
+                return name
+            name = f"{video_id}.{fragment_tail[0]}"
+    else:
+        fragment_match = re.search(r"-Frag[0-9]+(?:\.part)?$", name)
+        if fragment_match is not None:
+            name = name[: fragment_match.start()]
     for suffix in (".part", ".ytdl"):
         if name.endswith(suffix):
             return name[: -len(suffix)]
