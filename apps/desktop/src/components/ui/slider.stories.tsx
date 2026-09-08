@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react"
 
+import { DirectionProvider } from "@base-ui/react/direction-provider"
+
 import {
   Slider,
   SliderControl,
@@ -88,15 +90,17 @@ export const CustomStep: Story = {
 /** Right-to-Left (RTL) reading direction rendering. */
 export const RTL: Story = {
   render: (args) => (
-    <div className="w-[200px]" dir="rtl">
-      <Slider defaultValue={50} direction="rtl" {...args}>
-        <SliderControl>
-          <SliderTrack>
-            <SliderIndicator />
-          </SliderTrack>
-          <SliderThumb aria-label="Volume" />
-        </SliderControl>
-      </Slider>
-    </div>
+    <DirectionProvider direction="rtl">
+      <div className="w-[200px]" dir="rtl">
+        <Slider defaultValue={50} {...args}>
+          <SliderControl>
+            <SliderTrack>
+              <SliderIndicator />
+            </SliderTrack>
+            <SliderThumb aria-label="Volume" />
+          </SliderControl>
+        </Slider>
+      </div>
+    </DirectionProvider>
   ),
 }
