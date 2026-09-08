@@ -12,8 +12,9 @@ Security Notes:
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
-  legacy caches may omit ``stemRoleTypes`` inside that sidecar, but sidecar
-  disappearance or malformed replacement fails closed.
+  its second-read stem identity must match the caller's already-admitted keys.
+  Legacy caches may omit ``stemRoleTypes`` inside that sidecar, but sidecar
+  disappearance, identity replacement, or malformed replacement fails closed.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - ZIP central-directory declarations and bounded NPY headers are checked before
@@ -122,10 +123,14 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
         return False
     if not isinstance(metadata, dict):
         return False
+    if metadata.get("stemKeys") != stem_keys:
+        return False
     stem_role_types = metadata.get("stemRoleTypes")
     if stem_role_types is None:
         return True
     if not isinstance(stem_role_types, dict):
+        return False
+    if set(stem_role_types) != set(stem_keys):
         return False
     return all(
         stem_role_types.get(stem_key) == _CANONICAL_STEM_ROLE_TYPES[stem_key]
