@@ -13,8 +13,13 @@ from bandscope_analysis.api import _load_cached_local_audio_features
 from bandscope_analysis.audio_resource_policy import AudioResourcePolicy
 
 
-def _write_metadata(path: Path, *, sample_rate: int = 44_100) -> None:
-    """Write the smallest valid feature-cache metadata envelope for one bass stem."""
+def _write_metadata(
+    path: Path,
+    *,
+    sample_rate: int = 44_100,
+    stem_key: str = "bass",
+) -> None:
+    """Write the smallest valid feature-cache metadata envelope for one stem."""
     path.write_text(
         json.dumps(
             {
@@ -25,8 +30,10 @@ def _write_metadata(path: Path, *, sample_rate: int = 44_100) -> None:
                     "chunk_count": 1,
                     "notes": "cached rehearsal stem",
                 },
-                "stemKeys": ["bass"],
-                "stemRoleTypes": {"bass": "instrument"},
+                "stemKeys": [stem_key],
+                "stemRoleTypes": {
+                    stem_key: "vocal" if stem_key == "vocals" else "instrument"
+                },
             }
         ),
         encoding="utf-8",
@@ -73,6 +80,16 @@ def test_feature_cache_replay_rejects_unsupported_sample_rate(tmp_path: Path) ->
     arrays_path = tmp_path / "features.npz"
     _write_metadata(metadata_path, sample_rate=7_999)
     np.savez_compressed(arrays_path, stem_bass=np.zeros(8, dtype=np.float32))
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_feature_cache_replay_rejects_noncanonical_stem_identity(tmp_path: Path) -> None:
+    """Persisted metadata cannot invent a stem the canonical separator never emits."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_metadata(metadata_path, stem_key="guitar")
+    np.savez_compressed(arrays_path, stem_guitar=np.zeros(8, dtype=np.float32))
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
