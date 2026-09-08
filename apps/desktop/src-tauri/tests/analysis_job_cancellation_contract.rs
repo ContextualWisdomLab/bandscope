@@ -61,6 +61,9 @@ fn native_analysis_cancellation_contains_the_running_process_boundary() {
 fn analysis_process_containment_uses_the_shared_core_owner() {
     let source = include_str!("../src/main.rs");
     let core = include_str!("../../core/src/lib.rs");
+    let core_runtime = include_str!("../../core/tests/youtube_process_containment.rs");
+    let tauri_runtime = include_str!("youtube_process_containment_runtime.rs");
+    let supported_guard = "#[cfg(any(target_os = \"linux\", target_os = \"macos\"))]";
 
     assert!(
         source.contains("configure_owned_process(&mut command)"),
@@ -92,8 +95,8 @@ fn analysis_process_containment_uses_the_shared_core_owner() {
         "desktop core must expose the canonical process termination boundary"
     );
     assert!(
-        core.contains("command.process_group(0)"),
-        "the canonical Unix owner must establish a dedicated process group before spawn"
+        core.contains(&format!("{supported_guard}\n    command.process_group(0);")),
+        "process-group setup must be enabled only where group termination is implemented"
     );
     assert!(
         core.contains("posix_kill(-process_group_id, SIGKILL)"),
@@ -102,6 +105,14 @@ fn analysis_process_containment_uses_the_shared_core_owner() {
     assert!(
         core.contains("let _ = child.wait();"),
         "the canonical owner must still reap the directly owned child"
+    );
+    assert!(
+        core_runtime.starts_with(supported_guard),
+        "the core descendant-containment runtime regression must run only on supported targets"
+    );
+    assert!(
+        tauri_runtime.starts_with(supported_guard),
+        "the Tauri descendant-containment runtime regression must run only on supported targets"
     );
 }
 
