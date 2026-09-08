@@ -530,6 +530,23 @@ fn lookup_bootstrap_source(
         .ok_or_else(|| "Analysis job source was not found. Choose local audio again.".to_string())
 }
 
+fn analysis_status_payload_is_valid(status: &AnalysisJobStatus) -> bool {
+    if status
+        .progress_percent
+        .is_some_and(|progress_percent| progress_percent > 100)
+    {
+        return false;
+    }
+
+    match &status.state {
+        AnalysisJobState::Queued | AnalysisJobState::Running => {
+            status.result.is_none() && status.error.is_none()
+        }
+        AnalysisJobState::Succeeded => status.result.is_some() && status.error.is_none(),
+        AnalysisJobState::Failed => status.result.is_none() && status.error.is_some(),
+    }
+}
+
 fn drain_analysis_status_updates(
     state: &AppState,
     app: &tauri::AppHandle<impl Runtime>,
@@ -625,7 +642,10 @@ fn run_analysis_engine(
             }
             match serde_json::from_str::<AnalysisJobStatus>(line) {
                 Ok(status) => {
-                    if status.job_id != expected_job_id || terminal_status_seen {
+                    if status.job_id != expected_job_id
+                        || terminal_status_seen
+                        || !analysis_status_payload_is_valid(&status)
+                    {
                         protocol_rejected = true;
                         let _ = stdout_failure_tx.send(());
                         return;
