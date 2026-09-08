@@ -40,12 +40,12 @@ fn native_analysis_cancellation_contains_the_running_process_boundary() {
         "the native runner must observe cancellation at the process boundary"
     );
     assert!(
-        runner.contains("configure_analysis_process(&mut command)"),
-        "the owned analysis process must be configured for platform containment before spawn"
+        runner.contains("configure_owned_process(&mut command)"),
+        "the owned analysis process must use the shared core containment owner before spawn"
     );
     assert!(
-        runner.contains("terminate_analysis_process(&mut process)"),
-        "accepted cancellation and failure paths must terminate the owned containment boundary before reporting terminal status"
+        runner.contains("terminate_owned_process(&mut process)"),
+        "accepted cancellation and failure paths must use the shared core containment owner before reporting terminal status"
     );
     assert!(
         !runner.contains("process.kill()"),
@@ -58,20 +58,50 @@ fn native_analysis_cancellation_contains_the_running_process_boundary() {
 }
 
 #[test]
-fn unix_analysis_processes_use_an_owned_process_group() {
+fn analysis_process_containment_uses_the_shared_core_owner() {
     let source = include_str!("../src/main.rs");
+    let core = include_str!("../../core/src/lib.rs");
 
     assert!(
-        source.contains("command.process_group(0)"),
-        "Unix analysis processes must become leaders of a dedicated process group before spawn"
+        source.contains("configure_owned_process(&mut command)"),
+        "the Tauri analysis runner must delegate process-group configuration to desktop core"
     );
     assert!(
-        source.contains("posix_kill(-process_group_id, SIGKILL)"),
-        "Unix cancellation must signal the owned process group rather than only the direct Python child"
+        source.contains("terminate_owned_process(&mut process)"),
+        "the Tauri analysis runner must delegate process termination to desktop core"
     );
     assert!(
-        source.contains("let _ = process.wait();"),
-        "process-group termination must still reap the directly owned child"
+        !source.contains("fn configure_analysis_process("),
+        "the Tauri adapter must not duplicate low-level process-group configuration"
+    );
+    assert!(
+        !source.contains("fn terminate_analysis_process("),
+        "the Tauri adapter must not duplicate low-level process-group termination"
+    );
+    assert!(
+        !source.contains("posix_kill(-process_group_id, SIGKILL)"),
+        "POSIX signalling belongs to the GUI-independent desktop-core owner"
+    );
+
+    assert!(
+        core.contains("pub fn configure_owned_process(command: &mut Command)"),
+        "desktop core must expose the canonical process configuration boundary"
+    );
+    assert!(
+        core.contains("pub fn terminate_owned_process(child: &mut Child)"),
+        "desktop core must expose the canonical process termination boundary"
+    );
+    assert!(
+        core.contains("command.process_group(0)"),
+        "the canonical Unix owner must establish a dedicated process group before spawn"
+    );
+    assert!(
+        core.contains("posix_kill(-process_group_id, SIGKILL)"),
+        "the canonical Unix owner must signal the owned process group"
+    );
+    assert!(
+        core.contains("let _ = child.wait();"),
+        "the canonical owner must still reap the directly owned child"
     );
 }
 
