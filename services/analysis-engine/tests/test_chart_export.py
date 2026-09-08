@@ -1,6 +1,7 @@
 """Tests for the chart-style cue-sheet export builders."""
 
 import ast
+import importlib.util
 import inspect
 import json
 import textwrap
@@ -500,6 +501,63 @@ def test_deduplication_helpers_use_semantic_identifiers() -> None:
             deduplication_helper.__name__,
             forbidden_identifiers & helper_identifiers,
         )
+        assert any(
+            isinstance(syntax_node, ast.AnnAssign)
+            and isinstance(syntax_node.annotation, ast.Subscript)
+            and isinstance(syntax_node.annotation.value, ast.Name)
+            and syntax_node.annotation.value.id == "dict"
+            for syntax_node in ast.walk(helper_tree)
+        ), deduplication_helper.__name__
+        assert not any(
+            isinstance(syntax_node, ast.Compare)
+            and any(
+                isinstance(comparison_operator, ast.NotIn)
+                for comparison_operator in syntax_node.ops
+            )
+            for syntax_node in ast.walk(helper_tree)
+        ), deduplication_helper.__name__
+
+
+def test_chart_benchmark_matches_documented_measurement_method(
+    monkeypatch: Any, capsys: Any
+) -> None:
+    """Measure the documented 96x24 fixture with 100 warmups and 1,000 samples."""
+    benchmark_path = Path(__file__).with_name("benchmark_chart_export.py")
+    benchmark_spec = importlib.util.spec_from_file_location(
+        "benchmark_chart_export_contract", benchmark_path
+    )
+    assert benchmark_spec is not None
+    assert benchmark_spec.loader is not None
+    benchmark_module = importlib.util.module_from_spec(benchmark_spec)
+    benchmark_spec.loader.exec_module(benchmark_module)
+
+    fixture_signature = inspect.signature(benchmark_module.make_large_song_fixture)
+    assert fixture_signature.parameters["section_count"].default == 96
+    assert fixture_signature.parameters["roles_per_section"].default == 24
+
+    export_call_counts = {"chart_text": 0, "cue_sheet": 0}
+
+    def _empty_benchmark_song() -> dict[str, object]:
+        return {}
+
+    def _record_chart_text(_benchmark_song: object) -> str:
+        export_call_counts["chart_text"] += 1
+        return ""
+
+    def _record_cue_sheet(_benchmark_song: object) -> list[object]:
+        export_call_counts["cue_sheet"] += 1
+        return []
+
+    monkeypatch.setattr(benchmark_module, "make_large_song_fixture", _empty_benchmark_song)
+    monkeypatch.setattr(benchmark_module, "build_chart_text", _record_chart_text)
+    monkeypatch.setattr(benchmark_module, "build_cue_sheet_rows", _record_cue_sheet)
+
+    benchmark_module.chart_export_benchmark()
+
+    assert export_call_counts == {"chart_text": 1100, "cue_sheet": 1100}
+    benchmark_output = capsys.readouterr().out
+    assert "Median time per sample:" in benchmark_output
+    assert "P95 time per sample:" in benchmark_output
 
 
 def test_chart_benchmark_uses_semantic_identifiers() -> None:
@@ -542,11 +600,15 @@ def test_chart_benchmark_uses_semantic_identifiers() -> None:
     )
     assert {
         "benchmark_iteration_count",
+        "benchmark_sample_durations_seconds",
+        "benchmark_sample_finished_at",
+        "benchmark_sample_started_at",
         "benchmark_song",
-        "benchmark_started_at",
         "chart_export_benchmark",
         "_current_allocation_bytes",
+        "median_duration_seconds",
         "part_graph_nodes",
+        "p95_duration_seconds",
         "peak_allocation_bytes",
         "section_index",
         "section_roles",

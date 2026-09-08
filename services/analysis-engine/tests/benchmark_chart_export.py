@@ -1,5 +1,6 @@
-"""Measure chart-export runtime and traced allocation on a large song fixture."""
+"""Measure chart-export runtime and traced allocation on a realistic song fixture."""
 
+import statistics
 import time
 import tracemalloc
 
@@ -51,8 +52,6 @@ def make_large_song_fixture(
 
 def chart_export_benchmark() -> None:
     """Print runtime and traced peak allocation for repeated chart exports."""
-    import statistics
-
     benchmark_song = make_large_song_fixture()
 
     for _warmup_iteration in range(100):
@@ -61,28 +60,33 @@ def chart_export_benchmark() -> None:
 
     print("Running Benchmark...")
     tracemalloc.start()
-    benchmark_started_at = time.perf_counter()
 
-    export_timings = []
     benchmark_iteration_count = 1000
+    benchmark_sample_durations_seconds: list[float] = []
     for _benchmark_iteration in range(benchmark_iteration_count):
-        iter_started_at = time.perf_counter()
+        benchmark_sample_started_at = time.perf_counter()
         build_chart_text(benchmark_song)
         build_cue_sheet_rows(benchmark_song)
-        export_timings.append(time.perf_counter() - iter_started_at)
+        benchmark_sample_finished_at = time.perf_counter()
+        benchmark_sample_durations_seconds.append(
+            benchmark_sample_finished_at - benchmark_sample_started_at
+        )
 
-    benchmark_finished_at = time.perf_counter()
     _current_allocation_bytes, peak_allocation_bytes = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
-    total_duration_seconds = benchmark_finished_at - benchmark_started_at
+    total_duration_seconds = sum(benchmark_sample_durations_seconds)
+    median_duration_seconds = statistics.median(benchmark_sample_durations_seconds)
+    p95_duration_seconds = statistics.quantiles(
+        benchmark_sample_durations_seconds, n=100, method="inclusive"
+    )[94]
     print(f"Total time for {benchmark_iteration_count} iterations: {total_duration_seconds:.4f}s")
     print(
         "Average time per iteration: "
         f"{(total_duration_seconds / benchmark_iteration_count) * 1000:.2f}ms"
     )
-    print(f"Median time per iteration: {statistics.median(export_timings) * 1000:.2f}ms")
-    print(f"P95 time per iteration: {statistics.quantiles(export_timings, n=100)[94] * 1000:.2f}ms")
+    print(f"Median time per sample: {median_duration_seconds * 1000:.2f}ms")
+    print(f"P95 time per sample: {p95_duration_seconds * 1000:.2f}ms")
     print(f"Peak memory overhead: {peak_allocation_bytes / 1024 / 1024:.2f} MB")
 
 
