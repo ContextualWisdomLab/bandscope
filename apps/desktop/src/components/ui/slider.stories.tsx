@@ -8,6 +8,7 @@ import {
   SliderThumb,
 } from "./slider"
 
+/** Base UI Slider primitive documentation. */
 const meta = {
   title: "UI/Slider",
   component: Slider,
@@ -20,6 +21,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** Default slider view rendering. */
 export const Default: Story = {
   render: (args) => (
     <div className="w-[200px]">
