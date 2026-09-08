@@ -57,3 +57,36 @@ fn youtube_success_terminates_descendant_that_keeps_output_pipe_open() {
         "successful parent exit must not block on an inherited descendant pipe; elapsed={elapsed:?}"
     );
 }
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[test]
+fn youtube_output_is_bounded_before_metadata_parse() {
+    use bandscope_desktop_core::wait_for_process_output;
+    use std::{
+        process::Command,
+        time::{Duration, Instant},
+    };
+
+    let mut command = Command::new("sh");
+    command
+        .arg("-c")
+        .arg("dd if=/dev/zero bs=1048576 count=2 2>/dev/null");
+
+    let started = Instant::now();
+    let result = wait_for_process_output(
+        command,
+        Duration::from_secs(5),
+        Duration::from_millis(5),
+        "YouTube import timed out.",
+    );
+    let elapsed = started.elapsed();
+
+    assert_eq!(
+        result.expect_err("oversized subprocess output must fail closed"),
+        "Failed to execute YouTube import process."
+    );
+    assert!(
+        elapsed < Duration::from_secs(2),
+        "output admission must not retain an unbounded pipe until the product timeout; elapsed={elapsed:?}"
+    );
+}
