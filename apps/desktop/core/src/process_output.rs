@@ -39,12 +39,12 @@ fn join_process_output(
 /// Security Notes: stdout and stderr are each admitted independently up to 1 MiB.
 /// The reader consumes at most one probe byte beyond that ceiling and then drops
 /// the pipe; oversized or unreadable output fails closed with a payload-free
-/// product error and terminates the owned process boundary as soon as the polling
-/// loop observes the reader failure. Polling never sleeps past the requested
-/// deadline, so a coarse poll interval cannot silently extend helper lifetime.
-/// Process ownership and descendant termination remain delegated to the shared
-/// runtime-core boundary. This output ceiling limits parent-side capture memory
-/// only; it is not an end-to-end RSS/VRAM or sandbox guarantee.
+/// product error and wakes the process-control owner without waiting for its next
+/// ordinary poll. Poll waiting is clamped to the requested deadline, so a coarse
+/// poll interval cannot silently extend helper lifetime. Process ownership and
+/// descendant termination remain delegated to the shared runtime-core boundary.
+/// This output ceiling limits parent-side capture memory only; it is not an
+/// end-to-end RSS/VRAM or sandbox guarantee.
 pub fn wait_for_process_output(
     mut command: Command,
     timeout: Duration,
@@ -68,6 +68,8 @@ pub fn wait_for_process_output(
         .expect("stderr should be piped for BandScope-owned helper process");
     let (reader_failure_tx, reader_failure_rx) = mpsc::channel();
     let stdout_failure_tx = reader_failure_tx.clone();
+    let stderr_failure_tx = reader_failure_tx.clone();
+    let _reader_failure_guard = reader_failure_tx;
     let stdout_reader = thread::spawn(move || {
         let result = read_bounded_process_output(stdout);
         if result.is_err() {
@@ -78,20 +80,13 @@ pub fn wait_for_process_output(
     let stderr_reader = thread::spawn(move || {
         let result = read_bounded_process_output(stderr);
         if result.is_err() {
-            let _ = reader_failure_tx.send(());
+            let _ = stderr_failure_tx.send(());
         }
         result
     });
     let deadline = Instant::now() + timeout;
 
     loop {
-        if reader_failure_rx.try_recv().is_ok() {
-            terminate_owned_process(&mut child);
-            let _ = stdout_reader.join();
-            let _ = stderr_reader.join();
-            return Err(PROCESS_EXECUTION_ERROR.to_string());
-        }
-
         match child.try_wait() {
             Ok(Some(status)) => {
                 // Preserve the direct child's observed status as product truth while the shared
@@ -111,10 +106,18 @@ pub fn wait_for_process_output(
                 let _ = stderr_reader.join();
                 return Err(timeout_message.to_string());
             }
-            Ok(None) => thread::sleep(std::cmp::min(
-                poll_interval,
-                deadline.saturating_duration_since(Instant::now()),
-            )),
+            Ok(None) => {
+                let wait_for = std::cmp::min(
+                    poll_interval,
+                    deadline.saturating_duration_since(Instant::now()),
+                );
+                if reader_failure_rx.recv_timeout(wait_for).is_ok() {
+                    terminate_owned_process(&mut child);
+                    let _ = stdout_reader.join();
+                    let _ = stderr_reader.join();
+                    return Err(PROCESS_EXECUTION_ERROR.to_string());
+                }
+            }
             Err(_) => {
                 terminate_owned_process(&mut child);
                 let _ = stdout_reader.join();
