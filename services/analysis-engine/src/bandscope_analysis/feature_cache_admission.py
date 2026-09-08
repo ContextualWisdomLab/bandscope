@@ -54,7 +54,7 @@ _MAX_STEM_MEMBERS = len(_CANONICAL_STEM_KEYS)
 _MAX_NPY_HEADER_BYTES = 16 * 1024
 _MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES = 1024 * 1024
 _NPY_VERSION = (1, 0)
-CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
+_CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 
 
 def _replay_policy(
@@ -71,7 +71,7 @@ def _replay_policy(
         return None
     try:
         canonical_bytes = (
-            int(sample_rate * float(template.max_duration_seconds)) * CANONICAL_ITEMSIZE
+            int(sample_rate * float(template.max_duration_seconds)) * _CANONICAL_ITEMSIZE
         )
         return AudioResourcePolicy(
             max_encoded_file_bytes=template.max_encoded_file_bytes,
