@@ -45,7 +45,7 @@ Undici is currently a development dependency reached through jsdom, but developm
 
 The initial Undici 8.10.0-only update failed before any desktop test could run because jsdom 29.1.1 imported the removed private path `undici/lib/handler/wrap-handler.js`. The override forced that incompatible major beneath both the desktop environment and Vitest's root-level optional jsdom peer. This was a dependency-graph defect, not a product-test failure.
 
-BandScope selected jsdom 30.0.1 because its published package contract requires Undici `^8.9.0`, while Undici 8.10.0 satisfies that range. Both manifests pin jsdom exactly so npm resolves Vitest's root peer and the desktop workspace to the same implementation; the root Undici override then deduplicates every admitted HTTP-client edge to 8.10.0. CI uses Node 22.22.3, which satisfies jsdom's `^22.22.2` and Undici's `>=22.19.0` engine floors.
+BandScope selected jsdom 30.0.1 because its published package contract requires Undici `^8.9.0`, while Undici 8.10.0 satisfies that range. Both manifests pin jsdom exactly so npm resolves Vitest's root peer and the desktop workspace to the same implementation; the root Undici override then deduplicates every admitted HTTP-client edge to 8.10.0. The repository supports Node `>=22.22.2 <23`, and CI uses Node 22.22.3; both therefore satisfy jsdom's `^22.22.2` and Undici's `>=22.19.0` engine floors.
 
 Retaining jsdom 29.1.1 was rejected because it left the missing-private-module failure intact. Removing the Undici override was rejected because it would permit two independently drifting HTTP clients inside the same test trust boundary. A local shim for Undici's removed private module was rejected because it would create an organization-owned copy of an unsupported upstream interface.
 
@@ -65,7 +65,7 @@ The dependency manifests and complete lock artifact were originally generated an
 
 For every current head, primary CI instead:
 
-1. sets up Node `22.22.3` while keeping the public `>=22.13 <23` runtime contract unchanged;
+1. sets up Node `22.22.3` within the public `>=22.22.2 <23` runtime contract;
 2. explicitly enables Corepack's npm shim so `packageManager: npm@10.9.9` controls the executable package manager;
 3. verifies npm `10.9.9` and reads that runtime's own bundled `tar` package, rejecting anything below `7.5.19`;
 4. runs `npm ci --ignore-scripts --no-audit --no-fund` in the dedicated lock-validation job;

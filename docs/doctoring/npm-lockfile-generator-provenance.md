@@ -11,7 +11,10 @@ The npm version is intentionally not repeated under `engines`. npm serializes `e
 
 Primary CI does **not** regenerate or update `package-lock.json`. It uses Node `22.22.3`, enables the npm shim supplied by the Node-bundled Corepack, resolves the project-pinned npm `10.9.9`, verifies that exact npm runtime and its own bundled `tar` package before dependency consumption, and validates the committed lock with `npm ci --ignore-scripts --no-audit --no-fund`. The gate then rejects any manifest or lockfile working-tree change. The normal verification jobs repeat the same runtime provenance gate before the repository's reviewed `npm ci` installation.
 
-The Node runtime support decision remains separate. This change does not raise the public `>=22.13 <23` Node range; a coordinated Node-floor migration is tracked independently.
+The supported Node 22 floor is `>=22.22.2 <23`. It matches jsdom 30's
+published Node 22 engine floor and remains below the `22.22.3` runtime used by
+primary CI, preventing npm from admitting Node 22 patch releases on which the
+reviewed test dependency graph cannot run.
 
 ## Why the npm runtime was advanced
 
