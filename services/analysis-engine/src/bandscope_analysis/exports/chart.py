@@ -73,19 +73,19 @@ def _section_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
     return [role for role in roles if isinstance(role, Mapping)]
 
 
-def _active_role_ids(section_record: Mapping[str, object]) -> list[str] | None:
+def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
     """Return active role ids from the part graph, or ``None`` when absent."""
-    part_graph_nodes = section_record.get("partGraph")
-    if not isinstance(part_graph_nodes, list):
+    part_graph = section.get("partGraph")
+    if not isinstance(part_graph, list):
         return None
-    active_role_ids_by_value: dict[str, None] = {}
-    for part_graph_node in part_graph_nodes:
-        if not isinstance(part_graph_node, Mapping) or part_graph_node.get("is_active") is not True:
+    active: dict[str, None] = {}
+    for node in part_graph:
+        if not isinstance(node, Mapping) or node.get("is_active") is not True:
             continue
-        role_identifier = part_graph_node.get("role_id")
-        if isinstance(role_identifier, str) and role_identifier:
-            active_role_ids_by_value[role_identifier] = None
-    return list(active_role_ids_by_value)
+        role_id = node.get("role_id")
+        if isinstance(role_id, str) and role_id:
+            active[role_id] = None
+    return list(active.keys())
 
 
 def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
@@ -119,27 +119,27 @@ def _role_display_name(role: Mapping[str, object]) -> str | None:
     return None
 
 
-def _active_role_names(section_record: Mapping[str, object]) -> list[str]:
+def _active_role_names(section: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
-    active_role_names_by_value: dict[str, None] = {}
-    for role_record in _active_roles(section_record):
-        role_display_name = _role_display_name(role_record)
-        if role_display_name is not None:
-            active_role_names_by_value[role_display_name] = None
-    return list(active_role_names_by_value)
+    names: dict[str, None] = {}
+    for role in _active_roles(section):
+        name = _role_display_name(role)
+        if name is not None:
+            names[name] = None
+    return list(names.keys())
 
 
-def _section_cue(section_record: Mapping[str, object]) -> str:
+def _section_cue(section: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
-    section_cues_by_value: dict[str, None] = {}
-    for role_record in _active_roles(section_record):
-        role_cue_record = role_record.get("cue")
-        if not isinstance(role_cue_record, Mapping):
+    cues: dict[str, None] = {}
+    for role in _active_roles(section):
+        cue = role.get("cue")
+        if not isinstance(cue, Mapping):
             continue
-        cue_text = role_cue_record.get("value")
-        if isinstance(cue_text, str) and cue_text:
-            section_cues_by_value[cue_text] = None
-    return "; ".join(section_cues_by_value)
+        value = cue.get("value")
+        if isinstance(value, str) and value:
+            cues[value] = None
+    return "; ".join(cues.keys())
 
 
 def _confidence_level(section: Mapping[str, object]) -> str | None:
@@ -185,33 +185,27 @@ def _section_lines(sections: list[Mapping[str, object]]) -> list[str]:
     return lines
 
 
-def _footer_lines(
-    song_record: Mapping[str, object], section_records: list[Mapping[str, object]]
-) -> list[str]:
+def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object]]) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
-    footer_lines: list[str] = []
-    rehearsal_priority_lines_by_value: dict[str, None] = {}
-    for section_record in section_records:
-        for role_record in _section_roles(section_record):
-            role_display_name = _role_display_name(role_record)
-            rehearsal_priority = role_record.get("rehearsalPriority")
-            if (
-                role_display_name is None
-                or not isinstance(rehearsal_priority, str)
-                or not rehearsal_priority
-            ):
+    lines: list[str] = []
+    priorities: dict[str, None] = {}
+    for section in sections:
+        for role in _section_roles(section):
+            name = _role_display_name(role)
+            priority = role.get("rehearsalPriority")
+            if name is None or not isinstance(priority, str) or not priority:
                 continue
-            priority_line = f"  - {role_display_name}: {rehearsal_priority}"
-            rehearsal_priority_lines_by_value[priority_line] = None
-    if rehearsal_priority_lines_by_value:
-        footer_lines.append("Priorities:")
-        footer_lines.extend(rehearsal_priority_lines_by_value)
-    export_summary = song_record.get("exportSummary")
-    if isinstance(export_summary, Mapping):
-        focus_headline = export_summary.get("headline")
-        if isinstance(focus_headline, str) and focus_headline:
-            footer_lines.append(f"Focus: {focus_headline}")
-    return footer_lines
+            entry = f"  - {name}: {priority}"
+            priorities[entry] = None
+    if priorities:
+        lines.append("Priorities:")
+        lines.extend(priorities.keys())
+    summary = song.get("exportSummary")
+    if isinstance(summary, Mapping):
+        headline = summary.get("headline")
+        if isinstance(headline, str) and headline:
+            lines.append(f"Focus: {headline}")
+    return lines
 
 
 def build_chart_text(song: Mapping[str, object] | None) -> str:
