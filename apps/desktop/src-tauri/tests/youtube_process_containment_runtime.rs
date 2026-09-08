@@ -1,4 +1,4 @@
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn youtube_timeout_returns_after_terminating_descendant_pipe_holder() {
     use bandscope_desktop_core::wait_for_process_output;
