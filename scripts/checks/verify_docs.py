@@ -45,6 +45,10 @@ REQUIRED_REFERENCES = {
         "docs/security/cross-platform-build-policy.md",
         "docs/workflow/github-bootstrap-execution-policy.md",
     ],
+    Path("SECURITY.md"): [
+        "https://github.com/ContextualWisdomLab/bandscope/security/advisories/new",
+        "https://github.com/ContextualWisdomLab/bandscope/issues/new?title=Security%20contact%20request",
+    ],
     Path("AGENTS.md"): [
         "docs/security/app-security.md",
         "docs/security/dependency-policy.md",
