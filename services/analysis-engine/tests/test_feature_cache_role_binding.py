@@ -7,7 +7,9 @@ import numpy as np
 from bandscope_analysis.api import _load_cached_local_audio_features
 
 
-def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semantics(tmp_path) -> None:
+def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semantics(
+    tmp_path,
+) -> None:
     """A persisted instrument stem cannot be replayed as vocal rehearsal evidence."""
     metadata_path = tmp_path / "track.features.json"
     arrays_path = tmp_path / "track.features.npz"
