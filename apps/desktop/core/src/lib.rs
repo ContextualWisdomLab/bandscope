@@ -10,6 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::{
     collections::HashMap,
+    io::Read,
     path::{Path, PathBuf},
     process::{Child, Command},
     sync::{
