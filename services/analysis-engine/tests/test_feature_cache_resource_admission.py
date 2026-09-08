@@ -31,9 +31,7 @@ def _write_metadata(
                     "notes": "cached rehearsal stem",
                 },
                 "stemKeys": [stem_key],
-                "stemRoleTypes": {
-                    stem_key: "vocal" if stem_key == "vocals" else "instrument"
-                },
+                "stemRoleTypes": {stem_key: "vocal" if stem_key == "vocals" else "instrument"},
             }
         ),
         encoding="utf-8",
