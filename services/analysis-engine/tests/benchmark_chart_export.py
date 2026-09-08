@@ -1,3 +1,5 @@
+"""Performance benchmarking script for rehearsal chart text and cue exports."""
+
 import time
 import tracemalloc
 from bandscope_analysis.exports.chart import build_chart_text, build_cue_sheet_rows
@@ -36,6 +38,7 @@ def make_large_song_fixture(num_sections=1000, roles_per_section=40):
     }
 
 def run_benchmark():
+    """Execute the large-song performance benchmark and report timing overhead."""
     song = make_large_song_fixture()
 
     # Warmup
