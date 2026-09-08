@@ -452,7 +452,7 @@ fn kill_owned_process_group(child: &Child) -> bool {
 
     // SAFETY: `configure_owned_process` establishes a fresh group whose id equals the child
     // PID on supported Unix targets. A negative pid targets only that group.
-    unsafe { posix_kill(-process_group_id, SIGKILL) } == 0
+    unsafe { posix_kill(-process_group_id, SIGKILL) == 0 }
 }
 
 /// Terminate a BandScope-owned subprocess boundary and reap the directly owned child.
