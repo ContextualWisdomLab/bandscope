@@ -7,7 +7,7 @@ use local_audio_publication::commit_local_audio_publication;
 use rfd::FileDialog;
 use serde_json::{json, Value};
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{atomic::Ordering, mpsc},
@@ -610,31 +610,29 @@ fn run_analysis_engine(
         );
     };
     let (status_tx, status_rx) = mpsc::channel::<AnalysisJobStatus>();
+    let (reader_failure_tx, reader_failure_rx) = mpsc::channel::<()>();
+    let stdout_failure_tx = reader_failure_tx.clone();
+    let stderr_failure_tx = reader_failure_tx.clone();
+    let _reader_failure_guard = reader_failure_tx;
     let stdout_reader = thread::spawn(move || {
-        let reader = BufReader::new(stdout);
         let mut last_status = None;
-        for line in reader.lines() {
-            let Ok(line) = line else {
-                break;
-            };
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(trimmed) {
+        let result = read_bounded_process_lines(stdout, |line| {
+            if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(line) {
                 last_status = Some(status.clone());
-                if status_tx.send(status).is_err() {
-                    break;
-                }
+                let _ = status_tx.send(status);
             }
+        });
+        if result.is_err() {
+            let _ = stdout_failure_tx.send(());
         }
-        last_status
+        (last_status, result)
     });
     let stderr_reader = thread::spawn(move || {
-        let mut reader = stderr;
-        let mut buffer = Vec::new();
-        let _ = reader.read_to_end(&mut buffer);
-        buffer
+        let result = read_bounded_process_output(stderr);
+        if result.is_err() {
+            let _ = stderr_failure_tx.send(());
+        }
+        result
     });
 
     if let Some(mut stdin) = process.stdin.take() {
@@ -686,7 +684,24 @@ fn run_analysis_engine(
                         "Analysis engine timed out.",
                     );
                 }
-                thread::sleep(ANALYSIS_WAIT_POLL);
+                let wait_for = std::cmp::min(
+                    ANALYSIS_WAIT_POLL,
+                    deadline.saturating_duration_since(Instant::now()),
+                );
+                if reader_failure_rx.recv_timeout(wait_for).is_ok() {
+                    terminate_owned_process(&mut process);
+                    let _ = stdout_reader.join();
+                    let _ = stderr_reader.join();
+                    return failed_status(
+                        payload["jobId"]
+                            .as_str()
+                            .unwrap_or("unknown-job")
+                            .to_string(),
+                        requested_at,
+                        AnalysisJobErrorCode::EngineUnavailable,
+                        "Analysis engine is unavailable.",
+                    );
+                }
             }
             Err(_) => {
                 terminate_owned_process(&mut process);
@@ -704,8 +719,31 @@ fn run_analysis_engine(
             }
         }
     }
-    let reader_last_status = stdout_reader.join().unwrap_or(None);
-    let _ = stderr_reader.join();
+    let reader_last_status = match stdout_reader.join() {
+        Ok((last_status, Ok(()))) => last_status,
+        _ => {
+            return failed_status(
+                payload["jobId"]
+                    .as_str()
+                    .unwrap_or("unknown-job")
+                    .to_string(),
+                requested_at,
+                AnalysisJobErrorCode::EngineUnavailable,
+                "Analysis engine is unavailable.",
+            )
+        }
+    };
+    if !matches!(stderr_reader.join(), Ok(Ok(_))) {
+        return failed_status(
+            payload["jobId"]
+                .as_str()
+                .unwrap_or("unknown-job")
+                .to_string(),
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis engine is unavailable.",
+        );
+    }
     drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
     if last_status.is_none() {
         last_status = reader_last_status;
