@@ -107,7 +107,9 @@ fn analysis_process_containment_uses_the_shared_core_owner() {
         "the canonical owner must still reap the directly owned child"
     );
     assert!(
-        core_runtime.starts_with(supported_guard),
+        core_runtime.contains(&format!(
+            "{supported_guard}\n#[test]\nfn youtube_timeout_terminates_descendant_that_keeps_output_pipe_open()"
+        )),
         "the core descendant-containment runtime regression must run only on supported targets"
     );
     assert!(
