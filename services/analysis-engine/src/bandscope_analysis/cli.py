@@ -73,6 +73,18 @@ def main() -> int:
         )
         return 0
 
+    requested_at_value = payload.get("requestedAt")
+    if requested_at_value is None:
+        requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    elif not isinstance(requested_at_value, str) or not requested_at_value.strip():
+        json.dump(
+            failed_cli_response("Invalid analysis job request: invalid field 'requestedAt'"),
+            sys.stdout,
+        )
+        return 0
+    else:
+        requested_at = requested_at_value
+
     request = payload.get("request")
 
     # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
@@ -97,7 +109,6 @@ def main() -> int:
                     file_name,
                 )
 
-    requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:
         for update in run_analysis_job_updates(job_id, request, requested_at):
             json.dump(update, sys.stdout)
