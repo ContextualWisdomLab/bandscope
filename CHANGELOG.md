@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Kept the public BandScope surface honest about stem-preview playback being a coming-soon goal, and aligned the issue-template security route with the current ContextualWisdomLab repository owner.
 - Made the vulnerability-reporting fallback reachable through an explicit
   security-contact request while forbidding vulnerability details in that public
   request, and added a documentation contract that prevents the destination from

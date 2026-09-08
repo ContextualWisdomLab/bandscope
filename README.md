@@ -4,7 +4,9 @@
 
 **귀로만 버티던 카피를, 눈으로 정리해 합주 시간을 음악에 더 쓰게 합니다.**
 
-BandScope is a local-first rehearsal assistant for people who need to understand a song quickly before practice. Drop in audio, inspect likely harmony by section and playing role, follow the song form, check tempo and groove cues, preview separated parts, see playable ranges and overlap warnings, and turn uncertainty into a short list of things the band should verify first.
+BandScope is a local-first rehearsal assistant for people who need to understand a song quickly before practice. Drop in audio, inspect likely harmony by section and playing role, follow the song form, check tempo and groove cues, see playable ranges and overlap warnings, and turn uncertainty into a short list of things the band should verify first.
+
+Stem preview and role-focused playback remain coming-soon goals; the current workspace does not present its disabled Play stem, Loop section, or Solo / mute others actions as shipped capability.
 
 BandScope is not a DAW, notation-grade transcription system, or authority that claims one automatic answer is always correct. Analysis stays editable, confidence stays visible, and the product is designed to help musical judgment rather than replace it.
 
@@ -59,7 +61,7 @@ The product should expose, where supported and sufficiently confident:
 - section form and rehearsal cues;
 - tempo, groove, entry, dropout, stop, pickup, and handoff cues;
 - instrument and vocal ranges;
-- stem previews and role-focused listening support;
+- stem previews and role-focused listening support (coming soon);
 - density/overlap warnings and simplification guidance;
 - transposition, capo, tuning, or setup guidance;
 - role-specific rehearsal priorities;
@@ -84,7 +86,7 @@ See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the current technical boundary and 
 
 ## Current implementation status
 
-The repository currently contains the local-first workflow, audio intake, offline analysis path, section/role outputs, manual user overrides, and CSV/JSON cue-sheet exports described by the existing implementation baseline. Coverage and docstring claims remain meaningful only where current repository checks measure them; protected CI and release evidence, not this README, are authoritative for exact-current quality status.
+The repository currently contains the local-first workflow, audio intake, offline analysis path, section/role outputs, playable-range and overlap warnings, manual user overrides, and CSV/JSON cue-sheet exports described by the existing implementation baseline. Coverage and docstring claims remain meaningful only where current repository checks measure them; protected CI and release evidence, not this README, are authoritative for exact-current quality status.
 
 ### Commercial dependency status
 

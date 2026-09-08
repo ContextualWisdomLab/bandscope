@@ -1,6 +1,8 @@
 # BandScope
 
-BandScope is a local-first rehearsal assistant that turns a song into a practical rehearsal map: section-aware harmony, role-specific cues, song form, tempo and groove guidance, stem previews, playable ranges, overlap warnings, simplification/transposition hints, visible confidence, and rehearsal priorities without DAW complexity.
+BandScope is a local-first rehearsal assistant that turns a song into a practical rehearsal map: section-aware harmony, role-specific cues, song form, tempo and groove guidance, playable ranges, overlap warnings, simplification/transposition hints, visible confidence, and rehearsal priorities without DAW complexity.
+
+Stem preview and role-focused playback remain coming-soon goals; the current workspace labels its disabled Play stem, Loop section, and Solo / mute others actions accordingly.
 
 **귀로만 버티던 카피를, 눈으로 정리해 합주 시간을 음악에 더 쓰게 합니다.**
 

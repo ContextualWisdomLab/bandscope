@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security reporting
-    url: https://github.com/seonghobae/bandscope/security/advisories/new
+    url: https://github.com/ContextualWisdomLab/bandscope/security/advisories/new
     about: Use private vulnerability reporting for security issues when available.
