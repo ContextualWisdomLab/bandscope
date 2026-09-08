@@ -5,6 +5,7 @@ import json
 import numpy as np
 
 from bandscope_analysis.api import _load_cached_local_audio_features
+from bandscope_analysis.feature_cache_admission import _has_canonical_stem_role_metadata
 
 
 def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semantics(
@@ -46,3 +47,23 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
     replayed = _load_cached_local_audio_features(metadata_path, arrays_path)
     assert replayed is not None
     assert replayed["stem_role_types"] == {"bass": "instrument"}
+
+
+def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(tmp_path) -> None:
+    """Legacy absence is compatible while malformed persisted metadata fails closed."""
+    arrays_path = tmp_path / "track.features.npz"
+    metadata_path = arrays_path.with_suffix(".json")
+
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is True
+
+    metadata_path.write_text("{", encoding="utf-8")
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
+
+    metadata_path.write_text("[]", encoding="utf-8")
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
+
+    metadata_path.write_text(json.dumps({}), encoding="utf-8")
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is True
+
+    metadata_path.write_text(json.dumps({"stemRoleTypes": []}), encoding="utf-8")
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
