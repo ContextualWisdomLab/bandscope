@@ -71,8 +71,7 @@ def _replay_policy(
         return None
     try:
         canonical_bytes = (
-            int(sample_rate * float(template.max_duration_seconds))
-            * _CANONICAL_ITEMSIZE
+            int(sample_rate * float(template.max_duration_seconds)) * _CANONICAL_ITEMSIZE
         )
         return AudioResourcePolicy(
             max_encoded_file_bytes=template.max_encoded_file_bytes,
