@@ -91,8 +91,21 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  if (Array.isArray(response) && response.every((byte) => typeof byte === "number")) {
-    return Uint8Array.from(response as number[]);
+  if (Array.isArray(response)) {
+    const len = response.length;
+    const arr = new Uint8Array(len);
+    let isValid = true;
+    for (let i = 0; i < len; i++) {
+      const byte = response[i];
+      if (typeof byte !== "number") {
+        isValid = false;
+        break;
+      }
+      arr[i] = byte;
+    }
+    if (isValid) {
+      return arr;
+    }
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
