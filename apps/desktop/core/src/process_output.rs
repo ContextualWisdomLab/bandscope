@@ -1,6 +1,6 @@
 use crate::runtime_core::{configure_owned_process, terminate_owned_process};
 use std::{
-    io::{Error, ErrorKind, Read},
+    io::{BufRead, BufReader, Error, ErrorKind, Read},
     process::{Command, Output, Stdio},
     sync::mpsc,
     thread::{self, JoinHandle},
@@ -13,7 +13,13 @@ pub const MAX_PROCESS_OUTPUT_BYTES: usize = 1024 * 1024;
 const PROCESS_START_ERROR: &str = "Failed to start YouTube import process.";
 const PROCESS_EXECUTION_ERROR: &str = "Failed to execute YouTube import process.";
 
-fn read_bounded_process_output(mut reader: impl Read) -> std::io::Result<Vec<u8>> {
+/// Read one helper stream into a bounded parent-side byte buffer.
+///
+/// Security Notes: at most one probe byte beyond the product ceiling is read,
+/// so callers can distinguish exact-limit EOF from overflow without permitting
+/// an unbounded `Vec` allocation. This bounds captured bytes only; it does not
+/// constrain memory allocated inside the helper process.
+pub fn read_bounded_process_output(mut reader: impl Read) -> std::io::Result<Vec<u8>> {
     let mut output = Vec::new();
     reader
         .by_ref()
@@ -23,6 +29,40 @@ fn read_bounded_process_output(mut reader: impl Read) -> std::io::Result<Vec<u8>
         return Err(Error::from(ErrorKind::InvalidData));
     }
     Ok(output)
+}
+
+/// Read newline-delimited helper output through the same bounded stream budget.
+///
+/// Security Notes: the `Take` adapter permits at most the 1 MiB ceiling plus one
+/// probe byte to enter the parent. A single unterminated line is therefore also
+/// bounded. The callback sees a line only after the cumulative stream remains
+/// within policy, so an overflowing probe cannot become analysis-status input.
+pub fn read_bounded_process_lines(
+    reader: impl Read,
+    mut on_line: impl FnMut(&str),
+) -> std::io::Result<()> {
+    let mut reader = BufReader::new(reader).take(MAX_PROCESS_OUTPUT_BYTES as u64 + 1);
+    let mut total_bytes = 0usize;
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        let read_bytes = reader.read_line(&mut line)?;
+        if read_bytes == 0 {
+            return Ok(());
+        }
+        total_bytes = total_bytes
+            .checked_add(read_bytes)
+            .ok_or_else(|| Error::from(ErrorKind::InvalidData))?;
+        if total_bytes > MAX_PROCESS_OUTPUT_BYTES {
+            return Err(Error::from(ErrorKind::InvalidData));
+        }
+
+        let trimmed = line.trim();
+        if !trimmed.is_empty() {
+            on_line(trimmed);
+        }
+    }
 }
 
 fn join_process_output(
@@ -166,6 +206,42 @@ mod tests {
             .expect_err("reader failure must remain an execution failure");
 
         assert_eq!(error.kind(), ErrorKind::Other);
+    }
+
+    #[test]
+    fn bounded_lines_emit_only_admitted_nonempty_lines() {
+        let mut lines = Vec::new();
+        read_bounded_process_lines(Cursor::new(b"first\n\n second \n"), |line| {
+            lines.push(line.to_string());
+        })
+        .expect("small newline-delimited output should remain admissible");
+
+        assert_eq!(lines, vec!["first", "second"]);
+    }
+
+    #[test]
+    fn bounded_lines_accept_exact_limit() {
+        let payload = vec![b'x'; MAX_PROCESS_OUTPUT_BYTES];
+        let mut observed_bytes = 0usize;
+        read_bounded_process_lines(Cursor::new(payload), |line| {
+            observed_bytes = line.len();
+        })
+        .expect("the exact streaming output ceiling remains admissible");
+
+        assert_eq!(observed_bytes, MAX_PROCESS_OUTPUT_BYTES);
+    }
+
+    #[test]
+    fn bounded_lines_reject_one_byte_over_limit_before_callback() {
+        let payload = vec![b'x'; MAX_PROCESS_OUTPUT_BYTES + 1];
+        let mut callback_called = false;
+        let error = read_bounded_process_lines(Cursor::new(payload), |_| {
+            callback_called = true;
+        })
+        .expect_err("one streaming byte beyond the process-output ceiling must fail closed");
+
+        assert_eq!(error.kind(), ErrorKind::InvalidData);
+        assert!(!callback_called);
     }
 
     #[test]
