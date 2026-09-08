@@ -100,7 +100,7 @@ pub fn wait_for_process_output(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Cursor, Error as IoError};
+    use std::io::{Cursor, Error as IoError, Write};
 
     struct FailingReader;
 
@@ -135,5 +135,40 @@ mod tests {
             .expect_err("reader failure must remain an execution failure");
 
         assert_eq!(error.kind(), ErrorKind::Other);
+    }
+
+    #[test]
+    fn oversized_process_output_terminates_before_deadline() {
+        if std::env::var_os("BANDSCOPE_TEST_CHILD_OVERSIZED_OUTPUT").is_some() {
+            let oversized_output = vec![b'x'; MAX_PROCESS_OUTPUT_BYTES + 1];
+            let mut stdout = std::io::stdout();
+            let _ = stdout.write_all(&oversized_output);
+            let _ = stdout.flush();
+            std::thread::sleep(Duration::from_secs(5));
+            return;
+        }
+
+        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
+        let mut command = Command::new(current_test_binary);
+        command
+            .env("BANDSCOPE_TEST_CHILD_OVERSIZED_OUTPUT", "1")
+            .arg("--exact")
+            .arg("process_output::tests::oversized_process_output_terminates_before_deadline")
+            .arg("--nocapture");
+        let started_at = Instant::now();
+
+        let error = wait_for_process_output(
+            command,
+            Duration::from_secs(4),
+            Duration::from_millis(5),
+            "YouTube import timed out.",
+        )
+        .expect_err("output overflow must fail closed before the helper deadline");
+
+        assert_eq!(error, PROCESS_EXECUTION_ERROR);
+        assert!(
+            started_at.elapsed() < Duration::from_secs(2),
+            "known output overflow should terminate the helper immediately"
+        );
     }
 }
