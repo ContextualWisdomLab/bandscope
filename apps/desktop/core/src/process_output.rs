@@ -2,6 +2,7 @@ use crate::runtime_core::{configure_owned_process, terminate_owned_process};
 use std::{
     io::{Error, ErrorKind, Read},
     process::{Command, Output, Stdio},
+    sync::mpsc,
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
@@ -38,9 +39,10 @@ fn join_process_output(
 /// Security Notes: stdout and stderr are each admitted independently up to 1 MiB.
 /// The reader consumes at most one probe byte beyond that ceiling and then drops
 /// the pipe; oversized or unreadable output fails closed with a payload-free
-/// product error. Process ownership and descendant termination remain delegated
-/// to the shared runtime-core boundary. This output ceiling limits parent-side
-/// capture memory only; it is not an end-to-end RSS/VRAM or sandbox guarantee.
+/// product error and terminates the owned process boundary as soon as the polling
+/// loop observes the reader failure. Process ownership and descendant termination
+/// remain delegated to the shared runtime-core boundary. This output ceiling limits
+/// parent-side capture memory only; it is not an end-to-end RSS/VRAM or sandbox guarantee.
 pub fn wait_for_process_output(
     mut command: Command,
     timeout: Duration,
@@ -62,11 +64,32 @@ pub fn wait_for_process_output(
         .stderr
         .take()
         .expect("stderr should be piped for BandScope-owned helper process");
-    let stdout_reader = thread::spawn(move || read_bounded_process_output(stdout));
-    let stderr_reader = thread::spawn(move || read_bounded_process_output(stderr));
+    let (reader_failure_tx, reader_failure_rx) = mpsc::channel();
+    let stdout_failure_tx = reader_failure_tx.clone();
+    let stdout_reader = thread::spawn(move || {
+        let result = read_bounded_process_output(stdout);
+        if result.is_err() {
+            let _ = stdout_failure_tx.send(());
+        }
+        result
+    });
+    let stderr_reader = thread::spawn(move || {
+        let result = read_bounded_process_output(stderr);
+        if result.is_err() {
+            let _ = reader_failure_tx.send(());
+        }
+        result
+    });
     let deadline = Instant::now() + timeout;
 
     loop {
+        if reader_failure_rx.try_recv().is_ok() {
+            terminate_owned_process(&mut child);
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
+            return Err(PROCESS_EXECUTION_ERROR.to_string());
+        }
+
         match child.try_wait() {
             Ok(Some(status)) => {
                 // Preserve the direct child's observed status as product truth while the shared
