@@ -40,9 +40,11 @@ fn join_process_output(
 /// The reader consumes at most one probe byte beyond that ceiling and then drops
 /// the pipe; oversized or unreadable output fails closed with a payload-free
 /// product error and terminates the owned process boundary as soon as the polling
-/// loop observes the reader failure. Process ownership and descendant termination
-/// remain delegated to the shared runtime-core boundary. This output ceiling limits
-/// parent-side capture memory only; it is not an end-to-end RSS/VRAM or sandbox guarantee.
+/// loop observes the reader failure. Polling never sleeps past the requested
+/// deadline, so a coarse poll interval cannot silently extend helper lifetime.
+/// Process ownership and descendant termination remain delegated to the shared
+/// runtime-core boundary. This output ceiling limits parent-side capture memory
+/// only; it is not an end-to-end RSS/VRAM or sandbox guarantee.
 pub fn wait_for_process_output(
     mut command: Command,
     timeout: Duration,
@@ -109,7 +111,10 @@ pub fn wait_for_process_output(
                 let _ = stderr_reader.join();
                 return Err(timeout_message.to_string());
             }
-            Ok(None) => thread::sleep(poll_interval),
+            Ok(None) => thread::sleep(std::cmp::min(
+                poll_interval,
+                deadline.saturating_duration_since(Instant::now()),
+            )),
             Err(_) => {
                 terminate_owned_process(&mut child);
                 let _ = stdout_reader.join();
