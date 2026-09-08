@@ -761,8 +761,25 @@ fn run_analysis_engine(
         );
     }
 
-    last_status.unwrap_or_else(|| {
-        failed_status(
+    match last_status {
+        Some(status)
+            if matches!(
+                &status.state,
+                AnalysisJobState::Succeeded | AnalysisJobState::Failed
+            ) =>
+        {
+            status
+        }
+        Some(_) => failed_status(
+            payload["jobId"]
+                .as_str()
+                .unwrap_or("unknown-job")
+                .to_string(),
+            requested_at,
+            AnalysisJobErrorCode::EngineUnavailable,
+            "Analysis engine returned a non-terminal response.",
+        ),
+        None => failed_status(
             payload["jobId"]
                 .as_str()
                 .unwrap_or("unknown-job")
@@ -770,8 +787,8 @@ fn run_analysis_engine(
             requested_at,
             AnalysisJobErrorCode::EngineUnavailable,
             "Analysis engine returned an invalid response.",
-        )
-    })
+        ),
+    }
 }
 
 #[tauri::command]
