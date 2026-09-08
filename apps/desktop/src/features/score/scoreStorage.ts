@@ -97,7 +97,7 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
     let isValid = true;
     for (let i = 0; i < len; i++) {
       const byte = response[i];
-      if (typeof byte !== "number") {
+      if (!Number.isInteger(byte) || byte < 0 || byte > 255) {
         isValid = false;
         break;
       }
