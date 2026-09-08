@@ -36,10 +36,10 @@ pub fn read_bounded_process_output(mut reader: impl Read) -> std::io::Result<Vec
 /// Security Notes: the `Take` adapter permits at most the 1 MiB ceiling plus one
 /// probe byte to enter the parent. A single unterminated line is therefore also
 /// bounded. Only the transport CR/LF terminator is removed; every other decoded
-/// character is preserved so the protocol parser, rather than this resource
-/// boundary, remains authoritative for whitespace validity. The callback sees a
-/// line only after the cumulative stream remains within policy, so an overflowing
-/// probe cannot become analysis-status input.
+/// character, including an empty transport record, is preserved so the protocol
+/// parser rather than this resource boundary remains authoritative for validity.
+/// The callback sees a line only after the cumulative stream remains within
+/// policy, so an overflowing probe cannot become analysis-status input.
 pub fn read_bounded_process_lines(
     reader: impl Read,
     mut on_line: impl FnMut(&str),
@@ -63,9 +63,7 @@ pub fn read_bounded_process_lines(
 
         let payload = line.strip_suffix('\n').unwrap_or(&line);
         let payload = payload.strip_suffix('\r').unwrap_or(payload);
-        if !payload.is_empty() {
-            on_line(payload);
-        }
+        on_line(payload);
     }
 }
 
