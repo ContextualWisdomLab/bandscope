@@ -113,3 +113,39 @@ def test_feature_cache_replay_rejects_oversized_member_before_decompression(
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
     load_mock.assert_not_called()
+
+
+def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persisted stems must preserve one synchronized sample timeline before MIR reuse."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "sampleRate": 44_100,
+                "separation": {
+                    "duration_seconds": 1.0,
+                    "chunk_count": 1,
+                    "notes": "cached rehearsal stems",
+                },
+                "stemKeys": ["bass", "drums"],
+                "stemRoleTypes": {"bass": "instrument", "drums": "instrument"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    np.savez_compressed(
+        arrays_path,
+        stem_bass=np.zeros(16, dtype=np.float32),
+        stem_drums=np.zeros(8, dtype=np.float32),
+    )
+
+    load_mock = Mock(side_effect=AssertionError("misaligned stems must fail before np.load"))
+    monkeypatch.setattr("bandscope_analysis.feature_cache_admission.np.load", load_mock)
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+    load_mock.assert_not_called()
