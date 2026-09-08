@@ -1,9 +1,14 @@
 """Tests for the chart-style cue-sheet export builders."""
 
+import ast
+import inspect
 import json
+import textwrap
+from pathlib import Path
 from typing import Any
 
 from bandscope_analysis.exports import build_chart_text, build_cue_sheet_rows
+from bandscope_analysis.exports import chart as chart_module
 
 
 def _role(
@@ -156,6 +161,44 @@ class TestBuildChartText:
         text = build_chart_text(song)
         assert "Priorities:" not in text
         assert "Focus:" not in text
+
+    def test_footer_preserves_priority_order_unicode_and_omits_blanks(self) -> None:
+        """Render the complete ordered footer without blank priorities or cues."""
+        rehearsal_song = _demo_song()
+        verse_section = rehearsal_song["sections"][0]
+        verse_section["roles"] = [
+            _role("guitar", "기타 🎸", "", "첫 번째"),
+            _role("silent", "쉼", "", ""),
+            _role("vocals", "보컬", "후렴 진입", "두 번째"),
+            _role("guitar-copy", "기타 🎸", "중복 큐", "첫 번째"),
+        ]
+        verse_section["partGraph"] = [
+            {"role_id": role_identifier, "is_active": True}
+            for role_identifier in ("guitar", "silent", "vocals", "guitar-copy")
+        ]
+        rehearsal_song["sections"] = [verse_section]
+        rehearsal_song["exportSummary"] = {"headline": "전환 집중 🎶"}
+
+        assert build_chart_text(rehearsal_song) == (
+            "Late Night Set\n"
+            "BPM: 92\n"
+            "Key: A minor\n"
+            "Feel: Straight eighths with a late snare feel\n\n"
+            "[00:10-00:30] VERSE  (medium)  roles: 기타 🎸, 쉼, 보컬\n\n"
+            "Priorities:\n"
+            "  - 기타 🎸: 첫 번째\n"
+            "  - 보컬: 두 번째\n"
+            "Focus: 전환 집중 🎶"
+        )
+        assert build_cue_sheet_rows(rehearsal_song) == [
+            {
+                "section": "verse",
+                "start": "00:10",
+                "end": "00:30",
+                "cue": "후렴 진입; 중복 큐",
+                "roles": ["기타 🎸", "쉼", "보컬"],
+            }
+        ]
 
     def test_deterministic_output(self) -> None:
         """Two builds from equal payloads produce identical text."""
@@ -409,3 +452,103 @@ class TestPerformanceContract:
         # We test that the final output includes the correct items, deduplicated.
         assert rows[0]["cue"] == "🚀 Intro"
         assert rows[0]["roles"] == ["🎸 Guitar", "r2"]
+
+
+def test_deduplication_helpers_use_semantic_identifiers() -> None:
+    """Keep generic one-word locals out of optimized export helpers."""
+    deduplication_helpers = (
+        chart_module._active_role_ids,
+        chart_module._active_role_names,
+        chart_module._section_cue,
+        chart_module._footer_lines,
+    )
+    forbidden_identifiers = {
+        "active",
+        "cue",
+        "cues",
+        "entry",
+        "headline",
+        "lines",
+        "name",
+        "node",
+        "part_graph",
+        "priorities",
+        "priority",
+        "role",
+        "role_id",
+        "section",
+        "sections",
+        "song",
+        "summary",
+        "value",
+    }
+
+    for deduplication_helper in deduplication_helpers:
+        helper_tree = ast.parse(textwrap.dedent(inspect.getsource(deduplication_helper)))
+        helper_identifiers = {
+            syntax_node.id
+            for syntax_node in ast.walk(helper_tree)
+            if isinstance(syntax_node, ast.Name) and isinstance(syntax_node.ctx, ast.Store)
+        }
+        helper_identifiers.update(
+            argument_node.arg
+            for argument_node in ast.walk(helper_tree)
+            if isinstance(argument_node, ast.arg)
+        )
+        assert forbidden_identifiers.isdisjoint(helper_identifiers), (
+            deduplication_helper.__name__,
+            forbidden_identifiers & helper_identifiers,
+        )
+
+
+def test_chart_benchmark_uses_semantic_identifiers() -> None:
+    """Keep the preserved benchmark fixture explicit about measured concepts."""
+    benchmark_path = Path(__file__).with_name("benchmark_chart_export.py")
+    benchmark_tree = ast.parse(benchmark_path.read_text(encoding="utf-8"))
+    benchmark_identifiers = {
+        syntax_node.id
+        for syntax_node in ast.walk(benchmark_tree)
+        if isinstance(syntax_node, ast.Name)
+    }
+    benchmark_identifiers.update(
+        argument_node.arg
+        for argument_node in ast.walk(benchmark_tree)
+        if isinstance(argument_node, ast.arg)
+    )
+    benchmark_identifiers.update(
+        function_node.name
+        for function_node in ast.walk(benchmark_tree)
+        if isinstance(function_node, ast.FunctionDef)
+    )
+
+    assert benchmark_identifiers.isdisjoint(
+        {
+            "current",
+            "i",
+            "iterations",
+            "j",
+            "part_graph",
+            "peak",
+            "role_id",
+            "roles",
+            "run_benchmark",
+            "sections",
+            "song",
+            "t0",
+            "t1",
+            "total_time",
+        }
+    )
+    assert {
+        "benchmark_iteration_count",
+        "benchmark_song",
+        "benchmark_started_at",
+        "chart_export_benchmark",
+        "current_allocation_bytes",
+        "part_graph_nodes",
+        "peak_allocation_bytes",
+        "section_index",
+        "section_roles",
+        "song_sections",
+        "total_duration_seconds",
+    } <= benchmark_identifiers
