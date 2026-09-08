@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2023-10-27 - O(N^2) list-based deduplication replaced with O(1) dict keys
+**Learning:** Checking for element existence in a list using `not in` before appending leads to O(N^2) time complexity. Using Python dictionaries (which preserve insertion order since Python 3.7) provides O(1) existence checks and behaves identically in logic, significantly improving performance for chart export payloads.
+**Action:** Replace `if item not in lst: lst.append(item)` patterns with `dct[item] = None` and `list(dct.keys())` for efficient and order-preserving deduplication in high-throughput data exports.
