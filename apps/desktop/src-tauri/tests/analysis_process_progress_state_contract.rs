@@ -55,3 +55,34 @@ fn analysis_helper_cannot_publish_terminal_or_queued_state_before_native_exit() 
         "queued or otherwise invalid helper state must wake the existing process-control owner"
     );
 }
+
+#[test]
+fn malformed_analysis_jsonl_fails_closed_before_native_state_mutation() {
+    let source = include_str!("../src/main.rs");
+    let runner_start = source
+        .find("fn run_analysis_engine(")
+        .expect("analysis runner must remain present");
+    let runner_end = source[runner_start..]
+        .find("\n#[tauri::command]\nfn start_analysis_job")
+        .map(|offset| runner_start + offset)
+        .expect("analysis runner must end before the start command");
+    let runner = &source[runner_start..runner_end];
+
+    let stdout_reader_start = runner
+        .find("let stdout_reader = thread::spawn")
+        .expect("analysis stdout reader must remain present");
+    let stdout_reader_end = runner[stdout_reader_start..]
+        .find("let stderr_reader = thread::spawn")
+        .map(|offset| stdout_reader_start + offset)
+        .expect("analysis stderr reader must follow stdout reader");
+    let stdout_reader = &runner[stdout_reader_start..stdout_reader_end];
+
+    assert!(
+        stdout_reader.contains("match serde_json::from_str::<AnalysisJobStatus>(line)"),
+        "analysis JSONL must handle deserialization failure explicitly instead of silently ignoring malformed protocol lines"
+    );
+    assert!(
+        stdout_reader.contains("Err(_) =>") && stdout_reader.contains("stdout_failure_tx.send(())"),
+        "malformed analysis JSONL must wake the existing process-control owner and fail closed"
+    );
+}
