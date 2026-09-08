@@ -20,7 +20,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::{ffi::c_int, os::unix::process::CommandExt};
 use time::OffsetDateTime;
 
@@ -440,7 +440,7 @@ pub fn youtube_missing_metadata_error(_parsed: &Value) -> String {
 /// Security Notes: Linux and macOS create the group before `exec`. Windows is intentionally
 /// direct-child-only until a race-free Job Object creation/assignment boundary is implemented.
 pub fn configure_owned_process(command: &mut Command) {
-    #[cfg(unix)]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     command.process_group(0);
 }
 
