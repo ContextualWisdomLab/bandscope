@@ -15,6 +15,7 @@ from typing import Any, Literal, NotRequired, TypedDict, cast
 import numpy as np
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
+from bandscope_analysis.feature_cache_admission import load_bounded_stem_archive
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
@@ -87,7 +88,7 @@ class RangePayload(TypedDict):
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal results."""
+    """Typed harmony payload nested inside rehearsal roles."""
 
     chord: str
     functionLabel: str
@@ -129,7 +130,7 @@ class PartGraphNodePayload(TypedDict):
 
 
 class SectionTimeRangePayload(TypedDict):
-    """Typed timing range payload nested inside rehearsal sections."""
+    """Typed timing range payload nested inside songs."""
 
     start: int
     end: int
@@ -749,18 +750,13 @@ def _load_cached_local_audio_features(
     if stem_role_types is None:
         return None
 
-    try:
-        with np.load(arrays_path, allow_pickle=False) as stems_archive:
-            stems: dict[str, np.ndarray] = {}
-            for stem_key in stem_keys:
-                archive_key = f"stem_{stem_key}"
-                if archive_key not in stems_archive:
-                    return None
-                stem_array = stems_archive[archive_key]
-                if not isinstance(stem_array, np.ndarray):
-                    return None
-                stems[stem_key] = stem_array
-    except (OSError, ValueError):
+    stems = load_bounded_stem_archive(
+        arrays_path,
+        stem_keys,
+        metadata_payload["sampleRate"],
+        policy_template=DEFAULT_AUDIO_RESOURCE_POLICY,
+    )
+    if stems is None:
         return None
 
     return {
