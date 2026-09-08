@@ -220,6 +220,18 @@ mod tests {
     }
 
     #[test]
+    fn bounded_lines_preserve_non_line_ending_whitespace() {
+        let mut lines = Vec::new();
+        let payload = "  first  \r\n\u{00a0}second\u{00a0}\n";
+        read_bounded_process_lines(Cursor::new(payload.as_bytes()), |line| {
+            lines.push(line.to_string());
+        })
+        .expect("bounded JSONL transport must preserve payload whitespace outside line endings");
+
+        assert_eq!(lines, vec!["  first  ", "\u{00a0}second\u{00a0}"]);
+    }
+
+    #[test]
     fn bounded_lines_accept_exact_limit() {
         let payload = vec![b'x'; MAX_PROCESS_OUTPUT_BYTES];
         let mut observed_bytes = 0usize;
