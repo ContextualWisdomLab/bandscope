@@ -60,7 +60,9 @@ def test_progress_jsonl_preserves_native_requested_at(monkeypatch: pytest.Monkey
     assert json.loads(stdout.getvalue())["requestedAt"] == requested_at
 
 
-def test_progress_jsonl_delegates_local_audio_analysis_once(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_progress_jsonl_delegates_local_audio_analysis_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Keep local-audio MIR work inside the orchestration owner instead of pre-running it in CLI."""
     requested_at = "2026-09-09T01:00:00Z"
     observed = {"temporal_calls": 0, "orchestration_calls": 0}
