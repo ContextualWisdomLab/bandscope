@@ -600,11 +600,15 @@ def test_chart_benchmark_uses_semantic_identifiers() -> None:
     )
     assert {
         "benchmark_iteration_count",
+        "benchmark_sample_durations_seconds",
+        "benchmark_sample_finished_at",
+        "benchmark_sample_started_at",
         "benchmark_song",
-        "benchmark_started_at",
         "chart_export_benchmark",
         "_current_allocation_bytes",
+        "median_duration_seconds",
         "part_graph_nodes",
+        "p95_duration_seconds",
         "peak_allocation_bytes",
         "section_index",
         "section_roles",
