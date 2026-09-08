@@ -3,11 +3,11 @@ fn analysis_helper_cannot_publish_terminal_or_queued_state_before_native_exit() 
     let source = include_str!("../src/main.rs");
     let runner_start = source
         .find("fn run_analysis_engine(")
-        .expect("analysis runner must remain present");
+        .expect("analysis process runner must remain present");
     let runner_end = source[runner_start..]
         .find("\n#[tauri::command]\nfn start_analysis_job")
         .map(|offset| runner_start + offset)
-        .expect("analysis runner must end before the start command");
+        .expect("analysis process runner must end before the start command");
     let runner = &source[runner_start..runner_end];
 
     let stdout_reader_start = runner
@@ -148,5 +148,42 @@ fn analysis_status_payload_semantics_are_validated_before_native_state_mutation(
     assert!(
         semantic_guard < terminal_retention && semantic_guard < running_publish,
         "semantic payload admission must happen before terminal retention or running status publication"
+    );
+}
+
+#[test]
+fn analysis_protocol_rejection_survives_child_exit_race() {
+    let source = include_str!("../src/main.rs");
+    let runner_start = source
+        .find("fn run_analysis_engine(")
+        .expect("analysis runner must remain present");
+    let runner_end = source[runner_start..]
+        .find("\n#[tauri::command]\nfn start_analysis_job")
+        .map(|offset| runner_start + offset)
+        .expect("analysis runner must end before the start command");
+    let runner = &source[runner_start..runner_end];
+
+    let stdout_reader_start = runner
+        .find("let stdout_reader = thread::spawn")
+        .expect("analysis stdout reader must remain present");
+    let stdout_reader_end = runner[stdout_reader_start..]
+        .find("let stderr_reader = thread::spawn")
+        .map(|offset| stdout_reader_start + offset)
+        .expect("analysis stderr reader must follow stdout reader");
+    let stdout_reader = &runner[stdout_reader_start..stdout_reader_end];
+
+    let rejection_to_join = stdout_reader
+        .rfind("if protocol_rejected")
+        .map(|offset| &stdout_reader[offset..])
+        .expect("analysis stdout reader must retain explicit protocol rejection state");
+    let reader_return = rejection_to_join
+        .find("(last_status, result)")
+        .expect("analysis stdout reader must return terminal candidate and transport result together");
+    let rejection_result = &rejection_to_join[..reader_return];
+
+    assert!(
+        rejection_result.contains("std::io::ErrorKind::InvalidData")
+            && rejection_result.contains("Err("),
+        "protocol rejection must become a failing reader join result so a fast child exit cannot outrun the side-channel failure notification and admit a rejected terminal status"
     );
 }
