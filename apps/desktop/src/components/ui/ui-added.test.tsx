@@ -1,4 +1,4 @@
-import { render, screen, waitFor, act } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -308,7 +308,7 @@ describe("added ui primitives (runtime render)", () => {
     expect(screen.getByRole("slider", { name: "Disabled Slider" })).toBeDisabled()
   })
 
-  it("Slider handles keyboard focus interaction styling correctly", () => {
+  it("SliderThumb exposes the nested focus-visible class-token contract", () => {
     render(
       <Slider>
         <SliderControl>
@@ -320,7 +320,6 @@ describe("added ui primitives (runtime render)", () => {
       </Slider>
     )
     const slider = screen.getByRole("slider", { name: "Focus Slider" })
-    act(() => { slider.focus() })
     expect(slider.parentElement).toHaveClass("has-[:focus-visible]:outline-none")
   })
 })
