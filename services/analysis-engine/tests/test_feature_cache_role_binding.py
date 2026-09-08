@@ -62,8 +62,45 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(tmp_pa
     metadata_path.write_text("[]", encoding="utf-8")
     assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
 
-    metadata_path.write_text(json.dumps({}), encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps({"stemKeys": ["bass"]}),
+        encoding="utf-8",
+    )
     assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is True
 
-    metadata_path.write_text(json.dumps({"stemRoleTypes": []}), encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps({"stemKeys": ["bass"], "stemRoleTypes": []}),
+        encoding="utf-8",
+    )
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
+
+
+def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(tmp_path) -> None:
+    """A second-read sidecar must describe the exact stem identity already admitted."""
+    arrays_path = tmp_path / "track.features.npz"
+    metadata_path = arrays_path.with_suffix(".json")
+
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "stemKeys": ["bass"],
+                "stemRoleTypes": {"bass": "instrument"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is True
+
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "stemKeys": ["drums"],
+                "stemRoleTypes": {
+                    "bass": "instrument",
+                    "drums": "instrument",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
