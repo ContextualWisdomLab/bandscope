@@ -194,4 +194,35 @@ mod tests {
             "known output overflow should terminate the helper immediately"
         );
     }
+
+    #[test]
+    fn process_timeout_does_not_oversleep_poll_interval() {
+        if std::env::var_os("BANDSCOPE_TEST_CHILD_SLOW_PROCESS").is_some() {
+            std::thread::sleep(Duration::from_secs(5));
+            return;
+        }
+
+        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
+        let mut command = Command::new(current_test_binary);
+        command
+            .env("BANDSCOPE_TEST_CHILD_SLOW_PROCESS", "1")
+            .arg("--exact")
+            .arg("process_output::tests::process_timeout_does_not_oversleep_poll_interval")
+            .arg("--nocapture");
+        let started_at = Instant::now();
+
+        let error = wait_for_process_output(
+            command,
+            Duration::from_millis(100),
+            Duration::from_secs(2),
+            "YouTube import timed out.",
+        )
+        .expect_err("the helper deadline must not be extended by a coarse poll interval");
+
+        assert_eq!(error, "YouTube import timed out.");
+        assert!(
+            started_at.elapsed() < Duration::from_secs(1),
+            "the process owner must wake at the deadline rather than after the full poll interval"
+        );
+    }
 }
