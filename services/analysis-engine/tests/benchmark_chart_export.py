@@ -1,9 +1,11 @@
 """Performance benchmarking script for rehearsal chart text and cue exports."""
 
+import statistics
 import time
 import tracemalloc
-import statistics
+
 from bandscope_analysis.exports.chart import build_chart_text, build_cue_sheet_rows
+
 
 def make_large_song_fixture(num_sections_count=96, roles_per_section_count=24):
     """Realistic large-song export fixture for benchmarking."""
