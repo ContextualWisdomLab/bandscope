@@ -1,3 +1,21 @@
+#[test]
+fn process_output_has_one_canonical_implementation_owner() {
+    let compatibility_source = include_str!("../src/lib.rs");
+    let process_output_source = include_str!("../src/process_output.rs");
+
+    assert!(
+        !compatibility_source.contains("pub fn wait_for_process_output("),
+        "the compatibility module must not retain a second public process-output implementation"
+    );
+    assert_eq!(
+        process_output_source
+            .matches("pub fn wait_for_process_output(")
+            .count(),
+        1,
+        "bounded helper execution must have one canonical implementation owner"
+    );
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn youtube_timeout_terminates_descendant_that_keeps_output_pipe_open() {
