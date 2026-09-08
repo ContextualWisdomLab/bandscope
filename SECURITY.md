@@ -10,9 +10,13 @@ project file, model artifact, cache entry, and export target as untrusted input.
 - Prefer this repository's GitHub private vulnerability reporting or Security
   Advisory workflow when that feature is enabled:
   [Private security advisory](https://github.com/ContextualWisdomLab/bandscope/security/advisories/new).
-- If that private repository feature is unavailable to you, contact the
-  ContextualWisdomLab repository maintainers through an established private
-  channel. Do not substitute a public issue, pull-request comment, or discussion.
+- If that private repository feature is unavailable to you, open a
+  [security contact request](https://github.com/ContextualWisdomLab/bandscope/issues/new?title=Security%20contact%20request)
+  so a maintainer can establish a private intake channel. The public request must
+  contain only your GitHub handle and a request for private security contact; do
+  not include vulnerability details, affected versions, reproduction steps,
+  logs, links, or attachments. Continue disclosure only after a maintainer
+  confirms the private channel.
 - Never include production credentials, private project material, copyrighted
   model artifacts, or other sensitive data in a public report.
 - We expect vulnerability disclosure timelines to follow coordinated practices,
