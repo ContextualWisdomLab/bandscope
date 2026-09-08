@@ -7,7 +7,11 @@ import logging
 import sys
 from datetime import UTC, datetime
 
-from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+from bandscope_analysis.api import (
+    get_analysis_status,
+    run_analysis_job,
+    run_analysis_job_updates,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
