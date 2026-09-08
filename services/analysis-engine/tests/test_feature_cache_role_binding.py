@@ -50,11 +50,11 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
 
 
 def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(tmp_path) -> None:
-    """Legacy absence is compatible while malformed persisted metadata fails closed."""
+    """A required sidecar fails closed while legacy role-field absence stays compatible."""
     arrays_path = tmp_path / "track.features.npz"
     metadata_path = arrays_path.with_suffix(".json")
 
-    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is True
+    assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
 
     metadata_path.write_text("{", encoding="utf-8")
     assert _has_canonical_stem_role_metadata(arrays_path, ["bass"]) is False
