@@ -32,12 +32,12 @@ fn analysis_terminal_parent_exit_cleans_owned_descendants_before_reader_join() {
     let cleanup = terminal_arm
         .find("terminate_owned_process(&mut process)")
         .expect("terminal cleanup must remain in the terminal arm");
-    let first_reader_join = runner
-        .find("stdout_reader.join()")
-        .expect("analysis runner must still join its stdout reader");
+    let terminal_reader_join = runner
+        .rfind("stdout_reader.join()")
+        .expect("analysis success path must still join its stdout reader after process control");
     assert!(
-        terminal_arm_start + cleanup < first_reader_join,
-        "owned descendant cleanup must happen before the analysis runner joins inherited output readers"
+        terminal_arm_start + cleanup < terminal_reader_join,
+        "owned descendant cleanup must happen before the analysis success path joins inherited output readers"
     );
 
     assert!(
