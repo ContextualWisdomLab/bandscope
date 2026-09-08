@@ -1,8 +1,11 @@
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn youtube_timeout_terminates_descendant_that_keeps_output_pipe_open() {
     use bandscope_desktop_core::wait_for_process_output;
-    use std::{process::Command, time::{Duration, Instant}};
+    use std::{
+        process::Command,
+        time::{Duration, Instant},
+    };
 
     let mut command = Command::new("sh");
     command.arg("-c").arg("sleep 5 & sleep 5");
