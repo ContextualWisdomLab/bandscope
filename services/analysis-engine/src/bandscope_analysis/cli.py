@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from datetime import UTC, datetime
 
 from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
 
 def failed_cli_response(message: str) -> dict[str, object]:
