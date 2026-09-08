@@ -88,7 +88,7 @@ class RangePayload(TypedDict):
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal roles."""
+    """Typed harmony payload nested inside rehearsal results."""
 
     chord: str
     functionLabel: str
@@ -130,7 +130,7 @@ class PartGraphNodePayload(TypedDict):
 
 
 class SectionTimeRangePayload(TypedDict):
-    """Typed timing range payload nested inside songs."""
+    """Typed timing range payload nested inside rehearsal sections."""
 
     start: int
     end: int
