@@ -1200,7 +1200,7 @@ fn read_score_pdf(
     if !is_valid_project_id(&project_id) {
         return Err("Invalid project id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, "projects", project_id)?;
+    let scores_root = scores_root_for_project(&app, &project_id)?;
     let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
     read_validated_score_pdf(&path)
 }
