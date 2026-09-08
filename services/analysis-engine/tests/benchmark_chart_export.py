@@ -58,9 +58,9 @@ def chart_export_benchmark() -> None:
         build_chart_text(benchmark_song)
         build_cue_sheet_rows(benchmark_song)
 
-    print("Running Benchmark...")
-    tracemalloc.start()
+    print("Running Latency Benchmark...")
 
+    # Phase 1: Pure Latency (no tracemalloc overhead)
     benchmark_iteration_count = 1000
     benchmark_sample_durations_seconds: list[float] = []
     for _benchmark_iteration in range(benchmark_iteration_count):
@@ -71,6 +71,15 @@ def chart_export_benchmark() -> None:
         benchmark_sample_durations_seconds.append(
             benchmark_sample_finished_at - benchmark_sample_started_at
         )
+
+    print("Running Allocation Benchmark...")
+    # Phase 2: Pure Allocation (no timing structures)
+    tracemalloc.start()
+
+    allocation_iteration_count = 10
+    for _allocation_iteration in range(allocation_iteration_count):
+        build_chart_text(benchmark_song)
+        build_cue_sheet_rows(benchmark_song)
 
     _current_allocation_bytes, peak_allocation_bytes = tracemalloc.get_traced_memory()
     tracemalloc.stop()

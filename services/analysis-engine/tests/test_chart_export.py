@@ -554,7 +554,7 @@ def test_chart_benchmark_matches_documented_measurement_method(
 
     benchmark_module.chart_export_benchmark()
 
-    assert export_call_counts == {"chart_text": 1100, "cue_sheet": 1100}
+    assert export_call_counts == {"chart_text": 1110, "cue_sheet": 1110}
     benchmark_output = capsys.readouterr().out
     assert "Median time per sample:" in benchmark_output
     assert "P95 time per sample:" in benchmark_output
@@ -604,6 +604,8 @@ def test_chart_benchmark_uses_semantic_identifiers() -> None:
         "benchmark_sample_finished_at",
         "benchmark_sample_started_at",
         "benchmark_song",
+        "allocation_iteration_count",
+        "_allocation_iteration",
         "chart_export_benchmark",
         "_current_allocation_bytes",
         "median_duration_seconds",
