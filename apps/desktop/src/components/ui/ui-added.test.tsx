@@ -11,6 +11,7 @@ import {
 } from "./table"
 import { Checkbox } from "./checkbox"
 import { Switch } from "./switch"
+import { Slider } from "./slider"
 import { RadioGroup, RadioGroupItem } from "./radio-group"
 import {
   Accordion,
@@ -244,5 +245,12 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Slider mounts and renders thumb correctly", () => {
+    const { container } = render(<Slider defaultValue={30} aria-label="Volume" />)
+    const thumb = container.querySelector('input[type="range"]')
+    expect(thumb).toBeTruthy()
+    expect(thumb).toHaveAttribute("aria-valuenow", "30")
   })
 })
