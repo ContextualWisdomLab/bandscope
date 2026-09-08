@@ -9,6 +9,7 @@ _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _PDFJS_VERSION = "6.2.108"
 _JSDOM_VERSION = "30.0.1"
 _UNDICI_VERSION = "8.10.0"
+_SUPPORTED_NODE_RANGE = ">=22.22.2 <23"
 _PDFJS_INTEGRITY = (
     "sha512-YxFb+SQcodN2rnX9Tn3dHYlqfb7NjlzzfONPpJd+AKoKtUjEdevTfbC07d5Tcczz"
     "OK6261auRkP/M8OBHs9vFQ=="
@@ -35,6 +36,7 @@ def test_manifests_pin_the_security_floors_without_semver_drift() -> None:
     root_manifest = _read_json("package.json")
     desktop_manifest = _read_json("apps/desktop/package.json")
 
+    assert root_manifest["engines"] == {"node": _SUPPORTED_NODE_RANGE}
     assert root_manifest["devDependencies"]["jsdom"] == _JSDOM_VERSION  # type: ignore[index]
     assert root_manifest["devDependencies"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
     assert root_manifest["overrides"]["undici"] == "$undici"  # type: ignore[index]
@@ -50,6 +52,7 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
 
     root_package = packages[""]
     assert isinstance(root_package, dict)
+    assert root_package["engines"] == {"node": _SUPPORTED_NODE_RANGE}
     assert root_package["devDependencies"]["jsdom"] == _JSDOM_VERSION  # type: ignore[index]
     assert root_package["devDependencies"]["undici"] == _UNDICI_VERSION  # type: ignore[index]
 
