@@ -24,6 +24,8 @@ RED `15bf1fb266ee9815db70cafd304c351f72213de9` adds `test_progress_jsonl_delegat
 
 Production `f3235e8b2dfd329ec35e3f6bb2b95d54b3b7fc73` removes the temporary `TemporalAnalyzer` import/block. Fresh review then found that this first repair also removed the pre-existing root logging configuration, which was not causally required and could reduce analysis diagnostics. Ordinary descendant `8ae19aa9d609e5a82654d8cf82602b238c15c3b7` restores `logging.basicConfig(level=INFO, ...)` while keeping the duplicate temporal pre-pass absent. The product delta is therefore limited to single-owner analysis dispatch; diagnostic logging semantics are preserved.
 
+Exact-head CodeRabbit review then found four stale tests that still patched the deleted `cli.TemporalAnalyzer` symbol. Ordinary descendants `eef9461aed96125874d3a84b7016a886a96aeedc` and `4b64f571525d13a1629965d1252fb7bb6525eb6e` remove the obsolete pre-pass fixtures, keep the real progress pipeline on canonical orchestration, and rewrite the branch-coverage case to assert delegation to `run_analysis_job`. The dedicated single-owner regression intentionally uses `raising=False` to install a counting sentinel and prove that production CLI code never calls such an attribute.
+
 RED and production descendants were consecutive ordinary commits, so this document does not claim a hosted RED failure. Hosted GREEN belongs only to the final exact #866 head after all current-head workflows complete.
 
 ## Security Notes
@@ -36,4 +38,4 @@ The change is not evidence that decoder/resampler peak RSS, model VRAM, cancella
 
 ## Acceptance
 
-The product contract is now: one native analysis request -> one CLI dispatch -> one canonical analysis orchestration path. Existing CLI diagnostic configuration remains intact. A future CLI-level preview or probe must be modeled as an explicit bounded domain operation with its own product status/resource contract rather than reintroducing a hidden pre-pass.
+The product contract is now: one native analysis request -> one CLI dispatch -> one canonical analysis orchestration path. Existing CLI diagnostic configuration remains intact. Tests exercise supported orchestration behavior rather than patching the deleted pre-pass implementation. A future CLI-level preview or probe must be modeled as an explicit bounded domain operation with its own product status/resource contract rather than reintroducing a hidden pre-pass.
