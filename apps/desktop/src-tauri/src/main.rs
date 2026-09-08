@@ -614,10 +614,20 @@ fn run_analysis_engine(
     let stdout_failure_tx = reader_failure_tx.clone();
     let stderr_failure_tx = reader_failure_tx.clone();
     let _reader_failure_guard = reader_failure_tx;
+    let expected_job_id = job_id.clone();
     let stdout_reader = thread::spawn(move || {
         let mut last_status = None;
+        let mut identity_rejected = false;
         let result = read_bounded_process_lines(stdout, |line| {
+            if identity_rejected {
+                return;
+            }
             if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(line) {
+                if status.job_id != expected_job_id {
+                    identity_rejected = true;
+                    let _ = stdout_failure_tx.send(());
+                    return;
+                }
                 last_status = Some(status.clone());
                 let _ = status_tx.send(status);
             }
