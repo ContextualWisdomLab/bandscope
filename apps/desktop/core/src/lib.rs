@@ -444,6 +444,17 @@ pub fn configure_owned_process(command: &mut Command) {
     command.process_group(0);
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn kill_owned_process_group(child: &Child) -> bool {
+    let Ok(process_group_id) = c_int::try_from(child.id()) else {
+        return false;
+    };
+
+    // SAFETY: `configure_owned_process` establishes a fresh group whose id equals the child
+    // PID on supported Unix targets. A negative pid targets only that group.
+    unsafe { posix_kill(-process_group_id, SIGKILL) } == 0
+}
+
 /// Terminate a BandScope-owned subprocess boundary and reap the directly owned child.
 ///
 /// Security Notes: Linux and macOS signal the negative process-group id so ordinary descendants
@@ -452,13 +463,9 @@ pub fn configure_owned_process(command: &mut Command) {
 /// for descendants that deliberately leave the group or for Windows descendants.
 pub fn terminate_owned_process(child: &mut Child) {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
-    if let Ok(process_group_id) = c_int::try_from(child.id()) {
-        // SAFETY: `configure_owned_process` establishes a fresh group whose id equals the child
-        // PID on supported Unix targets. A negative pid targets only that group.
-        if unsafe { posix_kill(-process_group_id, SIGKILL) } == 0 {
-            let _ = child.wait();
-            return;
-        }
+    if kill_owned_process_group(child) {
+        let _ = child.wait();
+        return;
     }
 
     let _ = child.kill();
@@ -522,6 +529,9 @@ pub fn wait_for_process_output(
 
         match process_status {
             Some(status) => {
+                #[cfg(any(target_os = "linux", target_os = "macos"))]
+                let _ = kill_owned_process_group(&child);
+
                 #[cfg(coverage)]
                 let stdout = stdout_reader
                     .join()
