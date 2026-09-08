@@ -39,11 +39,18 @@ REQUIRED_PATHS = [
 
 REQUIRED_REFERENCES = {
     Path("README.md"): [
+        "Stem preview and role-focused playback remain coming-soon goals",
         "docs/security/app-security.md",
         "docs/security/dependency-policy.md",
         "docs/repository/gitflow.md",
         "docs/security/cross-platform-build-policy.md",
         "docs/workflow/github-bootstrap-execution-policy.md",
+    ],
+    Path("docs/index.md"): [
+        "Stem preview and role-focused playback remain coming-soon goals",
+    ],
+    Path(".github/ISSUE_TEMPLATE/config.yml"): [
+        "https://github.com/ContextualWisdomLab/bandscope/security/advisories/new",
     ],
     Path("SECURITY.md"): [
         "https://github.com/ContextualWisdomLab/bandscope/security/advisories/new",
@@ -64,6 +71,12 @@ REQUIRED_REFERENCES = {
     ],
 }
 
+FORBIDDEN_REFERENCES = {
+    Path(".github/ISSUE_TEMPLATE/config.yml"): [
+        "https://github.com/seonghobae/bandscope/security/advisories/new",
+    ],
+}
+
 
 def main() -> int:
     """Return a failing exit code when required docs or references are missing."""
@@ -79,6 +92,11 @@ def main() -> int:
         for required_text in required_texts:
             if required_text not in content:
                 broken_refs.append(f"{path} missing reference: {required_text}")
+    for path, forbidden_texts in FORBIDDEN_REFERENCES.items():
+        content = path.read_text(encoding="utf-8")
+        for forbidden_text in forbidden_texts:
+            if forbidden_text in content:
+                broken_refs.append(f"{path} contains stale reference: {forbidden_text}")
 
     if broken_refs:
         print("Missing required doc references:")
