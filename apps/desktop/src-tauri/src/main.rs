@@ -667,6 +667,7 @@ fn run_analysis_engine(
         }
         match process.try_wait() {
             Ok(Some(status)) => {
+                terminate_owned_process(&mut process);
                 exit_status = status;
                 break;
             }
