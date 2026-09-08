@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Kept the public BandScope surface honest about stem-preview playback being a coming-soon goal, and aligned the issue-template security route with the current ContextualWisdomLab repository owner.
+- Made the vulnerability-reporting fallback reachable through an explicit
+  security-contact request while forbidding vulnerability details in that public
+  request, and added a documentation contract that prevents the destination from
+  disappearing.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
