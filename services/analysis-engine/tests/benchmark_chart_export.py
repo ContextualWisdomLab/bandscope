@@ -52,6 +52,7 @@ def make_large_song_fixture(
 def chart_export_benchmark() -> None:
     """Print runtime and traced peak allocation for repeated chart exports."""
     import statistics
+
     benchmark_song = make_large_song_fixture()
 
     for _warmup_iteration in range(100):
