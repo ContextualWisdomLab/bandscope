@@ -1,5 +1,6 @@
 """Tests for temporal analysis module."""
 
+import logging
 import warnings
 from pathlib import Path
 from unittest.mock import Mock
@@ -119,6 +120,31 @@ def test_temporal_analyzer_exception_handling(
 
     with pytest.raises(ValueError, match="Temporal analysis failed: Mocked general error"):
         TemporalAnalyzer().analyze(test_wav)
+
+
+def test_temporal_analyzer_logs_do_not_expose_source_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Keep source paths out of temporal progress and failure logs."""
+    import librosa
+
+    test_wav = tmp_path / "private-set.wav"
+    test_wav.write_bytes(b"dummy")
+
+    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
+        raise RuntimeError(f"decoder rejected {test_wav}")
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+
+    with caplog.at_level(logging.INFO, logger="bandscope_analysis.temporal.analyzer"):
+        with pytest.raises(ValueError, match="decoder rejected"):
+            TemporalAnalyzer().analyze(test_wav)
+
+    assert str(test_wav) not in caplog.text
+    assert "selected local audio" in caplog.text
+    assert "RuntimeError" in caplog.text
 
 
 def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -> None:

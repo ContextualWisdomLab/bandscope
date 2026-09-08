@@ -28,6 +28,11 @@ function formatTimelineTime(totalSeconds: number): string {
 }
 
 /** Documented. */
+function formatTempoBpm(bpm: number): string {
+  return Number.isInteger(bpm) ? String(bpm) : String(Number(bpm.toFixed(1)));
+}
+
+/** Documented. */
 function downloadTextFile(contents: string, type: string, filename: string): void {
   const blob = new Blob([contents], { type });
   const url = URL.createObjectURL(blob);
@@ -69,6 +74,53 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   } catch {
     return null;
   }
+}
+
+/** Turn analyzed tempo movement into one rehearsal-first next action. */
+function tempoStabilityCopy(
+  value: RehearsalSong["tempoStability"],
+  t: Translator
+): string {
+  if (
+    !value ||
+    !Number.isFinite(value.bpmMedian) ||
+    value.bpmMedian <= 0 ||
+    !Array.isArray(value.tempoChanges)
+  ) {
+    return t("workspaceTempoStabilityMissing");
+  }
+
+  const change = value.tempoChanges[0];
+  if (
+    change &&
+    Number.isFinite(change.time) &&
+    change.time >= 0 &&
+    Number.isFinite(change.fromBpm) &&
+    change.fromBpm > 0 &&
+    Number.isFinite(change.toBpm) &&
+    change.toBpm > 0
+  ) {
+    return fillRangeCopy(t("workspaceTempoChange"), {
+      fromBpm: formatTempoBpm(change.fromBpm),
+      toBpm: formatTempoBpm(change.toBpm),
+      time: formatTimelineTime(change.time)
+    });
+  }
+
+  const copyKey =
+    value.stability === "steady"
+      ? "workspaceTempoStabilitySteady"
+      : value.stability === "loose"
+        ? "workspaceTempoStabilityLoose"
+        : value.stability === "variable"
+          ? "workspaceTempoStabilityVariable"
+          : undefined;
+  if (!copyKey) {
+    return t("workspaceTempoStabilityMissing");
+  }
+  return fillRangeCopy(t(copyKey), {
+    bpm: formatTempoBpm(value.bpmMedian)
+  });
 }
 
 /** Documented. */
@@ -308,6 +360,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
           >
             <p className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">{t("workspaceFirstRangeTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-slate-100">{firstRangeCopy}</p>
+          </section>
+
+          <section
+            className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] p-4"
+            data-testid="tempo-stability"
+            aria-label={t("workspaceTempoStabilityTitle")}
+          >
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-200">{t("workspaceTempoStabilityTitle")}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-100">{tempoStabilityCopy(song.tempoStability, t)}</p>
           </section>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

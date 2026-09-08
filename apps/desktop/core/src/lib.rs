@@ -34,7 +34,10 @@ pub struct AppStateInner {
 
 pub const MAX_IN_FLIGHT_JOBS: usize = 2;
 
-pub const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
+// The engine bounds stem separation at 20 seconds, then performs a separate
+// bounded temporal decode. Keep one finite process deadline with enough headroom
+// for both stages instead of terminating successful local analyses at 30 seconds.
+pub const ANALYSIS_PROCESS_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub const ANALYSIS_WAIT_POLL: Duration = Duration::from_millis(50);
 
@@ -122,10 +125,130 @@ pub enum AnalysisCacheStatus {
 pub struct RehearsalSongPayload {
     id: String,
     title: String,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_positive_optional_f64",
+        skip_serializing_if = "Option::is_none"
+    )]
+    tempo: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tempo_stability: Option<TempoStabilityPayload>,
     sections: Vec<RehearsalSectionPayload>,
     export_summary: ExportSummaryPayload,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     score_attachments: Option<Vec<ScoreAttachmentMetadataPayload>>,
+}
+
+fn deserialize_positive_optional_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<f64>::deserialize(deserializer)?;
+    match value {
+        Some(value) if value.is_finite() && value > 0.0 => Ok(Some(value)),
+        Some(_) => Err(serde::de::Error::custom(
+            "tempo must be finite and positive",
+        )),
+        None => Ok(None),
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TempoChangePayload {
+    time: f64,
+    from_bpm: f64,
+    to_bpm: f64,
+}
+
+impl<'de> Deserialize<'de> for TempoChangePayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct RawTempoChangePayload {
+            time: f64,
+            from_bpm: f64,
+            to_bpm: f64,
+        }
+
+        let raw = RawTempoChangePayload::deserialize(deserializer)?;
+        if !raw.time.is_finite() || raw.time < 0.0 {
+            return Err(serde::de::Error::custom(
+                "tempo change time must be finite and non-negative",
+            ));
+        }
+        if !raw.from_bpm.is_finite() || raw.from_bpm <= 0.0 {
+            return Err(serde::de::Error::custom(
+                "tempo change fromBpm must be finite and positive",
+            ));
+        }
+        if !raw.to_bpm.is_finite() || raw.to_bpm <= 0.0 {
+            return Err(serde::de::Error::custom(
+                "tempo change toBpm must be finite and positive",
+            ));
+        }
+
+        Ok(Self {
+            time: raw.time,
+            from_bpm: raw.from_bpm,
+            to_bpm: raw.to_bpm,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TempoStabilityLabel {
+    Steady,
+    Loose,
+    Variable,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TempoStabilityPayload {
+    bpm_median: f64,
+    bpm_stdev: f64,
+    stability: TempoStabilityLabel,
+    tempo_changes: Vec<TempoChangePayload>,
+}
+
+impl<'de> Deserialize<'de> for TempoStabilityPayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", deny_unknown_fields)]
+        struct RawTempoStabilityPayload {
+            bpm_median: f64,
+            bpm_stdev: f64,
+            stability: TempoStabilityLabel,
+            tempo_changes: Vec<TempoChangePayload>,
+        }
+
+        let raw = RawTempoStabilityPayload::deserialize(deserializer)?;
+        if !raw.bpm_median.is_finite() || raw.bpm_median <= 0.0 {
+            return Err(serde::de::Error::custom(
+                "bpmMedian must be finite and positive",
+            ));
+        }
+        if !raw.bpm_stdev.is_finite() || raw.bpm_stdev < 0.0 {
+            return Err(serde::de::Error::custom(
+                "bpmStdev must be finite and non-negative",
+            ));
+        }
+
+        Ok(Self {
+            bpm_median: raw.bpm_median,
+            bpm_stdev: raw.bpm_stdev,
+            stability: raw.stability,
+            tempo_changes: raw.tempo_changes,
+        })
+    }
 }
 
 /// Score attachment metadata persisted inside the song payload. Only the
@@ -784,6 +907,81 @@ mod tests {
             .expect("shared rehearsal song contract should deserialize in Tauri");
 
         assert_eq!(parsed.sections[0].id, "verse-1");
+    }
+
+    #[test]
+    fn analysis_status_accepts_and_serializes_tempo_contract() {
+        let mut song = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        song["tempo"] = json!(120.0);
+        song["tempoStability"] = json!({
+            "bpmMedian": 120.0,
+            "bpmStdev": 0.5,
+            "stability": "steady",
+            "tempoChanges": [
+                { "time": 32.0, "fromBpm": 120.0, "toBpm": 124.0 }
+            ]
+        });
+        let status = json!({
+            "jobId": "job-tempo",
+            "state": "succeeded",
+            "requestedAt": "2026-03-12T00:00:00Z",
+            "updatedAt": "2026-03-12T00:00:01Z",
+            "result": song
+        });
+
+        let parsed = serde_json::from_value::<AnalysisJobStatus>(status)
+            .expect("JSONL success status should accept tempo fields");
+        let result = parsed
+            .result
+            .as_ref()
+            .expect("success status should retain its result");
+        assert_eq!(result.tempo, Some(120.0));
+        assert_eq!(
+            result.tempo_stability.as_ref().unwrap().tempo_changes.len(),
+            1
+        );
+
+        let serialized = serde_json::to_value(parsed).expect("status should serialize");
+        assert_eq!(
+            serialized["result"]["tempoStability"]["stability"],
+            "steady"
+        );
+        assert_eq!(
+            serialized["result"]["tempoStability"]["tempoChanges"][0]["fromBpm"],
+            120.0
+        );
+    }
+
+    #[test]
+    fn rehearsal_song_payload_rejects_invalid_tempo_contract() {
+        let mut invalid_tempo = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        invalid_tempo["tempo"] = json!(0.0);
+        assert!(serde_json::from_value::<RehearsalSongPayload>(invalid_tempo).is_err());
+
+        let mut invalid_stability = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        invalid_stability["tempoStability"] = json!({
+            "bpmMedian": 120.0,
+            "bpmStdev": -0.5,
+            "stability": "steady",
+            "tempoChanges": []
+        });
+        assert!(serde_json::from_value::<RehearsalSongPayload>(invalid_stability).is_err());
+
+        let mut invalid_change = shared_contract_payload(json!({ "start": 10, "end": 30 }));
+        invalid_change["tempoStability"] = json!({
+            "bpmMedian": 120.0,
+            "bpmStdev": 0.5,
+            "stability": "steady",
+            "tempoChanges": [
+                { "time": -1.0, "fromBpm": 120.0, "toBpm": 124.0 }
+            ]
+        });
+        assert!(serde_json::from_value::<RehearsalSongPayload>(invalid_change).is_err());
+    }
+
+    #[test]
+    fn analysis_process_timeout_allows_bounded_engine_stages() {
+        assert!(ANALYSIS_PROCESS_TIMEOUT > Duration::from_secs(30));
     }
 
     #[test]
