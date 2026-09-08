@@ -314,6 +314,7 @@ describe("added ui primitives (runtime render)", () => {
     )
     const slider = screen.getByRole("slider", { name: "Focus Slider" })
     await user.tab()
+    expect(slider).toHaveFocus()
     expect(slider.parentElement).toHaveClass("has-[:focus-visible]:outline-none")
   })
 
