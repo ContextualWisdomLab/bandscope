@@ -267,8 +267,8 @@ describe("added ui primitives (runtime render)", () => {
     expect(screen.getByRole("slider", { name: "Test Slider" })).toBeInTheDocument()
   })
 
-  it("Slider mounts vertically and renders accessible roles", () => {
-    render(
+  it("Slider mounts vertically and preserves its rendered layout contract", () => {
+    const { container } = render(
       <Slider orientation="vertical">
         <SliderControl>
           <SliderTrack>
@@ -279,6 +279,19 @@ describe("added ui primitives (runtime render)", () => {
       </Slider>
     )
     expect(screen.getByRole("slider", { name: "Vertical Slider" })).toHaveAttribute("aria-orientation", "vertical")
+
+    const root = container.querySelector('[data-slot="slider"]')
+    const control = container.querySelector('[data-slot="slider-control"]')
+    const track = container.querySelector('[data-slot="slider-track"]')
+
+    expect(root).toHaveClass("data-[orientation=vertical]:flex-col")
+    expect(root).toHaveClass("data-[orientation=vertical]:h-full")
+    expect(root).toHaveClass("data-[orientation=vertical]:w-auto")
+    expect(control).toHaveClass("data-[orientation=vertical]:flex-col")
+    expect(control).toHaveClass("data-[orientation=vertical]:h-full")
+    expect(control).toHaveClass("data-[orientation=vertical]:w-auto")
+    expect(track).toHaveClass("data-[orientation=vertical]:h-full")
+    expect(track).toHaveClass("data-[orientation=vertical]:w-2")
   })
 
   it("Slider correctly handles disabled state", () => {
