@@ -213,14 +213,14 @@ mod tests {
     }
 
     #[test]
-    fn bounded_lines_emit_only_admitted_nonempty_lines() {
+    fn bounded_lines_preserve_empty_transport_records() {
         let mut lines = Vec::new();
         read_bounded_process_lines(Cursor::new(b"first\n\n second \n"), |line| {
             lines.push(line.to_string());
         })
         .expect("small newline-delimited output should remain admissible");
 
-        assert_eq!(lines, vec!["first", " second "]);
+        assert_eq!(lines, vec!["first", "", " second "]);
     }
 
     #[test]
