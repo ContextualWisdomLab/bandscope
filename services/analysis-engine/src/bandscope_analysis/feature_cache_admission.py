@@ -11,6 +11,8 @@ Security Notes:
   crash, local tampering, restore, or partial publication.
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
+- Persisted role metadata, when present beside the stem archive, must preserve
+  the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - ZIP central-directory declarations and bounded NPY headers are checked before
   ``np.load`` can decompress a stem member. Extra or duplicate members fail
   closed rather than becoming hidden compressed payload.
@@ -25,6 +27,7 @@ Security Notes:
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 import zipfile
@@ -40,12 +43,18 @@ from bandscope_analysis.audio_resource_policy import (
     AudioResourcePolicyError,
 )
 
-_CANONICAL_STEM_KEYS = frozenset({"vocals", "bass", "drums", "other"})
+_CANONICAL_STEM_ROLE_TYPES = {
+    "vocals": "vocal",
+    "bass": "instrument",
+    "drums": "instrument",
+    "other": "instrument",
+}
+_CANONICAL_STEM_KEYS = frozenset(_CANONICAL_STEM_ROLE_TYPES)
 _MAX_STEM_MEMBERS = len(_CANONICAL_STEM_KEYS)
 _MAX_NPY_HEADER_BYTES = 16 * 1024
 _MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES = 1024 * 1024
 _NPY_VERSION = (1, 0)
-_CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
+CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 
 
 def _replay_policy(
@@ -62,7 +71,7 @@ def _replay_policy(
         return None
     try:
         canonical_bytes = (
-            int(sample_rate * float(template.max_duration_seconds)) * _CANONICAL_ITEMSIZE
+            int(sample_rate * float(template.max_duration_seconds)) * CANONICAL_ITEMSIZE
         )
         return AudioResourcePolicy(
             max_encoded_file_bytes=template.max_encoded_file_bytes,
@@ -92,6 +101,29 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     ):
         return None
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
+
+
+def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -> bool:
+    """Reject persisted role metadata that contradicts canonical stem semantics."""
+    metadata_path = arrays_path.with_suffix(".json")
+    if not metadata_path.exists():
+        return True
+    try:
+        with metadata_path.open("r", encoding="utf-8") as metadata_file:
+            metadata = json.load(metadata_file)
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(metadata, dict):
+        return False
+    stem_role_types = metadata.get("stemRoleTypes")
+    if stem_role_types is None:
+        return True
+    if not isinstance(stem_role_types, dict):
+        return False
+    return all(
+        stem_role_types.get(stem_key) == _CANONICAL_STEM_ROLE_TYPES[stem_key]
+        for stem_key in stem_keys
+    )
 
 
 def _preflight_npz(
@@ -164,7 +196,11 @@ def load_bounded_stem_archive(
     """Load one admitted stem archive and return owned canonical float32 signals."""
     policy = _replay_policy(sample_rate, policy_template)
     expected_names = _expected_member_names(stem_keys)
-    if policy is None or expected_names is None:
+    if (
+        policy is None
+        or expected_names is None
+        or not _has_canonical_stem_role_metadata(arrays_path, stem_keys)
+    ):
         return None
 
     max_archive_bytes = (
