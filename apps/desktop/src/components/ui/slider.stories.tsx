@@ -36,3 +36,67 @@ export const Default: Story = {
     </div>
   ),
 }
+
+/** Vertical orientation rendering. */
+export const Vertical: Story = {
+  render: (args) => (
+    <div className="h-[200px]">
+      <Slider defaultValue={50} orientation="vertical" {...args}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Volume" />
+        </SliderControl>
+      </Slider>
+    </div>
+  ),
+}
+
+/** Disabled interaction rendering. */
+export const Disabled: Story = {
+  render: (args) => (
+    <div className="w-[200px]">
+      <Slider defaultValue={50} disabled {...args}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Volume" />
+        </SliderControl>
+      </Slider>
+    </div>
+  ),
+}
+
+/** Stepped value rendering. */
+export const CustomStep: Story = {
+  render: (args) => (
+    <div className="w-[200px]">
+      <Slider defaultValue={50} step={10} {...args}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Volume" />
+        </SliderControl>
+      </Slider>
+    </div>
+  ),
+}
+
+/** Right-to-Left (RTL) reading direction rendering. */
+export const RTL: Story = {
+  render: (args) => (
+    <div className="w-[200px]" dir="rtl">
+      <Slider defaultValue={50} direction="rtl" {...args}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Volume" />
+        </SliderControl>
+      </Slider>
+    </div>
+  ),
+}

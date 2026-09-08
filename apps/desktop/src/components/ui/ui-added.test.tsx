@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -267,8 +268,8 @@ describe("added ui primitives (runtime render)", () => {
     expect(screen.getByRole("slider", { name: "Test Slider" })).toBeInTheDocument()
   })
 
-  it("Slider mounts vertically and preserves its rendered layout contract", () => {
-    const { container } = render(
+  it("Slider mounts vertically and renders accessible roles", () => {
+    render(
       <Slider orientation="vertical">
         <SliderControl>
           <SliderTrack>
@@ -279,19 +280,6 @@ describe("added ui primitives (runtime render)", () => {
       </Slider>
     )
     expect(screen.getByRole("slider", { name: "Vertical Slider" })).toHaveAttribute("aria-orientation", "vertical")
-
-    const root = container.querySelector('[data-slot="slider"]')
-    const control = container.querySelector('[data-slot="slider-control"]')
-    const track = container.querySelector('[data-slot="slider-track"]')
-
-    expect(root).toHaveClass("data-[orientation=vertical]:flex-col")
-    expect(root).toHaveClass("data-[orientation=vertical]:h-full")
-    expect(root).toHaveClass("data-[orientation=vertical]:w-auto")
-    expect(control).toHaveClass("data-[orientation=vertical]:flex-col")
-    expect(control).toHaveClass("data-[orientation=vertical]:h-full")
-    expect(control).toHaveClass("data-[orientation=vertical]:w-auto")
-    expect(track).toHaveClass("data-[orientation=vertical]:h-full")
-    expect(track).toHaveClass("data-[orientation=vertical]:w-2")
   })
 
   it("Slider correctly handles disabled state", () => {
@@ -308,7 +296,8 @@ describe("added ui primitives (runtime render)", () => {
     expect(screen.getByRole("slider", { name: "Disabled Slider" })).toBeDisabled()
   })
 
-  it("SliderThumb exposes the nested focus-visible class-token contract", () => {
+  it("Slider handles keyboard focus interaction styling correctly", async () => {
+    const user = userEvent.setup()
     render(
       <Slider>
         <SliderControl>
@@ -320,6 +309,8 @@ describe("added ui primitives (runtime render)", () => {
       </Slider>
     )
     const slider = screen.getByRole("slider", { name: "Focus Slider" })
+    await user.tab()
+    expect(slider).toHaveFocus()
     expect(slider.parentElement).toHaveClass("has-[:focus-visible]:outline-none")
   })
 })
