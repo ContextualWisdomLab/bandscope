@@ -15,7 +15,9 @@
 
 ### Fixed
 
-- Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
+- Aligned the supported Node 22 floor with jsdom 30 so the manifest no longer admits runtimes that cannot load the reviewed test dependency graph.
+
+- Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, paired jsdom 30.0.1 with Undici 8.10.0 across the test workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
 
