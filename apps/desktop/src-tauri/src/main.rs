@@ -623,24 +623,30 @@ fn run_analysis_engine(
             if protocol_rejected {
                 return;
             }
-            if let Ok(status) = serde_json::from_str::<AnalysisJobStatus>(line) {
-                if status.job_id != expected_job_id || terminal_status_seen {
-                    protocol_rejected = true;
-                    let _ = stdout_failure_tx.send(());
-                    return;
-                }
-                match &status.state {
-                    AnalysisJobState::Succeeded | AnalysisJobState::Failed => {
-                        terminal_status_seen = true;
-                        last_status = Some(status);
-                    }
-                    AnalysisJobState::Running => {
-                        let _ = status_tx.send(status);
-                    }
-                    _ => {
+            match serde_json::from_str::<AnalysisJobStatus>(line) {
+                Ok(status) => {
+                    if status.job_id != expected_job_id || terminal_status_seen {
                         protocol_rejected = true;
                         let _ = stdout_failure_tx.send(());
+                        return;
                     }
+                    match &status.state {
+                        AnalysisJobState::Succeeded | AnalysisJobState::Failed => {
+                            terminal_status_seen = true;
+                            last_status = Some(status);
+                        }
+                        AnalysisJobState::Running => {
+                            let _ = status_tx.send(status);
+                        }
+                        _ => {
+                            protocol_rejected = true;
+                            let _ = stdout_failure_tx.send(());
+                        }
+                    }
+                }
+                Err(_) => {
+                    protocol_rejected = true;
+                    let _ = stdout_failure_tx.send(());
                 }
             }
         });
@@ -1220,7 +1226,7 @@ fn remove_score_pdf(
     if !is_valid_score_id(&score_id) {
         return Err("Invalid score id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects")?;
     let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
         Ok(path) => path,
         Err(_) => return Ok(false),
