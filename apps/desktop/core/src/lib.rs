@@ -12,7 +12,7 @@ use std::{
     collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
@@ -20,7 +20,18 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[cfg(unix)]
+use std::{ffi::c_int, os::unix::process::CommandExt};
 use time::OffsetDateTime;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+const SIGKILL: c_int = 9;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+extern "C" {
+    #[link_name = "kill"]
+    fn posix_kill(pid: c_int, signal: c_int) -> c_int;
+}
 
 #[derive(Clone)]
 pub struct AppState(pub Arc<AppStateInner>);
@@ -424,12 +435,43 @@ pub fn youtube_missing_metadata_error(_parsed: &Value) -> String {
     "YouTube import reported ok but missing metadata.".to_string()
 }
 
+/// Configure a BandScope-owned subprocess so ordinary Unix descendants share one process group.
+///
+/// Security Notes: Linux and macOS create the group before `exec`. Windows is intentionally
+/// direct-child-only until a race-free Job Object creation/assignment boundary is implemented.
+pub fn configure_owned_process(command: &mut Command) {
+    #[cfg(unix)]
+    command.process_group(0);
+}
+
+/// Terminate a BandScope-owned subprocess boundary and reap the directly owned child.
+///
+/// Security Notes: Linux and macOS signal the negative process-group id so ordinary descendants
+/// that retain the inherited group terminate before reader threads are joined. If group signalling
+/// fails, direct-child kill/reap remains the fail-closed fallback. This does not claim containment
+/// for descendants that deliberately leave the group or for Windows descendants.
+pub fn terminate_owned_process(child: &mut Child) {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if let Ok(process_group_id) = c_int::try_from(child.id()) {
+        // SAFETY: `configure_owned_process` establishes a fresh group whose id equals the child
+        // PID on supported Unix targets. A negative pid targets only that group.
+        if unsafe { posix_kill(-process_group_id, SIGKILL) } == 0 {
+            let _ = child.wait();
+            return;
+        }
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 pub fn wait_for_process_output(
     mut command: Command,
     timeout: Duration,
     poll_interval: Duration,
     timeout_message: &str,
 ) -> Result<std::process::Output, String> {
+    configure_owned_process(&mut command);
     let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -469,8 +511,7 @@ pub fn wait_for_process_output(
                 match child.try_wait() {
                     Ok(status) => status,
                     Err(_) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
+                        terminate_owned_process(&mut child);
                         let _ = stdout_reader.join();
                         let _ = stderr_reader.join();
                         return Err("Failed to execute YouTube import process.".to_string());
@@ -509,8 +550,7 @@ pub fn wait_for_process_output(
             }
             None => {
                 if Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    terminate_owned_process(&mut child);
                     let _ = stdout_reader.join();
                     let _ = stderr_reader.join();
                     return Err(timeout_message.to_string());
