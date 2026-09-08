@@ -670,6 +670,11 @@ fn run_analysis_engine(
                 }
             }
         });
+        let result = if protocol_rejected {
+            Err(std::io::Error::from(std::io::ErrorKind::InvalidData))
+        } else {
+            result
+        };
         if result.is_err() {
             let _ = stdout_failure_tx.send(());
         }
