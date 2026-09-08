@@ -33,7 +33,7 @@ fn analysis_terminal_parent_exit_cleans_owned_descendants_before_reader_join() {
         .find("terminate_owned_process(&mut process)")
         .expect("terminal cleanup must remain in the terminal arm");
     let first_reader_join = runner
-        .find("let reader_last_status = stdout_reader.join()")
+        .find("stdout_reader.join()")
         .expect("analysis runner must still join its stdout reader");
     assert!(
         terminal_arm_start + cleanup < first_reader_join,
