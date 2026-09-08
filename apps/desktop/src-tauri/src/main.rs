@@ -606,6 +606,7 @@ fn run_analysis_engine(
 
     let payload = json!({
         "jobId": job_id.clone(),
+        "requestedAt": requested_at.clone(),
         "request": request,
     });
     let Some(stdout) = process.stdout.take() else {
@@ -632,6 +633,7 @@ fn run_analysis_engine(
     let stderr_failure_tx = reader_failure_tx.clone();
     let _reader_failure_guard = reader_failure_tx;
     let expected_job_id = job_id.clone();
+    let expected_requested_at = requested_at.clone();
     let stdout_reader = thread::spawn(move || {
         let mut last_status = None;
         let mut protocol_rejected = false;
@@ -643,6 +645,7 @@ fn run_analysis_engine(
             match serde_json::from_str::<AnalysisJobStatus>(line) {
                 Ok(status) => {
                     if status.job_id != expected_job_id
+                        || status.requested_at != expected_requested_at
                         || terminal_status_seen
                         || !analysis_status_payload_is_valid(&status)
                     {
@@ -1251,7 +1254,7 @@ fn remove_score_pdf(
     if !is_valid_score_id(&score_id) {
         return Err("Invalid score id.".to_string());
     }
-    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let scores_root = scores_root_for_project(&app, "projects")?;
     let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
         Ok(path) => path,
         Err(_) => return Ok(false),
