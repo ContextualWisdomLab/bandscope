@@ -115,6 +115,23 @@ def test_feature_cache_replay_rejects_oversized_member_before_decompression(
     load_mock.assert_not_called()
 
 
+def test_feature_cache_replay_treats_numpy_allocator_exhaustion_as_cache_miss(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Allocator exhaustion while opening an admitted NPZ cannot crash the analysis job."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_metadata(metadata_path)
+    np.savez_compressed(arrays_path, stem_bass=np.zeros(16, dtype=np.float32))
+
+    load_mock = Mock(side_effect=MemoryError("allocator exhausted while opening cached stems"))
+    monkeypatch.setattr("bandscope_analysis.feature_cache_admission.np.load", load_mock)
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+    load_mock.assert_called_once()
+
+
 def _write_two_stem_cache(metadata_path: Path, arrays_path: Path, *, drum_samples: int) -> None:
     """Write canonical bass/drums cache data with a configurable drums timeline."""
     metadata_path.write_text(
