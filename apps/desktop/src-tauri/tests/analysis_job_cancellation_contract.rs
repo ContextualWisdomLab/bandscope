@@ -24,7 +24,7 @@ fn desktop_schema_identifier_const(value: &serde_json::Value, expected: &str) ->
 }
 
 #[test]
-fn native_analysis_cancellation_reaches_the_running_child_boundary() {
+fn native_analysis_cancellation_contains_the_running_process_boundary() {
     let source = include_str!("../src/main.rs");
     let runner_start = source
         .find("fn run_analysis_engine(")
@@ -40,12 +40,38 @@ fn native_analysis_cancellation_reaches_the_running_child_boundary() {
         "the native runner must observe cancellation at the process boundary"
     );
     assert!(
-        runner.contains("process.kill()") && runner.contains("process.wait()"),
-        "accepted cancellation must kill and reap the owned analysis child before reporting terminal status"
+        runner.contains("configure_analysis_process(&mut command)"),
+        "the owned analysis process must be configured for platform containment before spawn"
+    );
+    assert!(
+        runner.contains("terminate_analysis_process(&mut process)"),
+        "accepted cancellation and failure paths must terminate the owned containment boundary before reporting terminal status"
+    );
+    assert!(
+        !runner.contains("process.kill()"),
+        "the runner must not bypass the containment helper with direct-child-only termination"
     );
     assert!(
         runner.contains("cancelled_status("),
         "process cancellation must end in a dedicated machine-readable cancellation status"
+    );
+}
+
+#[test]
+fn unix_analysis_processes_use_an_owned_process_group() {
+    let source = include_str!("../src/main.rs");
+
+    assert!(
+        source.contains("command.process_group(0)"),
+        "Unix analysis processes must become leaders of a dedicated process group before spawn"
+    );
+    assert!(
+        source.contains("posix_kill(-process_group_id, SIGKILL)"),
+        "Unix cancellation must signal the owned process group rather than only the direct Python child"
+    );
+    assert!(
+        source.contains("let _ = process.wait();"),
+        "process-group termination must still reap the directly owned child"
     );
 }
 
