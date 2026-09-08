@@ -9,6 +9,8 @@ shape are admitted against the same audio resource budget used by decode.
 Security Notes:
 - The cache path is app-owned, but its bytes and metadata are untrusted after a
   crash, local tampering, restore, or partial publication.
+- Persisted stem identities are admitted only from the canonical Demucs output
+  set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - ZIP central-directory declarations and bounded NPY headers are checked before
   ``np.load`` can decompress a stem member. Extra or duplicate members fail
   closed rather than becoming hidden compressed payload.
@@ -38,7 +40,8 @@ from bandscope_analysis.audio_resource_policy import (
     AudioResourcePolicyError,
 )
 
-_MAX_STEM_MEMBERS = 4
+_CANONICAL_STEM_KEYS = frozenset({"vocals", "bass", "drums", "other"})
+_MAX_STEM_MEMBERS = len(_CANONICAL_STEM_KEYS)
 _MAX_NPY_HEADER_BYTES = 16 * 1024
 _MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES = 1024 * 1024
 _NPY_VERSION = (1, 0)
@@ -76,14 +79,17 @@ def _replay_policy(
 
 
 def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
-    """Return the exact NPY member set for one bounded stem-key list."""
+    """Return the exact NPY member set for one bounded canonical stem-key list."""
     if (
         not stem_keys
         or len(stem_keys) > _MAX_STEM_MEMBERS
         or len(set(stem_keys)) != len(stem_keys)
     ):
         return None
-    if not all(stem_key and stem_key.isidentifier() for stem_key in stem_keys):
+    if not all(
+        stem_key and stem_key.isidentifier() and stem_key in _CANONICAL_STEM_KEYS
+        for stem_key in stem_keys
+    ):
         return None
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
 
