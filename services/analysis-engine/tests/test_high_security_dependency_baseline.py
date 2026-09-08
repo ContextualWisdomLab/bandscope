@@ -71,9 +71,7 @@ def test_lock_records_match_exact_registry_artifacts_and_preserve_peer_metadata(
     jsdom = packages["node_modules/jsdom"]
     assert isinstance(jsdom, dict)
     assert jsdom["version"] == _JSDOM_VERSION
-    assert jsdom["resolved"] == (
-        f"https://registry.npmjs.org/jsdom/-/jsdom-{_JSDOM_VERSION}.tgz"
-    )
+    assert jsdom["resolved"] == (f"https://registry.npmjs.org/jsdom/-/jsdom-{_JSDOM_VERSION}.tgz")
     assert jsdom["integrity"] == _JSDOM_INTEGRITY
     assert jsdom["dependencies"]["undici"] == "^8.9.0"  # type: ignore[index]
 
