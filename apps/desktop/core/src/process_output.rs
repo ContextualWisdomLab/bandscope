@@ -166,8 +166,9 @@ mod tests {
     }
 
     #[test]
-    fn oversized_process_output_terminates_before_deadline() {
+    fn oversized_process_output_wakes_before_coarse_poll_interval() {
         if std::env::var_os("BANDSCOPE_TEST_CHILD_OVERSIZED_OUTPUT").is_some() {
+            std::thread::sleep(Duration::from_millis(100));
             let oversized_output = vec![b'x'; MAX_PROCESS_OUTPUT_BYTES + 1];
             let mut stdout = std::io::stdout();
             let _ = stdout.write_all(&oversized_output);
@@ -181,22 +182,22 @@ mod tests {
         command
             .env("BANDSCOPE_TEST_CHILD_OVERSIZED_OUTPUT", "1")
             .arg("--exact")
-            .arg("process_output::tests::oversized_process_output_terminates_before_deadline")
+            .arg("process_output::tests::oversized_process_output_wakes_before_coarse_poll_interval")
             .arg("--nocapture");
         let started_at = Instant::now();
 
         let error = wait_for_process_output(
             command,
             Duration::from_secs(4),
-            Duration::from_millis(5),
+            Duration::from_secs(2),
             "YouTube import timed out.",
         )
-        .expect_err("output overflow must fail closed before the helper deadline");
+        .expect_err("known output overflow must wake the owner before the next coarse poll");
 
         assert_eq!(error, PROCESS_EXECUTION_ERROR);
         assert!(
-            started_at.elapsed() < Duration::from_secs(2),
-            "known output overflow should terminate the helper immediately"
+            started_at.elapsed() < Duration::from_secs(1),
+            "reader failure should wake process control instead of waiting for the poll interval"
         );
     }
 
