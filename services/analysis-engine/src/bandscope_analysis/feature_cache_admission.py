@@ -112,9 +112,7 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
 
 
-def _has_canonical_stem_role_metadata(
-    arrays_path: Path, stem_keys: list[str]
-) -> bool:
+def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -> bool:
     """Reject missing or persisted role metadata that contradicts canonical semantics."""
     metadata_path = arrays_path.with_suffix(".json")
     try:
@@ -151,7 +149,10 @@ def _preflight_npz(
         with zipfile.ZipFile(archive_file, mode="r") as archive:
             members = archive.infolist()
             member_names = [member.filename for member in members]
-            if len(members) != len(expected_names) or set(member_names) != expected_names:
+            if (
+                len(members) != len(expected_names)
+                or set(member_names) != expected_names
+            ):
                 return False
             if len(member_names) != len(set(member_names)):
                 return False
