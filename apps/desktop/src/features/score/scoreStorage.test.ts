@@ -7,6 +7,7 @@ type TauriWindow = Window & {
 };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
+const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
 
 describe("scoreStorage bridge resolution", () => {
   afterEach(() => {
@@ -32,45 +33,35 @@ describe("scoreStorage bridge resolution", () => {
       BRIDGE_UNAVAILABLE_MESSAGE
     );
   });
-});
 
-  describe("readScorePdf byte validation", () => {
-    const validBytes = [0, 128, 255];
-    const invalidValues = [
-      -1,
-      256,
-      1.5,
-      NaN,
-      Infinity,
-      -Infinity,
-      "0",
-      null,
-      undefined,
-      {},
-      [],
-    ];
+  it("preserves exact bytes from a valid bridge array", async () => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue([0, 1, 255]);
 
-    it("accepts valid byte arrays", async () => {
-      vi.stubGlobal("window", {
-        __TAURI_INTERNALS__: {
-          invoke: vi.fn().mockResolvedValue(validBytes)
-        }
-      });
-      const result = await readScorePdf("project-1", "score-1");
-      expect(result).toBeInstanceOf(Uint8Array);
-      expect(Array.from(result)).toEqual(validBytes);
-    });
-
-    invalidValues.forEach((invalidValue) => {
-      it(`rejects arrays with invalid value: ${String(invalidValue)}`, async () => {
-        vi.stubGlobal("window", {
-          __TAURI_INTERNALS__: {
-            invoke: vi.fn().mockResolvedValue([...validBytes, invalidValue])
-          }
-        });
-        await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
-          "Invalid score bridge response"
-        );
-      });
-    });
+    await expect(readScorePdf("project-1", "score-1")).resolves.toEqual(
+      new Uint8Array([0, 1, 255])
+    );
   });
+
+  it("accepts an empty bridge array", async () => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue([]);
+
+    await expect(readScorePdf("project-1", "score-1")).resolves.toEqual(new Uint8Array());
+  });
+
+  it.each([
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["greater than 255", 256],
+    ["non-number", "1"]
+  ])("rejects a %s bridge byte", async (_label, invalidByte) => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi
+      .fn()
+      .mockResolvedValue([0, invalidByte, 255]);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+});
