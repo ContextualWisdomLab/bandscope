@@ -13,7 +13,9 @@ _SAMPLE_COUNT = 4
 _DURATION_SECONDS = _SAMPLE_COUNT / _SAMPLE_RATE
 
 
-def _sidecar(*, stem_keys: list[str], stem_role_types: object = None) -> dict[str, object]:
+def _sidecar(
+    *, stem_keys: list[str], stem_role_types: object = None
+) -> dict[str, object]:
     """Build generation-valid sidecar metadata for focused role-admission tests."""
     payload: dict[str, object] = {
         "schemaVersion": 1,
@@ -32,7 +34,10 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
     """A persisted instrument stem cannot be replayed as vocal rehearsal evidence."""
     metadata_path = tmp_path / "track.features.json"
     arrays_path = tmp_path / "track.features.npz"
-    np.savez_compressed(arrays_path, stem_bass=np.zeros(_SAMPLE_COUNT, dtype=np.float32))
+    np.savez_compressed(
+        arrays_path,
+        stem_bass=np.zeros(_SAMPLE_COUNT, dtype=np.float32),
+    )
 
     metadata_path.write_text(
         json.dumps(_sidecar(stem_keys=["bass"], stem_role_types={"bass": "vocal"})),
@@ -53,7 +58,9 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
     assert replayed["stem_role_types"] == {"bass": "instrument"}
 
 
-def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(tmp_path) -> None:
+def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
+    tmp_path,
+) -> None:
     """A required sidecar fails closed while legacy role-field absence stays compatible."""
     arrays_path = tmp_path / "track.features.npz"
     metadata_path = arrays_path.with_suffix(".json")
@@ -111,7 +118,9 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(tmp_pa
     )
 
 
-def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(tmp_path) -> None:
+def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(
+    tmp_path,
+) -> None:
     """A second-read sidecar must describe the exact stem identity already admitted."""
     arrays_path = tmp_path / "track.features.npz"
     metadata_path = arrays_path.with_suffix(".json")
