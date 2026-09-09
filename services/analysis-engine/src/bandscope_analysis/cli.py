@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -44,8 +45,9 @@ def failed_cli_response(
 def _bind_verified_source_cache_namespace(
     request: object,
     source_content_sha256: object,
+    job_id: object = None,
 ) -> object:
-    """Scope local cache and stem-work paths to native verified source identity."""
+    """Scope local cache and stem-work paths to verified source and job identities."""
     if not isinstance(request, dict):
         return request
 
@@ -56,9 +58,19 @@ def _bind_verified_source_cache_namespace(
         return request
 
     bound_request = dict(request)
+    job_digest = (
+        hashlib.sha256(job_id.encode("utf-8")).hexdigest()
+        if isinstance(job_id, str) and job_id.strip()
+        else None
+    )
     if source_content_sha256 is None:
         if isinstance(bound_request.get("cacheRoot"), str):
             bound_request.pop("cacheRoot", None)
+        temp_root = bound_request.get("tempRoot")
+        if isinstance(temp_root, str) and temp_root.strip() and job_digest is not None:
+            bound_request["tempRoot"] = str(
+                Path(temp_root) / "job-sha256-v1" / job_digest
+            )
         return bound_request
     if not isinstance(source_content_sha256, str) or not _SOURCE_SHA256_PATTERN.fullmatch(
         source_content_sha256
@@ -72,9 +84,10 @@ def _bind_verified_source_cache_namespace(
         )
     temp_root = bound_request.get("tempRoot")
     if isinstance(temp_root, str) and temp_root.strip():
-        bound_request["tempRoot"] = str(
-            Path(temp_root) / "source-sha256-v1" / source_content_sha256
-        )
+        scoped_temp_root = Path(temp_root) / "source-sha256-v1" / source_content_sha256
+        if job_digest is not None:
+            scoped_temp_root = scoped_temp_root / "job-sha256-v1" / job_digest
+        bound_request["tempRoot"] = str(scoped_temp_root)
     return bound_request
 
 
@@ -139,6 +152,7 @@ def main() -> int:
         request = _bind_verified_source_cache_namespace(
             request,
             payload.get("sourceContentSha256"),
+            job_id,
         )
     except ValueError as error:
         json.dump(
