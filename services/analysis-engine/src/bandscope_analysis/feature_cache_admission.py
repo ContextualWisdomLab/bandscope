@@ -22,6 +22,10 @@ Security Notes:
   closed rather than becoming hidden compressed payload.
 - Every admitted stem must declare the same non-zero sample count so replay
   preserves the synchronized timeline produced by source separation.
+- The already-open archive descriptor must retain the same device, inode, size,
+  mtime, and ctime from declaration preflight through materialization. An
+  in-place writer cannot swap different sample bytes into the admitted archive
+  and still publish them as rehearsal evidence.
 - Each member is one non-empty floating one-dimensional signal within the
   configured sample and visible-byte ceilings. Loaded legacy floating dtypes
   are converted to owned ``float32`` only after those pre-copy bounds pass.
@@ -31,7 +35,9 @@ Security Notes:
   or opening an otherwise admitted cache fails closed as a cache miss instead of
   escaping the persistence boundary and crashing the analysis job.
 - This bounds cache-member materialization; it does not claim a process-wide RSS
-  ceiling for NumPy/ZIP internals or downstream MIR/model work.
+  ceiling for NumPy/ZIP internals or downstream MIR/model work. Descriptor
+  identity checks detect ordinary concurrent mutation but are not a content
+  digest or a complete metadata/archive/source transaction.
 """
 
 from __future__ import annotations
@@ -135,6 +141,17 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
     return all(
         stem_role_types.get(stem_key) == _CANONICAL_STEM_ROLE_TYPES[stem_key]
         for stem_key in stem_keys
+    )
+
+
+def _archive_identity(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
+    """Return descriptor fields that must remain stable across archive replay."""
+    return (
+        file_stat.st_dev,
+        file_stat.st_ino,
+        file_stat.st_size,
+        file_stat.st_mtime_ns,
+        file_stat.st_ctime_ns,
     )
 
 
@@ -243,6 +260,7 @@ def load_bounded_stem_archive(
                 or file_stat.st_size > max_archive_bytes
             ):
                 return None
+            admitted_identity = _archive_identity(file_stat)
             if not _preflight_npz(archive_file, stem_keys, policy):
                 return None
             archive_file.seek(0)
@@ -282,6 +300,8 @@ def load_bounded_stem_archive(
                     ):
                         return None
                     stems[stem_key] = validated
+            if _archive_identity(os.fstat(archive_file.fileno())) != admitted_identity:
+                return None
     except (EOFError, MemoryError, OSError, ValueError, zipfile.BadZipFile):
         return None
     return stems
