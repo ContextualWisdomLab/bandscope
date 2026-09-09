@@ -17,9 +17,9 @@ Security Notes:
   Legacy caches may omit ``stemRoleTypes`` inside that sidecar, but sidecar
   disappearance, identity replacement, or malformed replacement fails closed.
 - Persisted separation duration, when present, must be a finite positive number;
-  NaN, infinity, zero, and negative timeline metadata cannot become rehearsal
-  timing authority. Exact metadata/archive/source generation binding remains a
-  separate persistence contract.
+  NaN, infinity, zero, negative, and unrepresentably large timeline metadata
+  cannot become rehearsal timing authority. Exact metadata/archive/source
+  generation binding remains a separate persistence contract.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - The opened archive is copied exactly once into a bounded spooled snapshot.
@@ -146,12 +146,15 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
             return False
         duration_seconds = separation.get("duration_seconds")
         if duration_seconds is not None:
-            if (
-                isinstance(duration_seconds, bool)
-                or not isinstance(duration_seconds, (int, float))
-                or not math.isfinite(float(duration_seconds))
-                or float(duration_seconds) <= 0.0
+            if isinstance(duration_seconds, bool) or not isinstance(
+                duration_seconds, (int, float)
             ):
+                return False
+            try:
+                duration_value = float(duration_seconds)
+            except (OverflowError, ValueError):
+                return False
+            if not math.isfinite(duration_value) or duration_value <= 0.0:
                 return False
 
     stem_role_types = metadata.get("stemRoleTypes")
