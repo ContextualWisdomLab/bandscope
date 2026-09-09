@@ -14,7 +14,8 @@ Security Notes:
   MiB before UTF-8 decode or JSON materialization. Unix-like platforms also use
   non-blocking/no-follow open flags when available so a substituted FIFO or
   symlink cannot become an unbounded or blocking replay input. JSON decoder
-  numeric-limit failures are treated as cache misses rather than job failures.
+  numeric-limit failures and duplicate object members are treated as cache
+  misses rather than job failures or ambiguous cache authority.
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
@@ -92,6 +93,18 @@ _CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
 
 
+def _materialize_unique_json_object(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    """Materialize one JSON object only when every member name is unique."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object member")
+        result[key] = value
+    return result
+
+
 def read_bounded_feature_cache_metadata(
     metadata_path: Path,
 ) -> dict[str, object] | None:
@@ -112,7 +125,10 @@ def read_bounded_feature_cache_metadata(
             encoded_metadata = metadata_file.read(metadata_stat.st_size + 1)
             if len(encoded_metadata) != metadata_stat.st_size:
                 return None
-        metadata = json.loads(encoded_metadata.decode("utf-8"))
+        metadata = json.loads(
+            encoded_metadata.decode("utf-8"),
+            object_pairs_hook=_materialize_unique_json_object,
+        )
     except (
         MemoryError,
         OSError,
