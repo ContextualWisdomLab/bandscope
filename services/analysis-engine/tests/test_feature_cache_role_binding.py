@@ -1,10 +1,12 @@
 """Regression tests for persisted stem-role semantic admission."""
 
+import importlib
 import json
 
 import numpy as np
 
-from bandscope_analysis import api, feature_cache_admission
+api = importlib.import_module("bandscope_analysis.api")
+feature_cache_admission = importlib.import_module("bandscope_analysis.feature_cache_admission")
 
 
 _SAMPLE_RATE = 22_050
