@@ -13,10 +13,10 @@ Security Notes:
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
-  its second-read stem identity and sample rate must match the caller's
-  already-admitted metadata. Legacy caches may omit ``stemRoleTypes`` inside
-  that sidecar, but sidecar disappearance, identity/rate replacement, or
-  malformed replacement fails closed.
+  its second-read schema version, stem identity, and sample rate must match the
+  caller's already-admitted metadata. Legacy caches may omit ``stemRoleTypes``
+  inside that sidecar, but sidecar disappearance, schema/identity/rate
+  replacement, or malformed replacement fails closed.
 - Persisted separation duration, when present, must be finite, positive, and
   agree with the synchronized stem sample timeline within half one sample at the
   admitted sample rate. Metadata cannot stretch or shrink rehearsal timing away
@@ -66,6 +66,7 @@ from bandscope_analysis.audio_resource_policy import (
     AudioResourcePolicyError,
 )
 
+_FEATURE_CACHE_SCHEMA_VERSION = 1
 _CANONICAL_STEM_ROLE_TYPES = {
     "vocals": "vocal",
     "bass": "instrument",
@@ -143,6 +144,8 @@ def _read_canonical_stem_role_metadata(
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(metadata, dict):
+        return None
+    if metadata.get("schemaVersion") != _FEATURE_CACHE_SCHEMA_VERSION:
         return None
     if metadata.get("stemKeys") != stem_keys:
         return None
