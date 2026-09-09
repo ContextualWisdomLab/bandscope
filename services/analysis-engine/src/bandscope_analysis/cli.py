@@ -9,7 +9,8 @@ import os
 import re
 import shutil
 import sys
-from contextlib import suppress
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -92,8 +93,11 @@ def _bind_verified_source_cache_namespace(
     return bound_request
 
 
-def _open_anchored_directory_chain(path: Path) -> list[int] | None:
-    """Open one absolute directory chain without following mutable symlink components."""
+@contextmanager
+def _open_anchored_directory(
+    path: Path,
+) -> Iterator[int | None]:
+    """Yield one descriptor-anchored directory and close the complete chain on exit."""
     supports_dir_fd = getattr(os, "supports_dir_fd", set())
     if (
         not path.is_absolute()
@@ -101,7 +105,8 @@ def _open_anchored_directory_chain(path: Path) -> list[int] | None:
         or not hasattr(os, "O_DIRECTORY")
         or not hasattr(os, "O_NOFOLLOW")
     ):
-        return None
+        yield None
+        return
 
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     flags |= getattr(os, "O_CLOEXEC", 0)
@@ -119,11 +124,13 @@ def _open_anchored_directory_chain(path: Path) -> list[int] | None:
             )
             descriptors.append(current_descriptor)
     except OSError:
+        yield None
+    else:
+        yield descriptors[-1]
+    finally:
         for descriptor in reversed(descriptors):
             with suppress(OSError):
                 os.close(descriptor)
-        return None
-    return descriptors
 
 
 def _cleanup_job_temp_namespace(request: object) -> None:
@@ -152,19 +159,14 @@ def _cleanup_job_temp_namespace(request: object) -> None:
     if not shutil.rmtree.avoids_symlink_attacks:
         return
 
-    parent_descriptors = _open_anchored_directory_chain(path.parent)
-    if parent_descriptors is None:
-        return
-    try:
+    with _open_anchored_directory(path.parent) as parent_descriptor:
+        if parent_descriptor is None:
+            return
         shutil.rmtree(
             path.name,
-            dir_fd=parent_descriptors[-1],
+            dir_fd=parent_descriptor,
             ignore_errors=True,
         )
-    finally:
-        for descriptor in reversed(parent_descriptors):
-            with suppress(OSError):
-                os.close(descriptor)
 
 
 def main() -> int:
