@@ -17,11 +17,11 @@ Security Notes:
   caller's already-admitted metadata. Legacy caches may omit ``stemRoleTypes``
   inside that sidecar, but sidecar disappearance, schema/identity/rate
   replacement, or malformed replacement fails closed.
-- Persisted separation duration, when present, must be finite, positive, and
-  agree with the synchronized stem sample timeline within half one sample at the
-  admitted sample rate. Metadata cannot stretch or shrink rehearsal timing away
-  from the actual cached stem extent. Exact metadata/archive/source generation
-  binding remains a separate persistence contract.
+- Persisted separation duration is required, finite, positive, and must agree
+  with the synchronized stem sample timeline within half one sample at the
+  admitted sample rate. Metadata cannot omit, stretch, or shrink rehearsal
+  timing away from the actual cached stem extent. Exact metadata/archive/source
+  generation binding remains a separate persistence contract.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - The opened archive is copied exactly once into a bounded spooled snapshot.
@@ -154,21 +154,19 @@ def _read_canonical_stem_role_metadata(
             return None
 
     separation = metadata.get("separation")
-    if separation is not None:
-        if not isinstance(separation, dict):
-            return None
-        duration_seconds = separation.get("duration_seconds")
-        if duration_seconds is not None:
-            if isinstance(duration_seconds, bool):
-                return None
-            if not isinstance(duration_seconds, (int, float)):
-                return None
-            try:
-                duration_value = float(duration_seconds)
-            except (OverflowError, ValueError):
-                return None
-            if not math.isfinite(duration_value) or duration_value <= 0.0:
-                return None
+    if not isinstance(separation, dict):
+        return None
+    duration_seconds = separation.get("duration_seconds")
+    if duration_seconds is None or isinstance(duration_seconds, bool):
+        return None
+    if not isinstance(duration_seconds, (int, float)):
+        return None
+    try:
+        duration_value = float(duration_seconds)
+    except (OverflowError, ValueError):
+        return None
+    if not math.isfinite(duration_value) or duration_value <= 0.0:
+        return None
 
     stem_role_types = metadata.get("stemRoleTypes")
     if stem_role_types is None:
