@@ -173,15 +173,13 @@ def test_feature_cache_replay_accepts_aligned_stem_timelines(tmp_path: Path) -> 
     assert loaded["stems"]["bass"].shape == loaded["stems"]["drums"].shape == (16,)
 
 
-def test_feature_cache_replay_rejects_metadata_duration_outside_stem_timeline(
-    tmp_path: Path,
-) -> None:
-    """Cached duration must describe the exact persisted stem timeline used by MIR."""
+def test_feature_cache_replay_rejects_nonfinite_metadata_duration(tmp_path: Path) -> None:
+    """Non-finite cached duration cannot become rehearsal timeline authority."""
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     _write_metadata(metadata_path)
     metadata_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-    metadata_payload["separation"]["duration_seconds"] = 2.0
+    metadata_payload["separation"]["duration_seconds"] = float("inf")
     metadata_path.write_text(json.dumps(metadata_payload), encoding="utf-8")
     np.savez_compressed(arrays_path, stem_bass=np.zeros(16, dtype=np.float32))
 
