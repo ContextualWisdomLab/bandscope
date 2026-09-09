@@ -173,6 +173,21 @@ def test_feature_cache_replay_accepts_aligned_stem_timelines(tmp_path: Path) -> 
     assert loaded["stems"]["bass"].shape == loaded["stems"]["drums"].shape == (16,)
 
 
+def test_feature_cache_replay_rejects_metadata_duration_outside_stem_timeline(
+    tmp_path: Path,
+) -> None:
+    """Cached duration must describe the exact persisted stem timeline used by MIR."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_metadata(metadata_path)
+    metadata_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata_payload["separation"]["duration_seconds"] = 2.0
+    metadata_path.write_text(json.dumps(metadata_payload), encoding="utf-8")
+    np.savez_compressed(arrays_path, stem_bass=np.zeros(16, dtype=np.float32))
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
 def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materialization(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
