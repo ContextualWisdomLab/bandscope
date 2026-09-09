@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import io
+import json
+
 import pytest
 
+from bandscope_analysis import cli
 from bandscope_analysis.cli import _bind_verified_source_cache_namespace
 
 
@@ -40,3 +44,40 @@ def test_invalid_cache_root_type_remains_for_canonical_request_validation() -> N
     request = _local_request(cache_root=7)
 
     assert _bind_verified_source_cache_namespace(request, None) == request
+
+
+def test_missing_digest_does_not_hide_invalid_cache_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Validate request fields before digest scoping can disable persisted caching."""
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-invalid-cache-root",
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "project-1",
+                    "sourceLabel": "source.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": "/tmp/source.wav",
+                        "fileName": "source.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 4,
+                    },
+                    "cacheRoot": "../cache",
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    response = json.loads(stdout.getvalue())
+    assert response["state"] == "failed"
+    assert response["error"]["message"] == (
+        "Invalid analysis job request: path traversal detected in 'cacheRoot'"
+    )
