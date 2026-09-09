@@ -27,3 +27,27 @@ def test_verified_digest_scopes_temp_work_to_exact_source_identity() -> None:
         "source-sha256-v1",
         source_digest,
     )
+
+
+def test_same_source_concurrent_jobs_use_distinct_temp_work_namespaces() -> None:
+    """Keep the two admitted concurrent jobs from sharing one stem-work artifact path."""
+    source_digest = "ab" * 32
+    request = {
+        "sourceKind": "local_audio",
+        "cacheRoot": "/tmp/cache",
+        "tempRoot": "/tmp/work",
+    }
+
+    first = _bind_verified_source_cache_namespace(request, source_digest, "job-1")
+    second = _bind_verified_source_cache_namespace(request, source_digest, "job-2")
+
+    assert isinstance(first, dict)
+    assert isinstance(second, dict)
+    assert first["cacheRoot"] == second["cacheRoot"]
+    assert first["tempRoot"] != second["tempRoot"]
+    assert Path(str(first["tempRoot"])).parts[-4:-2] == (
+        "source-sha256-v1",
+        source_digest,
+    )
+    assert Path(str(first["tempRoot"])).parts[-2] == "job-sha256-v1"
+    assert len(Path(str(first["tempRoot"])).parts[-1]) == 64
