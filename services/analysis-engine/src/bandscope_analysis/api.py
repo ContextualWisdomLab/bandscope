@@ -38,7 +38,7 @@ StemSeparationFailureKind = Literal["file_not_found", "value_error", "runtime_er
 
 
 class AnalysisJobRequest(TypedDict):
-    """Typed orchestration request payload accepted by the analysis engine."""
+    """Typed orchestration request payload accepted by the engine."""
 
     sourceKind: Literal["demo", "local_audio"]
     sourceLabel: str
@@ -741,6 +741,14 @@ def _load_cached_local_audio_features(
     separation = metadata_payload.get("separation")
     if not isinstance(separation, dict):
         return None
+    duration_seconds = separation.get("duration_seconds")
+    if (
+        isinstance(duration_seconds, bool)
+        or not isinstance(duration_seconds, (int, float))
+        or not np.isfinite(duration_seconds)
+        or duration_seconds <= 0
+    ):
+        return None
     stem_keys = metadata_payload.get("stemKeys")
     if not isinstance(stem_keys, list) or not stem_keys:
         return None
@@ -764,7 +772,7 @@ def _load_cached_local_audio_features(
         "sr": metadata_payload["sampleRate"],
         "stem_role_types": stem_role_types,
         "separation": {
-            "duration_seconds": separation.get("duration_seconds"),
+            "duration_seconds": duration_seconds,
             "chunk_count": separation.get("chunk_count"),
             "notes": separation.get("notes"),
         },
