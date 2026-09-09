@@ -3,7 +3,6 @@
 import json
 
 import numpy as np
-
 from bandscope_analysis.api import _load_cached_local_audio_features
 from bandscope_analysis.feature_cache_admission import _has_canonical_stem_role_metadata
 
