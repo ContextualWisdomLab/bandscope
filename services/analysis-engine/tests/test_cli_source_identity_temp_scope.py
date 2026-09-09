@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bandscope_analysis.cli import _bind_verified_source_cache_namespace
+from bandscope_analysis.cli import (
+    _bind_verified_source_cache_namespace,
+    _cleanup_job_temp_namespace,
+)
 
 
 def test_verified_digest_scopes_temp_work_to_exact_source_identity() -> None:
@@ -51,3 +54,42 @@ def test_same_source_concurrent_jobs_use_distinct_temp_work_namespaces() -> None
     )
     assert Path(str(first["tempRoot"])).parts[-2] == "job-sha256-v1"
     assert len(Path(str(first["tempRoot"])).parts[-1]) == 64
+
+
+def test_job_temp_cleanup_removes_only_the_derived_execution_namespace(tmp_path: Path) -> None:
+    """Remove completed stem work without deleting the reusable source namespace."""
+    source_digest = "ab" * 32
+    bound = _bind_verified_source_cache_namespace(
+        {
+            "sourceKind": "local_audio",
+            "cacheRoot": str(tmp_path / "cache"),
+            "tempRoot": str(tmp_path / "work"),
+        },
+        source_digest,
+        "job-cleanup",
+    )
+    assert isinstance(bound, dict)
+    job_root = Path(str(bound["tempRoot"]))
+    source_root = job_root.parents[1]
+    stem_path = job_root / "stem-work-v1" / "stems.npz"
+    stem_path.parent.mkdir(parents=True)
+    stem_path.write_bytes(b"temporary-stems")
+    sibling = source_root / "keep.txt"
+    sibling.write_text("keep", encoding="utf-8")
+
+    _cleanup_job_temp_namespace(bound)
+
+    assert not job_root.exists()
+    assert sibling.read_text(encoding="utf-8") == "keep"
+
+
+def test_job_temp_cleanup_refuses_an_unscoped_temp_root(tmp_path: Path) -> None:
+    """Do not grant recursive deletion authority to a generic caller tempRoot."""
+    unsafe_root = tmp_path / "caller-root"
+    unsafe_root.mkdir()
+    sentinel = unsafe_root / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    _cleanup_job_temp_namespace({"tempRoot": str(unsafe_root)})
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
