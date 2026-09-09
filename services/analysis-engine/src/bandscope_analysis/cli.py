@@ -45,7 +45,7 @@ def _bind_verified_source_cache_namespace(
     request: object,
     source_content_sha256: object,
 ) -> object:
-    """Scope persisted local cache paths to native verified source identity."""
+    """Scope local cache and stem-work paths to native verified source identity."""
     if not isinstance(request, dict):
         return request
 
@@ -69,6 +69,11 @@ def _bind_verified_source_cache_namespace(
     if isinstance(cache_root, str) and cache_root.strip():
         bound_request["cacheRoot"] = str(
             Path(cache_root) / "source-sha256-v1" / source_content_sha256
+        )
+    temp_root = bound_request.get("tempRoot")
+    if isinstance(temp_root, str) and temp_root.strip():
+        bound_request["tempRoot"] = str(
+            Path(temp_root) / "source-sha256-v1" / source_content_sha256
         )
     return bound_request
 
