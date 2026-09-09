@@ -145,7 +145,10 @@ def _has_canonical_stem_role_metadata(
         return False
     if metadata.get("stemKeys") != stem_keys:
         return False
-    if expected_sample_rate is not None and metadata.get("sampleRate") != expected_sample_rate:
+    if (
+        expected_sample_rate is not None
+        and metadata.get("sampleRate") != expected_sample_rate
+    ):
         return False
 
     separation = metadata.get("separation")
@@ -154,8 +157,9 @@ def _has_canonical_stem_role_metadata(
             return False
         duration_seconds = separation.get("duration_seconds")
         if duration_seconds is not None:
-            if isinstance(duration_seconds, bool) or not isinstance(
-                duration_seconds, (int, float)
+            if (
+                isinstance(duration_seconds, bool)
+                or not isinstance(duration_seconds, (int, float))
             ):
                 return False
             try:
