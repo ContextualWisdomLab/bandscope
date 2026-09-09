@@ -10,6 +10,10 @@ used by decode.
 Security Notes:
 - The cache path is app-owned, but its bytes and metadata are untrusted after a
   crash, local tampering, restore, or partial publication.
+- Persisted metadata is admitted only from a regular sidecar no larger than 1
+  MiB before UTF-8 decode or JSON materialization. Unix-like platforms also use
+  non-blocking/no-follow open flags when available so a substituted FIFO or
+  symlink cannot become an unbounded or blocking replay input.
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
@@ -81,6 +85,40 @@ _ARCHIVE_SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
 _ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES = 1024 * 1024
 _NPY_VERSION = (1, 0)
 _CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
+MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
+
+
+def read_bounded_feature_cache_metadata(
+    metadata_path: Path,
+) -> dict[str, object] | None:
+    """Read one bounded regular UTF-8 JSON sidecar from an already-open descriptor."""
+    open_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    open_flags |= getattr(os, "O_NONBLOCK", 0)
+    open_flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(metadata_path, open_flags)
+        with os.fdopen(descriptor, "rb") as metadata_file:
+            metadata_stat = os.fstat(metadata_file.fileno())
+            if (
+                not stat.S_ISREG(metadata_stat.st_mode)
+                or metadata_stat.st_size <= 0
+                or metadata_stat.st_size > MAX_FEATURE_CACHE_METADATA_BYTES
+            ):
+                return None
+            encoded_metadata = metadata_file.read(metadata_stat.st_size + 1)
+            if len(encoded_metadata) != metadata_stat.st_size:
+                return None
+        metadata = json.loads(encoded_metadata.decode("utf-8"))
+    except (
+        MemoryError,
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    return metadata
 
 
 def _replay_policy(
@@ -137,13 +175,8 @@ def _read_canonical_stem_role_metadata(
     expected_sample_rate: object | None = None,
 ) -> dict[str, object] | None:
     """Return one admitted second-read sidecar snapshot for archive replay."""
-    metadata_path = arrays_path.with_suffix(".json")
-    try:
-        with metadata_path.open("r", encoding="utf-8") as metadata_file:
-            metadata = json.load(metadata_file)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(metadata, dict):
+    metadata = read_bounded_feature_cache_metadata(arrays_path.with_suffix(".json"))
+    if metadata is None:
         return None
     if metadata.get("schemaVersion") != _FEATURE_CACHE_SCHEMA_VERSION:
         return None
@@ -421,4 +454,8 @@ def load_bounded_stem_archive(
     return stems
 
 
-__all__ = ["load_bounded_stem_archive"]
+__all__ = [
+    "MAX_FEATURE_CACHE_METADATA_BYTES",
+    "load_bounded_stem_archive",
+    "read_bounded_feature_cache_metadata",
+]
