@@ -258,6 +258,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomOut")}
+              title={t("scoreViewerZoomOut")}
               onClick={zoomOut}
             >
               <ZoomOut aria-hidden="true" />
@@ -267,6 +268,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               size="icon-lg"
               className="size-12"
               aria-label={t("scoreViewerZoomIn")}
+              title={t("scoreViewerZoomIn")}
               onClick={zoomIn}
             >
               <ZoomIn aria-hidden="true" />
@@ -275,6 +277,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
               aria-label={t("scoreViewerFitWidth")}
+              title={t("scoreViewerFitWidth")}
               aria-pressed={fitWidth}
               onClick={fitToWidth}
             >
@@ -292,6 +295,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerPrevPage")}
+            title={t("scoreViewerPrevPage")}
             disabled={pageNumber <= 1}
             onClick={goToPreviousPage}
           >
@@ -305,6 +309,7 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             size="icon-lg"
             className="size-14"
             aria-label={t("scoreViewerNextPage")}
+            title={t("scoreViewerNextPage")}
             disabled={pageNumber >= pageCount}
             onClick={goToNextPage}
           >
