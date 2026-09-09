@@ -300,8 +300,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
     if ".." in source_path.replace("\\", "/").split("/"):
-        path = repr(source_path)
-        logger.warning("Security: path traversal detected in localSource.sourcePath: %s", path)
+        logger.warning("Security: path traversal detected in localSource.sourcePath")
         raise ValueError(
             "Invalid analysis job request: path traversal detected in 'localSource.sourcePath'"
         )
@@ -328,16 +327,14 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         if not isinstance(cache_root, str) or not cache_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'cacheRoot'")
         if ".." in cache_root.replace("\\", "/").split("/"):
-            path = repr(cache_root)
-            logger.warning("Security: path traversal detected in cacheRoot: %s", path)
+            logger.warning("Security: path traversal detected in cacheRoot")
             raise ValueError("Invalid analysis job request: path traversal detected in 'cacheRoot'")
         normalized["cacheRoot"] = cache_root
     if temp_root is not None:
         if not isinstance(temp_root, str) or not temp_root.strip():
             raise ValueError("Invalid analysis job request: invalid field 'tempRoot'")
         if ".." in temp_root.replace("\\", "/").split("/"):
-            path = repr(temp_root)
-            logger.warning("Security: path traversal detected in tempRoot: %s", path)
+            logger.warning("Security: path traversal detected in tempRoot")
             raise ValueError("Invalid analysis job request: path traversal detected in 'tempRoot'")
         normalized["tempRoot"] = temp_root
 
