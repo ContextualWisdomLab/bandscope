@@ -384,9 +384,7 @@ def test_validate_analysis_job_request_logs_traversal_attempts() -> None:
         except ValueError:
             pass
 
-        mock_logger.assert_called_once_with(
-            "Security: path traversal detected in projectId: %s", "'../escape\\n[ERROR]'"
-        )
+        mock_logger.assert_called_once_with("Security: path traversal detected in %s", "projectId")
 
 
 def test_validate_analysis_job_request_allows_project_id_with_dotdot_substring() -> None:
