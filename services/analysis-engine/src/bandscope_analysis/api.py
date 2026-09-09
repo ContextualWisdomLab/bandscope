@@ -10,7 +10,7 @@ import queue
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
 import numpy as np
 
@@ -20,7 +20,7 @@ from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
-from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.separation import AudioStemName, AudioStemSeparator
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
+_CANONICAL_AUDIO_STEM_NAMES = frozenset(get_args(AudioStemName))
 
 logger = logging.getLogger(__name__)
 
@@ -788,6 +789,8 @@ def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
         if not isinstance(stem_name, str) or not stem_name:
             return None
         if not stem_name.isidentifier():
+            return None
+        if stem_name not in _CANONICAL_AUDIO_STEM_NAMES:
             return None
         if not isinstance(stem_value, np.ndarray):
             return None
