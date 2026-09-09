@@ -13,6 +13,7 @@ from bandscope_analysis.api import (
     get_analysis_status,
     run_analysis_job,
     run_analysis_job_updates,
+    validate_analysis_job_request,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -129,6 +130,7 @@ def main() -> int:
 
     request = payload.get("request")
     try:
+        request = validate_analysis_job_request(request)
         request = _bind_verified_source_cache_namespace(
             request,
             payload.get("sourceContentSha256"),
