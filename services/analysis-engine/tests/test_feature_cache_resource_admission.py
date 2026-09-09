@@ -186,6 +186,21 @@ def test_feature_cache_replay_rejects_nonfinite_metadata_duration(tmp_path: Path
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
 
+def test_feature_cache_replay_rejects_integer_duration_too_large_for_float(
+    tmp_path: Path,
+) -> None:
+    """Oversized integer duration fails as a cache miss instead of escaping admission."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_metadata(metadata_path)
+    metadata_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata_payload["separation"]["duration_seconds"] = 10**400
+    metadata_path.write_text(json.dumps(metadata_payload), encoding="utf-8")
+    np.savez_compressed(arrays_path, stem_bass=np.zeros(16, dtype=np.float32))
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
 def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materialization(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
