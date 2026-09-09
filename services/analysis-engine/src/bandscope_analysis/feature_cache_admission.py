@@ -13,7 +13,8 @@ Security Notes:
 - Persisted metadata is admitted only from a regular sidecar no larger than 1
   MiB before UTF-8 decode or JSON materialization. Unix-like platforms also use
   non-blocking/no-follow open flags when available so a substituted FIFO or
-  symlink cannot become an unbounded or blocking replay input.
+  symlink cannot become an unbounded or blocking replay input. JSON decoder
+  numeric-limit failures are treated as cache misses rather than job failures.
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
@@ -116,7 +117,7 @@ def read_bounded_feature_cache_metadata(
         MemoryError,
         OSError,
         UnicodeDecodeError,
-        json.JSONDecodeError,
+        ValueError,
     ):
         return None
     if not isinstance(metadata, dict):
