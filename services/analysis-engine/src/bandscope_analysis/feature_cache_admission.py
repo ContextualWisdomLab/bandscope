@@ -28,6 +28,9 @@ Security Notes:
   generation binding remains a separate persistence contract.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
+- The archive pathname is opened with non-blocking/no-follow flags when the
+  platform exposes them before the same descriptor is admitted as a bounded
+  regular file, so a substituted FIFO or symlink cannot redirect or stall replay.
 - The opened archive is copied exactly once into a bounded spooled snapshot.
   ZIP/NPY declaration preflight and NumPy materialization consume that same
   snapshot, so pathname or same-inode rewrites after the copy cannot substitute
@@ -382,8 +385,12 @@ def load_bounded_stem_archive(
         len(stem_keys) * (policy.max_decoded_audio_bytes + _MAX_NPY_HEADER_BYTES)
         + _MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES
     )
+    open_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    open_flags |= getattr(os, "O_NONBLOCK", 0)
+    open_flags |= getattr(os, "O_NOFOLLOW", 0)
     try:
-        with arrays_path.open("rb") as archive_file:
+        descriptor = os.open(arrays_path, open_flags)
+        with os.fdopen(descriptor, "rb") as archive_file:
             file_stat = os.fstat(archive_file.fileno())
             if (
                 not stat.S_ISREG(file_stat.st_mode)
