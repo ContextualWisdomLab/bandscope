@@ -26,6 +26,13 @@ dev = [
   "ruff>=0.11.0",
 ]
 
+[tool.uv]
+# CVE-2026-59890 (setuptools < 83.0.0): Unicode-normalization bypass in
+# MANIFEST.in exclude/prune matching. setuptools is only pulled in transitively
+# (torch), so constrain the floor here to keep the trivy-fs supply-chain gate
+# green after any lock regeneration.
+constraint-dependencies = ["setuptools>=83.0.0"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/bandscope_analysis"]
 
