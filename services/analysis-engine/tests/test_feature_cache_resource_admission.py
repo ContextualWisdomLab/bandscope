@@ -29,7 +29,7 @@ def _write_metadata(
                 "schemaVersion": 1,
                 "sampleRate": sample_rate,
                 "separation": {
-                    "duration_seconds": 1.0,
+                    "duration_seconds": 16 / sample_rate,
                     "chunk_count": 1,
                     "notes": "cached rehearsal stem",
                 },
@@ -143,7 +143,7 @@ def _write_two_stem_cache(metadata_path: Path, arrays_path: Path, *, drum_sample
                 "schemaVersion": 1,
                 "sampleRate": 44_100,
                 "separation": {
-                    "duration_seconds": 1.0,
+                    "duration_seconds": 16 / 44_100,
                     "chunk_count": 1,
                     "notes": "cached rehearsal stems",
                 },
@@ -171,6 +171,21 @@ def test_feature_cache_replay_accepts_aligned_stem_timelines(tmp_path: Path) -> 
     assert loaded is not None
     assert set(loaded["stems"]) == {"bass", "drums"}
     assert loaded["stems"]["bass"].shape == loaded["stems"]["drums"].shape == (16,)
+
+
+def test_feature_cache_replay_rejects_duration_that_disagrees_with_stem_timeline(
+    tmp_path: Path,
+) -> None:
+    """Persisted duration cannot disagree with the synchronized stem sample timeline."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_metadata(metadata_path)
+    metadata_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata_payload["separation"]["duration_seconds"] = 17 / 44_100
+    metadata_path.write_text(json.dumps(metadata_payload), encoding="utf-8")
+    np.savez_compressed(arrays_path, stem_bass=np.zeros(16, dtype=np.float32))
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
 
 def test_feature_cache_replay_rejects_nonfinite_metadata_duration(tmp_path: Path) -> None:
