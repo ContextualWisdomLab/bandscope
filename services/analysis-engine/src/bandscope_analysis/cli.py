@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import re
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -91,6 +92,22 @@ def _bind_verified_source_cache_namespace(
     return bound_request
 
 
+def _cleanup_job_temp_namespace(request: object) -> None:
+    """Best-effort remove only a derived job-scoped temporary namespace."""
+    if not isinstance(request, dict):
+        return
+    temp_root = request.get("tempRoot")
+    if not isinstance(temp_root, str) or not temp_root.strip():
+        return
+    path = Path(temp_root)
+    parts = path.parts
+    if len(parts) < 2 or parts[-2] != "job-sha256-v1":
+        return
+    if _SOURCE_SHA256_PATTERN.fullmatch(parts[-1]) is None:
+        return
+    shutil.rmtree(path, ignore_errors=True)
+
+
 def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
     input_data = sys.stdin.read().strip()
@@ -161,16 +178,19 @@ def main() -> int:
         )
         return 0
 
-    if progress_jsonl:
-        for update in run_analysis_job_updates(job_id, request, requested_at):
-            json.dump(update, sys.stdout)
-            sys.stdout.write("\n")
-            sys.stdout.flush()
-        return 0
+    try:
+        if progress_jsonl:
+            for update in run_analysis_job_updates(job_id, request, requested_at):
+                json.dump(update, sys.stdout)
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+            return 0
 
-    response = run_analysis_job(job_id, request, requested_at)
-    json.dump(response, sys.stdout)
-    return 0
+        response = run_analysis_job(job_id, request, requested_at)
+        json.dump(response, sys.stdout)
+        return 0
+    finally:
+        _cleanup_job_temp_namespace(request)
 
 
 if __name__ == "__main__":
