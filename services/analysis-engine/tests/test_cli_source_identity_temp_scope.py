@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from bandscope_analysis.cli import (
     _bind_verified_source_cache_namespace,
     _cleanup_job_temp_namespace,
@@ -99,6 +101,31 @@ def test_job_temp_cleanup_removes_only_the_derived_execution_namespace(tmp_path:
 
     assert not job_root.exists()
     assert sibling.read_text(encoding="utf-8") == "keep"
+
+
+def test_job_temp_cleanup_refuses_symlinked_source_namespace(tmp_path: Path) -> None:
+    """Do not follow a substituted derived parent outside app-owned stem work."""
+    source_digest = "ab" * 32
+    job_digest = "cd" * 32
+    outside_root = tmp_path / "outside"
+    outside_job = outside_root / "job-sha256-v1" / job_digest
+    outside_job.mkdir(parents=True)
+    sentinel = outside_job / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+
+    source_scope = tmp_path / "work" / "source-sha256-v1"
+    source_scope.mkdir(parents=True)
+    source_link = source_scope / source_digest
+    try:
+        source_link.symlink_to(outside_root, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlink unavailable: {error}")
+
+    _cleanup_job_temp_namespace(
+        {"tempRoot": str(source_link / "job-sha256-v1" / job_digest)}
+    )
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
 def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) -> None:
