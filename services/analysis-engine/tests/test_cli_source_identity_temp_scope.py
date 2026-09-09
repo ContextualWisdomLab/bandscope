@@ -207,6 +207,51 @@ def test_job_temp_cleanup_refuses_verified_symlinked_temp_root(tmp_path: Path) -
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
+def test_job_temp_cleanup_survives_parent_swap_after_lexical_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not let a post-check parent swap redirect cleanup outside the temp tree."""
+    if not shutil.rmtree.avoids_symlink_attacks:
+        pytest.skip("symlink-resistant rmtree unavailable")
+
+    job_digest = "cd" * 32
+    temp_root = tmp_path / "work"
+    job_root = temp_root / "job-sha256-v1" / job_digest
+    job_root.mkdir(parents=True)
+    inside = job_root / "inside.txt"
+    inside.write_text("temporary", encoding="utf-8")
+
+    outside_root = tmp_path / "outside"
+    outside_job = outside_root / "job-sha256-v1" / job_digest
+    outside_job.mkdir(parents=True)
+    sentinel = outside_job / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    parked_root = tmp_path / "parked-work"
+
+    original_is_symlink = Path.is_symlink
+    swapped = False
+
+    def swap_after_check(candidate: Path) -> bool:
+        nonlocal swapped
+        is_link = original_is_symlink(candidate)
+        if candidate == temp_root and not is_link and not swapped:
+            temp_root.rename(parked_root)
+            try:
+                temp_root.symlink_to(outside_root, target_is_directory=True)
+            except OSError as error:
+                pytest.skip(f"directory symlink unavailable: {error}")
+            swapped = True
+        return is_link
+
+    monkeypatch.setattr(Path, "is_symlink", swap_after_check)
+
+    _cleanup_job_temp_namespace({"tempRoot": str(job_root)})
+
+    assert swapped
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
 def test_job_temp_cleanup_refuses_unsafe_rmtree_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
