@@ -1,10 +1,11 @@
 """Bounded replay admission for persisted local-audio stem arrays.
 
 The feature cache is a persistence boundary, not trusted in-memory state. A
-cached ``npz`` archive is therefore inspected through one already-open regular
-file before NumPy may materialize any member. Member names, NPY headers, sample
-counts, visible bytes, floating-point representation, and aggregate archive
-shape are admitted against the same audio resource budget used by decode.
+cached ``npz`` archive is therefore copied from one already-open regular file
+into a bounded private snapshot before NumPy may materialize any member. Member
+names, NPY headers, sample counts, visible bytes, floating-point representation,
+and aggregate archive shape are admitted against the same audio resource budget
+used by decode.
 
 Security Notes:
 - The cache path is app-owned, but its bytes and metadata are untrusted after a
@@ -17,28 +18,26 @@ Security Notes:
   disappearance, identity replacement, or malformed replacement fails closed.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
+- The opened archive is copied exactly once into a bounded spooled snapshot.
+  ZIP/NPY declaration preflight and NumPy materialization consume that same
+  snapshot, so pathname or same-inode rewrites after the copy cannot substitute
+  different samples into the already-admitted rehearsal evidence.
 - ZIP central-directory declarations and bounded NPY headers are checked before
   ``np.load`` can decompress a stem member. Extra or duplicate members fail
   closed rather than becoming hidden compressed payload.
 - Every admitted stem must declare the same non-zero sample count so replay
   preserves the synchronized timeline produced by source separation.
-- The already-open archive descriptor must retain the same device, file identity,
-  size, and modification timestamp from declaration preflight through
-  materialization. An ordinary in-place writer cannot substitute different
-  sample bytes into the admitted archive and still publish them as rehearsal
-  evidence.
 - Each member is one non-empty floating one-dimensional signal within the
   configured sample and visible-byte ceilings. Loaded legacy floating dtypes
   are converted to owned ``float32`` only after those pre-copy bounds pass.
 - Canonical finiteness, dtype, sample-rate, sample-count, and memory checks are
   reapplied before a replayed stem can return to MIR/rehearsal analysis.
-- Allocator exhaustion or truncated archive state encountered while preflighting
-  or opening an otherwise admitted cache fails closed as a cache miss instead of
-  escaping the persistence boundary and crashing the analysis job.
-- This bounds cache-member materialization; it does not claim a process-wide RSS
-  ceiling for NumPy/ZIP internals or downstream MIR/model work. Descriptor
-  identity checks detect ordinary concurrent mutation but are not a content
-  digest or a complete metadata/archive/source transaction.
+- Allocator exhaustion or truncated archive state encountered while copying,
+  preflighting, or opening an otherwise admitted cache fails closed as a cache
+  miss instead of escaping the persistence boundary and crashing the analysis job.
+- This creates one immutable replay byte snapshot; it does not bind that snapshot
+  cryptographically to the metadata sidecar or admitted source content, and it
+  does not claim a process-wide RSS ceiling for NumPy/ZIP or downstream MIR work.
 """
 
 from __future__ import annotations
@@ -46,6 +45,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import BinaryIO
@@ -69,6 +69,8 @@ _CANONICAL_STEM_KEYS = frozenset(_CANONICAL_STEM_ROLE_TYPES)
 _MAX_STEM_MEMBERS = len(_CANONICAL_STEM_KEYS)
 _MAX_NPY_HEADER_BYTES = 16 * 1024
 _MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES = 1024 * 1024
+_ARCHIVE_SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
+_ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES = 1024 * 1024
 _NPY_VERSION = (1, 0)
 _CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 
@@ -145,14 +147,21 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
     )
 
 
-def _archive_identity(file_stat: os.stat_result) -> tuple[int, int, int, int]:
-    """Return descriptor fields that must remain stable across archive replay."""
-    return (
-        file_stat.st_dev,
-        file_stat.st_ino,
-        file_stat.st_size,
-        file_stat.st_mtime_ns,
-    )
+def _copy_exact_archive_snapshot(
+    source: BinaryIO,
+    destination: BinaryIO,
+    byte_count: int,
+) -> bool:
+    """Copy exactly one admitted archive extent into a private replay snapshot."""
+    remaining = byte_count
+    while remaining > 0:
+        chunk = source.read(min(remaining, _ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES))
+        if not chunk:
+            return False
+        destination.write(chunk)
+        remaining -= len(chunk)
+    destination.seek(0)
+    return True
 
 
 def _preflight_npz(
@@ -260,48 +269,55 @@ def load_bounded_stem_archive(
                 or file_stat.st_size > max_archive_bytes
             ):
                 return None
-            admitted_identity = _archive_identity(file_stat)
-            if not _preflight_npz(archive_file, stem_keys, policy):
-                return None
-            archive_file.seek(0)
-            with np.load(
-                archive_file,
-                allow_pickle=False,
-                max_header_size=_MAX_NPY_HEADER_BYTES,
-            ) as stems_archive:
-                stems: dict[str, NDArray[np.float32]] = {}
-                for stem_key in stem_keys:
-                    archive_key = f"stem_{stem_key}"
-                    if archive_key not in stems_archive:
-                        return None
-                    stem_array = stems_archive[archive_key]
-                    if not isinstance(stem_array, np.ndarray):
-                        return None
-                    try:
-                        with np.errstate(over="ignore", invalid="ignore"):
-                            if (
-                                stem_array.dtype == np.dtype(np.float32)
-                                and stem_array.flags.owndata
-                            ):
-                                canonical = stem_array
-                            else:
-                                canonical = np.array(
-                                    stem_array, dtype=np.float32, copy=True
-                                )
-                        validated = policy.validate_decoded_audio(
-                            canonical, sample_rate
-                        )
-                    except (
-                        AudioResourcePolicyError,
-                        MemoryError,
-                        OverflowError,
-                        TypeError,
-                        ValueError,
-                    ):
-                        return None
-                    stems[stem_key] = validated
-            if _archive_identity(os.fstat(archive_file.fileno())) != admitted_identity:
-                return None
+            with tempfile.SpooledTemporaryFile(
+                max_size=_ARCHIVE_SNAPSHOT_MEMORY_BYTES,
+                mode="w+b",
+            ) as snapshot_file:
+                if not _copy_exact_archive_snapshot(
+                    archive_file,
+                    snapshot_file,
+                    file_stat.st_size,
+                ):
+                    return None
+                if not _preflight_npz(snapshot_file, stem_keys, policy):
+                    return None
+                snapshot_file.seek(0)
+                with np.load(
+                    snapshot_file,
+                    allow_pickle=False,
+                    max_header_size=_MAX_NPY_HEADER_BYTES,
+                ) as stems_archive:
+                    stems: dict[str, NDArray[np.float32]] = {}
+                    for stem_key in stem_keys:
+                        archive_key = f"stem_{stem_key}"
+                        if archive_key not in stems_archive:
+                            return None
+                        stem_array = stems_archive[archive_key]
+                        if not isinstance(stem_array, np.ndarray):
+                            return None
+                        try:
+                            with np.errstate(over="ignore", invalid="ignore"):
+                                if (
+                                    stem_array.dtype == np.dtype(np.float32)
+                                    and stem_array.flags.owndata
+                                ):
+                                    canonical = stem_array
+                                else:
+                                    canonical = np.array(
+                                        stem_array, dtype=np.float32, copy=True
+                                    )
+                            validated = policy.validate_decoded_audio(
+                                canonical, sample_rate
+                            )
+                        except (
+                            AudioResourcePolicyError,
+                            MemoryError,
+                            OverflowError,
+                            TypeError,
+                            ValueError,
+                        ):
+                            return None
+                        stems[stem_key] = validated
     except (EOFError, MemoryError, OSError, ValueError, zipfile.BadZipFile):
         return None
     return stems
