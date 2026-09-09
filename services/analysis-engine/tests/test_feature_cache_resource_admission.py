@@ -184,3 +184,31 @@ def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materializa
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
     load_mock.assert_not_called()
+
+
+def test_feature_cache_replay_rejects_archive_mutated_after_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replay cannot publish samples from an archive mutated after its declarations were admitted."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_metadata(metadata_path)
+    np.savez_compressed(arrays_path, stem_bass=np.zeros(16, dtype=np.float32))
+
+    real_load = np.load
+
+    def mutate_archive_then_load(archive_file, *args, **kwargs):
+        np.savez_compressed(
+            arrays_path,
+            stem_bass=np.arange(1024, dtype=np.float32),
+        )
+        archive_file.seek(0)
+        return real_load(archive_file, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "bandscope_analysis.feature_cache_admission.np.load",
+        mutate_archive_then_load,
+    )
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
