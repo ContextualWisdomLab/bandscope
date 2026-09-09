@@ -190,7 +190,7 @@ def test_feature_cache_replay_rejects_archive_mutated_after_preflight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Replay cannot publish samples from an archive mutated after its declarations were admitted."""
+    """Replay rejects an archive mutated after declaration preflight."""
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     _write_metadata(metadata_path)
