@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import sys
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -101,9 +102,6 @@ def _open_anchored_directory_chain(path: Path) -> list[int] | None:
         or not hasattr(os, "O_NOFOLLOW")
     ):
         return None
-    parts = path.parts
-    if not parts or parts[0] != path.anchor:
-        return None
 
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
     flags |= getattr(os, "O_CLOEXEC", 0)
@@ -111,7 +109,7 @@ def _open_anchored_directory_chain(path: Path) -> list[int] | None:
     try:
         current_descriptor = os.open(path.anchor, flags)
         descriptors.append(current_descriptor)
-        for component in parts[1:]:
+        for component in path.parts[1:]:
             if component in {"", ".", ".."}:
                 raise OSError
             current_descriptor = os.open(
@@ -122,10 +120,8 @@ def _open_anchored_directory_chain(path: Path) -> list[int] | None:
             descriptors.append(current_descriptor)
     except OSError:
         for descriptor in reversed(descriptors):
-            try:
+            with suppress(OSError):
                 os.close(descriptor)
-            except OSError:
-                pass
         return None
     return descriptors
 
@@ -165,14 +161,10 @@ def _cleanup_job_temp_namespace(request: object) -> None:
             dir_fd=parent_descriptors[-1],
             ignore_errors=True,
         )
-    except (OSError, TypeError):
-        return
     finally:
         for descriptor in reversed(parent_descriptors):
-            try:
+            with suppress(OSError):
                 os.close(descriptor)
-            except OSError:
-                pass
 
 
 def main() -> int:
