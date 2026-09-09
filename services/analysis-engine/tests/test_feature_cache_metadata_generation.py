@@ -50,6 +50,8 @@ def test_feature_cache_replay_rejects_second_read_sample_rate_substitution(
         sample_rate: object,
         *,
         policy_template,
+        expected_metadata_sha256=None,
+        expected_archive_sha256=None,
     ):
         payload = json.loads(metadata_path.read_text(encoding="utf-8"))
         payload["sampleRate"] = 48_000
@@ -59,6 +61,8 @@ def test_feature_cache_replay_rejects_second_read_sample_rate_substitution(
             stem_keys,
             sample_rate,
             policy_template=policy_template,
+            expected_metadata_sha256=expected_metadata_sha256,
+            expected_archive_sha256=expected_archive_sha256,
         )
 
     monkeypatch.setattr(
@@ -86,6 +90,8 @@ def test_feature_cache_replay_rejects_second_read_schema_substitution(
         sample_rate: object,
         *,
         policy_template,
+        expected_metadata_sha256=None,
+        expected_archive_sha256=None,
     ):
         payload = json.loads(metadata_path.read_text(encoding="utf-8"))
         payload["schemaVersion"] = 2
@@ -95,6 +101,8 @@ def test_feature_cache_replay_rejects_second_read_schema_substitution(
             stem_keys,
             sample_rate,
             policy_template=policy_template,
+            expected_metadata_sha256=expected_metadata_sha256,
+            expected_archive_sha256=expected_archive_sha256,
         )
 
     monkeypatch.setattr(
@@ -140,6 +148,8 @@ def test_feature_cache_replay_rejects_first_read_missing_duration_after_replacem
         sample_rate: object,
         *,
         policy_template,
+        expected_metadata_sha256=None,
+        expected_archive_sha256=None,
     ):
         metadata_path.write_text(json.dumps(valid_payload), encoding="utf-8")
         return real_loader(
@@ -147,6 +157,8 @@ def test_feature_cache_replay_rejects_first_read_missing_duration_after_replacem
             stem_keys,
             sample_rate,
             policy_template=policy_template,
+            expected_metadata_sha256=expected_metadata_sha256,
+            expected_archive_sha256=expected_archive_sha256,
         )
 
     monkeypatch.setattr(
@@ -179,6 +191,8 @@ def test_feature_cache_replay_rejects_first_read_role_substitution_after_replace
         sample_rate: object,
         *,
         policy_template,
+        expected_metadata_sha256=None,
+        expected_archive_sha256=None,
     ):
         metadata_path.write_text(json.dumps(valid_payload), encoding="utf-8")
         return real_loader(
@@ -186,6 +200,8 @@ def test_feature_cache_replay_rejects_first_read_role_substitution_after_replace
             stem_keys,
             sample_rate,
             policy_template=policy_template,
+            expected_metadata_sha256=expected_metadata_sha256,
+            expected_archive_sha256=expected_archive_sha256,
         )
 
     monkeypatch.setattr(
