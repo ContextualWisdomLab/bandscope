@@ -17,10 +17,11 @@ Security Notes:
   already-admitted metadata. Legacy caches may omit ``stemRoleTypes`` inside
   that sidecar, but sidecar disappearance, identity/rate replacement, or
   malformed replacement fails closed.
-- Persisted separation duration, when present, must be a finite positive number;
-  NaN, infinity, zero, negative, and unrepresentably large timeline metadata
-  cannot become rehearsal timing authority. Exact metadata/archive/source
-  generation binding remains a separate persistence contract.
+- Persisted separation duration, when present, must be finite, positive, and
+  agree with the synchronized stem sample timeline within half one sample at the
+  admitted sample rate. Metadata cannot stretch or shrink rehearsal timing away
+  from the actual cached stem extent. Exact metadata/archive/source generation
+  binding remains a separate persistence contract.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - The opened archive is copied exactly once into a bounded spooled snapshot.
@@ -128,6 +129,59 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
 
 
+def _read_canonical_stem_role_metadata(
+    arrays_path: Path,
+    stem_keys: list[str],
+    *,
+    expected_sample_rate: object | None = None,
+) -> dict[str, object] | None:
+    """Return one admitted second-read sidecar snapshot for archive replay."""
+    metadata_path = arrays_path.with_suffix(".json")
+    try:
+        with metadata_path.open("r", encoding="utf-8") as metadata_file:
+            metadata = json.load(metadata_file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    if metadata.get("stemKeys") != stem_keys:
+        return None
+    if expected_sample_rate is not None:
+        if metadata.get("sampleRate") != expected_sample_rate:
+            return None
+
+    separation = metadata.get("separation")
+    if separation is not None:
+        if not isinstance(separation, dict):
+            return None
+        duration_seconds = separation.get("duration_seconds")
+        if duration_seconds is not None:
+            if isinstance(duration_seconds, bool):
+                return None
+            if not isinstance(duration_seconds, (int, float)):
+                return None
+            try:
+                duration_value = float(duration_seconds)
+            except (OverflowError, ValueError):
+                return None
+            if not math.isfinite(duration_value) or duration_value <= 0.0:
+                return None
+
+    stem_role_types = metadata.get("stemRoleTypes")
+    if stem_role_types is None:
+        return metadata
+    if not isinstance(stem_role_types, dict):
+        return None
+    if set(stem_role_types) != set(stem_keys):
+        return None
+    if not all(
+        stem_role_types.get(stem_key) == _CANONICAL_STEM_ROLE_TYPES[stem_key]
+        for stem_key in stem_keys
+    ):
+        return None
+    return metadata
+
+
 def _has_canonical_stem_role_metadata(
     arrays_path: Path,
     stem_keys: list[str],
@@ -135,47 +189,40 @@ def _has_canonical_stem_role_metadata(
     expected_sample_rate: object | None = None,
 ) -> bool:
     """Reject missing or persisted metadata that contradicts replay semantics."""
-    metadata_path = arrays_path.with_suffix(".json")
-    try:
-        with metadata_path.open("r", encoding="utf-8") as metadata_file:
-            metadata = json.load(metadata_file)
-    except (OSError, json.JSONDecodeError):
-        return False
-    if not isinstance(metadata, dict):
-        return False
-    if metadata.get("stemKeys") != stem_keys:
-        return False
-    if expected_sample_rate is not None:
-        if metadata.get("sampleRate") != expected_sample_rate:
-            return False
+    return (
+        _read_canonical_stem_role_metadata(
+            arrays_path,
+            stem_keys,
+            expected_sample_rate=expected_sample_rate,
+        )
+        is not None
+    )
 
-    separation = metadata.get("separation")
-    if separation is not None:
-        if not isinstance(separation, dict):
-            return False
-        duration_seconds = separation.get("duration_seconds")
-        if duration_seconds is not None:
-            if isinstance(duration_seconds, bool):
-                return False
-            if not isinstance(duration_seconds, (int, float)):
-                return False
-            try:
-                duration_value = float(duration_seconds)
-            except (OverflowError, ValueError):
-                return False
-            if not math.isfinite(duration_value) or duration_value <= 0.0:
-                return False
 
-    stem_role_types = metadata.get("stemRoleTypes")
-    if stem_role_types is None:
+def _duration_matches_sample_timeline(
+    duration_seconds: object,
+    sample_count: int,
+    sample_rate: object,
+) -> bool:
+    """Return whether persisted duration agrees with the stem timeline to half a sample."""
+    if duration_seconds is None:
         return True
-    if not isinstance(stem_role_types, dict):
+    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)):
         return False
-    if set(stem_role_types) != set(stem_keys):
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
         return False
-    return all(
-        stem_role_types.get(stem_key) == _CANONICAL_STEM_ROLE_TYPES[stem_key]
-        for stem_key in stem_keys
+    try:
+        duration_value = float(duration_seconds)
+    except (OverflowError, ValueError):
+        return False
+    if not math.isfinite(duration_value) or duration_value <= 0.0:
+        return False
+    expected_duration = sample_count / sample_rate
+    return math.isclose(
+        duration_value,
+        expected_duration,
+        rel_tol=0.0,
+        abs_tol=0.5 / sample_rate,
     )
 
 
@@ -200,11 +247,11 @@ def _preflight_npz(
     archive_file: BinaryIO,
     stem_keys: list[str],
     policy: AudioResourcePolicy,
-) -> bool:
-    """Inspect ZIP and NPY declarations before any cached sample array is materialized."""
+) -> int | None:
+    """Return the synchronized sample count after bounded ZIP/NPY declaration admission."""
     expected_names = _expected_member_names(stem_keys)
     if expected_names is None:
-        return False
+        return None
     max_member_bytes = policy.max_decoded_audio_bytes + _MAX_NPY_HEADER_BYTES
     max_total_bytes = len(stem_keys) * max_member_bytes
 
@@ -216,9 +263,9 @@ def _preflight_npz(
                 len(members) != len(expected_names)
                 or set(member_names) != expected_names
             ):
-                return False
+                return None
             if len(member_names) != len(set(member_names)):
-                return False
+                return None
 
             expected_sample_count: int | None = None
             total_declared_bytes = 0
@@ -230,35 +277,35 @@ def _preflight_npz(
                     or member.file_size <= 0
                     or member.file_size > max_member_bytes
                 ):
-                    return False
+                    return None
                 total_declared_bytes += member.file_size
                 if total_declared_bytes > max_total_bytes:
-                    return False
+                    return None
 
                 with archive.open(member, mode="r") as npy_stream:
                     if np.lib.format.read_magic(npy_stream) != _NPY_VERSION:
-                        return False
+                        return None
                     shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(
                         npy_stream,
                         max_header_size=_MAX_NPY_HEADER_BYTES,
                     )
                     if fortran_order or len(shape) != 1 or shape[0] <= 0:
-                        return False
+                        return None
                     dtype = np.dtype(dtype)
                     if not np.issubdtype(dtype, np.floating):
-                        return False
+                        return None
                     sample_count = int(shape[0])
                     if expected_sample_count is None:
                         expected_sample_count = sample_count
                     elif sample_count != expected_sample_count:
-                        return False
+                        return None
                     data_bytes = sample_count * dtype.itemsize
                     if (
                         sample_count > policy.max_decoded_samples
                         or data_bytes > policy.max_decoded_audio_bytes
                         or npy_stream.tell() + data_bytes != member.file_size
                     ):
-                        return False
+                        return None
     except (
         EOFError,
         MemoryError,
@@ -267,8 +314,8 @@ def _preflight_npz(
         zipfile.BadZipFile,
         zipfile.LargeZipFile,
     ):
-        return False
-    return True
+        return None
+    return expected_sample_count
 
 
 def load_bounded_stem_archive(
@@ -281,15 +328,12 @@ def load_bounded_stem_archive(
     """Load one admitted stem archive and return owned canonical float32 signals."""
     policy = _replay_policy(sample_rate, policy_template)
     expected_names = _expected_member_names(stem_keys)
-    if (
-        policy is None
-        or expected_names is None
-        or not _has_canonical_stem_role_metadata(
-            arrays_path,
-            stem_keys,
-            expected_sample_rate=sample_rate,
-        )
-    ):
+    replay_metadata = _read_canonical_stem_role_metadata(
+        arrays_path,
+        stem_keys,
+        expected_sample_rate=sample_rate,
+    )
+    if policy is None or expected_names is None or replay_metadata is None:
         return None
 
     max_archive_bytes = (
@@ -315,8 +359,17 @@ def load_bounded_stem_archive(
                     file_stat.st_size,
                 ):
                     return None
-                if not _preflight_npz(snapshot_file, stem_keys, policy):
+                sample_count = _preflight_npz(snapshot_file, stem_keys, policy)
+                if sample_count is None:
                     return None
+                separation = replay_metadata.get("separation")
+                if isinstance(separation, dict):
+                    if not _duration_matches_sample_timeline(
+                        separation.get("duration_seconds"),
+                        sample_count,
+                        sample_rate,
+                    ):
+                        return None
                 snapshot_file.seek(0)
                 with np.load(
                     snapshot_file,
