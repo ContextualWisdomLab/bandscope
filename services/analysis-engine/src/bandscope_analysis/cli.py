@@ -69,9 +69,7 @@ def _bind_verified_source_cache_namespace(
             bound_request.pop("cacheRoot", None)
         temp_root = bound_request.get("tempRoot")
         if isinstance(temp_root, str) and temp_root.strip() and job_digest is not None:
-            bound_request["tempRoot"] = str(
-                Path(temp_root) / "job-sha256-v1" / job_digest
-            )
+            bound_request["tempRoot"] = str(Path(temp_root) / "job-sha256-v1" / job_digest)
         return bound_request
     if not isinstance(source_content_sha256, str) or not _SOURCE_SHA256_PATTERN.fullmatch(
         source_content_sha256
@@ -101,9 +99,19 @@ def _cleanup_job_temp_namespace(request: object) -> None:
         return
     path = Path(temp_root)
     parts = path.parts
-    if len(parts) < 2 or parts[-2] != "job-sha256-v1":
+    if not path.is_absolute() or len(parts) < 2 or parts[-2] != "job-sha256-v1":
         return
     if _SOURCE_SHA256_PATTERN.fullmatch(parts[-1]) is None:
+        return
+
+    derived_parents = [path.parent]
+    if len(parts) >= 4 and parts[-4] == "source-sha256-v1":
+        if _SOURCE_SHA256_PATTERN.fullmatch(parts[-3]) is None:
+            return
+        derived_parents.extend((path.parents[1], path.parents[2]))
+    if any(candidate.is_symlink() for candidate in derived_parents):
+        return
+    if not shutil.rmtree.avoids_symlink_attacks:
         return
     shutil.rmtree(path, ignore_errors=True)
 
