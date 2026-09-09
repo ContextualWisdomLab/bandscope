@@ -16,9 +16,18 @@ _SOURCE_SHA256 = "ab" * 32
 _OTHER_SOURCE_SHA256 = "cd" * 32
 
 
-def _cache_paths(tmp_path: Path, source_sha256: str = _SOURCE_SHA256) -> tuple[Path, Path]:
+def _cache_paths(
+    tmp_path: Path,
+    source_sha256: str = _SOURCE_SHA256,
+) -> tuple[Path, Path]:
     """Return one production-shaped source-digest cache namespace."""
-    cache_root = tmp_path / "cache" / "source-sha256-v1" / source_sha256 / "analysis-cache-v1"
+    cache_root = (
+        tmp_path
+        / "cache"
+        / "source-sha256-v1"
+        / source_sha256
+        / "analysis-cache-v1"
+    )
     return cache_root / "fixture.features.json", cache_root / "fixture.features.npz"
 
 
@@ -56,7 +65,12 @@ def _features() -> dict[str, object]:
 def test_production_feature_cache_requires_generation_manifest(tmp_path: Path) -> None:
     """A source-scoped production cache hit requires the last-published manifest."""
     metadata_path, arrays_path = _cache_paths(tmp_path)
-    assert _store_cached_local_audio_features(metadata_path, arrays_path, _request(), _features())
+    assert _store_cached_local_audio_features(
+        metadata_path,
+        arrays_path,
+        _request(),
+        _features(),
+    )
 
     loaded = _load_cached_local_audio_features(
         metadata_path,
@@ -71,7 +85,12 @@ def test_production_feature_cache_requires_generation_manifest(tmp_path: Path) -
 def test_missing_generation_manifest_forces_recompute(tmp_path: Path) -> None:
     """A partial publication without its commit marker is never rehearsal evidence."""
     metadata_path, arrays_path = _cache_paths(tmp_path)
-    assert _store_cached_local_audio_features(metadata_path, arrays_path, _request(), _features())
+    assert _store_cached_local_audio_features(
+        metadata_path,
+        arrays_path,
+        _request(),
+        _features(),
+    )
     metadata_path.with_suffix(".manifest.json").unlink()
 
     assert (
@@ -83,10 +102,18 @@ def test_missing_generation_manifest_forces_recompute(tmp_path: Path) -> None:
 def test_generation_manifest_rejects_metadata_replacement(tmp_path: Path) -> None:
     """Metadata from another generation cannot pair with an admitted stem archive."""
     metadata_path, arrays_path = _cache_paths(tmp_path)
-    assert _store_cached_local_audio_features(metadata_path, arrays_path, _request(), _features())
+    assert _store_cached_local_audio_features(
+        metadata_path,
+        arrays_path,
+        _request(),
+        _features(),
+    )
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     metadata["separation"]["notes"] = "replaced after publication"
-    metadata_path.write_text(json.dumps(metadata, separators=(",", ":")), encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(metadata, separators=(",", ":")),
+        encoding="utf-8",
+    )
 
     assert (
         _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True)
@@ -97,7 +124,12 @@ def test_generation_manifest_rejects_metadata_replacement(tmp_path: Path) -> Non
 def test_generation_manifest_rejects_stem_archive_replacement(tmp_path: Path) -> None:
     """Same-shape replacement audio cannot reuse a generation committed for other samples."""
     metadata_path, arrays_path = _cache_paths(tmp_path)
-    assert _store_cached_local_audio_features(metadata_path, arrays_path, _request(), _features())
+    assert _store_cached_local_audio_features(
+        metadata_path,
+        arrays_path,
+        _request(),
+        _features(),
+    )
     np.savez_compressed(arrays_path, stem_bass=np.ones(16, dtype=np.float32))
 
     assert (
@@ -109,7 +141,12 @@ def test_generation_manifest_rejects_stem_archive_replacement(tmp_path: Path) ->
 def test_generation_manifest_rejects_cross_source_namespace_copy(tmp_path: Path) -> None:
     """A committed cache generation cannot be copied under another verified source identity."""
     metadata_path, arrays_path = _cache_paths(tmp_path)
-    assert _store_cached_local_audio_features(metadata_path, arrays_path, _request(), _features())
+    assert _store_cached_local_audio_features(
+        metadata_path,
+        arrays_path,
+        _request(),
+        _features(),
+    )
 
     other_metadata, other_arrays = _cache_paths(tmp_path, _OTHER_SOURCE_SHA256)
     other_metadata.parent.mkdir(parents=True, exist_ok=True)
