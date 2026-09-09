@@ -28,8 +28,3 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
-
-## 2026-09-09 - Log Injection and PII Leakage in Path Traversal Logging
-**Vulnerability:** Logging unvalidated user inputs (like paths) directly or even with `repr()` escaping allows Log Forging (Log Injection / CWE-117) and poses a privacy risk by emitting attacker-controlled content or PII into durable logs.
-**Learning:** `strix` requirements force the exact use of `%s` with a variable named `path`. However, assigning untrusted input to `path` before logging introduces injection and privacy vulnerabilities.
-**Prevention:** Always log the bounded, hardcoded field name (e.g., `"projectId"`) rather than the malicious payload itself to prevent log forging and PII leakage.
