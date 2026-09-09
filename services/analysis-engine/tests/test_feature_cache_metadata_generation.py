@@ -194,3 +194,42 @@ def test_feature_cache_replay_rejects_first_read_role_substitution_after_replace
     )
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_feature_cache_replay_keeps_one_admitted_metadata_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later sidecar write cannot invalidate metadata already admitted for this replay."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_cache(metadata_path, arrays_path)
+
+    real_loader = load_bounded_stem_archive
+
+    def corrupt_sidecar_then_load(
+        archive_path: Path,
+        stem_keys: list[str],
+        sample_rate: object,
+        *,
+        policy_template,
+        **kwargs,
+    ):
+        metadata_path.write_text("{", encoding="utf-8")
+        return real_loader(
+            archive_path,
+            stem_keys,
+            sample_rate,
+            policy_template=policy_template,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        "bandscope_analysis.api.load_bounded_stem_archive",
+        corrupt_sidecar_then_load,
+    )
+
+    replayed = _load_cached_local_audio_features(metadata_path, arrays_path)
+
+    assert replayed is not None
+    assert replayed["separation"]["notes"] == "cached rehearsal stem"
