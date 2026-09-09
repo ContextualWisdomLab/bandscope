@@ -395,3 +395,56 @@ def test_cli_main_progress_jsonl_streams_status_updates(
     ]
     assert updates[-1]["state"] == "succeeded"
     assert updates[-1]["progressPercent"] == 100
+
+
+def test_cli_namespaces_local_cache_by_verified_source_digest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Bind persisted local cache lookup to native verified source content identity."""
+    digest = "ab" * 32
+    captured_request: dict[str, Any] = {}
+
+    def fake_run_analysis_job(job_id: str, request: object, requested_at: str) -> dict[str, Any]:
+        assert job_id == "job-bound-cache"
+        assert isinstance(request, dict)
+        captured_request.update(request)
+        return {
+            "jobId": job_id,
+            "state": "succeeded",
+            "requestedAt": requested_at,
+            "updatedAt": requested_at,
+            "result": {},
+        }
+
+    stdin = io.StringIO(
+        json.dumps(
+            {
+                "jobId": "job-bound-cache",
+                "sourceContentSha256": digest,
+                "request": {
+                    "sourceKind": "local_audio",
+                    "projectId": "p1",
+                    "sourceLabel": "test.wav",
+                    "roleFocus": [],
+                    "localSource": {
+                        "sourcePath": str(tmp_path / "source.wav"),
+                        "fileName": "test.wav",
+                        "extension": "wav",
+                        "fileSizeBytes": 4,
+                    },
+                    "cacheRoot": str(tmp_path / "cache"),
+                },
+            }
+        )
+    )
+    stdout = io.StringIO()
+    monkeypatch.setattr(cli, "run_analysis_job", fake_run_analysis_job)
+    monkeypatch.setattr(cli.sys, "stdin", stdin)
+    monkeypatch.setattr(cli.sys, "stdout", stdout)
+    monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
+
+    assert cli.main() == 0
+    assert captured_request["cacheRoot"] == str(
+        tmp_path / "cache" / "source-sha256-v1" / digest
+    )
