@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import shutil
 import sys
@@ -90,8 +91,47 @@ def _bind_verified_source_cache_namespace(
     return bound_request
 
 
+def _open_anchored_directory_chain(path: Path) -> list[int] | None:
+    """Open one absolute directory chain without following mutable symlink components."""
+    supports_dir_fd = getattr(os, "supports_dir_fd", set())
+    if (
+        not path.is_absolute()
+        or os.open not in supports_dir_fd
+        or not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+    ):
+        return None
+    parts = path.parts
+    if not parts or parts[0] != path.anchor:
+        return None
+
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    descriptors: list[int] = []
+    try:
+        current_descriptor = os.open(path.anchor, flags)
+        descriptors.append(current_descriptor)
+        for component in parts[1:]:
+            if component in {"", ".", ".."}:
+                raise OSError
+            current_descriptor = os.open(
+                component,
+                flags,
+                dir_fd=current_descriptor,
+            )
+            descriptors.append(current_descriptor)
+    except OSError:
+        for descriptor in reversed(descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        return None
+    return descriptors
+
+
 def _cleanup_job_temp_namespace(request: object) -> None:
-    """Best-effort remove only a derived job-scoped temporary namespace."""
+    """Best-effort remove only a descriptor-anchored derived job namespace."""
     if not isinstance(request, dict):
         return
     temp_root = request.get("tempRoot")
@@ -115,7 +155,24 @@ def _cleanup_job_temp_namespace(request: object) -> None:
         return
     if not shutil.rmtree.avoids_symlink_attacks:
         return
-    shutil.rmtree(path, ignore_errors=True)
+
+    parent_descriptors = _open_anchored_directory_chain(path.parent)
+    if parent_descriptors is None:
+        return
+    try:
+        shutil.rmtree(
+            path.name,
+            dir_fd=parent_descriptors[-1],
+            ignore_errors=True,
+        )
+    except (OSError, TypeError):
+        return
+    finally:
+        for descriptor in reversed(parent_descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
 
 
 def main() -> int:
