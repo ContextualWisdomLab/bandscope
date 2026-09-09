@@ -22,10 +22,11 @@ Security Notes:
   closed rather than becoming hidden compressed payload.
 - Every admitted stem must declare the same non-zero sample count so replay
   preserves the synchronized timeline produced by source separation.
-- The already-open archive descriptor must retain the same device, inode, size,
-  mtime, and ctime from declaration preflight through materialization. An
-  in-place writer cannot swap different sample bytes into the admitted archive
-  and still publish them as rehearsal evidence.
+- The already-open archive descriptor must retain the same device, file identity,
+  size, and modification timestamp from declaration preflight through
+  materialization. An ordinary in-place writer cannot substitute different
+  sample bytes into the admitted archive and still publish them as rehearsal
+  evidence.
 - Each member is one non-empty floating one-dimensional signal within the
   configured sample and visible-byte ceilings. Loaded legacy floating dtypes
   are converted to owned ``float32`` only after those pre-copy bounds pass.
@@ -144,14 +145,13 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
     )
 
 
-def _archive_identity(file_stat: os.stat_result) -> tuple[int, int, int, int, int]:
+def _archive_identity(file_stat: os.stat_result) -> tuple[int, int, int, int]:
     """Return descriptor fields that must remain stable across archive replay."""
     return (
         file_stat.st_dev,
         file_stat.st_ino,
         file_stat.st_size,
         file_stat.st_mtime_ns,
-        file_stat.st_ctime_ns,
     )
 
 
