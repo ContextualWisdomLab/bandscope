@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 from bandscope_analysis.api import (
     get_analysis_status,
@@ -15,15 +17,22 @@ from bandscope_analysis.api import (
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+_SOURCE_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
-def failed_cli_response(message: str) -> dict[str, object]:
+
+def failed_cli_response(
+    message: str,
+    *,
+    job_id: str = "unknown-job",
+    requested_at: str | None = None,
+) -> dict[str, object]:
     """Return a typed CLI failure envelope for malformed stdin payloads."""
-    requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    timestamp = requested_at or datetime.now(UTC).isoformat().replace("+00:00", "Z")
     return {
-        "jobId": "unknown-job",
+        "jobId": job_id,
         "state": "failed",
-        "requestedAt": requested_at,
-        "updatedAt": requested_at,
+        "requestedAt": timestamp,
+        "updatedAt": timestamp,
         "error": {
             "code": "invalid_request",
             "message": message,
@@ -31,19 +40,49 @@ def failed_cli_response(message: str) -> dict[str, object]:
     }
 
 
+def _bind_verified_source_cache_namespace(
+    request: object,
+    source_content_sha256: object,
+) -> object:
+    """Scope persisted local cache paths to native verified source identity."""
+    if not isinstance(request, dict):
+        return request
+
+    source_kind = request.get("sourceKind")
+    if source_kind != "local_audio":
+        if source_content_sha256 is not None:
+            raise ValueError("Invalid analysis job request: invalid field 'sourceContentSha256'")
+        return request
+
+    bound_request = dict(request)
+    if source_content_sha256 is None:
+        if isinstance(bound_request.get("cacheRoot"), str):
+            bound_request.pop("cacheRoot", None)
+        return bound_request
+    if not isinstance(source_content_sha256, str) or not _SOURCE_SHA256_PATTERN.fullmatch(
+        source_content_sha256
+    ):
+        raise ValueError("Invalid analysis job request: invalid field 'sourceContentSha256'")
+
+    cache_root = bound_request.get("cacheRoot")
+    if isinstance(cache_root, str) and cache_root.strip():
+        bound_request["cacheRoot"] = str(
+            Path(cache_root) / "source-sha256-v1" / source_content_sha256
+        )
+    return bound_request
+
+
 def main() -> int:
     """Read a job payload from stdin and print a structured job response to stdout."""
-    # Read all input from stdin first
     input_data = sys.stdin.read().strip()
     progress_jsonl = "--progress-jsonl" in sys.argv[1:]
     cli_args = [arg for arg in sys.argv[1:] if arg != "--progress-jsonl"]
 
-    # Check if there are command line arguments (fallback for manual testing)
     if cli_args:
         if cli_args[0] == "--status":
             json.dump(get_analysis_status(), sys.stdout)
             return 0
-        elif cli_args[0] == "--job" and len(cli_args) > 1:
+        if cli_args[0] == "--job" and len(cli_args) > 1:
             input_data = cli_args[1]
             if not input_data.startswith("{"):
                 try:
@@ -89,6 +128,17 @@ def main() -> int:
         requested_at = requested_at_value
 
     request = payload.get("request")
+    try:
+        request = _bind_verified_source_cache_namespace(
+            request,
+            payload.get("sourceContentSha256"),
+        )
+    except ValueError as error:
+        json.dump(
+            failed_cli_response(str(error), job_id=job_id, requested_at=requested_at),
+            sys.stdout,
+        )
+        return 0
 
     if progress_jsonl:
         for update in run_analysis_job_updates(job_id, request, requested_at):
