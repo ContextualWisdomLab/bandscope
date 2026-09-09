@@ -16,6 +16,10 @@ Security Notes:
   its second-read stem identity must match the caller's already-admitted keys.
   Legacy caches may omit ``stemRoleTypes`` inside that sidecar, but sidecar
   disappearance, identity replacement, or malformed replacement fails closed.
+- Persisted separation duration, when present, must be a finite positive number;
+  NaN, infinity, zero, and negative timeline metadata cannot become rehearsal
+  timing authority. Exact metadata/archive/source generation binding remains a
+  separate persistence contract.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - The opened archive is copied exactly once into a bounded spooled snapshot.
@@ -43,6 +47,7 @@ Security Notes:
 from __future__ import annotations
 
 import json
+import math
 import os
 import stat
 import tempfile
@@ -123,7 +128,7 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
 
 
 def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -> bool:
-    """Reject missing or persisted role metadata that contradicts canonical semantics."""
+    """Reject missing or persisted metadata that contradicts replay semantics."""
     metadata_path = arrays_path.with_suffix(".json")
     try:
         with metadata_path.open("r", encoding="utf-8") as metadata_file:
@@ -134,6 +139,21 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
         return False
     if metadata.get("stemKeys") != stem_keys:
         return False
+
+    separation = metadata.get("separation")
+    if separation is not None:
+        if not isinstance(separation, dict):
+            return False
+        duration_seconds = separation.get("duration_seconds")
+        if duration_seconds is not None:
+            if (
+                isinstance(duration_seconds, bool)
+                or not isinstance(duration_seconds, (int, float))
+                or not math.isfinite(float(duration_seconds))
+                or float(duration_seconds) <= 0.0
+            ):
+                return False
+
     stem_role_types = metadata.get("stemRoleTypes")
     if stem_role_types is None:
         return True
