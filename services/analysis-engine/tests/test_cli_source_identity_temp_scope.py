@@ -56,6 +56,24 @@ def test_same_source_concurrent_jobs_use_distinct_temp_work_namespaces() -> None
     assert len(Path(str(first["tempRoot"])).parts[-1]) == 64
 
 
+def test_unverified_job_disables_cache_but_still_isolates_temp_work() -> None:
+    """Keep manual local jobs isolated even when persisted cache reuse is disabled."""
+    bound = _bind_verified_source_cache_namespace(
+        {
+            "sourceKind": "local_audio",
+            "cacheRoot": "/tmp/cache",
+            "tempRoot": "/tmp/work",
+        },
+        None,
+        "manual-job",
+    )
+
+    assert isinstance(bound, dict)
+    assert "cacheRoot" not in bound
+    assert Path(str(bound["tempRoot"])).parts[-2] == "job-sha256-v1"
+    assert len(Path(str(bound["tempRoot"])).parts[-1]) == 64
+
+
 def test_job_temp_cleanup_removes_only_the_derived_execution_namespace(tmp_path: Path) -> None:
     """Remove completed stem work without deleting the reusable source namespace."""
     source_digest = "ab" * 32
@@ -83,13 +101,22 @@ def test_job_temp_cleanup_removes_only_the_derived_execution_namespace(tmp_path:
     assert sibling.read_text(encoding="utf-8") == "keep"
 
 
-def test_job_temp_cleanup_refuses_an_unscoped_temp_root(tmp_path: Path) -> None:
-    """Do not grant recursive deletion authority to a generic caller tempRoot."""
+def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) -> None:
+    """Do not grant recursive deletion authority outside a derived job namespace."""
     unsafe_root = tmp_path / "caller-root"
     unsafe_root.mkdir()
     sentinel = unsafe_root / "keep.txt"
     sentinel.write_text("keep", encoding="utf-8")
+    malformed = tmp_path / "job-sha256-v1" / "not-a-digest"
+    malformed.mkdir(parents=True)
+    malformed_sentinel = malformed / "keep.txt"
+    malformed_sentinel.write_text("keep", encoding="utf-8")
 
+    _cleanup_job_temp_namespace(None)
+    _cleanup_job_temp_namespace({})
+    _cleanup_job_temp_namespace({"tempRoot": "relative"})
     _cleanup_job_temp_namespace({"tempRoot": str(unsafe_root)})
+    _cleanup_job_temp_namespace({"tempRoot": str(malformed)})
 
     assert sentinel.read_text(encoding="utf-8") == "keep"
+    assert malformed_sentinel.read_text(encoding="utf-8") == "keep"
