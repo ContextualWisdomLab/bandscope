@@ -43,15 +43,13 @@ def is_sha256_hex(value: object) -> bool:
 
 
 def source_sha256_from_cache_path(path: Path) -> str | None:
-    """Recover native-verified source identity from the production cache namespace."""
+    """Recover the nearest native-verified source identity from a cache path."""
     parts = path.parts
-    for index, part in enumerate(parts[:-1]):
-        if part != _SOURCE_NAMESPACE:
+    for index in range(len(parts) - 2, -1, -1):
+        if parts[index] != _SOURCE_NAMESPACE:
             continue
         candidate = parts[index + 1]
-        if is_sha256_hex(candidate):
-            return candidate
-        return None
+        return candidate if is_sha256_hex(candidate) else None
     return None
 
 
