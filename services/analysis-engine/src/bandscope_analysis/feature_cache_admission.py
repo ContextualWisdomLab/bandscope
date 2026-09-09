@@ -208,9 +208,15 @@ def _duration_matches_sample_timeline(
     """Return whether persisted duration agrees with the stem timeline to half a sample."""
     if duration_seconds is None:
         return True
-    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)):
+    if isinstance(duration_seconds, bool) or not isinstance(
+        duration_seconds, (int, float)
+    ):
         return False
-    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
+    if (
+        isinstance(sample_rate, bool)
+        or not isinstance(sample_rate, int)
+        or sample_rate <= 0
+    ):
         return False
     try:
         duration_value = float(duration_seconds)
