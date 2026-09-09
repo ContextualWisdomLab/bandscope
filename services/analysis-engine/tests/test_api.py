@@ -364,29 +364,6 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             raise AssertionError(f"Expected ValueError for {payload!r}")
 
 
-def test_validate_analysis_job_request_logs_traversal_attempts() -> None:
-    """Ensure path traversal attempts are logged securely, avoiding log forging."""
-    with patch("bandscope_analysis.api.logger.warning") as mock_logger:
-        malicious_payload = {
-            "sourceKind": "local_audio",
-            "projectId": "../escape\n[ERROR]",
-            "sourceLabel": "Late Night Set",
-            "roleFocus": [],
-            "localSource": {
-                "sourcePath": "/Users/test/Music/late-night-set.wav",
-                "fileName": "late-night-set.wav",
-                "extension": "wav",
-                "fileSizeBytes": 1024000,
-            },
-        }
-        try:
-            validate_analysis_job_request(malicious_payload)
-        except ValueError:
-            pass
-
-        mock_logger.assert_called_once_with("Security: path traversal detected in %s", "projectId")
-
-
 def test_validate_analysis_job_request_allows_project_id_with_dotdot_substring() -> None:
     """Identifiers that only contain '..' as a substring remain valid."""
     result = validate_analysis_job_request(
@@ -1442,3 +1419,28 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
         for update in updates
     )
+
+
+def test_validate_analysis_job_request_logs_traversal_attempts_source_path() -> None:
+    """Ensure path traversal attempts are logged securely, avoiding log forging."""
+    with patch("bandscope_analysis.api.logger.warning") as mock_logger:
+        malicious_payload = {
+            "sourceKind": "local_audio",
+            "projectId": "my-project",
+            "sourceLabel": "Late Night Set",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/Users/test/../Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+        try:
+            validate_analysis_job_request(malicious_payload)
+        except ValueError:
+            pass
+
+        mock_logger.assert_called_once_with(
+            "Security: path traversal detected in localSource.sourcePath"
+        )
