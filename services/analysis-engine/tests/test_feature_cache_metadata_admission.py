@@ -52,3 +52,21 @@ def test_first_feature_cache_snapshot_uses_bounded_metadata_reader(
     monkeypatch.setattr(feature_cache_admission.json, "loads", fail_json_loads)
 
     assert api._load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+@pytest.mark.parametrize(
+    "encoded_metadata",
+    [
+        '{"schemaVersion":1,"schemaVersion":2}',
+        '{"separation":{"duration_seconds":1.0,"duration_seconds":2.0}}',
+    ],
+)
+def test_feature_cache_metadata_rejects_duplicate_json_members(
+    tmp_path: Path,
+    encoded_metadata: str,
+) -> None:
+    """Reject ambiguous duplicate members at any JSON object depth."""
+    metadata_path = tmp_path / "features.json"
+    metadata_path.write_text(encoded_metadata, encoding="utf-8")
+
+    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
