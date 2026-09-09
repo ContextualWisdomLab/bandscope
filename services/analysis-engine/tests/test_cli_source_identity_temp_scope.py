@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from bandscope_analysis import cli
 from bandscope_analysis.cli import (
     _bind_verified_source_cache_namespace,
     _cleanup_job_temp_namespace,
@@ -103,6 +104,27 @@ def test_job_temp_cleanup_removes_only_the_derived_execution_namespace(tmp_path:
     assert sibling.read_text(encoding="utf-8") == "keep"
 
 
+def test_unverified_job_temp_cleanup_removes_only_its_job_namespace(tmp_path: Path) -> None:
+    """Clean manual-job stem work without requiring persisted source identity."""
+    bound = _bind_verified_source_cache_namespace(
+        {
+            "sourceKind": "local_audio",
+            "tempRoot": str(tmp_path / "work"),
+        },
+        None,
+        "manual-cleanup",
+    )
+    assert isinstance(bound, dict)
+    job_root = Path(str(bound["tempRoot"]))
+    stem_path = job_root / "stem-work-v1" / "stems.npz"
+    stem_path.parent.mkdir(parents=True)
+    stem_path.write_bytes(b"temporary-stems")
+
+    _cleanup_job_temp_namespace(bound)
+
+    assert not job_root.exists()
+
+
 def test_job_temp_cleanup_refuses_symlinked_source_namespace(tmp_path: Path) -> None:
     """Do not follow a substituted derived parent outside app-owned stem work."""
     source_digest = "ab" * 32
@@ -128,6 +150,31 @@ def test_job_temp_cleanup_refuses_symlinked_source_namespace(tmp_path: Path) -> 
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
+def test_job_temp_cleanup_refuses_unsafe_rmtree_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Leave work for later cleanup when recursive deletion lacks symlink resistance."""
+    bound = _bind_verified_source_cache_namespace(
+        {
+            "sourceKind": "local_audio",
+            "tempRoot": str(tmp_path / "work"),
+        },
+        "ab" * 32,
+        "unsafe-runtime",
+    )
+    assert isinstance(bound, dict)
+    job_root = Path(str(bound["tempRoot"]))
+    sentinel = job_root / "keep.txt"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_text("keep", encoding="utf-8")
+    monkeypatch.setattr(cli.shutil.rmtree, "avoids_symlink_attacks", False)
+
+    _cleanup_job_temp_namespace(bound)
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
 def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) -> None:
     """Do not grant recursive deletion authority outside a derived job namespace."""
     unsafe_root = tmp_path / "caller-root"
@@ -138,12 +185,25 @@ def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) ->
     malformed.mkdir(parents=True)
     malformed_sentinel = malformed / "keep.txt"
     malformed_sentinel.write_text("keep", encoding="utf-8")
+    malformed_source = (
+        tmp_path
+        / "source-sha256-v1"
+        / "not-a-source-digest"
+        / "job-sha256-v1"
+        / ("ef" * 32)
+    )
+    malformed_source.mkdir(parents=True)
+    malformed_source_sentinel = malformed_source / "keep.txt"
+    malformed_source_sentinel.write_text("keep", encoding="utf-8")
 
     _cleanup_job_temp_namespace(None)
     _cleanup_job_temp_namespace({})
     _cleanup_job_temp_namespace({"tempRoot": "relative"})
+    _cleanup_job_temp_namespace({"tempRoot": f"job-sha256-v1/{'ef' * 32}"})
     _cleanup_job_temp_namespace({"tempRoot": str(unsafe_root)})
     _cleanup_job_temp_namespace({"tempRoot": str(malformed)})
+    _cleanup_job_temp_namespace({"tempRoot": str(malformed_source)})
 
     assert sentinel.read_text(encoding="utf-8") == "keep"
     assert malformed_sentinel.read_text(encoding="utf-8") == "keep"
+    assert malformed_source_sentinel.read_text(encoding="utf-8") == "keep"
