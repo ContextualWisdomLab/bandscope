@@ -16,18 +16,22 @@ Security Notes:
   symlink cannot become an unbounded or blocking replay input. JSON decoder
   numeric-limit failures and duplicate object members are treated as cache
   misses rather than job failures or ambiguous cache authority.
+- When a committed generation supplies an expected metadata digest, the exact
+  bytes read from that already-open sidecar descriptor must match before JSON
+  materialization. The archive owner applies the same digest to its second read,
+  so two different metadata generations cannot jointly authorize one replay.
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
   its second-read schema version, stem identity, and sample rate must match the
   caller's already-admitted metadata. Legacy caches may omit ``stemRoleTypes``
   inside that sidecar, but sidecar disappearance, schema/identity/rate
-  replacement, or malformed replacement fails closed.
+  replacement, malformed replacement, or committed-generation digest drift
+  fails closed.
 - Persisted separation duration is required, finite, positive, and must agree
   with the synchronized stem sample timeline within half one sample at the
   admitted sample rate. Metadata cannot omit, stretch, or shrink rehearsal
-  timing away from the actual cached stem extent. Exact metadata/archive/source
-  generation binding remains a separate persistence contract.
+  timing away from the actual cached stem extent.
 - Persisted role metadata, when present beside the stem archive, must preserve
   the canonical binding: vocals is vocal; bass, drums, and other are instruments.
 - The archive pathname is opened with non-blocking/no-follow flags when the
@@ -35,8 +39,8 @@ Security Notes:
   regular file, so a substituted FIFO or symlink cannot redirect or stall replay.
 - The opened archive is copied exactly once into a bounded spooled snapshot.
   ZIP/NPY declaration preflight and NumPy materialization consume that same
-  snapshot, so pathname or same-inode rewrites after the copy cannot substitute
-  different samples into the already-admitted rehearsal evidence.
+  snapshot. When a generation manifest supplies an archive digest, the exact
+  private snapshot is hashed before preflight and must match that commit marker.
 - ZIP central-directory declarations and bounded NPY headers are checked before
   ``np.load`` can decompress a stem member. Extra or duplicate members fail
   closed rather than becoming hidden compressed payload.
@@ -48,15 +52,16 @@ Security Notes:
 - Canonical finiteness, dtype, sample-rate, sample-count, and memory checks are
   reapplied before a replayed stem can return to MIR/rehearsal analysis.
 - Allocator exhaustion or truncated archive state encountered while copying,
-  preflighting, or opening an otherwise admitted cache fails closed as a cache
-  miss instead of escaping the persistence boundary and crashing the analysis job.
-- This creates one immutable replay byte snapshot; it does not bind that snapshot
-  cryptographically to the metadata sidecar or admitted source content, and it
-  does not claim a process-wide RSS ceiling for NumPy/ZIP or downstream MIR work.
+  hashing, preflighting, or opening an otherwise admitted cache fails closed as
+  a cache miss instead of escaping the persistence boundary and crashing the job.
+- Digest matching here establishes content identity/integrity for one committed
+  local cache generation. It is not authenticity, a signature/MAC, FIPS module
+  validation, tamper-proof storage, or a process-wide RSS ceiling.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -93,6 +98,15 @@ _CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
 
 
+def _is_sha256_hex(value: object) -> bool:
+    """Return whether a value is one canonical lowercase SHA-256 hex digest."""
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _materialize_unique_json_object(
     pairs: list[tuple[str, object]],
 ) -> dict[str, object]:
@@ -107,8 +121,12 @@ def _materialize_unique_json_object(
 
 def read_bounded_feature_cache_metadata(
     metadata_path: Path,
+    *,
+    expected_sha256: str | None = None,
 ) -> dict[str, object] | None:
     """Read one bounded regular UTF-8 JSON sidecar from an already-open descriptor."""
+    if expected_sha256 is not None and not _is_sha256_hex(expected_sha256):
+        return None
     open_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
     open_flags |= getattr(os, "O_NONBLOCK", 0)
     open_flags |= getattr(os, "O_NOFOLLOW", 0)
@@ -125,6 +143,11 @@ def read_bounded_feature_cache_metadata(
             encoded_metadata = metadata_file.read(metadata_stat.st_size + 1)
             if len(encoded_metadata) != metadata_stat.st_size:
                 return None
+        if (
+            expected_sha256 is not None
+            and hashlib.sha256(encoded_metadata).hexdigest() != expected_sha256
+        ):
+            return None
         metadata = json.loads(
             encoded_metadata.decode("utf-8"),
             object_pairs_hook=_materialize_unique_json_object,
@@ -193,9 +216,13 @@ def _read_canonical_stem_role_metadata(
     stem_keys: list[str],
     *,
     expected_sample_rate: object | None = None,
+    expected_metadata_sha256: str | None = None,
 ) -> dict[str, object] | None:
     """Return one admitted second-read sidecar snapshot for archive replay."""
-    metadata = read_bounded_feature_cache_metadata(arrays_path.with_suffix(".json"))
+    metadata = read_bounded_feature_cache_metadata(
+        arrays_path.with_suffix(".json"),
+        expected_sha256=expected_metadata_sha256,
+    )
     if metadata is None:
         return None
     if metadata.get("schemaVersion") != _FEATURE_CACHE_SCHEMA_VERSION:
@@ -243,6 +270,7 @@ def _has_canonical_stem_role_metadata(
     stem_keys: list[str],
     *,
     expected_sample_rate: object | None = None,
+    expected_metadata_sha256: str | None = None,
 ) -> bool:
     """Reject missing or persisted metadata that contradicts replay semantics."""
     return (
@@ -250,6 +278,7 @@ def _has_canonical_stem_role_metadata(
             arrays_path,
             stem_keys,
             expected_sample_rate=expected_sample_rate,
+            expected_metadata_sha256=expected_metadata_sha256,
         )
         is not None
     )
@@ -297,6 +326,26 @@ def _copy_exact_archive_snapshot(
         remaining -= len(chunk)
     destination.seek(0)
     return True
+
+
+def _private_snapshot_sha256(snapshot_file: BinaryIO, byte_count: int) -> str | None:
+    """Hash exactly one already-bounded private archive snapshot."""
+    try:
+        snapshot_file.seek(0)
+        remaining = byte_count
+        digest = hashlib.sha256()
+        while remaining > 0:
+            chunk = snapshot_file.read(min(remaining, _ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES))
+            if not chunk:
+                return None
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if snapshot_file.read(1):
+            return None
+        snapshot_file.seek(0)
+        return digest.hexdigest()
+    except (MemoryError, OSError, ValueError):
+        return None
 
 
 def _preflight_npz(
@@ -380,14 +429,19 @@ def load_bounded_stem_archive(
     sample_rate: object,
     *,
     policy_template: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    expected_metadata_sha256: str | None = None,
+    expected_archive_sha256: str | None = None,
 ) -> dict[str, NDArray[np.float32]] | None:
     """Load one admitted stem archive and return owned canonical float32 signals."""
+    if expected_archive_sha256 is not None and not _is_sha256_hex(expected_archive_sha256):
+        return None
     policy = _replay_policy(sample_rate, policy_template)
     expected_names = _expected_member_names(stem_keys)
     replay_metadata = _read_canonical_stem_role_metadata(
         arrays_path,
         stem_keys,
         expected_sample_rate=sample_rate,
+        expected_metadata_sha256=expected_metadata_sha256,
     )
     if policy is None or expected_names is None or replay_metadata is None:
         return None
@@ -419,6 +473,10 @@ def load_bounded_stem_archive(
                     file_stat.st_size,
                 ):
                     return None
+                if expected_archive_sha256 is not None:
+                    snapshot_sha256 = _private_snapshot_sha256(snapshot_file, file_stat.st_size)
+                    if snapshot_sha256 != expected_archive_sha256:
+                        return None
                 sample_count = _preflight_npz(snapshot_file, stem_keys, policy)
                 if sample_count is None:
                     return None
