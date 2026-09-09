@@ -88,7 +88,7 @@ class RangePayload(TypedDict):
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal results."""
+    """Typed harmony payload nested inside rehearsal roles."""
 
     chord: str
     functionLabel: str
@@ -708,19 +708,17 @@ def _default_stem_role_types(stem_keys: list[str]) -> dict[str, str]:
 def _normalize_stem_role_types(
     stem_role_types: object, stem_keys: list[str]
 ) -> dict[str, str] | None:
-    """Validate role metadata while preserving compatibility with older caches."""
+    """Validate persisted role metadata against canonical stem semantics."""
+    canonical = _default_stem_role_types(stem_keys)
     if stem_role_types is None:
-        return _default_stem_role_types(stem_keys)
+        return canonical
     if not isinstance(stem_role_types, dict):
         return None
-
-    normalized: dict[str, str] = {}
-    for stem_key in stem_keys:
-        role_type = stem_role_types.get(stem_key)
-        if role_type not in ("vocal", "instrument"):
-            return None
-        normalized[stem_key] = role_type
-    return normalized
+    if set(stem_role_types) != set(stem_keys):
+        return None
+    if any(stem_role_types.get(stem_key) != canonical[stem_key] for stem_key in stem_keys):
+        return None
+    return canonical
 
 
 def _load_cached_local_audio_features(
