@@ -13,9 +13,10 @@ Security Notes:
 - Persisted stem identities are admitted only from the canonical Demucs output
   set (vocals, bass, drums, other); cache metadata cannot invent a new role.
 - The persisted metadata sidecar must still be readable at archive admission;
-  its second-read stem identity must match the caller's already-admitted keys.
-  Legacy caches may omit ``stemRoleTypes`` inside that sidecar, but sidecar
-  disappearance, identity replacement, or malformed replacement fails closed.
+  its second-read stem identity and sample rate must match the caller's
+  already-admitted metadata. Legacy caches may omit ``stemRoleTypes`` inside
+  that sidecar, but sidecar disappearance, identity/rate replacement, or
+  malformed replacement fails closed.
 - Persisted separation duration, when present, must be a finite positive number;
   NaN, infinity, zero, negative, and unrepresentably large timeline metadata
   cannot become rehearsal timing authority. Exact metadata/archive/source
@@ -127,7 +128,12 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
 
 
-def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -> bool:
+def _has_canonical_stem_role_metadata(
+    arrays_path: Path,
+    stem_keys: list[str],
+    *,
+    expected_sample_rate: object | None = None,
+) -> bool:
     """Reject missing or persisted metadata that contradicts replay semantics."""
     metadata_path = arrays_path.with_suffix(".json")
     try:
@@ -138,6 +144,8 @@ def _has_canonical_stem_role_metadata(arrays_path: Path, stem_keys: list[str]) -
     if not isinstance(metadata, dict):
         return False
     if metadata.get("stemKeys") != stem_keys:
+        return False
+    if expected_sample_rate is not None and metadata.get("sampleRate") != expected_sample_rate:
         return False
 
     separation = metadata.get("separation")
@@ -275,7 +283,11 @@ def load_bounded_stem_archive(
     if (
         policy is None
         or expected_names is None
-        or not _has_canonical_stem_role_metadata(arrays_path, stem_keys)
+        or not _has_canonical_stem_role_metadata(
+            arrays_path,
+            stem_keys,
+            expected_sample_rate=sample_rate,
+        )
     ):
         return None
 
