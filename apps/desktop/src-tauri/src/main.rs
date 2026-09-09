@@ -517,6 +517,18 @@ fn store_local_audio_publication_identity(
     Ok(())
 }
 
+fn lookup_local_audio_publication_identity(
+    state: &LocalAudioPublicationIdentityState,
+    project_id: &str,
+) -> Result<LocalAudioPublicationIdentity, String> {
+    state
+        .0
+        .lock()
+        .ok()
+        .and_then(|identities| identities.get(project_id).cloned())
+        .ok_or_else(|| "Analysis job source identity was not found. Choose local audio again.".to_string())
+}
+
 fn lookup_bootstrap_source(
     state: &AppState,
     project_id: &str,
@@ -565,6 +577,7 @@ fn run_analysis_engine(
     cancellation_state: AnalysisJobCancellationRegistry,
     job_id: String,
     request: AnalysisJobRequest,
+    source_content_sha256: Option<String>,
     requested_at: String,
 ) -> AnalysisJobStatus {
     if cancellation_state.is_requested(&job_id) {
@@ -604,11 +617,14 @@ fn run_analysis_engine(
         }
     };
 
-    let payload = json!({
+    let mut payload = json!({
         "jobId": job_id.clone(),
         "requestedAt": requested_at.clone(),
         "request": request,
     });
+    if let Some(content_sha256) = source_content_sha256 {
+        payload["sourceContentSha256"] = Value::String(content_sha256);
+    }
     let Some(stdout) = process.stdout.take() else {
         terminate_owned_process(&mut process);
         return failed_status(
@@ -850,6 +866,7 @@ fn start_analysis_job(
     request: Value,
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
     cancellation_state: tauri::State<'_, AnalysisJobCancellationRegistry>,
 ) -> AnalysisJobStatus {
     let requested_at = iso_timestamp_now();
@@ -865,6 +882,7 @@ fn start_analysis_job(
         }
     };
 
+    let mut source_content_sha256 = None;
     if parsed_request.source_kind == "local_audio" {
         let Some(project_id) = parsed_request.project_id.clone() else {
             return failed_status(
@@ -885,6 +903,33 @@ fn start_analysis_job(
                 )
             }
         };
+        let publication_identity =
+            match lookup_local_audio_publication_identity(&publication_state, &project_id) {
+                Ok(identity) => identity,
+                Err(message) => {
+                    return failed_status(
+                        "invalid-job".into(),
+                        requested_at,
+                        AnalysisJobErrorCode::NotFound,
+                        &message,
+                    )
+                }
+            };
+        let source_artifact_name = Path::new(&bootstrap.source.source_path)
+            .file_name()
+            .and_then(|value| value.to_str());
+        if publication_identity.file_size_bytes != bootstrap.source.file_size_bytes
+            || publication_identity.extension != bootstrap.source.extension
+            || source_artifact_name != Some(publication_identity.artifact_name.as_str())
+        {
+            return failed_status(
+                "invalid-job".into(),
+                requested_at,
+                AnalysisJobErrorCode::NotFound,
+                "Analysis job source identity no longer matches the verified publication.",
+            );
+        }
+        source_content_sha256 = Some(publication_identity.content_sha256);
         parsed_request.source_label = bootstrap.source.file_name.clone();
         parsed_request.cache_root = Some(bootstrap.cache_root.clone());
         parsed_request.temp_root = Some(bootstrap.temp_root.clone());
@@ -951,6 +996,7 @@ fn start_analysis_job(
             worker_cancellation_state.clone(),
             job_id.clone(),
             parsed_request,
+            source_content_sha256,
             requested_at,
         );
         finalize_analysis_status_and_emit(
