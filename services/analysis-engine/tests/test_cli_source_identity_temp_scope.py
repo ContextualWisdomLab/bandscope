@@ -253,6 +253,23 @@ def test_job_temp_cleanup_survives_parent_swap_after_lexical_check(
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
+def test_job_temp_cleanup_refuses_runtime_without_dir_fd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Leave work intact when descriptor-relative directory opens are unavailable."""
+    job_digest = "cd" * 32
+    job_root = tmp_path / "work" / "job-sha256-v1" / job_digest
+    sentinel = job_root / "keep.txt"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_text("keep", encoding="utf-8")
+    monkeypatch.setattr(cli.os, "supports_dir_fd", set())
+
+    _cleanup_job_temp_namespace({"tempRoot": str(job_root)})
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
 def test_job_temp_cleanup_refuses_unsafe_rmtree_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -298,6 +315,13 @@ def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) ->
     malformed_source.mkdir(parents=True)
     malformed_source_sentinel = malformed_source / "keep.txt"
     malformed_source_sentinel.write_text("keep", encoding="utf-8")
+    traversal_parent = tmp_path / "safe"
+    traversal_parent.mkdir()
+    traversal_target = tmp_path / "job-sha256-v1" / ("aa" * 32)
+    traversal_target.mkdir(parents=True)
+    traversal_sentinel = traversal_target / "keep.txt"
+    traversal_sentinel.write_text("keep", encoding="utf-8")
+    traversal_spelling = traversal_parent / ".." / "job-sha256-v1" / ("aa" * 32)
 
     _cleanup_job_temp_namespace(None)
     _cleanup_job_temp_namespace({})
@@ -306,7 +330,9 @@ def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) ->
     _cleanup_job_temp_namespace({"tempRoot": str(unsafe_root)})
     _cleanup_job_temp_namespace({"tempRoot": str(malformed)})
     _cleanup_job_temp_namespace({"tempRoot": str(malformed_source)})
+    _cleanup_job_temp_namespace({"tempRoot": str(traversal_spelling)})
 
     assert sentinel.read_text(encoding="utf-8") == "keep"
     assert malformed_sentinel.read_text(encoding="utf-8") == "keep"
     assert malformed_source_sentinel.read_text(encoding="utf-8") == "keep"
+    assert traversal_sentinel.read_text(encoding="utf-8") == "keep"
