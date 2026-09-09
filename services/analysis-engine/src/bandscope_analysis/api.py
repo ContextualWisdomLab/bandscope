@@ -85,7 +85,7 @@ class CuePayload(TypedDict):
 
 
 class RangePayload(TypedDict):
-    """Typed range payload nested inside rehearsal roles."""
+    """Typed range payload nested inside rehearsal results."""
 
     lowestNote: str
     highestNote: str
