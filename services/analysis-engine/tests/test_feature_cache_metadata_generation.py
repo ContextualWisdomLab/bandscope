@@ -105,38 +105,14 @@ def test_feature_cache_replay_rejects_second_read_schema_substitution(
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
 
-def test_feature_cache_replay_rejects_second_read_metadata_generation_substitution(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A second read cannot silently mix provenance from another metadata generation."""
+def test_feature_cache_replay_rejects_missing_separation_duration(tmp_path: Path) -> None:
+    """A cached stem timeline without duration authority must be recomputed, not replayed."""
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     _write_cache(metadata_path, arrays_path)
 
-    real_loader = load_bounded_stem_archive
-
-    def replace_sidecar_then_load(
-        archive_path: Path,
-        stem_keys: list[str],
-        sample_rate: object,
-        *,
-        policy_template,
-    ):
-        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-        payload["separation"]["chunk_count"] = 2
-        payload["separation"]["notes"] = "replacement generation"
-        metadata_path.write_text(json.dumps(payload), encoding="utf-8")
-        return real_loader(
-            archive_path,
-            stem_keys,
-            sample_rate,
-            policy_template=policy_template,
-        )
-
-    monkeypatch.setattr(
-        "bandscope_analysis.api.load_bounded_stem_archive",
-        replace_sidecar_then_load,
-    )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    del payload["separation"]["duration_seconds"]
+    metadata_path.write_text(json.dumps(payload), encoding="utf-8")
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
