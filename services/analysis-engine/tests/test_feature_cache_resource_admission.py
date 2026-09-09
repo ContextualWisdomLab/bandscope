@@ -70,7 +70,9 @@ def test_feature_cache_replay_rejects_nonfinite_stem(tmp_path: Path) -> None:
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     _write_metadata(metadata_path)
-    np.savez_compressed(arrays_path, stem_bass=np.array([0.0, np.nan], dtype=np.float32))
+    stem_bass = np.zeros(16, dtype=np.float32)
+    stem_bass[1] = np.nan
+    np.savez_compressed(arrays_path, stem_bass=stem_bass)
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
