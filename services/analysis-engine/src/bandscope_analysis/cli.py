@@ -108,7 +108,9 @@ def _cleanup_job_temp_namespace(request: object) -> None:
     if len(parts) >= 4 and parts[-4] == "source-sha256-v1":
         if _SOURCE_SHA256_PATTERN.fullmatch(parts[-3]) is None:
             return
-        derived_parents.extend((path.parents[1], path.parents[2]))
+        derived_parents.extend((path.parents[1], path.parents[2], path.parents[3]))
+    else:
+        derived_parents.append(path.parents[1])
     if any(candidate.is_symlink() for candidate in derived_parents):
         return
     if not shutil.rmtree.avoids_symlink_attacks:
