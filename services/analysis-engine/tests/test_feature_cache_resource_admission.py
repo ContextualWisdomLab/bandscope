@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -12,6 +13,7 @@ import pytest
 
 from bandscope_analysis.api import _load_cached_local_audio_features
 from bandscope_analysis.audio_resource_policy import AudioResourcePolicy
+from bandscope_analysis.feature_cache_admission import _copy_exact_archive_snapshot
 
 
 def _write_metadata(
@@ -187,11 +189,16 @@ def test_feature_cache_replay_rejects_misaligned_stem_lengths_before_materializa
     load_mock.assert_not_called()
 
 
-def test_feature_cache_replay_rejects_archive_mutated_after_preflight(
+def test_feature_cache_snapshot_copy_rejects_short_source() -> None:
+    """A cache truncated below its admitted extent cannot form a replay snapshot."""
+    assert not _copy_exact_archive_snapshot(BytesIO(b"x"), BytesIO(), 2)
+
+
+def test_feature_cache_replay_ignores_path_mutation_after_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Replay rejects an archive mutated after declaration preflight."""
+    """Mutation after snapshot creation cannot change the admitted replay bytes."""
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     _write_metadata(metadata_path)
@@ -212,7 +219,11 @@ def test_feature_cache_replay_rejects_archive_mutated_after_preflight(
         mutate_archive_then_load,
     )
 
-    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+    loaded = _load_cached_local_audio_features(metadata_path, arrays_path)
+
+    assert loaded is not None
+    assert loaded["stems"]["bass"].shape == (16,)
+    assert np.count_nonzero(loaded["stems"]["bass"]) == 0
 
 
 def test_feature_cache_replay_materializes_one_admitted_archive_snapshot(
