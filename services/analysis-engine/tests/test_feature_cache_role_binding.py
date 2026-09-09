@@ -5,7 +5,9 @@ import json
 import numpy as np
 
 from bandscope_analysis.api import _load_cached_local_audio_features
-from bandscope_analysis.feature_cache_admission import _has_canonical_stem_role_metadata
+from bandscope_analysis.feature_cache_admission import (
+    _has_canonical_stem_role_metadata,
+)
 
 
 _SAMPLE_RATE = 22_050
@@ -14,7 +16,9 @@ _DURATION_SECONDS = _SAMPLE_COUNT / _SAMPLE_RATE
 
 
 def _sidecar(
-    *, stem_keys: list[str], stem_role_types: object = None
+    *,
+    stem_keys: list[str],
+    stem_role_types: object = None,
 ) -> dict[str, object]:
     """Build generation-valid sidecar metadata for focused role-admission tests."""
     payload: dict[str, object] = {
