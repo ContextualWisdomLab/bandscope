@@ -119,6 +119,29 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
     )
 
 
+def test_stem_role_sidecar_rejects_unknown_stem_without_lookup_exception(
+    tmp_path,
+) -> None:
+    """Unknown persisted stem identities fail closed before canonical-role lookup."""
+    arrays_path = tmp_path / "track.features.npz"
+    metadata_path = arrays_path.with_suffix(".json")
+    metadata_path.write_text(
+        json.dumps(
+            _sidecar(stem_keys=["guitar"], stem_role_types={"guitar": "instrument"})
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        _has_canonical_stem_role_metadata(
+            arrays_path,
+            ["guitar"],
+            expected_sample_rate=_SAMPLE_RATE,
+        )
+        is False
+    )
+
+
 def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(
     tmp_path,
 ) -> None:
