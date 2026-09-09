@@ -149,6 +149,8 @@ def _read_canonical_stem_role_metadata(
         return None
     if metadata.get("stemKeys") != stem_keys:
         return None
+    if _expected_member_names(stem_keys) is None:
+        return None
     if expected_sample_rate is not None:
         if metadata.get("sampleRate") != expected_sample_rate:
             return None
