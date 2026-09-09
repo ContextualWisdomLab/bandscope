@@ -4,8 +4,7 @@ import json
 
 import numpy as np
 
-from bandscope_analysis.api import _load_cached_local_audio_features
-from bandscope_analysis.feature_cache_admission import _has_canonical_stem_role_metadata
+from bandscope_analysis import api, feature_cache_admission
 
 
 _SAMPLE_RATE = 22_050
@@ -46,7 +45,7 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
         encoding="utf-8",
     )
 
-    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+    assert api._load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
         json.dumps(
@@ -55,7 +54,7 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
         encoding="utf-8",
     )
 
-    replayed = _load_cached_local_audio_features(metadata_path, arrays_path)
+    replayed = api._load_cached_local_audio_features(metadata_path, arrays_path)
     assert replayed is not None
     assert replayed["stem_role_types"] == {"bass": "instrument"}
 
@@ -68,7 +67,7 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
     metadata_path = arrays_path.with_suffix(".json")
 
     assert (
-        _has_canonical_stem_role_metadata(
+        feature_cache_admission._has_canonical_stem_role_metadata(
             arrays_path,
             ["bass"],
             expected_sample_rate=_SAMPLE_RATE,
@@ -78,7 +77,7 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
 
     metadata_path.write_text("{", encoding="utf-8")
     assert (
-        _has_canonical_stem_role_metadata(
+        feature_cache_admission._has_canonical_stem_role_metadata(
             arrays_path,
             ["bass"],
             expected_sample_rate=_SAMPLE_RATE,
@@ -88,7 +87,7 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
 
     metadata_path.write_text("[]", encoding="utf-8")
     assert (
-        _has_canonical_stem_role_metadata(
+        feature_cache_admission._has_canonical_stem_role_metadata(
             arrays_path,
             ["bass"],
             expected_sample_rate=_SAMPLE_RATE,
@@ -100,7 +99,7 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
         json.dumps(_sidecar(stem_keys=["bass"])),
         encoding="utf-8",
     )
-    assert _has_canonical_stem_role_metadata(
+    assert feature_cache_admission._has_canonical_stem_role_metadata(
         arrays_path,
         ["bass"],
         expected_sample_rate=_SAMPLE_RATE,
@@ -111,7 +110,7 @@ def test_stem_role_sidecar_admission_covers_legacy_and_malformed_metadata(
         encoding="utf-8",
     )
     assert (
-        _has_canonical_stem_role_metadata(
+        feature_cache_admission._has_canonical_stem_role_metadata(
             arrays_path,
             ["bass"],
             expected_sample_rate=_SAMPLE_RATE,
@@ -134,7 +133,7 @@ def test_stem_role_sidecar_rejects_unknown_stem_without_lookup_exception(
     )
 
     assert (
-        _has_canonical_stem_role_metadata(
+        feature_cache_admission._has_canonical_stem_role_metadata(
             arrays_path,
             ["guitar"],
             expected_sample_rate=_SAMPLE_RATE,
@@ -156,7 +155,7 @@ def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(
         ),
         encoding="utf-8",
     )
-    assert _has_canonical_stem_role_metadata(
+    assert feature_cache_admission._has_canonical_stem_role_metadata(
         arrays_path,
         ["bass"],
         expected_sample_rate=_SAMPLE_RATE,
@@ -172,7 +171,7 @@ def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(
         encoding="utf-8",
     )
     assert (
-        _has_canonical_stem_role_metadata(
+        feature_cache_admission._has_canonical_stem_role_metadata(
             arrays_path,
             ["bass"],
             expected_sample_rate=_SAMPLE_RATE,
