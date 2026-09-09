@@ -299,6 +299,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
     if ".." in source_path.replace("\\", "/").split("/"):
+        logger.warning("Security: path traversal detected in localSource.sourcePath")
         raise ValueError(
             "Invalid analysis job request: path traversal detected in 'localSource.sourcePath'"
         )
