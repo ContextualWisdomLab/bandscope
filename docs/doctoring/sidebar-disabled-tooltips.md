@@ -19,13 +19,16 @@ The shared Tooltip primitive also used an opacity transition for appearance/disa
 
 The sidebar uses the existing design-system `Tooltip`, with `TooltipTrigger` retaining `aria-disabled="true"`, a localized `aria-label`, and `preventUnavailableAction`. The shared popup gains a viewport-bounded maximum width, word breaking for long tokens, and `motion-reduce:transition-none` for its decorative opacity transition.
 
-A focused regression renders expanded German tooltip copy and pins the responsive/reduced-motion class contract. This is deliberately a component contract rather than a product-level accessibility acceptance test.
+A focused regression renders expanded German tooltip copy and pins the responsive/reduced-motion class contract. The same regression verifies the exact component-library integration: BandScope locks `@base-ui/react` 1.7.0, whose `TooltipTrigger` explicitly renders a `<button>` by default and calls `useRenderElement('button', componentProps, ...)` with external element props in the merged prop list. The test therefore asserts the native `BUTTON` tag plus `type`, `aria-disabled`, class, and click-handler forwarding instead of applying Radix-specific `asChild` assumptions to Base UI.
+
+This is deliberately a component contract rather than a product-level accessibility acceptance test.
 
 Alternatives rejected:
 
 - Native `disabled`: removes these currently unavailable controls from ordinary keyboard focus and defeats the chosen discoverability contract.
 - `aria-disabled` without an event guard: exposes state but leaves activation behavior enabled.
 - Tooltip-only naming: makes the accessible name depend on popup behavior rather than the trigger itself.
+- Radix `asChild` repair: BandScope does not use Radix Tooltip here. The locked Base UI 1.7.0 trigger already renders the native button and forwards the supplied props.
 - Fixed popup width sized for English/Korean: does not address CJK/European-language expansion or narrow viewports.
 - Removing all Tooltip animation globally: unnecessary; honoring the user preference is the narrower control.
 
@@ -33,15 +36,19 @@ Alternatives rejected:
 
 MDN states that `aria-disabled="true"` communicates disabled semantics but does not suppress functionality; developers must suppress behavior themselves. W3C WCAG 2.2 SC 1.4.10 explains that ordinary text content should reflow within a viewport rather than force two-dimensional scrolling. MDN defines `prefers-reduced-motion` as the user preference for reducing non-essential motion. These sources support the chosen interaction, wrapping, and motion-preference boundaries; they do not prove BandScope conformance by themselves.
 
-Current automated evidence covers DOM semantics already present in `App.test.tsx` plus the Tooltip class contract. Current-head browser geometry, actual hover/focus popup placement, forced-colors behavior, Narrator/VoiceOver announcements, pointer/touch behavior, 400% zoom, and KO/EN/JA/ZH/VI/ES/DE/FR rendered acceptance remain separate UI Delivery Gate evidence.
+The repository lockfile identifies `@base-ui/react` 1.7.0. Upstream tag `v1.7.0` documents `TooltipTrigger` as rendering a `<button>` and implements it with `useRenderElement('button', componentProps, ...)`, including `elementProps` in the merged props. A stale review that reasoned from Radix semantics was therefore dismissed as factually inapplicable after adding a repository regression for native-button/prop forwarding. Dismissing that stale finding is not an approval and does not satisfy the current-head review gate.
+
+Current automated evidence covers DOM semantics already present in `App.test.tsx`, Base UI trigger forwarding, and the Tooltip class contract. Current-head browser geometry, actual hover/focus popup placement, forced-colors behavior, Narrator/VoiceOver announcements, pointer/touch behavior, 400% zoom, and KO/EN/JA/ZH/VI/ES/DE/FR rendered acceptance remain separate UI Delivery Gate evidence.
 
 ## TRACEABILITY
 
 - Sidebar product integration: `apps/desktop/src/App.tsx`
 - Shared primitive: `apps/desktop/src/components/ui/tooltip.tsx`
 - Existing focusable unavailable-control contract: `apps/desktop/src/App.test.tsx`
-- Expanded-copy/reduced-motion regression: `apps/desktop/src/components/ui/tooltip.resilience.test.tsx`
+- Trigger-forwarding and expanded-copy/reduced-motion regression: `apps/desktop/src/components/ui/tooltip.resilience.test.tsx`
 - Reviewer learning note: `.jules/palette.md`
+- Dependency authority: root `package-lock.json`, `@base-ui/react` 1.7.0
+- Upstream implementation: `mui/base-ui` tag `v1.7.0`, `packages/react/src/tooltip/trigger/TooltipTrigger.tsx`
 
 ## References
 
