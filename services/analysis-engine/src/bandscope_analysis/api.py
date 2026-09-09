@@ -15,7 +15,10 @@ from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 import numpy as np
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
-from bandscope_analysis.feature_cache_admission import load_bounded_stem_archive
+from bandscope_analysis.feature_cache_admission import (
+    load_bounded_stem_archive,
+    read_bounded_feature_cache_metadata,
+)
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
@@ -82,7 +85,7 @@ class CuePayload(TypedDict):
 
 
 class RangePayload(TypedDict):
-    """Typed range payload nested inside rehearsal results."""
+    """Typed range payload nested inside rehearsal roles."""
 
     lowestNote: str
     highestNote: str
@@ -727,12 +730,8 @@ def _load_cached_local_audio_features(
     metadata_path: Path, arrays_path: Path
 ) -> dict[str, Any] | None:
     """Load cached stem/features payload, treating malformed files as cache misses."""
-    try:
-        with metadata_path.open("r", encoding="utf-8") as metadata_file:
-            metadata_payload = json.load(metadata_file)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(metadata_payload, dict):
+    metadata_payload = read_bounded_feature_cache_metadata(metadata_path)
+    if metadata_payload is None:
         return None
     if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
         return None
