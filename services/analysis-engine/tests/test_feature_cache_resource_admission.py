@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -212,3 +213,48 @@ def test_feature_cache_replay_rejects_archive_mutated_after_preflight(
     )
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_feature_cache_replay_materializes_one_admitted_archive_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Replay uses one admitted byte snapshot even if file metadata is restored."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    replacement_path = tmp_path / "replacement.npz"
+    _write_metadata(metadata_path)
+    np.savez_compressed(arrays_path, stem_bass=np.full(16, -0.0, dtype=np.float32))
+    np.savez_compressed(replacement_path, stem_bass=np.ones(16, dtype=np.float32))
+
+    admitted_stat = arrays_path.stat()
+    replacement_bytes = replacement_path.read_bytes()
+    assert len(replacement_bytes) == admitted_stat.st_size
+    real_load = np.load
+
+    def replace_bytes_then_load(archive_file, *args, **kwargs):
+        arrays_path.write_bytes(replacement_bytes)
+        changed_stat = arrays_path.stat()
+        assert (changed_stat.st_dev, changed_stat.st_ino, changed_stat.st_size) == (
+            admitted_stat.st_dev,
+            admitted_stat.st_ino,
+            admitted_stat.st_size,
+        )
+        os.utime(
+            arrays_path,
+            ns=(changed_stat.st_atime_ns, admitted_stat.st_mtime_ns),
+        )
+        restored_stat = arrays_path.stat()
+        assert restored_stat.st_mtime_ns == admitted_stat.st_mtime_ns
+        archive_file.seek(0)
+        return real_load(archive_file, *args, **kwargs)
+
+    monkeypatch.setattr(
+        "bandscope_analysis.feature_cache_admission.np.load",
+        replace_bytes_then_load,
+    )
+
+    loaded = _load_cached_local_audio_features(metadata_path, arrays_path)
+
+    assert loaded is not None
+    assert np.signbit(loaded["stems"]["bass"]).all()
