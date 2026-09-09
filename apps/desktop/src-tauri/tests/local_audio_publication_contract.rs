@@ -126,3 +126,25 @@ fn local_audio_selection_retains_verified_path_free_identity_in_native_state() {
         "the native publication identity state must be registered with the Tauri runtime"
     );
 }
+
+#[test]
+fn local_audio_analysis_handoff_consumes_verified_publication_identity() {
+    let source = include_str!("../src/main.rs");
+    let start = source
+        .find("fn start_analysis_job(")
+        .expect("analysis start boundary must remain present");
+    let tail = &source[start..];
+    let end = tail
+        .find("\n}\n\n#[tauri::command]\nfn get_analysis_job_status")
+        .expect("analysis start boundary must remain inspectable");
+    let analysis_start = &tail[..end];
+
+    assert!(
+        analysis_start.contains("lookup_local_audio_publication_identity"),
+        "local analysis must recover the verified native publication identity instead of relying on renderer-visible path/name/size metadata"
+    );
+    assert!(
+        analysis_start.contains("source_content_sha256"),
+        "the analysis-engine handoff must carry the verified publication content digest for cache-generation binding"
+    );
+}
