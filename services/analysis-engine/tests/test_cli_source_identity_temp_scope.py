@@ -171,6 +171,42 @@ def test_job_temp_cleanup_refuses_symlinked_temp_root(tmp_path: Path) -> None:
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
 
+def test_job_temp_cleanup_refuses_verified_symlinked_temp_root(tmp_path: Path) -> None:
+    """Verified-source scoping cannot make a symlinked caller temp root deletable."""
+    source_digest = "ab" * 32
+    job_digest = "cd" * 32
+    outside_root = tmp_path / "outside"
+    outside_job = (
+        outside_root
+        / "source-sha256-v1"
+        / source_digest
+        / "job-sha256-v1"
+        / job_digest
+    )
+    outside_job.mkdir(parents=True)
+    sentinel = outside_job / "keep.txt"
+    sentinel.write_text("keep", encoding="utf-8")
+    temp_root = tmp_path / "work-link"
+    try:
+        temp_root.symlink_to(outside_root, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlink unavailable: {error}")
+
+    _cleanup_job_temp_namespace(
+        {
+            "tempRoot": str(
+                temp_root
+                / "source-sha256-v1"
+                / source_digest
+                / "job-sha256-v1"
+                / job_digest
+            )
+        }
+    )
+
+    assert sentinel.read_text(encoding="utf-8") == "keep"
+
+
 def test_job_temp_cleanup_refuses_unsafe_rmtree_runtime(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
