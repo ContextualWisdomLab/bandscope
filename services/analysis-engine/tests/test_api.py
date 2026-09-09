@@ -364,6 +364,31 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
             raise AssertionError(f"Expected ValueError for {payload!r}")
 
 
+def test_validate_analysis_job_request_logs_traversal_attempts() -> None:
+    """Ensure path traversal attempts are logged securely, avoiding log forging."""
+    with patch("bandscope_analysis.api.logger.warning") as mock_logger:
+        malicious_payload = {
+            "sourceKind": "local_audio",
+            "projectId": "../escape\n[ERROR]",
+            "sourceLabel": "Late Night Set",
+            "roleFocus": [],
+            "localSource": {
+                "sourcePath": "/Users/test/Music/late-night-set.wav",
+                "fileName": "late-night-set.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1024000,
+            },
+        }
+        try:
+            validate_analysis_job_request(malicious_payload)
+        except ValueError:
+            pass
+
+        mock_logger.assert_called_once_with(
+            "Security: path traversal detected in projectId: %s", "'../escape\\n[ERROR]'"
+        )
+
+
 def test_validate_analysis_job_request_allows_project_id_with_dotdot_substring() -> None:
     """Identifiers that only contain '..' as a substring remain valid."""
     result = validate_analysis_job_request(
