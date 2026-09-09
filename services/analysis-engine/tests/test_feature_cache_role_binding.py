@@ -6,9 +6,7 @@ import json
 import numpy as np
 
 api = importlib.import_module("bandscope_analysis.api")
-feature_cache_admission = importlib.import_module(
-    "bandscope_analysis.feature_cache_admission"
-)
+feature_cache_admission = importlib.import_module("bandscope_analysis.feature_cache_admission")
 
 
 _SAMPLE_RATE = 22_050
