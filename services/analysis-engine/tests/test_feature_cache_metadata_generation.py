@@ -155,3 +155,42 @@ def test_feature_cache_replay_rejects_first_read_missing_duration_after_replacem
     )
 
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
+
+
+def test_feature_cache_replay_rejects_first_read_role_substitution_after_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later valid sidecar cannot repair contradictory first-read stem-role semantics."""
+    metadata_path = tmp_path / "features.json"
+    arrays_path = tmp_path / "features.npz"
+    _write_cache(metadata_path, arrays_path)
+
+    valid_payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    first_payload = json.loads(json.dumps(valid_payload))
+    first_payload["stemRoleTypes"] = {"bass": "vocal"}
+    metadata_path.write_text(json.dumps(first_payload), encoding="utf-8")
+
+    real_loader = load_bounded_stem_archive
+
+    def restore_valid_sidecar_then_load(
+        archive_path: Path,
+        stem_keys: list[str],
+        sample_rate: object,
+        *,
+        policy_template,
+    ):
+        metadata_path.write_text(json.dumps(valid_payload), encoding="utf-8")
+        return real_loader(
+            archive_path,
+            stem_keys,
+            sample_rate,
+            policy_template=policy_template,
+        )
+
+    monkeypatch.setattr(
+        "bandscope_analysis.api.load_bounded_stem_archive",
+        restore_valid_sidecar_then_load,
+    )
+
+    assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
