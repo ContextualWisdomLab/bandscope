@@ -70,6 +70,8 @@
   "scoreViewerPrevPage": "이전 페이지",
   "scoreViewerNextPage": "다음 페이지",
   "scoreViewerPageIndicator": "{total}페이지 중 {current}페이지",
+  "scoreViewerFirstPageHint": "이미 첫 페이지입니다",
+  "scoreViewerLastPageHint": "이미 마지막 페이지입니다",
   "scoreViewerZoomIn": "확대",
   "scoreViewerZoomOut": "축소",
   "scoreViewerFitWidth": "폭 맞춤",

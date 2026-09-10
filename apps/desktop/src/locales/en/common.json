@@ -70,6 +70,8 @@
   "scoreViewerPrevPage": "Previous page",
   "scoreViewerNextPage": "Next page",
   "scoreViewerPageIndicator": "Page {current} of {total}",
+  "scoreViewerFirstPageHint": "Already at the first page",
+  "scoreViewerLastPageHint": "Already at the last page",
   "scoreViewerZoomIn": "Zoom in",
   "scoreViewerZoomOut": "Zoom out",
   "scoreViewerFitWidth": "Fit width",
