@@ -1,6 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import userEvent from "@testing-library/user-event"
+import { DirectionProvider } from "@base-ui/react/direction-provider"
 
+import {
+  Slider,
+  SliderControl,
+  SliderTrack,
+  SliderIndicator,
+  SliderThumb,
+} from "./slider"
 import {
   Table,
   TableBody,
@@ -244,5 +253,57 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Slider renders and forwards aria-label to thumb", () => {
+    render(
+      <Slider defaultValue={[50]}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+            <SliderThumb aria-label="Volume" />
+          </SliderTrack>
+        </SliderControl>
+      </Slider>
+    )
+
+    const thumb = screen.getByRole("slider")
+    expect(thumb).toHaveAttribute("aria-label", "Volume")
+    expect(thumb).toHaveAttribute("aria-valuenow", "50")
+  })
+
+  it("Slider supports RTL direction", () => {
+    render(
+      <DirectionProvider direction="rtl">
+        <Slider defaultValue={[50]}>
+          <SliderControl>
+            <SliderTrack>
+              <SliderIndicator />
+              <SliderThumb aria-label="Volume" />
+            </SliderTrack>
+          </SliderControl>
+        </Slider>
+      </DirectionProvider>
+    )
+
+    expect(screen.getByRole("slider")).toBeInTheDocument()
+  })
+
+  it("Slider receives focus via keyboard", async () => {
+    const user = userEvent.setup()
+    render(
+      <Slider defaultValue={[50]}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+            <SliderThumb aria-label="Volume" />
+          </SliderTrack>
+        </SliderControl>
+      </Slider>
+    )
+
+    const thumb = screen.getByRole("slider")
+    await user.tab()
+    expect(thumb).toHaveFocus()
   })
 })
