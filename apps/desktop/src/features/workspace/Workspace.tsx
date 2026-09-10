@@ -136,13 +136,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return map;
   }, [song]);
 
-  const allRoles = useMemo(() => {
+  const roleOptions = useMemo(() => {
     // Performance: Avoid O(N) allocation of intermediate array from Array.from() before mapping
-    const roles: { id: string; name: string }[] = [];
+    const options: { roleId: string; roleName: string }[] = [];
     for (const role of roleMap.values()) {
-      roles.push({ id: role.id, name: role.name });
+      options.push({ roleId: role.id, roleName: role.name });
     }
-    return roles;
+    return options;
   }, [roleMap]);
 
   // Performance: use the cached roleMap so activeRoleDetails does not rescan sections and roles on every render.
@@ -362,7 +362,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="mt-1 text-sm text-slate-400">Filter the board by player or vocal role without losing the full form context.</p>
               </div>
               <RoleSwitcher
-                roles={allRoles}
+                roleOptions={roleOptions}
                 activeRole={activeRole}
                 onRoleChange={setActiveRole}
                 />
