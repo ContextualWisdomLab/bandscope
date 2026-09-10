@@ -92,12 +92,26 @@ def test_replay_policy_and_member_names_reject_untrusted_shapes() -> None:
     template = AudioResourcePolicy()
 
     assert feature_cache_admission._replay_policy(True, template) is None
-    assert feature_cache_admission._replay_policy(float(template.target_sample_rate), template) is None
     assert (
-        feature_cache_admission._replay_policy(template.min_source_sample_rate - 1, template) is None
+        feature_cache_admission._replay_policy(
+            float(template.target_sample_rate),
+            template,
+        )
+        is None
     )
     assert (
-        feature_cache_admission._replay_policy(template.max_source_sample_rate + 1, template) is None
+        feature_cache_admission._replay_policy(
+            template.min_source_sample_rate - 1,
+            template,
+        )
+        is None
+    )
+    assert (
+        feature_cache_admission._replay_policy(
+            template.max_source_sample_rate + 1,
+            template,
+        )
+        is None
     )
 
     for stem_keys in (
@@ -175,7 +189,14 @@ def test_npz_preflight_rejects_untrusted_outer_and_member_shapes() -> None:
     policy = AudioResourcePolicy()
 
     assert feature_cache_admission._preflight_npz(io.BytesIO(), [], policy) is None
-    assert feature_cache_admission._preflight_npz(io.BytesIO(b"not-a-zip"), ["bass"], policy) is None
+    assert (
+        feature_cache_admission._preflight_npz(
+            io.BytesIO(b"not-a-zip"),
+            ["bass"],
+            policy,
+        )
+        is None
+    )
 
     extra_member_archive = io.BytesIO()
     np.savez_compressed(
