@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RoleSwitcher, tabValueToRoleId } from "./RoleSwitcher";
@@ -74,7 +75,10 @@ describe("RoleSwitcher", () => {
   });
 
   it("does not retain the deprecated id/name compatibility layer", () => {
-    const roleSwitcherSource = readFileSync(new URL("./RoleSwitcher.tsx", import.meta.url), "utf8");
+    const roleSwitcherSource = readFileSync(
+      resolve(process.cwd(), "src/features/workspace/RoleSwitcher.tsx"),
+      "utf8"
+    );
 
     expect(roleSwitcherSource).not.toContain("LegacyRehearsalRoleOption");
     expect(roleSwitcherSource).not.toContain("normalizeLegacyRoleOptions");
