@@ -190,6 +190,7 @@ describe("added ui primitives (runtime render)", () => {
         </BreadcrumbList>
       </Breadcrumb>
     )
+    const links = container.querySelectorAll('[data-slot="in-page-nav-link"]')
     expect(container.querySelector('[data-slot="breadcrumb"]')).toBeTruthy()
     expect(
       container.querySelector('[data-slot="breadcrumb-separator"]')
@@ -197,6 +198,7 @@ describe("added ui primitives (runtime render)", () => {
     const current = container.querySelector('[data-slot="breadcrumb-page"]')
     expect(current?.getAttribute("aria-current")).toBe("page")
     expect(screen.getByText("Workspace")).toBeTruthy()
+    expect(links).toHaveLength(0)
   })
 
   it("StepIndicator reflects step state on marker and title", () => {
@@ -316,6 +318,23 @@ describe("added ui primitives (runtime render)", () => {
     await user.tab()
     expect(slider).toHaveFocus()
     expect(slider.parentElement).toHaveClass("has-[:focus-visible]:outline-none")
+  })
+
+  it("Slider anchors its extended hit target to the thumb wrapper", () => {
+    render(
+      <Slider>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Hit target Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    const slider = screen.getByRole("slider", { name: "Hit target Slider" })
+    expect(slider.parentElement).toHaveClass("relative")
+    expect(slider.parentElement).toHaveClass("after:absolute")
+    expect(slider.parentElement).toHaveClass("after:inset-[-12px]")
   })
 
   it("Slider handles RTL keyboard semantics correctly", async () => {
