@@ -69,7 +69,7 @@ import stat
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import BinaryIO, IO, Protocol, cast
+from typing import IO, BinaryIO, Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
