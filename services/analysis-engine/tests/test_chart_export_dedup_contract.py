@@ -1,8 +1,66 @@
 """Regression contract for ordered chart-export de-duplication."""
 
+import ast
+import inspect
 from typing import Any
 
 from bandscope_analysis.exports import build_chart_text, build_cue_sheet_rows
+from bandscope_analysis.exports import chart as chart_export
+
+
+def test_deduplication_helpers_use_chart_domain_identifiers() -> None:
+    """Private de-duplication code must name the rehearsal concept it carries."""
+    chart_syntax = ast.parse(inspect.getsource(chart_export))
+    deduplication_helpers = {
+        "_hashable_text",
+        "_active_role_ids",
+        "_active_roles",
+        "_role_display_name",
+        "_active_role_names",
+        "_section_cue",
+        "_footer_lines",
+    }
+    ambiguous_identifiers = {
+        "active",
+        "cue",
+        "cues",
+        "entry",
+        "headline",
+        "lines",
+        "name",
+        "names",
+        "node",
+        "priorities",
+        "priority",
+        "role",
+        "roles",
+        "section",
+        "sections",
+        "song",
+        "summary",
+        "text",
+        "value",
+    }
+    violations: set[tuple[str, str]] = set()
+
+    for syntax_node in chart_syntax.body:
+        if (
+            not isinstance(syntax_node, ast.FunctionDef)
+            or syntax_node.name not in deduplication_helpers
+        ):
+            continue
+        helper_identifiers = {
+            child_node.id
+            for child_node in ast.walk(syntax_node)
+            if isinstance(child_node, ast.Name)
+        }
+        helper_identifiers.update(argument.arg for argument in syntax_node.args.args)
+        violations.update(
+            (syntax_node.name, identifier)
+            for identifier in helper_identifiers & ambiguous_identifiers
+        )
+
+    assert not violations, f"ambiguous chart-export identifiers: {sorted(violations)}"
 
 
 def _role(role_id: str, name: str, cue: str, priority: str) -> dict[str, Any]:
