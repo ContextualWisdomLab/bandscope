@@ -69,7 +69,7 @@ import stat
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import BinaryIO, Protocol, cast
+from typing import BinaryIO, IO, Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -101,7 +101,7 @@ MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
 class _NpyMagicReader(Protocol):
     """Typed boundary for NumPy's currently untyped NPY magic reader."""
 
-    def __call__(self, fp: BinaryIO, /) -> tuple[int, int]: ...
+    def __call__(self, fp: IO[bytes], /) -> tuple[int, int]: ...
 
 
 class _NpyHeaderReader(Protocol):
@@ -109,7 +109,7 @@ class _NpyHeaderReader(Protocol):
 
     def __call__(
         self,
-        fp: BinaryIO,
+        fp: IO[bytes],
         /,
         *,
         max_header_size: int = 10_000,
