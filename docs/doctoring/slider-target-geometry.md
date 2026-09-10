@@ -2,21 +2,26 @@
 
 ## Decision
 
-BandScope anchors the reusable Slider thumb's structural extended pointer target to the moving thumb wrapper itself. `SliderThumb` therefore establishes a positioned containing block with `position: relative`, while the existing pseudo-element remains `position: absolute` with `inset: -12px` around the 20×20 CSS-pixel visual thumb.
+BandScope keeps the reusable Slider thumb's structural extended pointer target on the moving Base UI thumb wrapper. The visible thumb remains 20×20 CSS pixels and the existing `::after` pseudo-element remains `position: absolute` with `inset: -12px`, giving a nominal 44×44 CSS-pixel envelope.
 
-The decision is intentionally narrower than a browser accessibility claim. The class contract describes a nominal 44×44 CSS-pixel pseudo-element envelope, but source and jsdom evidence alone do not prove that every browser, pointer modality, zoom level, overlap configuration, or assistive technology exposes that entire envelope as an effective target.
+The positioning authority is Base UI itself, not a BandScope `relative` utility. In the exact installed Base UI 1.7.0 implementation, `Slider.Thumb` renders the wrapper with an inline `position: absolute` style as part of thumb placement. An absolutely positioned box establishes the containing block needed by its positioned pseudo-element, so adding a Tailwind `relative` class does not create the anchoring relationship and is redundant under this dependency contract. BandScope therefore does not retain or test that redundant class as evidence.
 
-## Problem
+The decision is intentionally narrower than a browser accessibility claim. Source and jsdom evidence can establish component structure and the upstream positioning contract, but they do not prove that every browser, pointer modality, zoom level, overlap configuration, or assistive technology exposes the entire nominal envelope as an effective target.
 
-Before repair, the thumb wrapper supplied the absolutely positioned `::after` pseudo-element but did not establish its own positioning context. CSS Positioned Layout Level 3 specifies that a non-static positioned box establishes an absolute-positioning containing block for descendants and that an absolutely positioned box uses the nearest ancestor that establishes such a block. In BandScope's composition, `SliderControl` and `SliderTrack` are already positioned ancestors. Without `relative` on the thumb wrapper, the pseudo-element intended to enlarge one moving thumb can therefore resolve against an ancestor box instead of the thumb box.
+## Problem and correction
 
-The exact installed Base UI version is `@base-ui/react` 1.7.0. Its `Slider.Thumb` implementation renders a `<div>` containing the visually hidden `<input type="range">`, positions that wrapper absolutely along the slider, and installs the thumb `onPointerDown` handler on the wrapper itself. Its hidden range input is sized to 100% of the wrapper so VoiceOver's focus indicator follows thumb dimensions. This upstream contract makes the wrapper—not an arbitrary track ancestor—the correct structural boundary for BandScope's extended target.
+An earlier repair treated the Thumb wrapper as if it were statically positioned and concluded that `after:absolute after:inset-[-12px]` could resolve against `SliderTrack` or `SliderControl`. That premise was inconsistent with the exact dependency source: Base UI 1.7.0 already sets `position: absolute` on the Thumb wrapper while computing its value-dependent position. CSS Positioned Layout Level 3 defines a positioned box as establishing the relevant absolute-positioning containing block; the wrapper was therefore already the pseudo-element's containing block before BandScope added `relative`.
 
-This matters because a rehearsal timeline/range control is operated repeatedly under time pressure and must remain usable by pointer, touch, and keyboard users. WCAG 2.2 Success Criterion 2.5.8 sets a Level AA minimum target-size/spacing requirement of 24×24 CSS pixels, while Success Criterion 2.5.5 defines 44×44 CSS pixels as the enhanced Level AAA target-size benchmark. A slider is treated as one target for the 2.5.8 spatial-selection note, but that does not remove the need to verify the actual interactive geometry of the product control.
+The earlier `relative` utility was also not a reliable way to describe the runtime position. Base UI supplies `position: absolute` inline, which has higher cascade priority than the ordinary Tailwind class declaration. The class could be present while computed positioning remained absolute. A test that only asserted the `relative` token therefore proved neither the causal fix nor the runtime geometry.
+
+The correction removes the redundant token and pins the actual dependency-backed runtime contract instead: the rendered thumb wrapper remains `position: absolute`, while the pseudo-element remains absolute with a 12-pixel negative inset. This preserves Base UI's thumb-placement semantics and the intended structural target without manufacturing a second positioning authority in the wrapper layer.
+
+This matters because rehearsal timeline/range controls are operated repeatedly under time pressure and must remain usable by pointer, touch, and keyboard users. WCAG 2.2 Success Criterion 2.5.8 sets a Level AA minimum target-size/spacing requirement of 24×24 CSS pixels, while Success Criterion 2.5.5 defines 44×44 CSS pixels as the enhanced Level AAA target-size benchmark. A slider is treated as one target for the 2.5.8 spatial-selection note, but that does not remove the need to verify the actual interactive geometry of the mounted product control.
 
 ## Constraints
 
 - Keep Base UI's `Slider.Root`, `Control`, `Track`, `Indicator`, and `Thumb` semantics and state-callback `className` contract intact.
+- Do not override Base UI's value-dependent absolute Thumb positioning with an important or competing position utility.
 - Do not enlarge the visible thumb merely to make a test pass; visible geometry and interaction geometry are separate design decisions.
 - Do not claim pointer/touch success from jsdom, static class strings, or Storybook source alone.
 - Do not move actual-audio timeline/range authority into this primitive. Active Player and rehearsal semantics remain in their canonical owner.
@@ -24,45 +29,51 @@ This matters because a rehearsal timeline/range control is operated repeatedly u
 
 ## Alternatives considered
 
-### Keep the pseudo-element anchored to an ancestor
+### Keep `relative` as the claimed anchor
 
-Rejected. An ancestor-positioned pseudo-element is not a stable representation of the moving thumb's intended target. As the thumb moves, the target geometry must be tied to the thumb wrapper rather than inferred from a track/control containing block.
+Rejected. Exact Base UI 1.7.0 already positions the wrapper absolutely. The ordinary class does not supersede the inline runtime position and is not the cause of the containing-block behavior. Retaining it as proof would encode a false implementation narrative.
+
+### Force `position: relative`
+
+Rejected. An important Tailwind position declaration could override Base UI's absolute placement and break thumb movement along the track. BandScope must not replace upstream placement authority merely to make the pseudo-element strategy look self-contained.
 
 ### Increase the rendered thumb to 44×44 CSS pixels
 
-Rejected for this repair. That would alter visual density, track occlusion, spacing, and layout in every consumer. A buyer-facing sizing change requires design review and real browser evidence, not a local containment fix.
+Rejected for this repair. That would alter visual density, track occlusion, spacing, and layout in every consumer. A buyer-facing sizing change requires design review and real browser evidence, not a source-only containment change.
 
 ### Remove the extended target until browser E2E exists
 
-Rejected. Removing the structural target would knowingly reduce the intended pointer affordance. The safer intermediate state is to make the existing structure internally coherent, while keeping the delivery gate failed until browser evidence exists.
+Rejected. The existing pseudo-element is structurally attached to the already-positioned thumb wrapper and removing it would knowingly reduce the intended pointer affordance. The delivery gate remains failed until effective browser geometry is measured.
 
 ## RED → repair
 
-- RED `913d981bb7274b944d2161e9376e7c25c9b19c5` adds a regression requiring the range input's thumb wrapper to carry `relative` alongside the existing `after:absolute` and `after:inset-[-12px]` tokens.
-- `a800e76c3254b9389ec4e4771150ce57047d7266` removes unrelated Breadcrumb-test drift introduced while authoring the RED and leaves only the intended Slider regression.
-- Production `401c68b2ba873801ff418627bd61295c57bbe6b6` adds `relative` to both static and state-callback SliderThumb class paths. Normal flow is unchanged; the thumb now establishes the containing block for its pseudo-element.
-- Doctoring `36760768f6de46ea45b8812630e9228993e1363e` first recorded this boundary.
-- Intervening `d6401bcef51c1fd75df6bcebd0b6bae3659fe66a` removed the file without replacement traceability; `1b789fd3da443dbe6f7ef01a3739a60eecfa422f` restored it through ordinary ancestry.
-- `b17d894c1115da15e2f9d1555d0375e713533ea7` added exact Base UI 1.7.0 and current CSS Positioned Layout evidence. Intervening `1cf14533a958bf8af39985dd3081951861b1039d` restored the earlier document body; this descendant adopts that history but reapplies the still-valid primary-source evidence rather than force-rewriting ancestry.
+- Historical RED `913d981bb7274b944d2161e9376e7c25c9b19c5` required a `relative` token. Exact dependency review later showed that premise was wrong; it is retained only as ancestry and is not counted as valid target-geometry evidence.
+- Historical production `401c68b2ba873801ff418627bd61295c57bbe6b6` added the redundant token. Its presence did not change Base UI's inline `position: absolute` runtime placement.
+- Corrective RED `c2ba83274828e4e619add328862a1fb554c192b8` changes the regression to require the rendered wrapper's actual absolute position, preserve the pseudo-element tokens, and reject the redundant `relative` class.
+- Production `0f530971d6f5b1611b5b5e80e483063d30c359fc` removes `relative` from both the static and state-callback SliderThumb class paths while leaving Base UI placement and the pseudo-element envelope unchanged.
+- This document records the corrected causal model rather than rewriting or deleting the earlier ancestry.
 
-Hosted RED is not claimed because the production descendant followed before a stable hosted RED run was captured.
+Hosted RED is not claimed unless an exact workflow for `c2ba8327…` reaches the intended assertion before cancellation. The source-level RED is deterministic against its parent because that parent explicitly contains the `relative` class that the corrective regression rejects.
 
 ## Verification and claim boundary
 
 The focused jsdom contract may prove only that:
 
 - the range input is wrapped by the Slider thumb element;
-- the wrapper carries `relative`;
-- the pseudo-element carries `absolute` positioning and `-12px` inset tokens; and
+- Base UI renders that wrapper with `position: absolute` under the exact installed dependency;
+- BandScope does not add the misleading `relative` token;
+- the pseudo-element retains absolute positioning and `-12px` inset tokens; and
 - existing keyboard/RTL/vertical/disabled/accessibility regressions continue to compile and run when exact-head CI reaches them.
 
-Upstream source inspection additionally proves that Base UI 1.7.0 attaches thumb pointer-down state to the wrapper and sizes the nested hidden range input to the wrapper. It does not prove BandScope's effective browser target geometry after Tailwind compilation, ancestor clipping, transforms, overlap, zoom, or input-device behavior.
+Exact Base UI 1.7.0 source additionally shows that the wrapper's absolute position is derived from slider value/orientation, the thumb pointer handler is installed on the wrapper, and the nested visually hidden range input is sized to the wrapper. This source evidence supports the structural ownership boundary. It does not prove BandScope's effective browser target geometry after Tailwind compilation, ancestor clipping, transforms, overlap, zoom, or input-device behavior.
 
-Commercial UI acceptance still requires real browser evidence for pointer and touch acquisition, drag initiation/continuation, overlap with adjacent controls, zoom/reflow, focus-visible paint, forced-colors behavior, and assistive-technology operation. Product-level actual-audio timeline/range semantics, persistence/reload, stale-media races, and locale rendering remain outside this primitive repair.
+Commercial UI acceptance still requires real browser evidence for pointer and touch acquisition, drag initiation/continuation, multi-thumb overlap, adjacent-control interference, zoom/reflow, focus-visible paint, forced-colors behavior, and assistive-technology operation. Product-level actual-audio timeline/range semantics, persistence/reload, stale-media races, and locale rendering remain outside this primitive repair.
 
 ## Risk and follow-up
 
-A positioned pseudo-element can still fail the intended buyer outcome if it is clipped by an ancestor, loses pointer hit testing, overlaps another target, or behaves differently across browser/zoom/input combinations. The next UI evidence must therefore measure the effective target in the mounted product rather than infer it from source dimensions. If the 44×44 structural envelope cannot be demonstrated without overlap or clipping, the consumer layout or target strategy must change rather than weakening the acceptance test.
+A pseudo-element can still fail the intended buyer outcome if it is clipped by an ancestor, loses pointer hit testing, overlaps another thumb or control, or behaves differently across browser/zoom/input combinations. Range sliders are especially important because Base UI supports multiple thumbs and collision behavior; a 44×44 nominal envelope can overlap another thumb even when source structure is correct. The next UI evidence must therefore measure effective targets and drag selection in the mounted product rather than infer success from class tokens.
+
+If the nominal envelope cannot be demonstrated without overlap or clipping, the consumer layout or target strategy must change. Do not restore a redundant positioning class or weaken the acceptance criterion as a substitute for browser evidence.
 
 ## References
 
