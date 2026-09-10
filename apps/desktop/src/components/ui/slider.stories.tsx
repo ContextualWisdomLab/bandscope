@@ -39,6 +39,23 @@ export const Default: Story = {
   ),
 }
 
+/** Two-thumb selected-range rendering for rehearsal loop boundaries. */
+export const Range: Story = {
+  render: (args) => (
+    <div className="w-[280px]">
+      <Slider defaultValue={[25, 75]} {...args}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+            <SliderThumb index={0} aria-label="Loop start" />
+            <SliderThumb index={1} aria-label="Loop end" />
+          </SliderTrack>
+        </SliderControl>
+      </Slider>
+    </div>
+  ),
+}
+
 /** Vertical orientation rendering. */
 export const Vertical: Story = {
   render: (args) => (
@@ -87,7 +104,7 @@ export const CustomStep: Story = {
   ),
 }
 
-/** Right-to-Left (RTL) reading direction rendering. */
+/** Right-to-left reading direction rendering. */
 export const RTL: Story = {
   render: (args) => (
     <DirectionProvider direction="rtl">
