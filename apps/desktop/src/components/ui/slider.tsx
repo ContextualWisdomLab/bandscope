@@ -39,13 +39,13 @@ function SliderControl({ className, ...props }: SliderPrimitive.Control.Props) {
         typeof className === "function"
           ? (state) =>
               cn(
-                "relative flex w-full items-center",
-                "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
+                "relative flex min-h-6 w-full items-center",
+                "data-[orientation=vertical]:h-full data-[orientation=vertical]:min-w-6 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
                 className(state)
               )
           : cn(
-              "relative flex w-full items-center",
-              "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
+              "relative flex min-h-6 w-full items-center",
+              "data-[orientation=vertical]:h-full data-[orientation=vertical]:min-w-6 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
               className
             )
       }
