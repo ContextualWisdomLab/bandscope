@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import io
 import warnings
+from collections.abc import Buffer
 from typing import BinaryIO, cast
 
 import librosa
@@ -101,10 +102,11 @@ class _BoundedEncodedSource(io.RawIOBase):
         bounded_size = remaining if size < 0 else min(size, remaining)
         return self._source.read(bounded_size)
 
-    def readinto(self, buffer: bytearray | memoryview) -> int:
+    def readinto(self, buffer: Buffer, /) -> int:
         """Fill decoder-owned buffers without crossing the admitted EOF."""
-        data = self.read(len(buffer))
-        buffer[: len(data)] = data
+        view = memoryview(buffer)
+        data = self.read(len(view))
+        view[: len(data)] = data
         return len(data)
 
 
