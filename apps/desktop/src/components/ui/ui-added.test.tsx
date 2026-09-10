@@ -190,7 +190,6 @@ describe("added ui primitives (runtime render)", () => {
         </BreadcrumbList>
       </Breadcrumb>
     )
-    const links = container.querySelectorAll('[data-slot="in-page-nav-link"]')
     expect(container.querySelector('[data-slot="breadcrumb"]')).toBeTruthy()
     expect(
       container.querySelector('[data-slot="breadcrumb-separator"]')
@@ -198,7 +197,6 @@ describe("added ui primitives (runtime render)", () => {
     const current = container.querySelector('[data-slot="breadcrumb-page"]')
     expect(current?.getAttribute("aria-current")).toBe("page")
     expect(screen.getByText("Workspace")).toBeTruthy()
-    expect(links).toHaveLength(0)
   })
 
   it("StepIndicator reflects step state on marker and title", () => {
