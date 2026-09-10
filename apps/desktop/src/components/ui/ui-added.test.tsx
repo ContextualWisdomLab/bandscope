@@ -318,7 +318,7 @@ describe("added ui primitives (runtime render)", () => {
     expect(slider.parentElement).toHaveClass("has-[:focus-visible]:outline-none")
   })
 
-  it("Slider anchors its extended hit target to the thumb wrapper", () => {
+  it("Slider keeps its extended hit target on Base UI's positioned thumb wrapper", () => {
     render(
       <Slider>
         <SliderControl>
@@ -330,7 +330,8 @@ describe("added ui primitives (runtime render)", () => {
       </Slider>
     )
     const slider = screen.getByRole("slider", { name: "Hit target Slider" })
-    expect(slider.parentElement).toHaveClass("relative")
+    expect(slider.parentElement).toHaveStyle({ position: "absolute" })
+    expect(slider.parentElement).not.toHaveClass("relative")
     expect(slider.parentElement).toHaveClass("after:absolute")
     expect(slider.parentElement).toHaveClass("after:inset-[-12px]")
   })
