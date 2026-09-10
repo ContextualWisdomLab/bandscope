@@ -21,13 +21,7 @@ def _cache_paths(
     source_sha256: str = _SOURCE_SHA256,
 ) -> tuple[Path, Path]:
     """Return one production-shaped source-digest cache namespace."""
-    cache_root = (
-        tmp_path
-        / "cache"
-        / "source-sha256-v1"
-        / source_sha256
-        / "analysis-cache-v1"
-    )
+    cache_root = tmp_path / "cache" / "source-sha256-v1" / source_sha256 / "analysis-cache-v1"
     return cache_root / "fixture.features.json", cache_root / "fixture.features.npz"
 
 
@@ -94,8 +88,7 @@ def test_missing_generation_manifest_forces_recompute(tmp_path: Path) -> None:
     metadata_path.with_suffix(".manifest.json").unlink()
 
     assert (
-        _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True)
-        is None
+        _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True) is None
     )
 
 
@@ -116,8 +109,7 @@ def test_generation_manifest_rejects_metadata_replacement(tmp_path: Path) -> Non
     )
 
     assert (
-        _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True)
-        is None
+        _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True) is None
     )
 
 
@@ -133,8 +125,7 @@ def test_generation_manifest_rejects_stem_archive_replacement(tmp_path: Path) ->
     np.savez_compressed(arrays_path, stem_bass=np.ones(16, dtype=np.float32))
 
     assert (
-        _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True)
-        is None
+        _load_cached_local_audio_features(metadata_path, arrays_path, require_manifest=True) is None
     )
 
 

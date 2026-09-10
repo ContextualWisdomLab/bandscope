@@ -144,9 +144,7 @@ def test_job_temp_cleanup_refuses_symlinked_source_namespace(tmp_path: Path) -> 
     except OSError as error:
         pytest.skip(f"directory symlink unavailable: {error}")
 
-    _cleanup_job_temp_namespace(
-        {"tempRoot": str(source_link / "job-sha256-v1" / job_digest)}
-    )
+    _cleanup_job_temp_namespace({"tempRoot": str(source_link / "job-sha256-v1" / job_digest)})
 
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
@@ -165,9 +163,7 @@ def test_job_temp_cleanup_refuses_symlinked_temp_root(tmp_path: Path) -> None:
     except OSError as error:
         pytest.skip(f"directory symlink unavailable: {error}")
 
-    _cleanup_job_temp_namespace(
-        {"tempRoot": str(temp_root / "job-sha256-v1" / job_digest)}
-    )
+    _cleanup_job_temp_namespace({"tempRoot": str(temp_root / "job-sha256-v1" / job_digest)})
 
     assert sentinel.read_text(encoding="utf-8") == "keep"
 
@@ -177,13 +173,7 @@ def test_job_temp_cleanup_refuses_verified_symlinked_temp_root(tmp_path: Path) -
     source_digest = "ab" * 32
     job_digest = "cd" * 32
     outside_root = tmp_path / "outside"
-    outside_job = (
-        outside_root
-        / "source-sha256-v1"
-        / source_digest
-        / "job-sha256-v1"
-        / job_digest
-    )
+    outside_job = outside_root / "source-sha256-v1" / source_digest / "job-sha256-v1" / job_digest
     outside_job.mkdir(parents=True)
     sentinel = outside_job / "keep.txt"
     sentinel.write_text("keep", encoding="utf-8")
@@ -196,11 +186,7 @@ def test_job_temp_cleanup_refuses_verified_symlinked_temp_root(tmp_path: Path) -
     _cleanup_job_temp_namespace(
         {
             "tempRoot": str(
-                temp_root
-                / "source-sha256-v1"
-                / source_digest
-                / "job-sha256-v1"
-                / job_digest
+                temp_root / "source-sha256-v1" / source_digest / "job-sha256-v1" / job_digest
             )
         }
     )
@@ -306,11 +292,7 @@ def test_job_temp_cleanup_refuses_unscoped_or_malformed_roots(tmp_path: Path) ->
     malformed_sentinel = malformed / "keep.txt"
     malformed_sentinel.write_text("keep", encoding="utf-8")
     malformed_source = (
-        tmp_path
-        / "source-sha256-v1"
-        / "not-a-source-digest"
-        / "job-sha256-v1"
-        / ("ef" * 32)
+        tmp_path / "source-sha256-v1" / "not-a-source-digest" / "job-sha256-v1" / ("ef" * 32)
     )
     malformed_source.mkdir(parents=True)
     malformed_source_sentinel = malformed_source / "keep.txt"

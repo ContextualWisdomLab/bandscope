@@ -50,9 +50,7 @@ def test_feature_cache_rejects_role_type_that_contradicts_canonical_stem_semanti
     assert api._load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     metadata_path.write_text(
-        json.dumps(
-            _sidecar(stem_keys=["bass"], stem_role_types={"bass": "instrument"})
-        ),
+        json.dumps(_sidecar(stem_keys=["bass"], stem_role_types={"bass": "instrument"})),
         encoding="utf-8",
     )
 
@@ -128,9 +126,7 @@ def test_stem_role_sidecar_rejects_unknown_stem_without_lookup_exception(
     arrays_path = tmp_path / "track.features.npz"
     metadata_path = arrays_path.with_suffix(".json")
     metadata_path.write_text(
-        json.dumps(
-            _sidecar(stem_keys=["guitar"], stem_role_types={"guitar": "instrument"})
-        ),
+        json.dumps(_sidecar(stem_keys=["guitar"], stem_role_types={"guitar": "instrument"})),
         encoding="utf-8",
     )
 
@@ -152,9 +148,7 @@ def test_stem_role_sidecar_rejects_replacement_with_different_stem_identity(
     metadata_path = arrays_path.with_suffix(".json")
 
     metadata_path.write_text(
-        json.dumps(
-            _sidecar(stem_keys=["bass"], stem_role_types={"bass": "instrument"})
-        ),
+        json.dumps(_sidecar(stem_keys=["bass"], stem_role_types={"bass": "instrument"})),
         encoding="utf-8",
     )
     assert feature_cache_admission._has_canonical_stem_role_metadata(

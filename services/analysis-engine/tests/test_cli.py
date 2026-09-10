@@ -445,6 +445,4 @@ def test_cli_namespaces_local_cache_by_verified_source_digest(
     monkeypatch.setattr(cli.sys, "argv", ["cli.py"])
 
     assert cli.main() == 0
-    assert captured_request["cacheRoot"] == str(
-        tmp_path / "cache" / "source-sha256-v1" / digest
-    )
+    assert captured_request["cacheRoot"] == str(tmp_path / "cache" / "source-sha256-v1" / digest)

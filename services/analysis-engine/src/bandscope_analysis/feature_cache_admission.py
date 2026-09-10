@@ -183,9 +183,7 @@ def _replay_policy(
             max_encoded_file_bytes=template.max_encoded_file_bytes,
             target_sample_rate=sample_rate,
             max_duration_seconds=template.max_duration_seconds,
-            max_decoded_audio_bytes=min(
-                template.max_decoded_audio_bytes, canonical_bytes
-            ),
+            max_decoded_audio_bytes=min(template.max_decoded_audio_bytes, canonical_bytes),
             min_source_sample_rate=template.min_source_sample_rate,
             max_source_sample_rate=template.max_source_sample_rate,
             min_source_channels=template.min_source_channels,
@@ -197,11 +195,7 @@ def _replay_policy(
 
 def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     """Return the exact NPY member set for one bounded canonical stem-key list."""
-    if (
-        not stem_keys
-        or len(stem_keys) > _MAX_STEM_MEMBERS
-        or len(set(stem_keys)) != len(stem_keys)
-    ):
+    if not stem_keys or len(stem_keys) > _MAX_STEM_MEMBERS or len(set(stem_keys)) != len(stem_keys):
         return None
     if not all(
         stem_key and stem_key.isidentifier() and stem_key in _CANONICAL_STEM_KEYS
@@ -364,10 +358,7 @@ def _preflight_npz(
         with zipfile.ZipFile(archive_file, mode="r") as archive:
             members = archive.infolist()
             member_names = [member.filename for member in members]
-            if (
-                len(members) != len(expected_names)
-                or set(member_names) != expected_names
-            ):
+            if len(members) != len(expected_names) or set(member_names) != expected_names:
                 return None
             if len(member_names) != len(set(member_names)):
                 return None
@@ -510,12 +501,8 @@ def load_bounded_stem_archive(
                                 ):
                                     canonical = stem_array
                                 else:
-                                    canonical = np.array(
-                                        stem_array, dtype=np.float32, copy=True
-                                    )
-                            validated = policy.validate_decoded_audio(
-                                canonical, sample_rate
-                            )
+                                    canonical = np.array(stem_array, dtype=np.float32, copy=True)
+                            validated = policy.validate_decoded_audio(canonical, sample_rate)
                         except (
                             AudioResourcePolicyError,
                             MemoryError,
