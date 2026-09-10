@@ -62,5 +62,5 @@
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
 ## 2026-03-06 - [파이썬 O(N^2) 리스트 룩업을 O(1) 딕셔너리로 최적화]
-**Learning:** `chart.py`의 텍스트 변환 로직에서 `not in list`로 중복을 방지하며 삽입하는 방식은 리스트 크기가 커질 때 O(N^2) 병목을 유발합니다. 파이썬 3.7+부터 딕셔너리가 삽입 순서를 유지하므로, `ordered_role_ids[role_id] = None`처럼 의미가 드러나는 키 저장소를 사용하면 순서를 보존하면서 평균 O(1) 조회가 가능합니다.
-**Action:** 순서 보존 중복 제거가 필요한 경로에서는 도메인 이름을 가진 딕셔너리 키를 사용하고, 외부 문자열은 해시·truthiness 연산 전에 안전한 built-in 문자열로 정규화합니다.
+**Learning:** `chart.py`의 텍스트 변환 로직에서 `not in list`로 중복을 방지하며 삽입하는 방식은 리스트 크기가 커질 때 O(N^2) 병목을 유발합니다. 파이썬 3.7+부터 딕셔너리가 삽입 순서를 유지하므로, `dict[item] = None`을 사용해 순서를 보존하면서 O(1)의 성능 최적화가 가능함을 배웠습니다.
+**Action:** 앞으로 리스트의 중복을 제거하면서 순서를 유지해야 하는 로직에서는 `set` 대신 딕셔너리(dictionary) 키를 활용할 것입니다.
