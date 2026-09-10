@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import TypedDict
+from typing import TypeGuard, TypedDict
 
 from bandscope_analysis.feature_cache_admission import read_bounded_feature_cache_metadata
 
@@ -33,7 +33,7 @@ class FeatureCacheGenerationManifest(TypedDict):
     archiveSha256: str
 
 
-def is_sha256_hex(value: object) -> bool:
+def is_sha256_hex(value: object) -> TypeGuard[str]:
     """Return whether a value is one canonical lowercase SHA-256 hex digest."""
     return (
         isinstance(value, str)
