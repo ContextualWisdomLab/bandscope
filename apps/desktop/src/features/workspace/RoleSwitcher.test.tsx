@@ -11,6 +11,17 @@ vi.mock("../../i18n", () => ({
   detectPreferredLocale: () => "en"
 }));
 
+type RoleSwitcherProps = Parameters<typeof RoleSwitcher>[0];
+type LegacyRoleSwitcherProps = {
+  roles: Array<{ id: string; name: string }>;
+  activeRole: string | null;
+  onRoleChange: (roleId: string | null) => void;
+};
+
+const legacyRoleInputIsAssignable: LegacyRoleSwitcherProps extends RoleSwitcherProps
+  ? true
+  : false = false;
+
 describe("RoleSwitcher", () => {
   it("renders the title and role options", () => {
     const roleOptions = [
@@ -72,18 +83,7 @@ describe("RoleSwitcher", () => {
     expect(tabValueToRoleId("raw-unknown-role", roleOptions)).toBeNull();
   });
 
-  it("keeps the previous role projection behind the compatibility boundary", () => {
-    const roleChangeHandler = vi.fn();
-
-    render(
-      <RoleSwitcher
-        roles={[{ id: "legacy-bass", name: "Legacy Bass" }]}
-        activeRole={null}
-        onRoleChange={roleChangeHandler}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("tab", { name: "Legacy Bass" }));
-    expect(roleChangeHandler).toHaveBeenLastCalledWith("legacy-bass");
+  it("does not expose the deprecated id/name role input", () => {
+    expect(legacyRoleInputIsAssignable).toBe(false);
   });
 });
