@@ -63,12 +63,12 @@ function SliderTrack({ className, ...props }: SliderPrimitive.Track.Props) {
         typeof className === "function"
           ? (state) =>
               cn(
-                "relative h-2 w-full grow overflow-hidden rounded-full bg-secondary",
+                "relative h-2 w-full grow rounded-full bg-secondary",
                 "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2",
                 className(state)
               )
           : cn(
-              "relative h-2 w-full grow overflow-hidden rounded-full bg-secondary",
+              "relative h-2 w-full grow rounded-full bg-secondary",
               "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2",
               className
             )

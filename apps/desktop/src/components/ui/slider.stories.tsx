@@ -31,8 +31,8 @@ export const Default: Story = {
         <SliderControl>
           <SliderTrack>
             <SliderIndicator />
+            <SliderThumb aria-label="Volume" />
           </SliderTrack>
-          <SliderThumb aria-label="Volume" />
         </SliderControl>
       </Slider>
     </div>
@@ -47,8 +47,8 @@ export const Vertical: Story = {
         <SliderControl>
           <SliderTrack>
             <SliderIndicator />
+            <SliderThumb aria-label="Volume" />
           </SliderTrack>
-          <SliderThumb aria-label="Volume" />
         </SliderControl>
       </Slider>
     </div>
@@ -63,8 +63,8 @@ export const Disabled: Story = {
         <SliderControl>
           <SliderTrack>
             <SliderIndicator />
+            <SliderThumb aria-label="Volume" />
           </SliderTrack>
-          <SliderThumb aria-label="Volume" />
         </SliderControl>
       </Slider>
     </div>
@@ -79,8 +79,8 @@ export const CustomStep: Story = {
         <SliderControl>
           <SliderTrack>
             <SliderIndicator />
+            <SliderThumb aria-label="Volume" />
           </SliderTrack>
-          <SliderThumb aria-label="Volume" />
         </SliderControl>
       </Slider>
     </div>
@@ -96,8 +96,8 @@ export const RTL: Story = {
           <SliderControl>
             <SliderTrack>
               <SliderIndicator />
+              <SliderThumb aria-label="Volume" />
             </SliderTrack>
-            <SliderThumb aria-label="Volume" />
           </SliderControl>
         </Slider>
       </div>
