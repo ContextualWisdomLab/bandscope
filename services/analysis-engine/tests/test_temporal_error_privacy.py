@@ -48,10 +48,10 @@ def test_decoder_failure_redacts_source_path_and_decoder_payload(
         TemporalAnalyzer().analyze(sensitive_path)
 
     message = str(exc_info.value)
-    assert message == "Temporal analysis failed."
+    assert message == "Audio input violates the audio resource policy."
     assert str(sensitive_path) not in message
     assert decoder_payload not in message
     assert str(sensitive_path) not in caplog.text
     assert "unreleased-song.wav" not in caplog.text
     assert decoder_payload not in caplog.text
-    assert "RuntimeError" in caplog.text
+    assert "AudioResourcePolicyError" in caplog.text
