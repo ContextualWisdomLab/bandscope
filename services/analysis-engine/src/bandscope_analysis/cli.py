@@ -98,7 +98,7 @@ def _open_anchored_directory(
     path: Path,
 ) -> Iterator[int | None]:
     """Yield one descriptor-anchored directory and close the complete chain on exit."""
-    supports_dir_fd = getattr(os, "supports_dir_fd", set())
+    supports_dir_fd: set[object] = getattr(os, "supports_dir_fd", set())
     if (
         not path.is_absolute()
         or os.open not in supports_dir_fd
