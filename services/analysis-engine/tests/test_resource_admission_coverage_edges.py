@@ -30,9 +30,7 @@ def test_normalize_stem_role_types_rejects_wrong_container_and_key_set() -> None
     """Persisted role metadata must be a dictionary over the exact stem vocabulary."""
     assert api._normalize_stem_role_types(["instrument"], ["bass"]) is None
     assert (
-        api._normalize_stem_role_types(
-            {"bass": "instrument", "drums": "instrument"}, ["bass"]
-        )
+        api._normalize_stem_role_types({"bass": "instrument", "drums": "instrument"}, ["bass"])
         is None
     )
 
@@ -69,13 +67,7 @@ def test_feature_store_rejects_uncommittable_generation_manifest(
     tmp_path: Path,
 ) -> None:
     """A source-scoped generation is not published when its commit marker cannot be built."""
-    cache_root = (
-        tmp_path
-        / "cache"
-        / "source-sha256-v1"
-        / _SOURCE_SHA256
-        / "analysis-cache-v1"
-    )
+    cache_root = tmp_path / "cache" / "source-sha256-v1" / _SOURCE_SHA256 / "analysis-cache-v1"
     metadata_path = cache_root / "fixture.features.json"
     arrays_path = cache_root / "fixture.features.npz"
     request = {
