@@ -10,7 +10,7 @@ import {
 } from "./slider"
 
 describe("Slider canonical composition", () => {
-  it("keeps range thumbs inside the track without clipping their pointer targets", () => {
+  it("keeps range thumbs inside a usable track-press area without clipping their pointer targets", () => {
     const { container } = render(
       <Slider defaultValue={[25, 75]}>
         <span id="loop-range-help">Selected rehearsal loop boundaries</span>
@@ -28,10 +28,12 @@ describe("Slider canonical composition", () => {
       </Slider>
     )
 
+    const control = container.querySelector('[data-slot="slider-control"]')
     const track = container.querySelector('[data-slot="slider-track"]')
     const start = screen.getByRole("slider", { name: "Loop start" })
     const end = screen.getByRole("slider", { name: "Loop end" })
 
+    expect(control).toHaveClass("min-h-6")
     expect(track).toBeInTheDocument()
     expect(track).toContainElement(start)
     expect(track).toContainElement(end)
@@ -41,7 +43,7 @@ describe("Slider canonical composition", () => {
     expect(end.parentElement).toHaveClass("after:inset-[-12px]")
   })
 
-  it("preserves the same track-owned thumb anatomy for a vertical control", () => {
+  it("preserves the same track-owned thumb anatomy and press width for a vertical control", () => {
     const { container } = render(
       <Slider defaultValue={50} orientation="vertical">
         <SliderControl>
@@ -53,10 +55,12 @@ describe("Slider canonical composition", () => {
       </Slider>
     )
 
+    const control = container.querySelector('[data-slot="slider-control"]')
     const track = container.querySelector('[data-slot="slider-track"]')
     const thumb = screen.getByRole("slider", { name: "Vertical position" })
 
     expect(thumb).toHaveAttribute("aria-orientation", "vertical")
+    expect(control).toHaveClass("data-[orientation=vertical]:min-w-6")
     expect(track).toContainElement(thumb)
     expect(track).not.toHaveClass("overflow-hidden")
   })
