@@ -726,7 +726,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "other": "instrument",
         },
         "separation": {
-            "duration_seconds": 1.0,
+            "duration_seconds": 256 / 22050,
             "chunk_count": 1,
             "notes": "Separated selected local audio into 4 canonical stems.",
         },
@@ -1146,7 +1146,7 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     file_payload = {
         "arraysPath": str(arrays_path),
         "sampleRate": 22050,
-        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+        "separation": {"duration_seconds": 4 / 22050, "chunk_count": 1, "notes": "ok"},
         "stemKeys": ["bass"],
         "stemRoleTypes": {"bass": "instrument"},
     }
