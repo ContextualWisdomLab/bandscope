@@ -83,7 +83,7 @@ def test_temporal_analyzer_directory_does_not_call_decoder(
 
 
 def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Ensure temporal analyzer raises ValueError if librosa returns non-ndarray."""
+    """Reject malformed decoder output through the payload-safe resource policy."""
     import librosa
 
     from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
@@ -96,7 +96,7 @@ def test_temporal_analyzer_invalid_y_type(monkeypatch: pytest.MonkeyPatch, tmp_p
     test_wav = tmp_path / "test.wav"
     sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
 
-    with pytest.raises(ValueError, match="Expected numpy array"):
+    with pytest.raises(ValueError, match=r"^Audio input violates the audio resource policy\.$"):
         TemporalAnalyzer().analyze(test_wav)
 
 
@@ -117,7 +117,9 @@ def test_temporal_analyzer_exception_handling(
     test_wav = tmp_path / "test.wav"
     sf.write(test_wav, np.zeros(4_000, dtype=np.float32), 44_100)
 
-    with pytest.raises(ValueError, match=r"^Temporal analysis failed\.$") as exc_info:
+    with pytest.raises(
+        ValueError, match=r"^Audio input violates the audio resource policy\.$"
+    ) as exc_info:
         TemporalAnalyzer().analyze(test_wav)
     assert "Mocked general error" not in str(exc_info.value)
 
