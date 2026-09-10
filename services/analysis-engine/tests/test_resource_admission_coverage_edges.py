@@ -10,7 +10,10 @@ import numpy as np
 import pytest
 
 from bandscope_analysis import api, audio_decode, cli, feature_cache_generation
-from bandscope_analysis.audio_resource_policy import AudioResourcePolicy, AudioResourcePolicyError
+from bandscope_analysis.audio_resource_policy import (
+    AudioResourcePolicy,
+    AudioResourcePolicyError,
+)
 
 
 _SOURCE_SHA256 = "ab" * 32
@@ -30,7 +33,12 @@ def _cached_metadata(stem_keys: object) -> dict[str, object]:
 def test_normalize_stem_role_types_rejects_wrong_container_and_key_set() -> None:
     """Persisted role metadata must be a dictionary over the exact stem vocabulary."""
     assert api._normalize_stem_role_types(["instrument"], ["bass"]) is None
-    assert api._normalize_stem_role_types({"bass": "instrument", "drums": "instrument"}, ["bass"]) is None
+    assert (
+        api._normalize_stem_role_types(
+            {"bass": "instrument", "drums": "instrument"}, ["bass"]
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize("stem_keys", [None, [], [""]])
@@ -98,7 +106,7 @@ def test_feature_store_rejects_uncommittable_generation_manifest(
     }
     monkeypatch.setattr(api, "build_generation_manifest", lambda *_args: None)
 
-    assert not api._store_cached_local_audio_features(  # type: ignore[arg-type]
+    assert not api._store_cached_local_audio_features(
         metadata_path,
         arrays_path,
         request,
@@ -109,7 +117,9 @@ def test_feature_store_rejects_uncommittable_generation_manifest(
     assert not metadata_path.with_suffix(".manifest.json").exists()
 
 
-def test_decode_preserves_policy_rejection_from_decoder(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_decode_preserves_policy_rejection_from_decoder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A typed resource rejection raised by the decoder boundary retains its reason."""
     rejection = AudioResourcePolicyError("duration_exceeded")
 
@@ -270,7 +280,9 @@ def test_generation_manifest_reader_rejects_malformed_commit_markers(
     )
 
 
-def test_generation_manifest_reader_rejects_invalid_requested_source(tmp_path: Path) -> None:
+def test_generation_manifest_reader_rejects_invalid_requested_source(
+    tmp_path: Path,
+) -> None:
     """An invalid requested source digest is rejected before manifest I/O."""
     assert (
         feature_cache_generation.read_generation_manifest(
