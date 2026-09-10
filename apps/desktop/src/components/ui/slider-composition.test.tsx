@@ -13,10 +13,15 @@ describe("Slider canonical composition", () => {
   it("keeps range thumbs inside the track without clipping their pointer targets", () => {
     const { container } = render(
       <Slider defaultValue={[25, 75]}>
+        <span id="loop-range-help">Selected rehearsal loop boundaries</span>
         <SliderControl>
           <SliderTrack>
             <SliderIndicator />
-            <SliderThumb index={0} aria-label="Loop start" />
+            <SliderThumb
+              index={0}
+              aria-label="Loop start"
+              aria-describedby="loop-range-help"
+            />
             <SliderThumb index={1} aria-label="Loop end" />
           </SliderTrack>
         </SliderControl>
@@ -31,6 +36,7 @@ describe("Slider canonical composition", () => {
     expect(track).toContainElement(start)
     expect(track).toContainElement(end)
     expect(track).not.toHaveClass("overflow-hidden")
+    expect(start).toHaveAttribute("aria-describedby", "loop-range-help")
     expect(start.parentElement).toHaveClass("after:inset-[-12px]")
     expect(end.parentElement).toHaveClass("after:inset-[-12px]")
   })
