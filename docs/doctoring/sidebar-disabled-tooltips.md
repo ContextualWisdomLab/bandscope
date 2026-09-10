@@ -50,6 +50,10 @@ Current automated evidence covers DOM semantics already present in `App.test.tsx
 - Dependency authority: root `package-lock.json`, `@base-ui/react` 1.7.0
 - Upstream implementation: `mui/base-ui` tag `v1.7.0`, `packages/react/src/tooltip/trigger/TooltipTrigger.tsx`
 
+## Security Notes
+
+The MDN, W3C, and upstream Base UI URLs in this doctoring note are documentation references only. BandScope does not fetch, execute, embed, or navigate to them at runtime, and this Tooltip change adds no network request, WebView navigation, subprocess, IPC, updater, model-download, credential, or trust-boundary path. Runtime behavior remains limited to the existing local design-system Tooltip and localized in-process strings.
+
 ## References
 
 Mozilla Developer Network. (2025, November 6). *ARIA: aria-disabled attribute*. MDN Web Docs. https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-disabled
