@@ -83,9 +83,7 @@ def test_chord_segment_builder_handles_zero_frames_without_final_segment() -> No
 
     with (
         patch.object(recognizer, "_build_observation_probs", return_value=empty_observations),
-        patch.object(
-            recognizer, "_viterbi_decode", return_value=np.array([], dtype=np.int64)
-        ),
+        patch.object(recognizer, "_viterbi_decode", return_value=np.array([], dtype=np.int64)),
     ):
         result = recognizer._create_chord_segments(
             np.empty((12, 0), dtype=np.float64),
