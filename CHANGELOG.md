@@ -10,7 +10,7 @@
 
 ### Changed
 
-- Changed chart-export role, cue, and priority de-duplication to insertion-ordered dictionaries, preserving first-occurrence output while replacing repeated linear membership scans with average constant-time key lookups.
+- Changed chart-export role, cue, and priority de-duplication to semantically named insertion-ordered dictionaries, preserving first-occurrence output while replacing repeated linear membership scans with average constant-time key lookups.
 - Consolidated Bandit, dependency audits, supplemental secret checks, and Trivy into one trusted-branch security backstop, delegated CodeQL to GitHub default setup, and removed duplicate local PR security and release-preflight runs.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
@@ -75,5 +75,5 @@
 ### 추가됨 (Added)
 
 - `ChordsFeature` (코드 분석) 화면에서 각 파트(Role)의 `transpositionPlan`(이조/조옮김 계획)을 표시하는 기능을 추가했습니다.
-- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
+- `RangesFeature` (음역대 분석) 화면에서 겹침 경고(Overlap warning) 외에 해당 파트(Role)의 채보(Transcription) 가능 노드 수를 요약하여 보여주는 기능을 추가했습니다.
 - 신규 UI 요소에 대한 단위 테스트를 추가했습니다 (`apps/desktop/src/features/chords/index.test.tsx`, `apps/desktop/src/features/ranges/index.test.tsx`).
