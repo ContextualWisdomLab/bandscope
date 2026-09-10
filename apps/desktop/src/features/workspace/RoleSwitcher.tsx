@@ -10,42 +10,14 @@ export interface RehearsalRoleOption {
   roleName: string;
 }
 
-/** Compatibility-only projection for the pre-naming-contract component API. */
-interface LegacyRehearsalRoleOption {
-  id: string;
-  name: string;
-}
-
-interface RoleSwitcherSharedProps {
+interface RoleSwitcherProps {
+  roleOptions: RehearsalRoleOption[];
   activeRole: string | null;
   onRoleChange: (roleId: string | null) => void;
 }
 
-type RoleSwitcherProps = RoleSwitcherSharedProps &
-  (
-    | {
-        roleOptions: RehearsalRoleOption[];
-        roles?: never;
-      }
-    | {
-        roleOptions?: never;
-        /** @deprecated Use roleOptions with roleId/roleName. */
-        roles: LegacyRehearsalRoleOption[];
-      }
-  );
-
 const ALL_ROLES_VALUE = "__bandscope_all_roles__";
 const ROLE_VALUE_PREFIX = "role:";
-
-/** Translate the legacy component projection at one compatibility boundary. */
-function normalizeLegacyRoleOptions(
-  legacyRoleOptions: LegacyRehearsalRoleOption[]
-): RehearsalRoleOption[] {
-  return legacyRoleOptions.map((legacyRoleOption) => ({
-    roleId: legacyRoleOption.id,
-    roleName: legacyRoleOption.name
-  }));
-}
 
 /** Documented. */
 function roleTabValue(roleId: string): string {
@@ -70,14 +42,7 @@ export function tabValueToRoleId(
 }
 
 /** Documented. */
-export function RoleSwitcher({
-  roleOptions,
-  roles: legacyRoleOptions,
-  activeRole,
-  onRoleChange
-}: RoleSwitcherProps) {
-  const resolvedRoleOptions =
-    roleOptions ?? normalizeLegacyRoleOptions(legacyRoleOptions ?? []);
+export function RoleSwitcher({ roleOptions, activeRole, onRoleChange }: RoleSwitcherProps) {
   const translatedText = createTranslator(detectPreferredLocale());
 
   return (
@@ -88,9 +53,7 @@ export function RoleSwitcher({
       </div>
       <Tabs
         value={activeRole === null ? ALL_ROLES_VALUE : roleTabValue(activeRole)}
-        onValueChange={(tabValue) =>
-          onRoleChange(tabValueToRoleId(tabValue, resolvedRoleOptions))
-        }
+        onValueChange={(tabValue) => onRoleChange(tabValueToRoleId(tabValue, roleOptions))}
         className="w-full sm:w-auto"
       >
         <TabsList className="h-auto w-full flex-wrap justify-start border border-white/10 bg-white/[0.05] p-1 sm:h-10 sm:w-auto">
@@ -100,7 +63,7 @@ export function RoleSwitcher({
           >
             {translatedText("allRoles")}
           </TabsTrigger>
-          {resolvedRoleOptions.map((roleOption) => (
+          {roleOptions.map((roleOption) => (
             <TabsTrigger
               key={roleOption.roleId}
               value={roleTabValue(roleOption.roleId)}
