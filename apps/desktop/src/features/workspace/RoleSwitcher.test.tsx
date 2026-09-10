@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { RoleSwitcher, tabValueToRoleId } from "./RoleSwitcher";
@@ -10,17 +11,6 @@ vi.mock("../../i18n", () => ({
     })[translationKey] ?? translationKey,
   detectPreferredLocale: () => "en"
 }));
-
-type RoleSwitcherProps = Parameters<typeof RoleSwitcher>[0];
-type LegacyRoleSwitcherProps = {
-  roles: Array<{ id: string; name: string }>;
-  activeRole: string | null;
-  onRoleChange: (roleId: string | null) => void;
-};
-
-const legacyRoleInputIsAssignable: LegacyRoleSwitcherProps extends RoleSwitcherProps
-  ? true
-  : false = false;
 
 describe("RoleSwitcher", () => {
   it("renders the title and role options", () => {
@@ -83,7 +73,11 @@ describe("RoleSwitcher", () => {
     expect(tabValueToRoleId("raw-unknown-role", roleOptions)).toBeNull();
   });
 
-  it("does not expose the deprecated id/name role input", () => {
-    expect(legacyRoleInputIsAssignable).toBe(false);
+  it("does not retain the deprecated id/name compatibility layer", () => {
+    const roleSwitcherSource = readFileSync(new URL("./RoleSwitcher.tsx", import.meta.url), "utf8");
+
+    expect(roleSwitcherSource).not.toContain("LegacyRehearsalRoleOption");
+    expect(roleSwitcherSource).not.toContain("normalizeLegacyRoleOptions");
+    expect(roleSwitcherSource).not.toContain("roles: LegacyRehearsalRoleOption[]");
   });
 });
