@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -9,7 +10,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from bandscope_analysis import api, audio_decode, cli, feature_cache_generation
+from bandscope_analysis import (
+    api,
+    audio_decode,
+    cli,
+    feature_cache_admission,
+    feature_cache_generation,
+)
 from bandscope_analysis.audio_resource_policy import AudioResourcePolicy, AudioResourcePolicyError
 
 _SOURCE_SHA256 = "ab" * 32
@@ -24,6 +31,205 @@ def _cached_metadata(stem_keys: object) -> dict[str, object]:
         "stemKeys": stem_keys,
         "stemRoleTypes": {},
     }
+
+
+def _valid_feature_cache_sidecar() -> dict[str, object]:
+    """Return one canonical single-stem replay metadata envelope."""
+    return {
+        "schemaVersion": 1,
+        "sampleRate": 44_100,
+        "separation": {"duration_seconds": 8 / 44_100},
+        "stemKeys": ["bass"],
+        "stemRoleTypes": {"bass": "instrument"},
+    }
+
+
+def test_feature_cache_metadata_reader_rejects_invalid_digest_duplicate_and_non_object(
+    tmp_path: Path,
+) -> None:
+    """Malformed commit identity and ambiguous JSON never become replay authority."""
+    metadata_path = tmp_path / "fixture.json"
+
+    assert (
+        feature_cache_admission.read_bounded_feature_cache_metadata(
+            metadata_path,
+            expected_sha256="AA" * 32,
+        )
+        is None
+    )
+
+    metadata_path.write_text('{"schemaVersion":1,"schemaVersion":2}', encoding="utf-8")
+    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+
+    metadata_path.write_text("[]", encoding="utf-8")
+    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+
+    metadata_path.write_text('{"schemaVersion":1}', encoding="utf-8")
+    assert (
+        feature_cache_admission.read_bounded_feature_cache_metadata(
+            metadata_path,
+            expected_sha256="00" * 32,
+        )
+        is None
+    )
+
+
+def test_feature_cache_metadata_reader_rejects_empty_and_oversized_sidecar(tmp_path: Path) -> None:
+    """A sidecar must have one non-empty extent inside the metadata byte ceiling."""
+    metadata_path = tmp_path / "fixture.json"
+
+    metadata_path.write_bytes(b"")
+    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+
+    metadata_path.write_bytes(
+        b"{}" + b" " * feature_cache_admission.MAX_FEATURE_CACHE_METADATA_BYTES
+    )
+    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+
+
+def test_replay_policy_and_member_names_reject_untrusted_shapes() -> None:
+    """Persisted sample-rate and member identities stay inside canonical replay bounds."""
+    template = AudioResourcePolicy()
+
+    assert feature_cache_admission._replay_policy(True, template) is None
+    assert feature_cache_admission._replay_policy(float(template.target_sample_rate), template) is None
+    assert (
+        feature_cache_admission._replay_policy(template.min_source_sample_rate - 1, template) is None
+    )
+    assert (
+        feature_cache_admission._replay_policy(template.max_source_sample_rate + 1, template) is None
+    )
+
+    for stem_keys in (
+        [],
+        ["bass", "bass"],
+        ["guitar"],
+        [""],
+        ["vocals", "bass", "drums", "other", "bass"],
+    ):
+        assert feature_cache_admission._expected_member_names(stem_keys) is None
+
+
+def test_replay_metadata_rejects_semantic_mismatches(tmp_path: Path) -> None:
+    """A second-read sidecar cannot drift from the already-admitted replay contract."""
+    valid = _valid_feature_cache_sidecar()
+    invalid_payloads: list[dict[str, object]] = [
+        {**valid, "schemaVersion": 2},
+        {**valid, "stemKeys": ["drums"]},
+        {**valid, "sampleRate": 48_000},
+        {**valid, "separation": []},
+        {**valid, "separation": {"duration_seconds": None}},
+        {**valid, "separation": {"duration_seconds": True}},
+        {**valid, "separation": {"duration_seconds": "1"}},
+        {**valid, "stemRoleTypes": []},
+        {**valid, "stemRoleTypes": {"drums": "instrument"}},
+        {**valid, "stemRoleTypes": {"bass": "vocal"}},
+    ]
+
+    for index, payload in enumerate(invalid_payloads):
+        arrays_path = tmp_path / f"case-{index}.npz"
+        arrays_path.with_suffix(".json").write_text(json.dumps(payload), encoding="utf-8")
+
+        assert (
+            feature_cache_admission._read_canonical_stem_role_metadata(
+                arrays_path,
+                ["bass"],
+                expected_sample_rate=44_100,
+            )
+            is None
+        )
+
+
+def test_duration_and_snapshot_digest_edges_fail_closed() -> None:
+    """Timeline and snapshot identity helpers reject malformed or mismatched evidence."""
+    assert feature_cache_admission._duration_matches_sample_timeline(None, 1, 44_100)
+
+    for duration_seconds, sample_rate in (
+        (True, 44_100),
+        ("1", 44_100),
+        (1.0, True),
+        (1.0, 44_100.0),
+        (float("inf"), 44_100),
+        (-1.0, 44_100),
+    ):
+        assert not feature_cache_admission._duration_matches_sample_timeline(
+            duration_seconds,
+            1,
+            sample_rate,
+        )
+
+    exact = io.BytesIO(b"abc")
+    assert feature_cache_admission._private_snapshot_sha256(exact, 3) == hashlib.sha256(
+        b"abc"
+    ).hexdigest()
+
+    short = io.BytesIO(b"a")
+    assert feature_cache_admission._private_snapshot_sha256(short, 2) is None
+
+    extra = io.BytesIO(b"ab")
+    assert feature_cache_admission._private_snapshot_sha256(extra, 1) is None
+
+
+def test_npz_preflight_rejects_untrusted_outer_and_member_shapes() -> None:
+    """ZIP/NPY declaration admission rejects malformed or noncanonical member shapes."""
+    policy = AudioResourcePolicy()
+
+    assert feature_cache_admission._preflight_npz(io.BytesIO(), [], policy) is None
+    assert feature_cache_admission._preflight_npz(io.BytesIO(b"not-a-zip"), ["bass"], policy) is None
+
+    extra_member_archive = io.BytesIO()
+    np.savez_compressed(
+        extra_member_archive,
+        stem_bass=np.zeros(1, dtype=np.float32),
+        surprise=np.zeros(1, dtype=np.float32),
+    )
+    extra_member_archive.seek(0)
+    assert feature_cache_admission._preflight_npz(
+        extra_member_archive,
+        ["bass"],
+        policy,
+    ) is None
+
+    for stem_array in (
+        np.array([], dtype=np.float32),
+        np.array([1], dtype=np.int16),
+    ):
+        member_archive = io.BytesIO()
+        np.savez_compressed(member_archive, stem_bass=stem_array)
+        member_archive.seek(0)
+        assert feature_cache_admission._preflight_npz(
+            member_archive,
+            ["bass"],
+            policy,
+        ) is None
+
+
+def test_archive_loader_rejects_invalid_digest_and_missing_archive(tmp_path: Path) -> None:
+    """Archive replay fails before materialization on invalid identity or missing bytes."""
+    arrays_path = tmp_path / "fixture.npz"
+
+    assert (
+        feature_cache_admission.load_bounded_stem_archive(
+            arrays_path,
+            ["bass"],
+            44_100,
+            expected_archive_sha256="INVALID",
+        )
+        is None
+    )
+
+    arrays_path.with_suffix(".json").write_text(
+        json.dumps(_valid_feature_cache_sidecar()),
+        encoding="utf-8",
+    )
+    assert (
+        feature_cache_admission.load_bounded_stem_archive(
+            arrays_path,
+            ["bass"],
+            44_100,
+        )
+        is None
+    )
 
 
 def test_normalize_stem_role_types_rejects_wrong_container_and_key_set() -> None:
