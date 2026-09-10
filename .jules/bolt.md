@@ -61,6 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-## 2026-03-06 - [파이썬 O(N^2) 리스트 룩업을 O(1) 딕셔너리로 최적화]
-**Learning:** `chart.py`의 텍스트 변환 로직에서 `not in list`로 중복을 방지하며 삽입하는 방식은 리스트 크기가 커질 때 O(N^2) 병목을 유발합니다. 파이썬 3.7+부터 딕셔너리가 삽입 순서를 유지하므로, `ordered_role_ids[role_id] = None`처럼 의미가 드러나는 키 저장소를 사용하면 순서를 보존하면서 평균 O(1) 조회가 가능합니다.
-**Action:** 순서 보존 중복 제거가 필요한 경로에서는 도메인 이름을 가진 딕셔너리 키를 사용하고, 외부 문자열은 해시·truthiness 연산 전에 안전한 built-in 문자열로 정규화합니다.
+
+## 2026-09-08 - O(N^2) list-based deduplication replaced with O(1) dict keys
+**Learning:** Checking for element existence in a list using `not in` before appending leads to O(N^2) time complexity. However, for bounded small lists ($N < 10$), standard list traversal in CPython can be marginally faster and use less memory overhead than hashing/allocating dict keys. For unbounded or large cardinalities (e.g., thousands of deduplications across a large song export payload with 1000+ sections and highly duplicated roles), dictionary O(1) insertions preserve insertion order while preventing super-linear CPU bounds.
+**Action:** Replace `if item not in lst: lst.append(item)` patterns with `dct[item] = None` and `list(dct.keys())` for efficient and order-preserving deduplication in high-throughput data exports, provided we can demonstrate concrete wall-clock wins under profiling.
