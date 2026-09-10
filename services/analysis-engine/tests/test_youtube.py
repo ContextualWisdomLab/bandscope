@@ -334,29 +334,34 @@ def test_download_youtube_audio_accepts_exact_policy_ceiling(
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
-@patch("bandscope_analysis.youtube.os.path.exists")
-@patch("bandscope_analysis.youtube.os.remove")
 @patch("bandscope_analysis.youtube.yt_dlp.YoutubeDL")
 def test_download_youtube_audio_size_exceeded(
     mock_ydl_class: MagicMock,
-    mock_remove: MagicMock,
-    mock_exists: MagicMock,
     mock_getsize: MagicMock,
+    tmp_path: Path,
 ) -> None:
-    """Post-download files one byte over the canonical 100 MiB ceiling are deleted."""
+    """An over-budget artifact created by the active lease is deleted."""
     mock_ydl = MagicMock()
     mock_ydl_class.return_value.__enter__.return_value = mock_ydl
-    out_dir = str(Path("/tmp").resolve())
-    mock_ydl.extract_info.return_value = {"id": "abc123DEF45", "duration": 10 * 60}
-    mock_ydl.prepare_filename.return_value = f"{out_dir}/abc123DEF45.m4a"
-    mock_exists.return_value = True
+    out_dir = tmp_path / "import-cache"
+    out_dir.mkdir()
+    downloaded_path = out_dir / "abc123DEF45.m4a"
+
+    def extract_info(_url: str, download: bool = False) -> dict[str, object]:
+        """Create the final artifact only after the current import owns the lease."""
+        if download:
+            downloaded_path.write_bytes(b"over-budget")
+        return {"id": "abc123DEF45", "duration": 10 * 60}
+
+    mock_ydl.extract_info.side_effect = extract_info
+    mock_ydl.prepare_filename.return_value = str(downloaded_path)
     mock_getsize.return_value = DEFAULT_MAX_ENCODED_FILE_BYTES + 1
 
-    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", out_dir)
+    result = download_youtube_audio("https://youtube.com/watch?v=abc123DEF45", str(out_dir))
     assert result["ok"] is False
     assert result["error"]["code"] == "size_exceeded"
     assert result["error"]["message"] == YOUTUBE_SIZE_EXCEEDED_MESSAGE
-    mock_remove.assert_called_with(f"{out_dir}/abc123DEF45.m4a")
+    assert not downloaded_path.exists()
 
 
 @patch("bandscope_analysis.youtube.os.path.getsize")
@@ -693,7 +698,6 @@ def test_module_execution(
     import bandscope_analysis.youtube
 
     downloaded_path = tmp_path / "abc123DEF45.m4a"
-    downloaded_path.write_bytes(b"test-audio")
     test_args = [
         "youtube.py",
         "--url",
@@ -708,7 +712,14 @@ def test_module_execution(
     mock_yt_dlp = MagicMock()
     mock_ydl = MagicMock()
     mock_yt_dlp.YoutubeDL.return_value.__enter__.return_value = mock_ydl
-    mock_ydl.extract_info.return_value = {"id": "abc123DEF45"}
+
+    def extract_info(_url: str, download: bool = False) -> dict[str, object]:
+        """Create the final artifact only while the current import holds its lease."""
+        if download:
+            downloaded_path.write_bytes(b"test-audio")
+        return {"id": "abc123DEF45", "duration": 60}
+
+    mock_ydl.extract_info.side_effect = extract_info
     mock_ydl.prepare_filename.return_value = str(downloaded_path)
     monkeypatch.setitem(sys.modules, "yt_dlp", mock_yt_dlp)
 
