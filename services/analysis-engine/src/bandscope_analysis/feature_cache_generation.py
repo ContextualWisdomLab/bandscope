@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import TypeGuard, TypedDict
+from typing import TypedDict, TypeGuard
 
 from bandscope_analysis.feature_cache_admission import read_bounded_feature_cache_metadata
 
