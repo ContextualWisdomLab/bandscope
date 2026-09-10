@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from bandscope_analysis import api, audio_decode, cli, feature_cache_generation
 from bandscope_analysis.audio_resource_policy import (
     AudioResourcePolicy,
