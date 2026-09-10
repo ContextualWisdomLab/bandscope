@@ -83,7 +83,9 @@ def test_chord_segment_builder_handles_zero_frames_without_final_segment() -> No
 
     with (
         patch.object(recognizer, "_build_observation_probs", return_value=empty_observations),
-        patch.object(recognizer, "_viterbi_decode", return_value=np.array([], dtype=np.int64)),
+        patch.object(
+            recognizer, "_viterbi_decode", return_value=np.array([], dtype=np.int64)
+        ),
     ):
         result = recognizer._create_chord_segments(
             np.empty((12, 0), dtype=np.float64),
@@ -95,15 +97,23 @@ def test_chord_segment_builder_handles_zero_frames_without_final_segment() -> No
     assert result == []
 
 
-def test_cli_delegates_empty_local_source_to_orchestration(
+def test_cli_rejects_empty_local_source_before_orchestration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep local-source validation in the canonical analysis orchestration path."""
+    """Reject an empty local source at request admission before orchestration runs."""
     payload = {
         "jobId": "job-empty-source",
         "request": {
             "sourceKind": "local_audio",
-            "localSource": {"sourcePath": "", "fileName": "song.wav"},
+            "sourceLabel": "song.wav",
+            "roleFocus": [],
+            "projectId": "project-empty-source",
+            "localSource": {
+                "sourcePath": "",
+                "fileName": "song.wav",
+                "extension": "wav",
+                "fileSizeBytes": 1,
+            },
         },
     }
     stdout = io.StringIO()
@@ -111,15 +121,17 @@ def test_cli_delegates_empty_local_source_to_orchestration(
     monkeypatch.setattr(cli.sys, "stdin", io.StringIO(json.dumps(payload)))
     monkeypatch.setattr(cli.sys, "stdout", stdout)
 
-    with patch.object(
-        cli,
-        "run_analysis_job",
-        return_value={"jobId": "job-empty-source", "state": "failed"},
-    ) as run_analysis_job:
+    with patch.object(cli, "run_analysis_job") as run_analysis_job:
         assert cli.main() == 0
 
-    run_analysis_job.assert_called_once()
-    assert json.loads(stdout.getvalue())["jobId"] == "job-empty-source"
+    run_analysis_job.assert_not_called()
+    response = json.loads(stdout.getvalue())
+    assert response["jobId"] == "job-empty-source"
+    assert response["state"] == "failed"
+    assert response["error"] == {
+        "code": "invalid_request",
+        "message": "Invalid analysis job request: invalid field 'localSource.sourcePath'",
+    }
 
 
 def test_chart_section_without_active_roles_and_duplicate_priority_footer() -> None:
