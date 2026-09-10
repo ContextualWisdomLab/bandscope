@@ -69,7 +69,7 @@ import stat
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -96,6 +96,28 @@ _ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES = 1024 * 1024
 _NPY_VERSION = (1, 0)
 _CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
 MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
+
+
+class _NpyMagicReader(Protocol):
+    """Typed boundary for NumPy's currently untyped NPY magic reader."""
+
+    def __call__(self, fp: BinaryIO, /) -> tuple[int, int]: ...
+
+
+class _NpyHeaderReader(Protocol):
+    """Typed boundary for NumPy's NPY-v1 header reader runtime contract."""
+
+    def __call__(
+        self,
+        fp: BinaryIO,
+        /,
+        *,
+        max_header_size: int = 10_000,
+    ) -> tuple[tuple[int, ...], bool, np.dtype[np.generic]]: ...
+
+
+_READ_NPY_MAGIC = cast(_NpyMagicReader, np.lib.format.read_magic)
+_READ_NPY_HEADER_1_0 = cast(_NpyHeaderReader, np.lib.format.read_array_header_1_0)
 
 
 def _is_sha256_hex(value: object) -> bool:
@@ -307,7 +329,7 @@ def _duration_matches_sample_timeline(
 
 def _copy_exact_archive_snapshot(
     source: BinaryIO,
-    destination: BinaryIO,
+    destination: tempfile.SpooledTemporaryFile[bytes],
     byte_count: int,
 ) -> bool:
     """Copy exactly one admitted archive extent into a private replay snapshot."""
@@ -322,7 +344,10 @@ def _copy_exact_archive_snapshot(
     return True
 
 
-def _private_snapshot_sha256(snapshot_file: BinaryIO, byte_count: int) -> str | None:
+def _private_snapshot_sha256(
+    snapshot_file: tempfile.SpooledTemporaryFile[bytes],
+    byte_count: int,
+) -> str | None:
     """Hash exactly one already-bounded private archive snapshot."""
     try:
         snapshot_file.seek(0)
@@ -343,7 +368,7 @@ def _private_snapshot_sha256(snapshot_file: BinaryIO, byte_count: int) -> str | 
 
 
 def _preflight_npz(
-    archive_file: BinaryIO,
+    archive_file: tempfile.SpooledTemporaryFile[bytes],
     stem_keys: list[str],
     policy: AudioResourcePolicy,
 ) -> int | None:
@@ -355,7 +380,7 @@ def _preflight_npz(
     max_total_bytes = len(stem_keys) * max_member_bytes
 
     try:
-        with zipfile.ZipFile(archive_file, mode="r") as archive:
+        with zipfile.ZipFile(cast(BinaryIO, archive_file), mode="r") as archive:
             members = archive.infolist()
             member_names = [member.filename for member in members]
             if len(members) != len(expected_names) or set(member_names) != expected_names:
@@ -379,9 +404,9 @@ def _preflight_npz(
                     return None
 
                 with archive.open(member, mode="r") as npy_stream:
-                    if np.lib.format.read_magic(npy_stream) != _NPY_VERSION:
+                    if _READ_NPY_MAGIC(npy_stream) != _NPY_VERSION:
                         return None
-                    shape, fortran_order, dtype = np.lib.format.read_array_header_1_0(
+                    shape, fortran_order, dtype = _READ_NPY_HEADER_1_0(
                         npy_stream,
                         max_header_size=_MAX_NPY_HEADER_BYTES,
                     )
