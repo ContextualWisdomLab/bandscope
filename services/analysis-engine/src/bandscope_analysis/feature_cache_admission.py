@@ -101,7 +101,8 @@ MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
 class _NpyMagicReader(Protocol):
     """Typed boundary for NumPy's currently untyped NPY magic reader."""
 
-    def __call__(self, fp: IO[bytes], /) -> tuple[int, int]: ...
+    def __call__(self, fp: IO[bytes], /) -> tuple[int, int]:
+        raise NotImplementedError
 
 
 class _NpyHeaderReader(Protocol):
@@ -113,7 +114,8 @@ class _NpyHeaderReader(Protocol):
         /,
         *,
         max_header_size: int = 10_000,
-    ) -> tuple[tuple[int, ...], bool, np.dtype[np.generic]]: ...
+    ) -> tuple[tuple[int, ...], bool, np.dtype[np.generic]]:
+        raise NotImplementedError
 
 
 _READ_NPY_MAGIC = cast(_NpyMagicReader, np.lib.format.read_magic)
