@@ -1146,7 +1146,11 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     file_payload = {
         "arraysPath": str(arrays_path),
         "sampleRate": 22050,
-        "separation": {"duration_seconds": 4 / 22050, "chunk_count": 1, "notes": "ok"},
+        "separation": {
+            "duration_seconds": 4 / 22050,
+            "chunk_count": 1,
+            "notes": "ok",
+        },
         "stemKeys": ["bass"],
         "stemRoleTypes": {"bass": "instrument"},
     }
