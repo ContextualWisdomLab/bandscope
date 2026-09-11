@@ -636,9 +636,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "message": "Stem separation failed",
     }
     assert "/Users/test/Music" not in str(updates[-1]["error"])
-    logger.error.assert_called_once_with(
-        "Stem separation failed before analysis job completion."
-    )
+    logger.error.assert_called_once_with("Stem separation failed before analysis job completion.")
 
 
 def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
@@ -858,7 +856,7 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     class BadArchive:
-        def __enter__(self):
+        def __enter__(self) -> None:
             return self
 
         def __exit__(self, *_args: object) -> None:
