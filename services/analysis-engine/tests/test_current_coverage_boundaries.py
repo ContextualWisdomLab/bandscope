@@ -350,7 +350,8 @@ def test_youtube_cleanup_duration_and_status_edges(
     candidate = tmp_path / f"{video_id}.webm.part"
     assert youtube._video_id_from_status({"tmpfilename": 7, "filename": str(candidate)}) == video_id
     assert youtube._cleanup_stem(f"{video_id}.webm-Fragoops") == f"{video_id}.webm-Fragoops"
-    assert youtube._cleanup_stem("other-Frag1.part") == "other"
+    assert youtube._cleanup_stem("other-Frag1.part") == "other-Frag1"
+    assert youtube._cleanup_stem("not-a-video-id-Frag1.part") == "not-a-video-id"
 
 
 def test_youtube_owned_cleanup_tolerates_remove_and_directory_listing_races(
