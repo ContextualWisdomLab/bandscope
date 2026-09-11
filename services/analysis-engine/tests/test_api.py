@@ -551,13 +551,13 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     ):
         separator.return_value = {
             "stems": {
-                "vocals": np.zeros(1024),
-                "bass": np.zeros(1024),
-                "drums": np.zeros(1024),
-                "other": np.zeros(1024),
+                "vocals": np.zeros(1024, dtype=np.float32),
+                "bass": np.zeros(1024, dtype=np.float32),
+                "drums": np.zeros(1024, dtype=np.float32),
+                "other": np.zeros(1024, dtype=np.float32),
             },
             "sample_rate": 22050,
-            "duration_seconds": 1.0,
+            "duration_seconds": 1024 / 22050,
             "chunk_count": 1,
             "stem_role_types": {
                 "vocals": "vocal",
@@ -711,10 +711,10 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
 
     features = {
         "stems": {
-            "vocals": np.zeros(256),
-            "bass": np.zeros(256),
-            "drums": np.zeros(256),
-            "other": np.zeros(256),
+            "vocals": np.zeros(256, dtype=np.float32),
+            "bass": np.zeros(256, dtype=np.float32),
+            "drums": np.zeros(256, dtype=np.float32),
+            "other": np.zeros(256, dtype=np.float32),
         },
         "sr": 22050,
         "stem_role_types": {
