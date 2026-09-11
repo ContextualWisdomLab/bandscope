@@ -1,3 +1,7 @@
 ## 2026-09-09 - Accessible Tooltips on Disabled Elements
 **Learning:** `aria-disabled="true"` exposes unavailable state but does not suppress activation. Icon-only controls therefore need an accessible name independent of the tooltip, and unavailable activation must still be blocked in code.
 **Action:** Keep unavailable icon buttons focusable with `aria-disabled="true"`, give the trigger an `aria-label` matching the Tooltip text, and route pointer or keyboard-generated clicks through `preventUnavailableAction`. Use the design-system Tooltip only to explain the unavailable state; do not log or expose user-controlled values through tooltip copy.
+
+## 2026-09-11 - Preserve doctoring security boundaries during regeneration
+**Learning:** This Tooltip slice cites external MDN, W3C, and Base UI documentation. Two later branch regenerations removed the reviewed `Security Notes` paragraph even though the runtime trust/network boundary had not changed, repeatedly reopening the same governance finding.
+**Action:** When updating `docs/doctoring/sidebar-disabled-tooltips.md`, preserve its `Security Notes` section whenever external references remain. The note must keep those URLs documentation-only and state that this Tooltip slice adds no runtime fetch/navigation, subprocess, IPC, updater, model-download, credential, or trust-boundary path. If that security boundary truly changes, update the note and tests/review evidence explicitly rather than deleting it as formatting or generated-copy cleanup.
