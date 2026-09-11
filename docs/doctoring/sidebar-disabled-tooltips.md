@@ -52,6 +52,8 @@ Current automated evidence covers DOM semantics already present in `App.test.tsx
 
 ## Security Notes
 
+### Trust boundary
+
 The MDN, W3C, and upstream Base UI URLs in this doctoring note are documentation references only. BandScope does not fetch, execute, embed, or navigate to them at runtime, and this Tooltip change adds no network request, WebView navigation, subprocess, IPC, updater, model-download, credential, or trust-boundary path. Runtime behavior remains limited to the existing local design-system Tooltip and localized in-process strings.
 
 ## References
