@@ -17,8 +17,8 @@ from bandscope_analysis.audio_resource_policy import AudioResourcePolicy
 from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 from bandscope_analysis.temporal import analyzer as temporal_analyzer
 
-
 _FLOAT32_DTYPE = np.dtype(np.float32)
+_FLOAT_OVERFLOW_INT = 10**400
 
 
 def _single_stem_metadata(duration_seconds: object = 8 / 44_100) -> dict[str, object]:
@@ -91,14 +91,10 @@ def test_second_read_metadata_covers_optional_rate_and_numeric_failure_boundarie
         ["bass"],
     ) is not None
 
-    class ExplodingFloat(float):
-        def __float__(self) -> float:
-            raise ValueError("cannot materialize duration")
-
     monkeypatch.setattr(
         feature_cache_admission,
         "read_bounded_feature_cache_metadata",
-        lambda *_args, **_kwargs: _single_stem_metadata(ExplodingFloat(1.0)),
+        lambda *_args, **_kwargs: _single_stem_metadata(_FLOAT_OVERFLOW_INT),
     )
     assert feature_cache_admission._read_canonical_stem_role_metadata(
         arrays_path,
@@ -117,14 +113,9 @@ def test_second_read_metadata_covers_optional_rate_and_numeric_failure_boundarie
 
 
 def test_duration_helper_rejects_numeric_materialization_failure() -> None:
-    """A number-like duration that cannot become a finite float fails closed."""
-
-    class ExplodingFloat(float):
-        def __float__(self) -> float:
-            raise OverflowError("duration overflow")
-
+    """A built-in integer that overflows float materialization fails closed."""
     assert not feature_cache_admission._duration_matches_sample_timeline(
-        ExplodingFloat(1.0),
+        _FLOAT_OVERFLOW_INT,
         44_100,
         44_100,
     )
