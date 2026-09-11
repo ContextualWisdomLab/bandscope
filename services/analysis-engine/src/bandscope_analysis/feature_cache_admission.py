@@ -441,7 +441,6 @@ def _preflight_npz(
     if expected_names is None:
         return None
     max_member_bytes = policy.max_decoded_audio_bytes + _MAX_NPY_HEADER_BYTES
-    max_total_bytes = len(stem_keys) * max_member_bytes
 
     try:
         with zipfile.ZipFile(cast(BinaryIO, archive_file), mode="r") as archive:
@@ -449,11 +448,8 @@ def _preflight_npz(
             member_names = [member.filename for member in members]
             if len(members) != len(expected_names) or set(member_names) != expected_names:
                 return None
-            if len(member_names) != len(set(member_names)):
-                return None
 
             expected_sample_count: int | None = None
-            total_declared_bytes = 0
             for member in members:
                 if (
                     member.is_dir()
@@ -462,9 +458,6 @@ def _preflight_npz(
                     or member.file_size <= 0
                     or member.file_size > max_member_bytes
                 ):
-                    return None
-                total_declared_bytes += member.file_size
-                if total_declared_bytes > max_total_bytes:
                     return None
 
                 with archive.open(member, mode="r") as npy_stream:
@@ -560,16 +553,14 @@ def load_bounded_stem_archive(
                 sample_count = _preflight_npz(snapshot_file, stem_keys, policy)
                 if sample_count is None:
                     return None
-                separation = replay_metadata.get("separation")
-                duration_seconds: object = None
-                if isinstance(separation, dict):
-                    duration_seconds = separation.get("duration_seconds")
-                    if not _duration_matches_sample_timeline(
-                        duration_seconds,
-                        sample_count,
-                        sample_rate,
-                    ):
-                        return None
+                separation = cast(dict[str, object], replay_metadata["separation"])
+                duration_seconds = separation["duration_seconds"]
+                if not _duration_matches_sample_timeline(
+                    duration_seconds,
+                    sample_count,
+                    sample_rate,
+                ):
+                    return None
                 snapshot_file.seek(0)
                 with np.load(
                     snapshot_file,
@@ -579,11 +570,7 @@ def load_bounded_stem_archive(
                     stems: dict[str, NDArray[np.float32]] = {}
                     for stem_key in stem_keys:
                         archive_key = f"stem_{stem_key}"
-                        if archive_key not in stems_archive:
-                            return None
                         stem_array = stems_archive[archive_key]
-                        if not isinstance(stem_array, np.ndarray):
-                            return None
                         try:
                             with np.errstate(over="ignore", invalid="ignore"):
                                 if (
