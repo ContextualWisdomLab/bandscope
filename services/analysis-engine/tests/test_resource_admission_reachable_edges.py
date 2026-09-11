@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import io
 import json
 import tempfile
 import zipfile
 from pathlib import Path
+
+import numpy as np
 
 from bandscope_analysis import feature_cache_admission, youtube
 from bandscope_analysis.audio_resource_policy import AudioResourcePolicy
@@ -33,6 +36,25 @@ def test_npz_preflight_rejects_invalid_npy_magic() -> None:
     with tempfile.SpooledTemporaryFile(mode="w+b") as archive_file:
         with zipfile.ZipFile(archive_file, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
             archive.writestr("stem_bass.npy", b"not-an-npy-array")
+        archive_file.seek(0)
+
+        assert feature_cache_admission._preflight_npz(archive_file, ["bass"], policy) is None
+
+
+def test_npz_preflight_rejects_noncanonical_npy_version() -> None:
+    """A valid NPY-v2 member cannot bypass the replay parser's v1-only contract."""
+    policy = AudioResourcePolicy(target_sample_rate=44_100)
+    npy_bytes = io.BytesIO()
+    np.lib.format.write_array(
+        npy_bytes,
+        np.ones(8, dtype=np.float32),
+        version=(2, 0),
+        allow_pickle=False,
+    )
+
+    with tempfile.SpooledTemporaryFile(mode="w+b") as archive_file:
+        with zipfile.ZipFile(archive_file, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("stem_bass.npy", npy_bytes.getvalue())
         archive_file.seek(0)
 
         assert feature_cache_admission._preflight_npz(archive_file, ["bass"], policy) is None
