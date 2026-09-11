@@ -75,3 +75,26 @@ def test_feature_cache_producer_accepts_canonical_audio_stem_subset(tmp_path) ->
     assert stored is True
     assert metadata_path.exists()
     assert arrays_path.exists()
+
+
+def test_feature_cache_producer_rejects_duration_that_replay_would_reject(
+    tmp_path,
+) -> None:
+    """Producer admission must reject a stem timeline that replay rejects."""
+    metadata_path = tmp_path / "track.features.json"
+    arrays_path = tmp_path / "track.features.npz"
+    features = _features("bass")
+    separation = features["separation"]
+    assert isinstance(separation, dict)
+    separation["duration_seconds"] = 1.0
+
+    stored = api._store_cached_local_audio_features(
+        metadata_path,
+        arrays_path,
+        _request(),
+        features,
+    )
+
+    assert stored is False
+    assert not metadata_path.exists()
+    assert not arrays_path.exists()
