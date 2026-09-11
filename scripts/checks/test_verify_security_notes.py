@@ -30,7 +30,11 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         """Deleting reviewed doctoring trust-boundary evidence must turn the gate RED."""
         path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
         path.write_text(
-            "# Tooltip evidence\n\n## References\n\nhttps://developer.mozilla.org/example\n",
+            "# Tooltip evidence\n\n"
+            "Security Notes were reviewed, but this is not the governed heading.\n"
+            "A runtime trust-boundary claim outside that section cannot satisfy the gate.\n\n"
+            "## References\n\n"
+            "https://developer.mozilla.org/example\n",
             encoding="utf-8",
         )
         self.assertEqual(self._violations(), [str(path)])
