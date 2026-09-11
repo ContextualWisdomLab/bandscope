@@ -63,7 +63,7 @@ class SecurityNotesPolicyTests(unittest.TestCase):
             "# Tooltip evidence\n\n"
             "## Security Notes\n\n"
             "### Trust boundary\n\n"
-            "The external URL is documentation-only and creates no runtime trust-boundary path.\n\n"
+            "A documentation URL creates no runtime trust-boundary path.\n\n"
             "## References\n\n"
             "https://developer.mozilla.org/example\n",
             encoding="utf-8",
@@ -76,7 +76,7 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         valid_looking_evidence = (
             "## Security Notes\n\n"
             "### Trust boundary\n\n"
-            "The external URL is documentation-only and creates no runtime trust-boundary path.\n"
+            "A documentation URL creates no runtime trust-boundary path.\n"
         )
 
         path.write_text(
