@@ -16,6 +16,8 @@ import numpy as np
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
 from bandscope_analysis.feature_cache_admission import (
+    admit_canonical_stem_set,
+    canonical_stem_role_types,
     load_bounded_stem_archive,
     read_bounded_feature_cache_metadata,
 )
@@ -718,16 +720,7 @@ def _normalize_stem_role_types(
     stem_role_types: object, stem_keys: list[str]
 ) -> dict[str, str] | None:
     """Validate persisted role metadata against canonical stem semantics."""
-    canonical = _default_stem_role_types(stem_keys)
-    if stem_role_types is None:
-        return canonical
-    if not isinstance(stem_role_types, dict):
-        return None
-    if set(stem_role_types) != set(stem_keys):
-        return None
-    if any(stem_role_types.get(stem_key) != canonical[stem_key] for stem_key in stem_keys):
-        return None
-    return canonical
+    return canonical_stem_role_types(stem_keys, stem_role_types)
 
 
 def _load_cached_local_audio_features(
@@ -827,62 +820,21 @@ def _producer_stems_match_replay_admission(
     sample_rate: object,
     duration_seconds: object,
 ) -> bool:
-    """Reject a producer stem set that the canonical replay boundary would refuse."""
-    if (
-        isinstance(sample_rate, bool)
-        or not isinstance(sample_rate, int)
-        or sample_rate < DEFAULT_AUDIO_RESOURCE_POLICY.min_source_sample_rate
-        or sample_rate > DEFAULT_AUDIO_RESOURCE_POLICY.max_source_sample_rate
-    ):
-        return False
-    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)):
-        return False
-    try:
-        duration_value = float(duration_seconds)
-        max_samples = int(
-            sample_rate * float(DEFAULT_AUDIO_RESOURCE_POLICY.max_duration_seconds)
+    """Return whether producer stems satisfy the same canonical replay admission."""
+    stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
+    stems = {
+        stem_key: serialized_stems[f"stem_{stem_key}"]
+        for stem_key in stem_keys
+    }
+    return (
+        admit_canonical_stem_set(
+            stems,
+            stem_keys,
+            sample_rate,
+            duration_seconds,
+            policy_template=DEFAULT_AUDIO_RESOURCE_POLICY,
         )
-        policy = type(DEFAULT_AUDIO_RESOURCE_POLICY)(
-            max_encoded_file_bytes=DEFAULT_AUDIO_RESOURCE_POLICY.max_encoded_file_bytes,
-            target_sample_rate=sample_rate,
-            max_duration_seconds=DEFAULT_AUDIO_RESOURCE_POLICY.max_duration_seconds,
-            max_decoded_audio_bytes=min(
-                DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes,
-                max_samples * np.dtype(np.float32).itemsize,
-            ),
-            min_source_sample_rate=DEFAULT_AUDIO_RESOURCE_POLICY.min_source_sample_rate,
-            max_source_sample_rate=DEFAULT_AUDIO_RESOURCE_POLICY.max_source_sample_rate,
-            min_source_channels=DEFAULT_AUDIO_RESOURCE_POLICY.min_source_channels,
-            max_source_channels=DEFAULT_AUDIO_RESOURCE_POLICY.max_source_channels,
-        )
-    except (OverflowError, TypeError, ValueError):
-        return False
-    if not np.isfinite(duration_value) or duration_value <= 0.0:
-        return False
-
-    expected_sample_count: int | None = None
-    for stem_value in serialized_stems.values():
-        if not stem_value.flags.owndata:
-            return False
-        try:
-            validated = policy.validate_decoded_audio(stem_value, sample_rate)
-        except (MemoryError, OverflowError, TypeError, ValueError):
-            return False
-        if expected_sample_count is None:
-            expected_sample_count = int(validated.size)
-        elif validated.size != expected_sample_count:
-            return False
-
-    if expected_sample_count is None:
-        return False
-    expected_duration = expected_sample_count / sample_rate
-    return bool(
-        np.isclose(
-            duration_value,
-            expected_duration,
-            rtol=0.0,
-            atol=0.5 / sample_rate,
-        )
+        is not None
     )
 
 
