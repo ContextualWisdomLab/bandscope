@@ -40,10 +40,10 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         self.assertEqual(self._violations(), [str(path)])
 
         for invalid_section in [
+            "The external URL creates no runtime trust-boundary path.\n",
             "### Trust boundary\n",
-            "trust boundary\n",
-            "The trust boundary.\n",
-            "The external URL is documentation-only.\n",
+            "### Trust boundary\n\ntrust boundary\n",
+            "### Trust boundary\n\nThe trust boundary.\n",
         ]:
             with self.subTest(invalid_section=invalid_section):
                 path.write_text(
@@ -62,6 +62,7 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         path.write_text(
             "# Tooltip evidence\n\n"
             "## Security Notes\n\n"
+            "### Trust boundary\n\n"
             "The external URL is documentation-only and creates no runtime trust-boundary path.\n\n"
             "## References\n\n"
             "https://developer.mozilla.org/example\n",
