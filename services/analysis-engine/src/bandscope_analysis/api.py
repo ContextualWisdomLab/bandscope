@@ -39,7 +39,17 @@ FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 _CANONICAL_AUDIO_STEM_NAMES = frozenset(get_args(AudioStemName))
 
-logger = logging.getLogger(__name__)
+
+class _TracebackFreeExceptionLogger(logging.LoggerAdapter):
+    """Emit fixed failure diagnostics without serializing active exception context."""
+
+    def exception(self, msg: object, *args: object, **kwargs: Any) -> None:
+        """Log a fixed error message while deliberately suppressing traceback payloads."""
+        kwargs["exc_info"] = False
+        self.error(msg, *args, **kwargs)
+
+
+logger = _TracebackFreeExceptionLogger(logging.getLogger(__name__), {})
 
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
@@ -84,7 +94,7 @@ class ConfidencePayload(TypedDict):
 
 
 class CuePayload(TypedDict):
-    """Typed cue payload nested inside rehearsal results."""
+    """Typed cue payload nested inside rehearsal roles."""
 
     kind: str
     value: str
