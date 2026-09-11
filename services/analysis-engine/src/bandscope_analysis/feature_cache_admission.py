@@ -49,8 +49,8 @@ Security Notes:
 - Each member is one non-empty floating one-dimensional signal within the
   configured sample and visible-byte ceilings. Loaded legacy floating dtypes
   are converted to owned ``float32`` only after those pre-copy bounds pass.
-- Canonical finiteness, dtype, sample-rate, sample-count, and memory checks are
-  reapplied before a replayed stem can return to MIR/rehearsal analysis.
+- Canonical finiteness, dtype, sample-rate, sample-count, memory, synchronized
+  timeline, and duration checks are shared by producer publication and replay.
 - Allocator exhaustion or truncated archive state encountered while copying,
   hashing, preflighting, or opening an otherwise admitted cache fails closed as
   a cache miss instead of escaping the persistence boundary and crashing the job.
@@ -229,6 +229,23 @@ def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
     return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
 
 
+def canonical_stem_role_types(
+    stem_keys: list[str],
+    stem_role_types: object,
+) -> dict[str, str] | None:
+    """Return canonical role bindings only when supplied metadata preserves them."""
+    if _expected_member_names(stem_keys) is None:
+        return None
+    canonical = {stem_key: _CANONICAL_STEM_ROLE_TYPES[stem_key] for stem_key in stem_keys}
+    if stem_role_types is None:
+        return canonical
+    if not isinstance(stem_role_types, dict) or set(stem_role_types) != set(stem_keys):
+        return None
+    if any(stem_role_types.get(stem_key) != canonical[stem_key] for stem_key in stem_keys):
+        return None
+    return canonical
+
+
 def _read_canonical_stem_role_metadata(
     arrays_path: Path,
     stem_keys: list[str],
@@ -268,17 +285,7 @@ def _read_canonical_stem_role_metadata(
     if not math.isfinite(duration_value) or duration_value <= 0.0:
         return None
 
-    stem_role_types = metadata.get("stemRoleTypes")
-    if stem_role_types is None:
-        return metadata
-    if not isinstance(stem_role_types, dict):
-        return None
-    if set(stem_role_types) != set(stem_keys):
-        return None
-    if not all(
-        stem_role_types.get(stem_key) == _CANONICAL_STEM_ROLE_TYPES[stem_key]
-        for stem_key in stem_keys
-    ):
+    if canonical_stem_role_types(stem_keys, metadata.get("stemRoleTypes")) is None:
         return None
     return metadata
 
@@ -327,6 +334,61 @@ def _duration_matches_sample_timeline(
         rel_tol=0.0,
         abs_tol=0.5 / sample_rate,
     )
+
+
+def admit_canonical_stem_set(
+    stems: object,
+    stem_keys: list[str],
+    sample_rate: object,
+    duration_seconds: object,
+    *,
+    policy_template: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+) -> dict[str, NDArray[np.float32]] | None:
+    """Admit one owned canonical stem set for both publication and replay."""
+    if not isinstance(stems, dict) or set(stems) != set(stem_keys):
+        return None
+    if _expected_member_names(stem_keys) is None:
+        return None
+    policy = _replay_policy(sample_rate, policy_template)
+    if policy is None:
+        return None
+
+    expected_sample_count: int | None = None
+    admitted: dict[str, NDArray[np.float32]] = {}
+    for stem_key in stem_keys:
+        stem_array = stems.get(stem_key)
+        if (
+            not isinstance(stem_array, np.ndarray)
+            or stem_array.dtype != np.dtype(np.float32)
+            or not stem_array.flags.owndata
+        ):
+            return None
+        try:
+            validated = policy.validate_decoded_audio(stem_array, sample_rate)
+        except (
+            AudioResourcePolicyError,
+            MemoryError,
+            OverflowError,
+            TypeError,
+            ValueError,
+        ):
+            return None
+        sample_count = int(validated.size)
+        if expected_sample_count is None:
+            expected_sample_count = sample_count
+        elif sample_count != expected_sample_count:
+            return None
+        admitted[stem_key] = validated
+
+    if expected_sample_count is None or duration_seconds is None:
+        return None
+    if not _duration_matches_sample_timeline(
+        duration_seconds,
+        expected_sample_count,
+        sample_rate,
+    ):
+        return None
+    return admitted
 
 
 def _copy_exact_archive_snapshot(
@@ -499,9 +561,11 @@ def load_bounded_stem_archive(
                 if sample_count is None:
                     return None
                 separation = replay_metadata.get("separation")
+                duration_seconds: object = None
                 if isinstance(separation, dict):
+                    duration_seconds = separation.get("duration_seconds")
                     if not _duration_matches_sample_timeline(
-                        separation.get("duration_seconds"),
+                        duration_seconds,
                         sample_count,
                         sample_rate,
                     ):
@@ -529,23 +593,24 @@ def load_bounded_stem_archive(
                                     canonical = stem_array
                                 else:
                                     canonical = np.array(stem_array, dtype=np.float32, copy=True)
-                            validated = policy.validate_decoded_audio(canonical, sample_rate)
-                        except (
-                            AudioResourcePolicyError,
-                            MemoryError,
-                            OverflowError,
-                            TypeError,
-                            ValueError,
-                        ):
+                        except (MemoryError, OverflowError, TypeError, ValueError):
                             return None
-                        stems[stem_key] = validated
+                        stems[stem_key] = canonical
     except (EOFError, MemoryError, OSError, ValueError, zipfile.BadZipFile):
         return None
-    return stems
+    return admit_canonical_stem_set(
+        stems,
+        stem_keys,
+        sample_rate,
+        duration_seconds,
+        policy_template=policy_template,
+    )
 
 
 __all__ = [
     "MAX_FEATURE_CACHE_METADATA_BYTES",
+    "admit_canonical_stem_set",
+    "canonical_stem_role_types",
     "load_bounded_stem_archive",
     "read_bounded_feature_cache_metadata",
 ]
