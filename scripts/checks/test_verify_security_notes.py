@@ -93,6 +93,20 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         )
         self.assertEqual(self._violations(), [str(path)])
 
+    def test_doctoring_html_comments_cannot_satisfy_security_evidence(self) -> None:
+        """A hidden HTML comment must not impersonate rendered governance evidence."""
+        path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
+        path.write_text(
+            "# Tooltip evidence\n\n"
+            "<!--\n"
+            "## Security Notes\n\n"
+            "### Trust boundary\n\n"
+            "A documentation URL creates no runtime trust-boundary path.\n"
+            "-->\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(self._violations(), [str(path)])
+
     def test_unregistered_doctoring_reference_does_not_gain_boilerplate(self) -> None:
         """An ordinary research citation stays outside the opt-in doctoring policy."""
         path = self.doctoring_dir / "ordinary-reference.md"
