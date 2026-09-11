@@ -48,6 +48,7 @@ import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
 import { EmptyState, ErrorState, LoadingState } from "./features/workspace/WorkspaceStates";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Toaster } from "@/components/ui/sonner";
@@ -611,26 +612,34 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <button
-                type="button"
-                aria-disabled={true}
-                aria-label={t("settingsComingSoon")}
-                title={t("settingsComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-              >
-                <Settings className="size-5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-disabled={true}
-                aria-label={t("helpComingSoon")}
-                title={t("helpComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-              >
-                <CircleHelp className="size-5" aria-hidden="true" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  aria-disabled={true}
+                  aria-label={t("settingsComingSoon")}
+                  onClick={preventUnavailableAction}
+                  className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <Settings className="size-5" aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t("settingsComingSoon")}
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  aria-disabled={true}
+                  aria-label={t("helpComingSoon")}
+                  onClick={preventUnavailableAction}
+                  className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <CircleHelp className="size-5" aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t("helpComingSoon")}
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </aside>
