@@ -62,10 +62,14 @@ def test_feature_cache_metadata_reader_rejects_invalid_digest_duplicate_and_non_
     )
 
     metadata_path.write_text('{"schemaVersion":1,"schemaVersion":2}', encoding="utf-8")
-    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    assert (
+        feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    )
 
     metadata_path.write_text("[]", encoding="utf-8")
-    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    assert (
+        feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    )
 
     metadata_path.write_text('{"schemaVersion":1}', encoding="utf-8")
     assert (
@@ -77,17 +81,23 @@ def test_feature_cache_metadata_reader_rejects_invalid_digest_duplicate_and_non_
     )
 
 
-def test_feature_cache_metadata_reader_rejects_empty_and_oversized_sidecar(tmp_path: Path) -> None:
+def test_feature_cache_metadata_reader_rejects_empty_and_oversized_sidecar(
+    tmp_path: Path,
+) -> None:
     """A sidecar must have one non-empty extent inside the metadata byte ceiling."""
     metadata_path = tmp_path / "fixture.json"
 
     metadata_path.write_bytes(b"")
-    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    assert (
+        feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    )
 
     metadata_path.write_bytes(
         b"{}" + b" " * feature_cache_admission.MAX_FEATURE_CACHE_METADATA_BYTES
     )
-    assert feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    assert (
+        feature_cache_admission.read_bounded_feature_cache_metadata(metadata_path) is None
+    )
 
 
 def test_replay_policy_and_member_names_reject_untrusted_shapes() -> None:
@@ -228,7 +238,9 @@ def test_npz_preflight_rejects_untrusted_outer_and_member_shapes() -> None:
         ) is None
 
 
-def test_archive_loader_rejects_invalid_digest_and_missing_archive(tmp_path: Path) -> None:
+def test_archive_loader_rejects_invalid_digest_and_missing_archive(
+    tmp_path: Path,
+) -> None:
     """Archive replay fails before materialization on invalid identity or missing bytes."""
     arrays_path = tmp_path / "fixture.npz"
 
@@ -260,7 +272,9 @@ def test_normalize_stem_role_types_rejects_wrong_container_and_key_set() -> None
     """Persisted role metadata must be a dictionary over the exact stem vocabulary."""
     assert api._normalize_stem_role_types(["instrument"], ["bass"]) is None
     assert (
-        api._normalize_stem_role_types({"bass": "instrument", "drums": "instrument"}, ["bass"])
+        api._normalize_stem_role_types(
+            {"bass": "instrument", "drums": "instrument"}, ["bass"]
+        )
         is None
     )
 
@@ -297,7 +311,13 @@ def test_feature_store_rejects_uncommittable_generation_manifest(
     tmp_path: Path,
 ) -> None:
     """A source-scoped generation is not published when its commit marker cannot be built."""
-    cache_root = tmp_path / "cache" / "source-sha256-v1" / _SOURCE_SHA256 / "analysis-cache-v1"
+    cache_root = (
+        tmp_path
+        / "cache"
+        / "source-sha256-v1"
+        / _SOURCE_SHA256
+        / "analysis-cache-v1"
+    )
     metadata_path = cache_root / "fixture.features.json"
     arrays_path = cache_root / "fixture.features.npz"
     request = {
@@ -418,7 +438,9 @@ def test_file_sha256_returns_none_when_artifact_cannot_be_opened(
 
     monkeypatch.setattr(Path, "open", fail_open)
 
-    assert feature_cache_generation.file_sha256(tmp_path / "secret.features.npz") is None
+    assert (
+        feature_cache_generation.file_sha256(tmp_path / "secret.features.npz") is None
+    )
 
 
 def test_generation_manifest_builder_rejects_invalid_source_and_missing_artifacts(
