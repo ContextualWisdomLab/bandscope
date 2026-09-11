@@ -83,13 +83,13 @@ def test_youtube_generic_cleanup_without_fragment_strips_partial_suffix() -> Non
     assert youtube._cleanup_stem("plain.part") == "plain"
 
 
-def test_youtube_cleanup_ignores_nonmatching_transient_entry(tmp_path: Path) -> None:
-    """Directory cleanup does not cross the leased video identity boundary."""
+def test_youtube_cleanup_preserves_same_video_nonmatching_stem(tmp_path: Path) -> None:
+    """Cleanup removes matching transients without deleting another format stem."""
     video_id = "abcdefghijk"
     owned = tmp_path / f"{video_id}.webm.part"
-    foreign = tmp_path / "zzzzzzzzzzz.webm.part"
+    nonmatching_stem = tmp_path / f"{video_id}.m4a.part"
     owned.write_bytes(b"partial")
-    foreign.write_bytes(b"foreign")
+    nonmatching_stem.write_bytes(b"other-format")
 
     youtube._remove_download_artifacts(
         {"tmpfilename": str(owned)},
@@ -98,4 +98,4 @@ def test_youtube_cleanup_ignores_nonmatching_transient_entry(tmp_path: Path) -> 
     )
 
     assert not owned.exists()
-    assert foreign.exists()
+    assert nonmatching_stem.exists()
