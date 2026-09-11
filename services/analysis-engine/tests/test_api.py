@@ -856,7 +856,7 @@ def test_local_feature_cache_treats_malformed_metadata_as_miss(tmp_path) -> None
     assert _load_cached_local_audio_features(metadata_path, arrays_path) is None
 
     class BadArchive:
-        def __enter__(self) -> None:
+        def __enter__(self):
             return self
 
         def __exit__(self, *_args: object) -> None:
