@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import stat
 import zipfile
 from pathlib import Path
@@ -19,6 +18,9 @@ from bandscope_analysis.separation.audio_separator import AudioStemSeparator
 from bandscope_analysis.temporal import analyzer as temporal_analyzer
 
 
+_FLOAT32_DTYPE = np.dtype(np.float32)
+
+
 def _single_stem_metadata(duration_seconds: object = 8 / 44_100) -> dict[str, object]:
     """Return one canonical replay sidecar for focused persistence-boundary tests."""
     return {
@@ -30,7 +32,11 @@ def _single_stem_metadata(duration_seconds: object = 8 / 44_100) -> dict[str, ob
     }
 
 
-def _write_single_stem_cache(tmp_path: Path, *, dtype: np.dtype[np.generic] = np.dtype(np.float32)) -> Path:
+def _write_single_stem_cache(
+    tmp_path: Path,
+    *,
+    dtype: np.dtype[np.generic] = _FLOAT32_DTYPE,
+) -> Path:
     """Write one canonical sidecar/archive pair and return the archive path."""
     arrays_path = tmp_path / "fixture.npz"
     arrays_path.with_suffix(".json").write_text(
@@ -128,7 +134,15 @@ def test_shared_stem_admission_rejects_shape_identity_and_missing_duration() -> 
     """Producer/replay Shared Kernel rejects non-mapping, noncanonical, and untimed stems."""
     bass = np.zeros(8, dtype=np.float32)
 
-    assert feature_cache_admission.admit_canonical_stem_set([], ["bass"], 44_100, 8 / 44_100) is None
+    assert (
+        feature_cache_admission.admit_canonical_stem_set(
+            [],
+            ["bass"],
+            44_100,
+            8 / 44_100,
+        )
+        is None
+    )
     assert (
         feature_cache_admission.admit_canonical_stem_set(
             {"guitar": bass},
@@ -198,7 +212,11 @@ def test_archive_loader_rejects_snapshot_copy_digest_and_preflight_failures(
     """Immutable replay snapshot failures stop before NumPy materialization."""
     arrays_path = _write_single_stem_cache(tmp_path)
 
-    monkeypatch.setattr(feature_cache_admission, "_copy_exact_archive_snapshot", lambda *_args: False)
+    monkeypatch.setattr(
+        feature_cache_admission,
+        "_copy_exact_archive_snapshot",
+        lambda *_args: False,
+    )
     assert feature_cache_admission.load_bounded_stem_archive(arrays_path, ["bass"], 44_100) is None
     monkeypatch.undo()
 
@@ -288,7 +306,10 @@ def test_audio_separator_maps_decoder_exception_and_empty_decode(
     def explode_decode(*_args: object, **_kwargs: object) -> tuple[np.ndarray, int]:
         raise RuntimeError("decoder exploded")
 
-    monkeypatch.setattr("bandscope_analysis.separation.audio_separator.decode_mono_audio", explode_decode)
+    monkeypatch.setattr(
+        "bandscope_analysis.separation.audio_separator.decode_mono_audio",
+        explode_decode,
+    )
     with pytest.raises(ValueError, match="Stem separation decode failed"):
         separator._load_audio(source)
 
