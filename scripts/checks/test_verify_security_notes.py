@@ -38,6 +38,19 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         path.write_text(
             "# Tooltip evidence\n\n"
             "## Security Notes\n\n"
+            "The external URL is documentation-only.\n\n"
+            "## References\n\n"
+            "https://developer.mozilla.org/example\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self._violations(),
+            [f"{path} missing Security Notes trust-boundary statement"],
+        )
+
+        path.write_text(
+            "# Tooltip evidence\n\n"
+            "## Security Notes\n\n"
             "The external URL is documentation-only and creates no runtime trust-boundary path.\n\n"
             "## References\n\n"
             "https://developer.mozilla.org/example\n",
