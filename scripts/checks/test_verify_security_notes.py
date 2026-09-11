@@ -70,6 +70,29 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         )
         self.assertEqual(self._violations(), [])
 
+    def test_doctoring_code_blocks_cannot_satisfy_security_evidence(self) -> None:
+        """Fenced and indented code must not impersonate governed Markdown evidence."""
+        path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
+        valid_looking_evidence = (
+            "## Security Notes\n\n"
+            "### Trust boundary\n\n"
+            "The external URL is documentation-only and creates no runtime trust-boundary path.\n"
+        )
+
+        path.write_text(
+            "# Tooltip evidence\n\n```markdown\n"
+            f"{valid_looking_evidence}```\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(self._violations(), [str(path)])
+
+        indented = "\n".join(f"    {line}" for line in valid_looking_evidence.splitlines())
+        path.write_text(
+            f"# Tooltip evidence\n\n{indented}\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(self._violations(), [str(path)])
+
     def test_unregistered_doctoring_reference_does_not_gain_boilerplate(self) -> None:
         """An ordinary research citation stays outside the opt-in doctoring policy."""
         path = self.doctoring_dir / "ordinary-reference.md"
