@@ -5,6 +5,7 @@ from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
 DOCTORING_SECURITY_NOTES_HEADING = "## Security Notes"
+DOCTORING_TRUST_BOUNDARY_HEADING = "### Trust boundary"
 PLAN_DIR = Path("docs/plans")
 DOCTORING_DIR = Path("docs/doctoring")
 REQUIRED_SUBSECTIONS = [
@@ -15,7 +16,6 @@ REQUIRED_SUBSECTIONS = [
     "realistic threats",
     "remaining risk",
 ]
-TRUST_BOUNDARY_PATTERN = re.compile(r"\btrust[- ]boundary\b", re.IGNORECASE)
 
 # Doctoring documents are opt-in because the six-subsection design-plan template is
 # not meaningful for every research or implementation note. A registry entry is the
@@ -65,22 +65,25 @@ def doctoring_security_notes_section(content: str) -> str:
     return ""
 
 
-def has_doctoring_trust_boundary_statement(section: str) -> bool:
-    """Require a substantive prose sentence describing the doctoring trust boundary."""
-    for paragraph in re.split(r"\n\s*\n", section):
-        prose_lines = [
-            line.strip()
-            for line in paragraph.splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        ]
-        prose = " ".join(prose_lines)
-        if not TRUST_BOUNDARY_PATTERN.search(prose):
+def doctoring_trust_boundary_statement(section: str) -> str:
+    """Return substantive prose owned by an explicit doctoring Trust boundary subsection."""
+    lines = section.splitlines()
+    heading = DOCTORING_TRUST_BOUNDARY_HEADING.casefold()
+    for index, line in enumerate(lines):
+        if line.strip().casefold() != heading:
             continue
-        context = TRUST_BOUNDARY_PATTERN.sub(" ", prose)
-        context_words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'/-]*", context)
-        if len(context_words) >= 5 and prose.rstrip().endswith((".", "!", "?")):
-            return True
-    return False
+        statement_lines: list[str] = []
+        for candidate in lines[index + 1 :]:
+            if candidate.strip().startswith("#"):
+                break
+            if candidate.strip():
+                statement_lines.append(candidate.strip())
+        statement = " ".join(statement_lines)
+        words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'/-]*", statement)
+        if len(words) >= 5 and statement.rstrip().endswith((".", "!", "?")):
+            return statement
+        return ""
+    return ""
 
 
 def find_security_notes_violations(
@@ -109,7 +112,7 @@ def find_security_notes_violations(
         if not section:
             missing.append(str(path))
             continue
-        if not has_doctoring_trust_boundary_statement(section):
+        if not doctoring_trust_boundary_statement(section):
             missing.append(f"{path} missing Security Notes trust-boundary statement")
 
     return missing
