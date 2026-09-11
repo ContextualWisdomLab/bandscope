@@ -50,16 +50,46 @@ def security_notes_section(content: str) -> str:
     return lowered[start : min(end_candidates)]
 
 
+def _remove_html_comment_content(line: str, in_comment: bool) -> tuple[str, bool]:
+    """Remove hidden HTML-comment spans while preserving visible text on the line."""
+    visible_parts: list[str] = []
+    cursor = 0
+
+    while cursor < len(line):
+        if in_comment:
+            end = line.find("-->", cursor)
+            if end == -1:
+                return "".join(visible_parts), True
+            in_comment = False
+            cursor = end + 3
+            continue
+
+        start = line.find("<!--", cursor)
+        if start == -1:
+            visible_parts.append(line[cursor:])
+            break
+
+        visible_parts.append(line[cursor:start])
+        end = line.find("-->", start + 4)
+        if end == -1:
+            in_comment = True
+            break
+        cursor = end + 3
+
+    return "".join(visible_parts), in_comment
+
+
 def doctoring_markdown_lines(content: str) -> list[str]:
-    """Return doctoring Markdown lines with fenced and indented code removed."""
+    """Return rendered doctoring lines with code and HTML comments removed."""
     visible: list[str] = []
     fence_character = ""
     fence_length = 0
+    in_html_comment = False
 
-    for line in content.splitlines():
+    for raw_line in content.splitlines():
         if fence_character:
-            stripped = line.lstrip(" ")
-            indent = len(line) - len(stripped)
+            stripped = raw_line.lstrip(" ")
+            indent = len(raw_line) - len(stripped)
             closing = stripped.strip()
             if (
                 indent <= 3
@@ -68,6 +98,10 @@ def doctoring_markdown_lines(content: str) -> list[str]:
             ):
                 fence_character = ""
                 fence_length = 0
+            continue
+
+        line, in_html_comment = _remove_html_comment_content(raw_line, in_html_comment)
+        if not line:
             continue
 
         fence_match = FENCE_OPEN_RE.match(line)
