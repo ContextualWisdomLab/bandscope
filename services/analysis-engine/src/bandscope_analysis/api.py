@@ -39,18 +39,6 @@ FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 _CANONICAL_AUDIO_STEM_NAMES = frozenset(get_args(AudioStemName))
 
-
-class _TracebackFreeExceptionLogger(logging.LoggerAdapter):
-    """Emit fixed failure diagnostics without serializing active exception context."""
-
-    def exception(self, msg: object, *args: object, **kwargs: Any) -> None:
-        """Log a fixed error message while deliberately suppressing traceback payloads."""
-        kwargs["exc_info"] = False
-        self.error(msg, *args, **kwargs)
-
-
-logger = _TracebackFreeExceptionLogger(logging.getLogger(__name__), {})
-
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
 AnalysisCacheStatus = Literal["disabled", "miss", "hit", "stored"]
@@ -951,7 +939,7 @@ def _stem_separation_worker(
         result_queue.put(("ok", separation_result))
     except Exception as error:
         kind, safe_message, log_message = _stem_separation_failure(error)
-        logger.exception(log_message)
+        logger.error(log_message)
         result_queue.put((kind, safe_message))
 
 
@@ -1233,7 +1221,7 @@ def run_analysis_job_updates(
             )
             audio_features = None
         except (FileNotFoundError, ValueError):
-            logger.exception("Stem separation failed before analysis job completion.")
+            logger.error("Stem separation failed before analysis job completion.")
             updates.append(
                 _build_job_status(
                     job_id=job_id,
