@@ -17,7 +17,10 @@ from bandscope_analysis import (
     feature_cache_admission,
     feature_cache_generation,
 )
-from bandscope_analysis.audio_resource_policy import AudioResourcePolicy, AudioResourcePolicyError
+from bandscope_analysis.audio_resource_policy import (
+    AudioResourcePolicy,
+    AudioResourcePolicyError,
+)
 
 _SOURCE_SHA256 = "ab" * 32
 
