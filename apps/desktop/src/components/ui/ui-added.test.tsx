@@ -1,4 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { DirectionProvider } from "@base-ui/react/direction-provider"
 import { describe, expect, it } from "vitest"
 
 import {
@@ -25,6 +27,13 @@ import {
   DialogDescription,
   DialogTitle,
 } from "./dialog"
+import {
+  Slider,
+  SliderControl,
+  SliderTrack,
+  SliderIndicator,
+  SliderThumb,
+} from "./slider"
 import {
   Select,
   SelectContent,
@@ -244,5 +253,108 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Slider mounts and renders accessible roles", () => {
+    render(
+      <Slider>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Test Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    expect(screen.getByRole("slider", { name: "Test Slider" })).toBeInTheDocument()
+  })
+
+  it("Slider mounts vertically and renders accessible roles", () => {
+    const { container } = render(
+      <Slider orientation="vertical">
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Vertical Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    expect(screen.getByRole("slider", { name: "Vertical Slider" })).toHaveAttribute("aria-orientation", "vertical")
+    expect(container.querySelector('[data-slot="slider"]')).toHaveClass("data-[orientation=vertical]:flex-col")
+    expect(container.querySelector('[data-slot="slider-control"]')).toHaveClass("data-[orientation=vertical]:flex-col")
+    expect(container.querySelector('[data-slot="slider-track"]')).toHaveClass("data-[orientation=vertical]:h-full")
+  })
+
+  it("Slider correctly handles disabled state", () => {
+    render(
+      <Slider disabled>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Disabled Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    expect(screen.getByRole("slider", { name: "Disabled Slider" })).toBeDisabled()
+  })
+
+  it("Slider handles keyboard focus routing and class-token contract", async () => {
+    const user = userEvent.setup()
+    render(
+      <Slider>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Focus Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    const slider = screen.getByRole("slider", { name: "Focus Slider" })
+    await user.tab()
+    expect(slider).toHaveFocus()
+    expect(slider.parentElement).toHaveClass("has-[:focus-visible]:outline-none")
+  })
+
+  it("Slider keeps its extended hit target on Base UI's positioned thumb wrapper", () => {
+    render(
+      <Slider>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Hit target Slider" />
+        </SliderControl>
+      </Slider>
+    )
+    const slider = screen.getByRole("slider", { name: "Hit target Slider" })
+    expect(slider.parentElement).toHaveStyle({ position: "absolute" })
+    expect(slider.parentElement).not.toHaveClass("relative")
+    expect(slider.parentElement).toHaveClass("after:absolute")
+    expect(slider.parentElement).toHaveClass("after:inset-[-12px]")
+  })
+
+  it("Slider handles RTL keyboard semantics correctly", async () => {
+    const user = userEvent.setup()
+    render(
+      <DirectionProvider direction="rtl">
+        <Slider defaultValue={50}>
+          <SliderControl>
+            <SliderTrack>
+              <SliderIndicator />
+            </SliderTrack>
+            <SliderThumb aria-label="RTL Slider" />
+          </SliderControl>
+        </Slider>
+      </DirectionProvider>
+    )
+    const slider = screen.getByRole("slider", { name: "RTL Slider" })
+    await user.tab()
+    await user.keyboard("{ArrowRight}")
+    expect(slider).toHaveAttribute("aria-valuenow", "49")
+    await user.keyboard("{ArrowLeft}")
+    expect(slider).toHaveAttribute("aria-valuenow", "50")
   })
 })
