@@ -27,7 +27,7 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         return find_security_notes_violations(self.plan_dir, self.doctoring_dir)
 
     def test_registered_doctoring_security_boundary_is_machine_enforced(self) -> None:
-        """Deleting reviewed doctoring trust-boundary evidence must turn the gate RED."""
+        """Deleting or emptying reviewed doctoring trust-boundary evidence must turn RED."""
         path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
         path.write_text(
             "# Tooltip evidence\n\n"
@@ -39,18 +39,25 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         )
         self.assertEqual(self._violations(), [str(path)])
 
-        path.write_text(
-            "# Tooltip evidence\n\n"
-            "## Security Notes\n\n"
-            "The external URL is documentation-only.\n\n"
-            "## References\n\n"
-            "https://developer.mozilla.org/example\n",
-            encoding="utf-8",
-        )
-        self.assertEqual(
-            self._violations(),
-            [f"{path} missing Security Notes trust-boundary statement"],
-        )
+        for invalid_section in [
+            "### Trust boundary\n",
+            "trust boundary\n",
+            "The trust boundary.\n",
+            "The external URL is documentation-only.\n",
+        ]:
+            with self.subTest(invalid_section=invalid_section):
+                path.write_text(
+                    "# Tooltip evidence\n\n"
+                    "## Security Notes\n\n"
+                    f"{invalid_section}\n"
+                    "## References\n\n"
+                    "https://developer.mozilla.org/example\n",
+                    encoding="utf-8",
+                )
+                self.assertEqual(
+                    self._violations(),
+                    [f"{path} missing Security Notes trust-boundary statement"],
+                )
 
         path.write_text(
             "# Tooltip evidence\n\n"
