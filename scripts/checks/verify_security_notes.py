@@ -3,6 +3,7 @@
 from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
+DOCTORING_SECURITY_NOTES_HEADING = "## Security Notes"
 PLAN_DIR = Path("docs/plans")
 DOCTORING_DIR = Path("docs/doctoring")
 REQUIRED_SUBSECTIONS = [
@@ -27,7 +28,7 @@ DOCTORING_SECURITY_NOTES_REQUIRED = frozenset(
 
 
 def security_notes_section(content: str) -> str:
-    """Extract the lowercased Security Notes section from a governed document."""
+    """Extract the lowercased Security Notes section from a plan document."""
     lowered = content.lower()
     marker = SECURITY_NOTES_TEXT.lower()
     start = lowered.find(marker)
@@ -35,7 +36,7 @@ def security_notes_section(content: str) -> str:
         return ""
 
     end_candidates = []
-    for delimiter in ["\n---", "\n## approaches considered", "\n## decision", "\n## references"]:
+    for delimiter in ["\n---", "\n## approaches considered", "\n## decision"]:
         end = lowered.find(delimiter, start + len(marker))
         if end != -1:
             end_candidates.append(end)
@@ -46,9 +47,25 @@ def security_notes_section(content: str) -> str:
     return lowered[start : min(end_candidates)]
 
 
-def _normalized_security_notes(content: str) -> str:
+def doctoring_security_notes_section(content: str) -> str:
+    """Return only the body of an explicit level-two doctoring Security Notes heading."""
+    lines = content.splitlines()
+    heading = DOCTORING_SECURITY_NOTES_HEADING.casefold()
+    for index, line in enumerate(lines):
+        if line.strip().casefold() != heading:
+            continue
+        section_lines: list[str] = []
+        for candidate in lines[index + 1 :]:
+            if candidate.strip().startswith("## "):
+                break
+            section_lines.append(candidate)
+        return "\n".join(section_lines).casefold()
+    return ""
+
+
+def _normalized_trust_boundary_text(content: str) -> str:
     """Normalize punctuation needed by doctoring trust-boundary assertions."""
-    return security_notes_section(content).replace("-", " ")
+    return doctoring_security_notes_section(content).replace("-", " ")
 
 
 def find_security_notes_violations(
@@ -73,10 +90,11 @@ def find_security_notes_violations(
         if not path.exists():
             continue
         content = path.read_text(encoding="utf-8")
-        if SECURITY_NOTES_TEXT not in content:
+        section = doctoring_security_notes_section(content)
+        if not section:
             missing.append(str(path))
             continue
-        if "trust boundary" not in _normalized_security_notes(content):
+        if "trust boundary" not in _normalized_trust_boundary_text(content):
             missing.append(f"{path} missing Security Notes trust-boundary statement")
 
     return missing
