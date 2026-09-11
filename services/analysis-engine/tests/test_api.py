@@ -636,7 +636,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "message": "Stem separation failed",
     }
     assert "/Users/test/Music" not in str(updates[-1]["error"])
-    logger.exception.assert_called_once_with(
+    logger.error.assert_called_once_with(
         "Stem separation failed before analysis job completion."
     )
 
@@ -1031,7 +1031,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
         assert fake_queue.items == [(expected_kind, expected_message)]
         assert "/secret" not in str(fake_queue.items)
-        logger.exception.assert_called_once_with(expected_log_message)
+        logger.error.assert_called_once_with(expected_log_message)
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
