@@ -1,5 +1,6 @@
 """Verify Security Notes requirements for plans and selected doctoring evidence."""
 
+import re
 from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
@@ -14,6 +15,7 @@ REQUIRED_SUBSECTIONS = [
     "realistic threats",
     "remaining risk",
 ]
+TRUST_BOUNDARY_PATTERN = re.compile(r"\btrust[- ]boundary\b", re.IGNORECASE)
 
 # Doctoring documents are opt-in because the six-subsection design-plan template is
 # not meaningful for every research or implementation note. A registry entry is the
@@ -59,13 +61,26 @@ def doctoring_security_notes_section(content: str) -> str:
             if candidate.strip().startswith("## "):
                 break
             section_lines.append(candidate)
-        return "\n".join(section_lines).casefold()
+        return "\n".join(section_lines)
     return ""
 
 
-def _normalized_trust_boundary_text(content: str) -> str:
-    """Normalize punctuation needed by doctoring trust-boundary assertions."""
-    return doctoring_security_notes_section(content).replace("-", " ")
+def has_doctoring_trust_boundary_statement(section: str) -> bool:
+    """Require a substantive prose sentence describing the doctoring trust boundary."""
+    for paragraph in re.split(r"\n\s*\n", section):
+        prose_lines = [
+            line.strip()
+            for line in paragraph.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        prose = " ".join(prose_lines)
+        if not TRUST_BOUNDARY_PATTERN.search(prose):
+            continue
+        context = TRUST_BOUNDARY_PATTERN.sub(" ", prose)
+        context_words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'/-]*", context)
+        if len(context_words) >= 5 and prose.rstrip().endswith((".", "!", "?")):
+            return True
+    return False
 
 
 def find_security_notes_violations(
@@ -94,7 +109,7 @@ def find_security_notes_violations(
         if not section:
             missing.append(str(path))
             continue
-        if "trust boundary" not in _normalized_trust_boundary_text(content):
+        if not has_doctoring_trust_boundary_statement(section):
             missing.append(f"{path} missing Security Notes trust-boundary statement")
 
     return missing
