@@ -185,7 +185,8 @@ def test_temporal_analyzer_does_not_suppress_unrelated_loader_warnings(
 
     def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
         warnings.warn("unrelated downstream warning", FutureWarning, stacklevel=2)
-        return np.zeros(1024, dtype=float), 44100
+        phase = np.arange(4_096, dtype=np.float64) / 44_100
+        return np.sin(2 * np.pi * 220.0 * phase), 44_100
 
     monkeypatch.setattr(librosa, "load", fake_load)
     monkeypatch.setattr(librosa, "get_duration", lambda *, y, sr: 1.0)
