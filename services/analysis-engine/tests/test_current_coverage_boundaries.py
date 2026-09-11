@@ -86,30 +86,39 @@ def test_second_read_metadata_covers_optional_rate_and_numeric_failure_boundarie
         json.dumps(_single_stem_metadata()),
         encoding="utf-8",
     )
-    assert feature_cache_admission._read_canonical_stem_role_metadata(
-        arrays_path,
-        ["bass"],
-    ) is not None
+    assert (
+        feature_cache_admission._read_canonical_stem_role_metadata(
+            arrays_path,
+            ["bass"],
+        )
+        is not None
+    )
 
     monkeypatch.setattr(
         feature_cache_admission,
         "read_bounded_feature_cache_metadata",
         lambda *_args, **_kwargs: _single_stem_metadata(_FLOAT_OVERFLOW_INT),
     )
-    assert feature_cache_admission._read_canonical_stem_role_metadata(
-        arrays_path,
-        ["bass"],
-    ) is None
+    assert (
+        feature_cache_admission._read_canonical_stem_role_metadata(
+            arrays_path,
+            ["bass"],
+        )
+        is None
+    )
 
     monkeypatch.setattr(
         feature_cache_admission,
         "read_bounded_feature_cache_metadata",
         lambda *_args, **_kwargs: _single_stem_metadata(float("nan")),
     )
-    assert feature_cache_admission._read_canonical_stem_role_metadata(
-        arrays_path,
-        ["bass"],
-    ) is None
+    assert (
+        feature_cache_admission._read_canonical_stem_role_metadata(
+            arrays_path,
+            ["bass"],
+        )
+        is None
+    )
 
 
 def test_duration_helper_rejects_numeric_materialization_failure() -> None:
@@ -189,11 +198,14 @@ def test_npz_preflight_rejects_uncompressed_and_unsynchronized_members() -> None
         stem_drums=np.ones(5, dtype=np.float32),
     )
     mismatched.seek(0)
-    assert feature_cache_admission._preflight_npz(
-        mismatched,  # type: ignore[arg-type]
-        ["bass", "drums"],
-        policy,
-    ) is None
+    assert (
+        feature_cache_admission._preflight_npz(
+            mismatched,  # type: ignore[arg-type]
+            ["bass", "drums"],
+            policy,
+        )
+        is None
+    )
 
 
 def test_archive_loader_rejects_snapshot_copy_digest_and_preflight_failures(
