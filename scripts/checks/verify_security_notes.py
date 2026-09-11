@@ -16,6 +16,7 @@ REQUIRED_SUBSECTIONS = [
     "realistic threats",
     "remaining risk",
 ]
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 # Doctoring documents are opt-in because the six-subsection design-plan template is
 # not meaningful for every research or implementation note. A registry entry is the
@@ -49,9 +50,43 @@ def security_notes_section(content: str) -> str:
     return lowered[start : min(end_candidates)]
 
 
+def doctoring_markdown_lines(content: str) -> list[str]:
+    """Return doctoring Markdown lines with fenced and indented code removed."""
+    visible: list[str] = []
+    fence_character = ""
+    fence_length = 0
+
+    for line in content.splitlines():
+        if fence_character:
+            stripped = line.lstrip(" ")
+            indent = len(line) - len(stripped)
+            closing = stripped.strip()
+            if (
+                indent <= 3
+                and len(closing) >= fence_length
+                and set(closing) == {fence_character}
+            ):
+                fence_character = ""
+                fence_length = 0
+            continue
+
+        fence_match = FENCE_OPEN_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            fence_character = marker[0]
+            fence_length = len(marker)
+            continue
+
+        if line.startswith("\t") or line.startswith("    "):
+            continue
+        visible.append(line)
+
+    return visible
+
+
 def doctoring_security_notes_section(content: str) -> str:
     """Return only the body of an explicit level-two doctoring Security Notes heading."""
-    lines = content.splitlines()
+    lines = doctoring_markdown_lines(content)
     heading = DOCTORING_SECURITY_NOTES_HEADING.casefold()
     for index, line in enumerate(lines):
         if line.strip().casefold() != heading:
