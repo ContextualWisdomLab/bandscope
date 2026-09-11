@@ -822,10 +822,7 @@ def _producer_stems_match_replay_admission(
 ) -> bool:
     """Return whether producer stems satisfy the same canonical replay admission."""
     stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
-    stems = {
-        stem_key: serialized_stems[f"stem_{stem_key}"]
-        for stem_key in stem_keys
-    }
+    stems = {stem_key: serialized_stems[f"stem_{stem_key}"] for stem_key in stem_keys}
     return (
         admit_canonical_stem_set(
             stems,
