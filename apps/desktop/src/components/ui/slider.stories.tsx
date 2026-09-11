@@ -21,6 +21,41 @@ export const Default: Story = {
   },
 }
 
+/** Range slider with two thumbs */
+export const Range: Story = {
+  args: {
+    defaultValue: [25, 75],
+    className: "w-[60%]",
+  },
+}
+
+/** Vertical slider */
+export const Vertical: Story = {
+  args: {
+    defaultValue: 50,
+    orientation: "vertical",
+    className: "h-32",
+  },
+}
+
+/** Slider with custom steps */
+export const CustomStep: Story = {
+  args: {
+    defaultValue: 50,
+    step: 10,
+    className: "w-[60%]",
+  },
+}
+
+/** RTL slider */
+export const RTL: Story = {
+  render: () => (
+    <div dir="rtl" className="w-[60vw]">
+      <Slider defaultValue={50} />
+    </div>
+  ),
+}
+
 /** Disabled slider state */
 export const Disabled: Story = {
   args: {
