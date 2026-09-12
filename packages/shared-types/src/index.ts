@@ -238,7 +238,7 @@ export type AnalysisJobStage = "queued" | "decode" | "separate" | "analyze" | "p
 /** Documented. */
 export type AnalysisCacheStatus = "disabled" | "miss" | "hit" | "stored";
 /** Documented. */
-export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable";
+export type AnalysisJobErrorCode = "invalid_request" | "not_found" | "engine_unavailable" | "cancelled";
 
 /** Documented. */
 export type LocalAudioSource = {
@@ -365,7 +365,7 @@ const ANALYSIS_SOURCE_KINDS = ["demo", "local_audio"] as const;
 const ANALYSIS_JOB_STATES = ["queued", "running", "succeeded", "failed"] as const;
 const ANALYSIS_JOB_STAGES = ["queued", "decode", "separate", "analyze", "persist", "ready"] as const;
 const ANALYSIS_CACHE_STATUSES = ["disabled", "miss", "hit", "stored"] as const;
-const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable"] as const;
+const ANALYSIS_JOB_ERROR_CODES = ["invalid_request", "not_found", "engine_unavailable", "cancelled"] as const;
 const PACK_STATES = ["queued", "analyzing", "ready", "failed"] as const;
 const HANDOFF_ASSET_STATUSES = ["referenced", "missing"] as const;
 

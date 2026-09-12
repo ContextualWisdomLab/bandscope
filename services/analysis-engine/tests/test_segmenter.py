@@ -350,17 +350,21 @@ def test_segment_boundaries_falls_back_when_boundary_computation_fails() -> None
 
 def test_segment_with_boundaries_uses_single_boundary_computation() -> None:
     """Ensure sections and boundary pairs come from one boundary pass."""
-    audio = np.ones(22050 * 20, dtype=np.float32)
+    sr = 22050
+    half_seconds = 10
+    t = np.arange(sr * half_seconds, dtype=np.float64) / sr
+    half = (0.25 * np.sin(2 * np.pi * 220.0 * t)).astype(np.float32)
+    audio = np.concatenate([half, half])
 
     with patch(
         "bandscope_analysis.sections.segmenter._compute_boundaries",
         return_value=[0.0, 10.0],
     ) as compute_boundaries:
-        sections, boundaries = segment_with_boundaries(audio, 22050, duration=20.0)
+        sections, boundaries = segment_with_boundaries(audio, sr, duration=20.0)
 
     compute_boundaries.assert_called_once()
-    # Constant audio -> the two segments are acoustically identical, so repetition
-    # grouping labels them as the same repeated section.
+    # The two audible periodic halves are byte-identical, so repetition grouping
+    # still labels them as the same repeated section without silent-audio warnings.
     assert [section["id"] for section in sections] == ["chorus-1", "chorus-2"]
     assert boundaries == [(0.0, 10.0), (10.0, 20.0)]
 

@@ -36,8 +36,12 @@ GitHub is the source of truth for repository governance, PR review, CI/CD, Code 
 - keep risky capabilities narrow, allowlisted, and explicit
 - treat files, URLs, models, caches, and release artifacts as untrusted inputs
 - route orchestration through typed Tauri IPC and a narrow Python subprocess bridge before considering any loopback HTTP surface
-- bootstrap local audio projects by validating the selected file in Rust, then passing only typed source metadata through the orchestration boundary
+- keep every renderer-visible command synchronized across the Tauri invoke handler, `AppManifest::commands`, generated command permission, and window capability; do not expose PIDs or generic process handles to the WebView
+- validate selected local-audio metadata and encoded size before decode, then stage admitted bytes into the app-owned project and commit a no-clobber immutable source with a path-free size/SHA-256 receipt
+- before Python decoders transform source audio, preflight the already-open container handle through the shared `audio_resource_policy` source-rate/channel/duration contract, then rewind it for decoding
 - keep project and temp/cache bootstrap roots under Tauri-resolved app-owned directories rather than the shared OS temp namespace
+- treat analysis/import subprocess containment as a GUI-independent desktop-core boundary: Linux/macOS establish an owned process group before `exec`, group termination covers timeout/cancellation/error and residual same-group descendants after direct-parent terminal status before output-reader joins; descendants that deliberately leave the group remain outside the claim, and Windows remains direct-child-only until a race-free Job Object boundary is implemented
+- keep process containment distinct from resource acceptance: inherited-handle/temp cleanup, cancellation latency, decoder/resampler/downstream peak RSS/VRAM, and explicit per-job CPU/GPU budgets require rights-cleared full-length real-audio evidence
 
 ## CI/CD and release flow
 

@@ -12,15 +12,25 @@ use std::{
     collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Child, Command},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
-    thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::{ffi::c_int, os::unix::process::CommandExt};
 use time::OffsetDateTime;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+const SIGKILL: c_int = 9;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+extern "C" {
+    #[link_name = "kill"]
+    fn posix_kill(pid: c_int, signal: c_int) -> c_int;
+}
 
 #[derive(Clone)]
 pub struct AppState(pub Arc<AppStateInner>);
@@ -79,6 +89,7 @@ pub enum AnalysisJobErrorCode {
     InvalidRequest,
     NotFound,
     EngineUnavailable,
+    Cancelled,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -423,101 +434,41 @@ pub fn youtube_missing_metadata_error(_parsed: &Value) -> String {
     "YouTube import reported ok but missing metadata.".to_string()
 }
 
-pub fn wait_for_process_output(
-    mut command: Command,
-    timeout: Duration,
-    poll_interval: Duration,
-    timeout_message: &str,
-) -> Result<std::process::Output, String> {
-    let mut child = command
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| "Failed to start YouTube import process.".to_string())?;
-    let stdout = child
-        .stdout
-        .take()
-        .expect("stdout should be piped for YouTube import process");
-    let stderr = child
-        .stderr
-        .take()
-        .expect("stderr should be piped for YouTube import process");
-    let stdout_reader = thread::spawn(move || {
-        let mut reader = stdout;
-        let mut buffer = Vec::new();
-        reader.read_to_end(&mut buffer).map(|_| buffer)
-    });
-    let stderr_reader = thread::spawn(move || {
-        let mut reader = stderr;
-        let mut buffer = Vec::new();
-        reader.read_to_end(&mut buffer).map(|_| buffer)
-    });
-    let deadline = Instant::now() + timeout;
+/// Configure a BandScope-owned subprocess so ordinary Unix descendants share one process group.
+///
+/// Security Notes: Linux and macOS create the group before `exec`. Windows is intentionally
+/// direct-child-only until a race-free Job Object creation/assignment boundary is implemented.
+pub fn configure_owned_process(command: &mut Command) {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    command.process_group(0);
+}
 
-    loop {
-        let process_status = {
-            #[cfg(coverage)]
-            {
-                child
-                    .try_wait()
-                    .expect("YouTube process status polling should not fail under coverage")
-            }
-            #[cfg(not(coverage))]
-            {
-                match child.try_wait() {
-                    Ok(status) => status,
-                    Err(_) => {
-                        let _ = child.kill();
-                        let _ = child.wait();
-                        let _ = stdout_reader.join();
-                        let _ = stderr_reader.join();
-                        return Err("Failed to execute YouTube import process.".to_string());
-                    }
-                }
-            }
-        };
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn kill_owned_process_group(child: &Child) -> bool {
+    let Ok(process_group_id) = c_int::try_from(child.id()) else {
+        return false;
+    };
 
-        match process_status {
-            Some(status) => {
-                #[cfg(coverage)]
-                let stdout = stdout_reader
-                    .join()
-                    .expect("stdout reader should not panic")
-                    .expect("stdout reader should read process output");
-                #[cfg(not(coverage))]
-                let stdout = stdout_reader
-                    .join()
-                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
-                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
-                #[cfg(coverage)]
-                let stderr = stderr_reader
-                    .join()
-                    .expect("stderr reader should not panic")
-                    .expect("stderr reader should read process output");
-                #[cfg(not(coverage))]
-                let stderr = stderr_reader
-                    .join()
-                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?
-                    .map_err(|_| "Failed to execute YouTube import process.".to_string())?;
-                return Ok(std::process::Output {
-                    status,
-                    stdout,
-                    stderr,
-                });
-            }
-            None => {
-                if Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    let _ = stdout_reader.join();
-                    let _ = stderr_reader.join();
-                    return Err(timeout_message.to_string());
-                }
-                thread::sleep(poll_interval);
-            }
-        }
+    // SAFETY: `configure_owned_process` establishes a fresh group whose id equals the child
+    // PID on supported Unix targets. A negative pid targets only that group.
+    unsafe { posix_kill(-process_group_id, SIGKILL) == 0 }
+}
+
+/// Terminate a BandScope-owned subprocess boundary and reap the directly owned child.
+///
+/// Security Notes: Linux and macOS signal the negative process-group id so ordinary descendants
+/// that retain the inherited group terminate before reader threads are joined. If group signalling
+/// fails, direct-child kill/reap remains the fail-closed fallback. This does not claim containment
+/// for descendants that deliberately leave the group or for Windows descendants.
+pub fn terminate_owned_process(child: &mut Child) {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if kill_owned_process_group(child) {
+        let _ = child.wait();
+        return;
     }
+
+    let _ = child.kill();
+    let _ = child.wait();
 }
 
 pub fn is_youtube_video_id(value: &str) -> bool {
@@ -955,7 +906,7 @@ mod tests {
     fn youtube_process_timeout_kills_and_reaps_child() {
         let command = long_sleep_command();
 
-        let result = wait_for_process_output(
+        let result = crate::wait_for_process_output(
             command,
             Duration::from_millis(50),
             Duration::from_millis(5),
@@ -972,7 +923,7 @@ mod tests {
     fn youtube_process_output_reports_spawn_failure() {
         let command = Command::new(unique_test_dir("missing-youtube-command").join("missing-tool"));
 
-        let result = wait_for_process_output(
+        let result = crate::wait_for_process_output(
             command,
             Duration::from_millis(50),
             Duration::from_millis(5),
@@ -1022,10 +973,10 @@ mod tests {
         command
             .env("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT", "1")
             .arg("--exact")
-            .arg("tests::youtube_process_output_drains_large_stdout_and_stderr_before_exit")
+            .arg("runtime_core::tests::youtube_process_output_drains_large_stdout_and_stderr_before_exit")
             .arg("--nocapture");
 
-        let output = wait_for_process_output(
+        let output = crate::wait_for_process_output(
             command,
             Duration::from_secs(2),
             Duration::from_millis(5),

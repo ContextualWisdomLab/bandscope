@@ -462,37 +462,56 @@ def test_audio_stem_separator_rejects_empty_decoder_output(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Ensure empty decoder output fails safely."""
+    """Ensure empty decoder output fails safely without exposing the source path."""
     audio_path = tmp_path / "empty.wav"
     audio_path.write_bytes(b"placeholder")
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.librosa.load",
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_decode.librosa.load",
         lambda *args, **kwargs: (np.array([], dtype=np.float32), 8_000),
     )
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
-    with pytest.raises(ValueError, match="Stem separation decode failed for empty.wav"):
+    with pytest.raises(
+        ValueError, match=r"^Audio input violates the audio resource policy\.$"
+    ) as error:
         separator.separate(audio_path)
+    assert str(tmp_path) not in str(error.value)
+    assert "empty.wav" not in str(error.value)
 
 
 def test_audio_stem_separator_redacts_decoder_exceptions(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Ensure decoder failures are surfaced without full local paths."""
+    """Ensure decoder failures are surfaced without full local paths or decoder payloads."""
     audio_path = tmp_path / "broken.wav"
     audio_path.write_bytes(b"placeholder")
+    monkeypatch.setattr(
+        "bandscope_analysis.audio_decode.preflight_audio_metadata",
+        lambda *_args, **_kwargs: None,
+    )
+
+    decoder_payload = f"decoder failed under {tmp_path}"
 
     def fail_decode(*args, **kwargs):
-        raise RuntimeError(f"decoder failed under {tmp_path}")
+        raise RuntimeError(decoder_payload)
 
     monkeypatch.setattr(
-        "bandscope_analysis.separation.audio_separator.librosa.load",
+        "bandscope_analysis.audio_decode.librosa.load",
         fail_decode,
     )
     separator = AudioStemSeparator(AudioSeparationConfig(target_sample_rate=8_000))
-    with pytest.raises(ValueError, match="Stem separation decode failed for broken.wav") as error:
+    with pytest.raises(
+        ValueError, match=r"^Audio input violates the audio resource policy\.$"
+    ) as error:
         separator.separate(audio_path)
-    assert str(tmp_path) not in str(error.value)
+    message = str(error.value)
+    assert str(tmp_path) not in message
+    assert "broken.wav" not in message
+    assert decoder_payload not in message
 
 
 def test_audio_stem_separator_fit_length_zero() -> None:

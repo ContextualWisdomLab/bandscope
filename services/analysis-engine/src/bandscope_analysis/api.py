@@ -10,15 +10,28 @@ import queue
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any, Literal, NotRequired, TypedDict, cast
+from typing import Any, Literal, NotRequired, TypedDict, cast, get_args
 
 import numpy as np
 
+from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
+from bandscope_analysis.feature_cache_admission import (
+    admit_canonical_stem_set,
+    canonical_stem_role_types,
+    load_bounded_stem_archive,
+    read_bounded_feature_cache_metadata,
+)
+from bandscope_analysis.feature_cache_generation import (
+    build_generation_manifest,
+    feature_cache_manifest_path,
+    read_generation_manifest,
+    source_sha256_from_cache_path,
+)
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
 from bandscope_analysis.sections.segmenter import segment_with_boundaries
-from bandscope_analysis.separation import AudioStemSeparator
+from bandscope_analysis.separation import AudioStemName, AudioStemSeparator
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +39,7 @@ MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
 FEATURE_CACHE_SCHEMA_VERSION = 1
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
-
-logger = logging.getLogger(__name__)
+_CANONICAL_AUDIO_STEM_NAMES = frozenset(get_args(AudioStemName))
 
 AnalysisJobState = Literal["queued", "running", "succeeded", "failed"]
 AnalysisJobStage = Literal["queued", "decode", "separate", "analyze", "persist", "ready"]
@@ -72,21 +84,21 @@ class ConfidencePayload(TypedDict):
 
 
 class CuePayload(TypedDict):
-    """Typed cue payload nested inside rehearsal results."""
+    """Typed cue payload nested inside rehearsal roles."""
 
     kind: str
     value: str
 
 
 class RangePayload(TypedDict):
-    """Typed range payload nested inside rehearsal results."""
+    """Typed range payload nested inside rehearsal roles."""
 
     lowestNote: str
     highestNote: str
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal results."""
+    """Typed harmony payload nested inside rehearsal roles."""
 
     chord: str
     functionLabel: str
@@ -278,10 +290,15 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
 
     if not isinstance(project_id, str) or not project_id.strip():
         raise ValueError("Invalid analysis job request: invalid field 'projectId'")
-    # Defense-in-depth: reject path separators and exact "." / ".." segments so
-    # projectId cannot escape app-owned roots if joined into filesystem paths.
+    # Defense-in-depth: reject path separators, leading/trailing whitespace, and exact
+    # "." / ".." segments so projectId cannot alias or escape app-owned roots.
     # Allow identifiers that merely contain ".." as a substring (e.g. "my..id").
-    if project_id in {".", ".."} or "/" in project_id or "\\" in project_id:
+    if (
+        project_id != project_id.strip()
+        or project_id.strip() in {".", ".."}
+        or "/" in project_id
+        or "\\" in project_id
+    ):
         logger.warning("Security: path traversal detected in projectId")
         raise ValueError("Invalid analysis job request: path traversal detected in 'projectId'")
     if local_source is None:
@@ -299,6 +316,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.sourcePath'")
     if ".." in source_path.replace("\\", "/").split("/"):
+        logger.warning("Security: path traversal detected in localSource.sourcePath")
         raise ValueError(
             "Invalid analysis job request: path traversal detected in 'localSource.sourcePath'"
         )
@@ -306,8 +324,12 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
-    if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
-        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
+    try:
+        file_size_bytes = DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(file_size_bytes)
+    except ValueError as error:
+        raise ValueError(
+            "Invalid analysis job request: invalid field 'localSource.fileSizeBytes'"
+        ) from error
 
     normalized: AnalysisJobRequest = {
         "sourceKind": source_kind,
@@ -702,31 +724,34 @@ def _default_stem_role_types(stem_keys: list[str]) -> dict[str, str]:
 def _normalize_stem_role_types(
     stem_role_types: object, stem_keys: list[str]
 ) -> dict[str, str] | None:
-    """Validate role metadata while preserving compatibility with older caches."""
-    if stem_role_types is None:
-        return _default_stem_role_types(stem_keys)
-    if not isinstance(stem_role_types, dict):
-        return None
-
-    normalized: dict[str, str] = {}
-    for stem_key in stem_keys:
-        role_type = stem_role_types.get(stem_key)
-        if role_type not in ("vocal", "instrument"):
-            return None
-        normalized[stem_key] = role_type
-    return normalized
+    """Validate persisted role metadata against canonical stem semantics."""
+    return canonical_stem_role_types(stem_keys, stem_role_types)
 
 
 def _load_cached_local_audio_features(
-    metadata_path: Path, arrays_path: Path
+    metadata_path: Path,
+    arrays_path: Path,
+    *,
+    require_manifest: bool = False,
 ) -> dict[str, Any] | None:
     """Load cached stem/features payload, treating malformed files as cache misses."""
-    try:
-        with metadata_path.open("r", encoding="utf-8") as metadata_file:
-            metadata_payload = json.load(metadata_file)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(metadata_payload, dict):
+    expected_metadata_sha256: str | None = None
+    expected_archive_sha256: str | None = None
+    if require_manifest:
+        source_sha256 = source_sha256_from_cache_path(metadata_path)
+        if source_sha256 is None:
+            return None
+        manifest = read_generation_manifest(metadata_path, source_sha256)
+        if manifest is None:
+            return None
+        expected_metadata_sha256 = manifest["metadataSha256"]
+        expected_archive_sha256 = manifest["archiveSha256"]
+
+    metadata_payload = read_bounded_feature_cache_metadata(
+        metadata_path,
+        expected_sha256=expected_metadata_sha256,
+    )
+    if metadata_payload is None:
         return None
     if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
         return None
@@ -734,6 +759,15 @@ def _load_cached_local_audio_features(
         return None
     separation = metadata_payload.get("separation")
     if not isinstance(separation, dict):
+        return None
+    duration_seconds = separation.get("duration_seconds")
+    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)):
+        return None
+    try:
+        duration_value = float(duration_seconds)
+    except (OverflowError, ValueError):
+        return None
+    if not np.isfinite(duration_value) or duration_value <= 0:
         return None
     stem_keys = metadata_payload.get("stemKeys")
     if not isinstance(stem_keys, list) or not stem_keys:
@@ -744,18 +778,15 @@ def _load_cached_local_audio_features(
     if stem_role_types is None:
         return None
 
-    try:
-        with np.load(arrays_path, allow_pickle=False) as stems_archive:
-            stems: dict[str, np.ndarray] = {}
-            for stem_key in stem_keys:
-                archive_key = f"stem_{stem_key}"
-                if archive_key not in stems_archive:
-                    return None
-                stem_array = stems_archive[archive_key]
-                if not isinstance(stem_array, np.ndarray):
-                    return None
-                stems[stem_key] = stem_array
-    except (OSError, ValueError):
+    stems = load_bounded_stem_archive(
+        arrays_path,
+        stem_keys,
+        metadata_payload["sampleRate"],
+        policy_template=DEFAULT_AUDIO_RESOURCE_POLICY,
+        expected_metadata_sha256=expected_metadata_sha256,
+        expected_archive_sha256=expected_archive_sha256,
+    )
+    if stems is None:
         return None
 
     return {
@@ -763,7 +794,7 @@ def _load_cached_local_audio_features(
         "sr": metadata_payload["sampleRate"],
         "stem_role_types": stem_role_types,
         "separation": {
-            "duration_seconds": separation.get("duration_seconds"),
+            "duration_seconds": duration_value,
             "chunk_count": separation.get("chunk_count"),
             "notes": separation.get("notes"),
         },
@@ -781,10 +812,32 @@ def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
             return None
         if not stem_name.isidentifier():
             return None
+        if stem_name not in _CANONICAL_AUDIO_STEM_NAMES:
+            return None
         if not isinstance(stem_value, np.ndarray):
             return None
         serialized_stems[f"stem_{stem_name}"] = stem_value
     return serialized_stems
+
+
+def _producer_stems_match_replay_admission(
+    serialized_stems: dict[str, np.ndarray],
+    sample_rate: object,
+    duration_seconds: object,
+) -> bool:
+    """Return whether producer stems satisfy the same canonical replay admission."""
+    stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
+    stems = {stem_key: serialized_stems[f"stem_{stem_key}"] for stem_key in stem_keys}
+    return (
+        admit_canonical_stem_set(
+            stems,
+            stem_keys,
+            sample_rate,
+            duration_seconds,
+            policy_template=DEFAULT_AUDIO_RESOURCE_POLICY,
+        )
+        is not None
+    )
 
 
 def _store_cached_local_audio_features(
@@ -793,7 +846,7 @@ def _store_cached_local_audio_features(
     request: AnalysisJobRequest,
     audio_features: dict[str, Any],
 ) -> bool:
-    """Persist reusable local-audio features with atomic writes."""
+    """Persist reusable local-audio features with a manifest-last commit marker."""
     if "localSource" not in request:
         return False
     serialized_stems = _serialize_stem_arrays(audio_features.get("stems"))
@@ -804,6 +857,12 @@ def _store_cached_local_audio_features(
         return False
     separation = audio_features.get("separation")
     if not isinstance(separation, dict):
+        return False
+    if not _producer_stems_match_replay_admission(
+        serialized_stems,
+        sample_rate,
+        separation.get("duration_seconds"),
+    ):
         return False
 
     stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
@@ -828,18 +887,39 @@ def _store_cached_local_audio_features(
         "stemKeys": stem_keys,
         "stemRoleTypes": stem_role_types,
     }
+    source_sha256 = source_sha256_from_cache_path(metadata_path)
+    metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
+    arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
+    manifest_path = feature_cache_manifest_path(metadata_path)
+    manifest_temp = manifest_path.with_name(f"{manifest_path.name}.tmp")
     try:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
-        arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
         with metadata_temp.open("w", encoding="utf-8") as metadata_file:
             json.dump(metadata_payload, metadata_file, separators=(",", ":"))
         with arrays_temp.open("wb") as arrays_file:
             np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
+
+        if source_sha256 is not None:
+            manifest_payload = build_generation_manifest(
+                metadata_temp,
+                arrays_temp,
+                source_sha256,
+            )
+            if manifest_payload is None:
+                return False
+            with manifest_temp.open("w", encoding="utf-8") as manifest_file:
+                json.dump(manifest_payload, manifest_file, separators=(",", ":"))
+
         arrays_temp.replace(arrays_path)
         metadata_temp.replace(metadata_path)
-    except OSError:
+        if source_sha256 is not None:
+            manifest_temp.replace(manifest_path)
+    except (OSError, TypeError, ValueError):
         return False
+    finally:
+        for temp_path in (metadata_temp, arrays_temp, manifest_temp):
+            with suppress(OSError):
+                temp_path.unlink(missing_ok=True)
     return True
 
 
@@ -883,7 +963,7 @@ def _stem_separation_worker(
         result_queue.put(("ok", separation_result))
     except Exception as error:
         kind, safe_message, log_message = _stem_separation_failure(error)
-        logger.exception(log_message)
+        logger.error(log_message)
         result_queue.put((kind, safe_message))
 
 
@@ -1105,7 +1185,10 @@ def run_analysis_job_updates(
     audio_features: dict[str, Any] | None = None
     feature_cache_hit = False
     if feature_cache_paths is not None:
-        cached_features = _load_cached_local_audio_features(*feature_cache_paths)
+        cached_features = _load_cached_local_audio_features(
+            *feature_cache_paths,
+            require_manifest=True,
+        )
         if cached_features is not None:
             audio_features = cached_features
             feature_cache_hit = True
@@ -1162,7 +1245,7 @@ def run_analysis_job_updates(
             )
             audio_features = None
         except (FileNotFoundError, ValueError):
-            logger.exception("Stem separation failed before analysis job completion.")
+            logger.error("Stem separation failed before analysis job completion.")
             updates.append(
                 _build_job_status(
                     job_id=job_id,

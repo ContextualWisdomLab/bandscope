@@ -95,6 +95,8 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Bind local backend only to `127.0.0.1` when a local HTTP surface exists.
 - Prefer direct IPC over a wider local HTTP surface when possible.
 - Allow only explicitly allowlisted IPC commands.
+- For Tauri application commands, keep invoke-handler registration, `AppManifest::commands`, generated allow/deny permissions, and the window capability grant in sync. A registered handler without runtime-authority permission is not a usable product capability; a broad capability grant is not an acceptable repair.
+- Job-control IPC must use BandScope-owned identifiers and typed operations. Do not expose PIDs, process handles, generic kill/exec commands, or arbitrary OS process authority to the WebView.
 - Validate all IPC and local backend payloads against strict schemas.
 - Reject unknown commands, unknown fields, and malformed payloads by default.
 - If a local HTTP service exists, consider per-session tokens or equivalent anti-cross-process protection.
@@ -137,8 +139,11 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Cross-check extension, MIME, and actual decode behavior.
 - Prefer isolated worker processing for decode and analysis.
 - Guard against very large files, abnormal duration, and hostile metadata.
+- Apply the versioned canonical local-audio resource policy consistently at request preflight and again at the opened-file/decoded-waveform boundary; request metadata is never authoritative for actual resource use.
+- Before any decoder resamples, downmixes, or duration-truncates local audio, inspect source-container metadata from the already-open handle with `soundfile.info`, enforce the shared 8 kHz–192 kHz and mono/stereo source contract, reject overlong sources, and rewind the handle before `librosa.load`.
+- In the Python analysis boundary, reject decoded audio that is empty, non-finite, wrong-rate, wrong-shaped, or over the accepted sample budget before beat tracking or model inference. Use the one-sample-over decode probe described in `docs/doctoring/audio-resource-policy.md` so an exact-boundary track remains accepted while excess decoded output is observable and fails closed.
 - Do not add arbitrary filesystem scanning just to find media files.
-- When bootstrapping a project around local audio, prefer referencing the validated original file plus app-owned temp/cache/project roots over copying the file until persistence requirements justify the extra storage boundary.
+- When bootstrapping a project around local audio, use the OS-selected external file only as untrusted admission input. Stage and sync admitted bytes under the app-owned project root, publish them as `source.<extension>`, then reopen and verify the published regular/non-symlink object against the bounded size and SHA-256 receipt before analysis or persistence. Do not persist an arbitrary external absolute path as authority.
 
 ### YouTube and remote URL import
 
@@ -147,11 +152,17 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 - Validate scheme, host, path, and query before any fetch or handoff.
 - Do not widen URL intake into a generic remote downloader.
 - Sanitize remote metadata before display.
+- Apply the same canonical 100 MiB encoded-byte ceiling during YouTube download as local-file intake. Abort with yt-dlp `max_filesize` and a progress hook, then delete owned `.part` / `.ytdl` / `-Frag*` siblings that stay inside that import directory. Do not keep a divergent post-download-only 50 MB limit that lets a large transfer fill the cache root first.
+- Revalidate the filesystem-observed downloaded length before storing bootstrap state. Treat announced `filesize` / `filesize_approx` as a pre-download hint only.
 
 ### Subprocesses and native tools
 
 - Use fixed command templates plus allowlisted arguments.
 - Apply timeout, output path restriction, and resource bounds where possible.
+- Cancellation and timeout must terminate and reap the owned execution boundary rather than merely flip a UI flag or kill one parent while inherited resources stay live. On Linux/macOS, `bandscope_desktop_core` is the single GUI-independent owner of process-group setup and termination. The analysis runner delegates pre-spawn configuration plus cancellation/timeout/error cleanup to that owner; the timed YouTube importer uses the same owner before spawning `bandscope_analysis.youtube`. Timeout/wait-error cleanup group-terminates ordinary yt-dlp/FFmpeg descendants before stdout/stderr reader joins, and a terminal direct-parent status also triggers residual same-group cleanup before those joins so a successful parent cannot hang behind an inherited pipe held by an outliving descendant. Executable regressions cover both the 50 ms timeout path and the successful-parent/five-second-descendant pipe-retention path. The Tauri cancellation contract also rejects reintroduction of local POSIX signalling primitives. These guarantees cover ordinary descendants that remain in the group, not descendants that deliberately call `setsid()`/`setpgid()` or otherwise leave it.
+- Treat stdout and stderr from owned helper processes as untrusted resource input. Retain at most 1 MiB per stream plus one overflow-probe byte; overflow or read failure must fail closed before stdout is parsed as metadata. This caps BandScope's parent-side capture memory only and is not evidence of bounded helper RSS/VRAM.
+- Windows remains direct-child-only until a race-free Job Object creation/assignment boundary is implemented in the shared process owner. Do not claim commercial process-tree cleanup until Windows containment and rights-cleared full-length real-audio evidence demonstrate inherited-handle/pipe release, temp cleanup, bounded cancellation latency, and resource return.
+- Keep `docs/doctoring/subprocess-containment.md` synchronized with this boundary and the executable regressions; process-group control and bounded pipe capture are not sandbox/container isolation and do not replace whole-process resource measurement.
 - Redact sensitive paths and tokens from surfaced stderr or stdout.
 - Track tool versions and their supply chain source.
 
@@ -213,6 +224,7 @@ Every boundary crossing requires validation, scope restriction, minimal logging,
 
 - Allow only required plugins and scopes.
 - Keep filesystem, network, and shell scopes minimal.
+- Keep application-command manifests and capability permissions explicit and narrow; capability configuration is part of the IPC security boundary, not packaging-only metadata.
 - Validate command handler payloads with explicit types.
 - Do not load remote content into a privileged Tauri context.
 

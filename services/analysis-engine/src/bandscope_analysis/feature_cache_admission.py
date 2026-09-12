@@ -1,0 +1,603 @@
+"""Bounded replay admission for persisted local-audio stem arrays.
+
+The feature cache is a persistence boundary, not trusted in-memory state. A
+cached ``npz`` archive is therefore copied from one already-open regular file
+into a bounded private snapshot before NumPy may materialize any member. Member
+names, NPY headers, sample counts, visible bytes, floating-point representation,
+and aggregate archive shape are admitted against the same audio resource budget
+used by decode.
+
+Security Notes:
+- The cache path is app-owned, but its bytes and metadata are untrusted after a
+  crash, local tampering, restore, or partial publication.
+- Persisted metadata is admitted only from a regular sidecar no larger than 1
+  MiB before UTF-8 decode or JSON materialization. Unix-like platforms also use
+  non-blocking/no-follow open flags when available so a substituted FIFO or
+  symlink cannot become an unbounded or blocking replay input. JSON decoder
+  numeric-limit failures and duplicate object members are treated as cache
+  misses rather than job failures or ambiguous cache authority.
+- When a committed generation supplies an expected metadata digest, the exact
+  bytes read from that already-open sidecar descriptor must match before JSON
+  materialization. The archive owner applies the same digest to its second read,
+  so two different metadata generations cannot jointly authorize one replay.
+- Persisted stem identities are admitted only from the canonical Demucs output
+  set (vocals, bass, drums, other); cache metadata cannot invent a new role.
+- The persisted metadata sidecar must still be readable at archive admission;
+  its second-read schema version, stem identity, and sample rate must match the
+  caller's already-admitted metadata. Legacy caches may omit ``stemRoleTypes``
+  inside that sidecar, but sidecar disappearance, schema/identity/rate
+  replacement, malformed replacement, or committed-generation digest drift
+  fails closed.
+- Persisted separation duration is required, finite, positive, and must agree
+  with the synchronized stem sample timeline within half one sample at the
+  admitted sample rate. Metadata cannot omit, stretch, or shrink rehearsal
+  timing away from the actual cached stem extent.
+- Persisted role metadata, when present beside the stem archive, must preserve
+  the canonical binding: vocals is vocal; bass, drums, and other are instruments.
+- The archive pathname is opened with non-blocking/no-follow flags when the
+  platform exposes them before the same descriptor is admitted as a bounded
+  regular file, so a substituted FIFO or symlink cannot redirect or stall replay.
+- The opened archive is copied exactly once into a bounded spooled snapshot.
+  ZIP/NPY declaration preflight and NumPy materialization consume that same
+  snapshot. When a generation manifest supplies an archive digest, the exact
+  private snapshot is hashed before preflight and must match that commit marker.
+- ZIP central-directory declarations and bounded NPY headers are checked before
+  ``np.load`` can decompress a stem member. Extra or duplicate members fail
+  closed rather than becoming hidden compressed payload.
+- Every admitted stem must declare the same non-zero sample count so replay
+  preserves the synchronized timeline produced by source separation.
+- Each member is one non-empty floating one-dimensional signal within the
+  configured sample and visible-byte ceilings. Loaded legacy floating dtypes
+  are converted to owned ``float32`` only after those pre-copy bounds pass.
+- Canonical finiteness, dtype, sample-rate, sample-count, memory, synchronized
+  timeline, and duration checks are shared by producer publication and replay.
+- Allocator exhaustion or truncated archive state encountered while copying,
+  hashing, preflighting, or opening an otherwise admitted cache fails closed as
+  a cache miss instead of escaping the persistence boundary and crashing the job.
+- Digest matching here establishes content identity/integrity for one committed
+  local cache generation. It is not authenticity, a signature/MAC, FIPS module
+  validation, tamper-proof storage, or a process-wide RSS ceiling.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import os
+import stat
+import tempfile
+import zipfile
+from pathlib import Path
+from typing import IO, BinaryIO, Protocol, cast
+
+import numpy as np
+from numpy.typing import NDArray
+
+from bandscope_analysis.audio_resource_policy import (
+    DEFAULT_AUDIO_RESOURCE_POLICY,
+    AudioResourcePolicy,
+    AudioResourcePolicyError,
+)
+
+_FEATURE_CACHE_SCHEMA_VERSION = 1
+_CANONICAL_STEM_ROLE_TYPES = {
+    "vocals": "vocal",
+    "bass": "instrument",
+    "drums": "instrument",
+    "other": "instrument",
+}
+_CANONICAL_STEM_KEYS = frozenset(_CANONICAL_STEM_ROLE_TYPES)
+_MAX_STEM_MEMBERS = len(_CANONICAL_STEM_KEYS)
+_MAX_NPY_HEADER_BYTES = 16 * 1024
+_MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES = 1024 * 1024
+_ARCHIVE_SNAPSHOT_MEMORY_BYTES = 8 * 1024 * 1024
+_ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES = 1024 * 1024
+_NPY_VERSION = (1, 0)
+_CANONICAL_ITEMSIZE = np.dtype(np.float32).itemsize
+MAX_FEATURE_CACHE_METADATA_BYTES = 1024 * 1024
+
+
+class _NpyMagicReader(Protocol):
+    """Typed boundary for NumPy's currently untyped NPY magic reader."""
+
+    def __call__(self, fp: IO[bytes], /) -> tuple[int, int]:
+        raise NotImplementedError
+
+
+class _NpyHeaderReader(Protocol):
+    """Typed boundary for NumPy's NPY-v1 header reader runtime contract."""
+
+    def __call__(
+        self,
+        fp: IO[bytes],
+        /,
+        *,
+        max_header_size: int = 10_000,
+    ) -> tuple[tuple[int, ...], bool, np.dtype[np.generic]]:
+        raise NotImplementedError
+
+
+_READ_NPY_MAGIC = cast(_NpyMagicReader, np.lib.format.read_magic)
+_READ_NPY_HEADER_1_0 = cast(_NpyHeaderReader, np.lib.format.read_array_header_1_0)
+
+
+def _is_sha256_hex(value: object) -> bool:
+    """Return whether a value is one canonical lowercase SHA-256 hex digest."""
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _materialize_unique_json_object(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    """Materialize one JSON object only when every member name is unique."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object member")
+        result[key] = value
+    return result
+
+
+def read_bounded_feature_cache_metadata(
+    metadata_path: Path,
+    *,
+    expected_sha256: str | None = None,
+) -> dict[str, object] | None:
+    """Read one bounded regular UTF-8 JSON sidecar from an already-open descriptor."""
+    if expected_sha256 is not None and not _is_sha256_hex(expected_sha256):
+        return None
+    open_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    open_flags |= getattr(os, "O_NONBLOCK", 0)
+    open_flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(metadata_path, open_flags)
+        with os.fdopen(descriptor, "rb") as metadata_file:
+            metadata_stat = os.fstat(metadata_file.fileno())
+            if (
+                not stat.S_ISREG(metadata_stat.st_mode)
+                or metadata_stat.st_size <= 0
+                or metadata_stat.st_size > MAX_FEATURE_CACHE_METADATA_BYTES
+            ):
+                return None
+            encoded_metadata = metadata_file.read(metadata_stat.st_size + 1)
+            if len(encoded_metadata) != metadata_stat.st_size:
+                return None
+        if (
+            expected_sha256 is not None
+            and hashlib.sha256(encoded_metadata).hexdigest() != expected_sha256
+        ):
+            return None
+        metadata = json.loads(
+            encoded_metadata.decode("utf-8"),
+            object_pairs_hook=_materialize_unique_json_object,
+        )
+    except (
+        MemoryError,
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+    ):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    return metadata
+
+
+def _replay_policy(
+    sample_rate: object,
+    template: AudioResourcePolicy,
+) -> AudioResourcePolicy | None:
+    """Derive a bounded replay policy for the cache-declared analysis rate."""
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int):
+        return None
+    if (
+        sample_rate < template.min_source_sample_rate
+        or sample_rate > template.max_source_sample_rate
+    ):
+        return None
+    try:
+        max_samples = int(sample_rate * float(template.max_duration_seconds))
+        canonical_bytes = max_samples * _CANONICAL_ITEMSIZE
+        return AudioResourcePolicy(
+            max_encoded_file_bytes=template.max_encoded_file_bytes,
+            target_sample_rate=sample_rate,
+            max_duration_seconds=template.max_duration_seconds,
+            max_decoded_audio_bytes=min(template.max_decoded_audio_bytes, canonical_bytes),
+            min_source_sample_rate=template.min_source_sample_rate,
+            max_source_sample_rate=template.max_source_sample_rate,
+            min_source_channels=template.min_source_channels,
+            max_source_channels=template.max_source_channels,
+        )
+    except (OverflowError, ValueError):
+        return None
+
+
+def _expected_member_names(stem_keys: list[str]) -> set[str] | None:
+    """Return the exact NPY member set for one bounded canonical stem-key list."""
+    if not stem_keys or len(stem_keys) > _MAX_STEM_MEMBERS or len(set(stem_keys)) != len(stem_keys):
+        return None
+    if not all(
+        stem_key and stem_key.isidentifier() and stem_key in _CANONICAL_STEM_KEYS
+        for stem_key in stem_keys
+    ):
+        return None
+    return {f"stem_{stem_key}.npy" for stem_key in stem_keys}
+
+
+def canonical_stem_role_types(
+    stem_keys: list[str],
+    stem_role_types: object,
+) -> dict[str, str] | None:
+    """Return canonical role bindings only when supplied metadata preserves them."""
+    if _expected_member_names(stem_keys) is None:
+        return None
+    canonical = {stem_key: _CANONICAL_STEM_ROLE_TYPES[stem_key] for stem_key in stem_keys}
+    if stem_role_types is None:
+        return canonical
+    if not isinstance(stem_role_types, dict) or set(stem_role_types) != set(stem_keys):
+        return None
+    if any(stem_role_types.get(stem_key) != canonical[stem_key] for stem_key in stem_keys):
+        return None
+    return canonical
+
+
+def _read_canonical_stem_role_metadata(
+    arrays_path: Path,
+    stem_keys: list[str],
+    *,
+    expected_sample_rate: object | None = None,
+    expected_metadata_sha256: str | None = None,
+) -> dict[str, object] | None:
+    """Return one admitted second-read sidecar snapshot for archive replay."""
+    metadata = read_bounded_feature_cache_metadata(
+        arrays_path.with_suffix(".json"),
+        expected_sha256=expected_metadata_sha256,
+    )
+    if metadata is None:
+        return None
+    if metadata.get("schemaVersion") != _FEATURE_CACHE_SCHEMA_VERSION:
+        return None
+    if metadata.get("stemKeys") != stem_keys:
+        return None
+    if _expected_member_names(stem_keys) is None:
+        return None
+    if expected_sample_rate is not None:
+        if metadata.get("sampleRate") != expected_sample_rate:
+            return None
+
+    separation = metadata.get("separation")
+    if not isinstance(separation, dict):
+        return None
+    duration_seconds = separation.get("duration_seconds")
+    if duration_seconds is None or isinstance(duration_seconds, bool):
+        return None
+    if not isinstance(duration_seconds, (int, float)):
+        return None
+    try:
+        duration_value = float(duration_seconds)
+    except (OverflowError, ValueError):
+        return None
+    if not math.isfinite(duration_value) or duration_value <= 0.0:
+        return None
+
+    if canonical_stem_role_types(stem_keys, metadata.get("stemRoleTypes")) is None:
+        return None
+    return metadata
+
+
+def _has_canonical_stem_role_metadata(
+    arrays_path: Path,
+    stem_keys: list[str],
+    *,
+    expected_sample_rate: object | None = None,
+    expected_metadata_sha256: str | None = None,
+) -> bool:
+    """Reject missing or persisted metadata that contradicts replay semantics."""
+    return (
+        _read_canonical_stem_role_metadata(
+            arrays_path,
+            stem_keys,
+            expected_sample_rate=expected_sample_rate,
+            expected_metadata_sha256=expected_metadata_sha256,
+        )
+        is not None
+    )
+
+
+def _duration_matches_sample_timeline(
+    duration_seconds: object,
+    sample_count: int,
+    sample_rate: object,
+) -> bool:
+    """Return whether persisted duration agrees with the stem timeline to half a sample."""
+    if duration_seconds is None:
+        return True
+    if isinstance(duration_seconds, bool) or not isinstance(duration_seconds, (int, float)):
+        return False
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
+        return False
+    try:
+        duration_value = float(duration_seconds)
+    except (OverflowError, ValueError):
+        return False
+    if not math.isfinite(duration_value) or duration_value <= 0.0:
+        return False
+    expected_duration = sample_count / sample_rate
+    return math.isclose(
+        duration_value,
+        expected_duration,
+        rel_tol=0.0,
+        abs_tol=0.5 / sample_rate,
+    )
+
+
+def admit_canonical_stem_set(
+    stems: object,
+    stem_keys: list[str],
+    sample_rate: object,
+    duration_seconds: object,
+    *,
+    policy_template: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+) -> dict[str, NDArray[np.float32]] | None:
+    """Admit one owned canonical stem set for both publication and replay."""
+    if not isinstance(stems, dict) or set(stems) != set(stem_keys):
+        return None
+    if _expected_member_names(stem_keys) is None:
+        return None
+    policy = _replay_policy(sample_rate, policy_template)
+    if policy is None:
+        return None
+
+    expected_sample_count: int | None = None
+    admitted: dict[str, NDArray[np.float32]] = {}
+    for stem_key in stem_keys:
+        stem_array = stems.get(stem_key)
+        if (
+            not isinstance(stem_array, np.ndarray)
+            or stem_array.dtype != np.dtype(np.float32)
+            or not stem_array.flags.owndata
+        ):
+            return None
+        try:
+            validated = policy.validate_decoded_audio(stem_array, sample_rate)
+        except (
+            AudioResourcePolicyError,
+            MemoryError,
+            OverflowError,
+            TypeError,
+            ValueError,
+        ):
+            return None
+        sample_count = int(validated.size)
+        if expected_sample_count is None:
+            expected_sample_count = sample_count
+        elif sample_count != expected_sample_count:
+            return None
+        admitted[stem_key] = validated
+
+    if expected_sample_count is None or duration_seconds is None:
+        return None
+    if not _duration_matches_sample_timeline(
+        duration_seconds,
+        expected_sample_count,
+        sample_rate,
+    ):
+        return None
+    return admitted
+
+
+def _copy_exact_archive_snapshot(
+    source: BinaryIO,
+    destination: tempfile.SpooledTemporaryFile[bytes],
+    byte_count: int,
+) -> bool:
+    """Copy exactly one admitted archive extent into a private replay snapshot."""
+    remaining = byte_count
+    while remaining > 0:
+        chunk = source.read(min(remaining, _ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES))
+        if not chunk:
+            return False
+        destination.write(chunk)
+        remaining -= len(chunk)
+    destination.seek(0)
+    return True
+
+
+def _private_snapshot_sha256(
+    snapshot_file: tempfile.SpooledTemporaryFile[bytes],
+    byte_count: int,
+) -> str | None:
+    """Hash exactly one already-bounded private archive snapshot."""
+    try:
+        snapshot_file.seek(0)
+        remaining = byte_count
+        digest = hashlib.sha256()
+        while remaining > 0:
+            chunk = snapshot_file.read(min(remaining, _ARCHIVE_SNAPSHOT_COPY_CHUNK_BYTES))
+            if not chunk:
+                return None
+            digest.update(chunk)
+            remaining -= len(chunk)
+        if snapshot_file.read(1):
+            return None
+        snapshot_file.seek(0)
+        return digest.hexdigest()
+    except (MemoryError, OSError, ValueError):
+        return None
+
+
+def _preflight_npz(
+    archive_file: tempfile.SpooledTemporaryFile[bytes],
+    stem_keys: list[str],
+    policy: AudioResourcePolicy,
+) -> int | None:
+    """Return the synchronized sample count after bounded ZIP/NPY declaration admission."""
+    expected_names = _expected_member_names(stem_keys)
+    if expected_names is None:
+        return None
+    max_member_bytes = policy.max_decoded_audio_bytes + _MAX_NPY_HEADER_BYTES
+
+    try:
+        with zipfile.ZipFile(cast(BinaryIO, archive_file), mode="r") as archive:
+            members = archive.infolist()
+            member_names = [member.filename for member in members]
+            if len(members) != len(expected_names) or set(member_names) != expected_names:
+                return None
+
+            expected_sample_count: int | None = None
+            for member in members:
+                if (
+                    member.is_dir()
+                    or member.flag_bits & 0x1
+                    or member.compress_type != zipfile.ZIP_DEFLATED
+                    or member.file_size <= 0
+                    or member.file_size > max_member_bytes
+                ):
+                    return None
+
+                with archive.open(member, mode="r") as npy_stream:
+                    if _READ_NPY_MAGIC(npy_stream) != _NPY_VERSION:
+                        return None
+                    shape, fortran_order, dtype = _READ_NPY_HEADER_1_0(
+                        npy_stream,
+                        max_header_size=_MAX_NPY_HEADER_BYTES,
+                    )
+                    if fortran_order or len(shape) != 1 or shape[0] <= 0:
+                        return None
+                    dtype = np.dtype(dtype)
+                    if not np.issubdtype(dtype, np.floating):
+                        return None
+                    sample_count = int(shape[0])
+                    if expected_sample_count is None:
+                        expected_sample_count = sample_count
+                    elif sample_count != expected_sample_count:
+                        return None
+                    data_bytes = sample_count * dtype.itemsize
+                    if (
+                        sample_count > policy.max_decoded_samples
+                        or data_bytes > policy.max_decoded_audio_bytes
+                        or npy_stream.tell() + data_bytes != member.file_size
+                    ):
+                        return None
+    except (
+        EOFError,
+        MemoryError,
+        OSError,
+        ValueError,
+        zipfile.BadZipFile,
+        zipfile.LargeZipFile,
+    ):
+        return None
+    return expected_sample_count
+
+
+def load_bounded_stem_archive(
+    arrays_path: Path,
+    stem_keys: list[str],
+    sample_rate: object,
+    *,
+    policy_template: AudioResourcePolicy = DEFAULT_AUDIO_RESOURCE_POLICY,
+    expected_metadata_sha256: str | None = None,
+    expected_archive_sha256: str | None = None,
+) -> dict[str, NDArray[np.float32]] | None:
+    """Load one admitted stem archive and return owned canonical float32 signals."""
+    if expected_archive_sha256 is not None and not _is_sha256_hex(expected_archive_sha256):
+        return None
+    policy = _replay_policy(sample_rate, policy_template)
+    expected_names = _expected_member_names(stem_keys)
+    replay_metadata = _read_canonical_stem_role_metadata(
+        arrays_path,
+        stem_keys,
+        expected_sample_rate=sample_rate,
+        expected_metadata_sha256=expected_metadata_sha256,
+    )
+    if policy is None or expected_names is None or replay_metadata is None:
+        return None
+
+    max_archive_bytes = (
+        len(stem_keys) * (policy.max_decoded_audio_bytes + _MAX_NPY_HEADER_BYTES)
+        + _MAX_ARCHIVE_CONTAINER_OVERHEAD_BYTES
+    )
+    open_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    open_flags |= getattr(os, "O_NONBLOCK", 0)
+    open_flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(arrays_path, open_flags)
+        with os.fdopen(descriptor, "rb") as archive_file:
+            file_stat = os.fstat(archive_file.fileno())
+            if (
+                not stat.S_ISREG(file_stat.st_mode)
+                or file_stat.st_size <= 0
+                or file_stat.st_size > max_archive_bytes
+            ):
+                return None
+            with tempfile.SpooledTemporaryFile(
+                max_size=_ARCHIVE_SNAPSHOT_MEMORY_BYTES,
+                mode="w+b",
+            ) as snapshot_file:
+                if not _copy_exact_archive_snapshot(
+                    archive_file,
+                    snapshot_file,
+                    file_stat.st_size,
+                ):
+                    return None
+                if expected_archive_sha256 is not None:
+                    snapshot_sha256 = _private_snapshot_sha256(snapshot_file, file_stat.st_size)
+                    if snapshot_sha256 != expected_archive_sha256:
+                        return None
+                sample_count = _preflight_npz(snapshot_file, stem_keys, policy)
+                if sample_count is None:
+                    return None
+                separation = cast(dict[str, object], replay_metadata["separation"])
+                duration_seconds = separation["duration_seconds"]
+                if not _duration_matches_sample_timeline(
+                    duration_seconds,
+                    sample_count,
+                    sample_rate,
+                ):
+                    return None
+                snapshot_file.seek(0)
+                with np.load(
+                    snapshot_file,
+                    allow_pickle=False,
+                    max_header_size=_MAX_NPY_HEADER_BYTES,
+                ) as stems_archive:
+                    stems: dict[str, NDArray[np.float32]] = {}
+                    for stem_key in stem_keys:
+                        archive_key = f"stem_{stem_key}"
+                        stem_array = stems_archive[archive_key]
+                        try:
+                            with np.errstate(over="ignore", invalid="ignore"):
+                                if (
+                                    stem_array.dtype == np.dtype(np.float32)
+                                    and stem_array.flags.owndata
+                                ):
+                                    canonical = stem_array
+                                else:
+                                    canonical = np.array(stem_array, dtype=np.float32, copy=True)
+                        except (MemoryError, OverflowError, TypeError, ValueError):
+                            return None
+                        stems[stem_key] = canonical
+    except (EOFError, MemoryError, OSError, ValueError, zipfile.BadZipFile):
+        return None
+    return admit_canonical_stem_set(
+        stems,
+        stem_keys,
+        sample_rate,
+        duration_seconds,
+        policy_template=policy_template,
+    )
+
+
+__all__ = [
+    "MAX_FEATURE_CACHE_METADATA_BYTES",
+    "admit_canonical_stem_set",
+    "canonical_stem_role_types",
+    "load_bounded_stem_archive",
+    "read_bounded_feature_cache_metadata",
+]
