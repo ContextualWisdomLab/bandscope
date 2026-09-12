@@ -98,6 +98,18 @@ describe("ScoreView", () => {
     expect(screen.getByRole("button", { name: "Add score" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("button", { name: "Add score" })).toHaveAttribute(
+      "aria-describedby",
+      "score-project-requirement"
+    );
+    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toHaveAttribute(
+      "aria-describedby",
+      "score-project-requirement"
+    );
+    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toHaveAttribute(
+      "aria-describedby",
+      "score-project-requirement"
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
     expect(mockInvoke).not.toHaveBeenCalled();
