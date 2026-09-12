@@ -10,6 +10,13 @@ import {
   TableRow,
 } from "./table"
 import { Checkbox } from "./checkbox"
+import {
+  Slider,
+  SliderControl,
+  SliderTrack,
+  SliderIndicator,
+  SliderThumb,
+} from "./slider"
 import { Switch } from "./switch"
 import { RadioGroup, RadioGroupItem } from "./radio-group"
 import {
@@ -244,5 +251,23 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Slider renders control, track, indicator, and thumb", () => {
+    const { container } = render(
+      <Slider defaultValue={50}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+          </SliderTrack>
+          <SliderThumb aria-label="Volume" />
+        </SliderControl>
+      </Slider>
+    )
+    expect(container.querySelector('[data-slot="slider"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-control"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-track"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-indicator"]')).toBeTruthy()
+    expect(container.querySelector('[data-slot="slider-thumb"]')).toBeTruthy()
   })
 })
