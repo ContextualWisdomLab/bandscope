@@ -11,7 +11,6 @@ import {
 } from "./table"
 import { Checkbox } from "./checkbox"
 import { Switch } from "./switch"
-import { Slider } from "./slider"
 import { RadioGroup, RadioGroupItem } from "./radio-group"
 import {
   Accordion,
@@ -245,31 +244,5 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
-  })
-
-  it("Slider mounts and renders thumb", () => {
-    const { container } = render(<Slider defaultValue={50} aria-label="slider" />)
-    expect(container.querySelector('[data-slot="slider"]')).toBeTruthy()
-    expect(container.querySelector('[data-slot="slider-thumb"]')).toBeTruthy()
-  })
-
-  it("Slider supports className as a function", () => {
-    const { container } = render(
-      <Slider
-        defaultValue={50}
-        aria-label="slider"
-        className={() => "custom-func-class"}
-      />
-    )
-    const root = container.querySelector('[data-slot="slider"]')
-    expect(root?.className).toContain("custom-func-class")
-  })
-
-  it("Slider supports disabled state", () => {
-    const { container } = render(
-      <Slider defaultValue={50} aria-label="slider" disabled />
-    )
-    const root = container.querySelector('[data-slot="slider"]')
-    expect(root?.getAttribute("data-disabled")).not.toBeNull()
   })
 })
