@@ -1,6 +1,6 @@
 # BandScope Product-Technical Gap Baseline
 
-Last updated: 2026-09-07
+Last updated: 2026-09-12
 Evidence capture: live GitHub state is dated at observation; protected refs are revalidated before merge/release claims
 Protected product truth: `develop@314ddeae7b775a4957594b599358c8255617eb2e`
 
@@ -46,7 +46,7 @@ Near-term order remains: merge-train convergence; trusted distribution; active r
 
 A complete accessible-repository census begun 2026-09-02 21:56 KST observed 74 `ContextualWisdomLab` repositories. Sequential counts summed to 2,940 open pull requests and the subsequent organization aggregate returned 2,941 with `incomplete_results=false`; the one-PR difference is non-atomic observation, not attribution. BandScope had 194 open PRs and 19 open issues in that dated capture. Later counts are not inferred from it.
 
-The current protected BandScope product source is `develop@314ddeae7b775a4957594b599358c8255617eb2e`. The recorded protection contract contains 14 required contexts, including retired producer names `Analyze (javascript-typescript)` and `Analyze (python)`. Issue #1172 owns migration to the central producer names `CodeQL compatibility analysis (javascript-typescript)` and `CodeQL compatibility analysis (python)`. Restoring a duplicate repository scanner or weakening/removing CodeQL coverage is not an acceptable workaround.
+The current protected BandScope product source is `develop@314ddeae7b775a4957594b599358c8255617eb2e`. The recorded protection contract contains 14 required contexts and still includes `Analyze (javascript-typescript)` and `Analyze (python)`. Fresh current-head evidence shows those contexts are produced by GitHub-managed dynamic CodeQL and can be GREEN even while the separate central `CodeQL compatibility analysis (...)` producer/handler cycle fails. Issue #1172 therefore owns reconciliation/documentation of the dynamic required-context authority with the central compatibility layer; it must not assume that the `Analyze (...)` contexts are retired merely because the repository-local scanner was removed. Central producer/handler settlement remains `.github#2040` ownership. Restoring a duplicate repository scanner, synthesizing statuses, or weakening/removing CodeQL coverage is not an acceptable workaround.
 
 Operational evidence rule: queued, pending, skipped-required, cancelled, neutral, failed, absent, stale, predecessor-head, protected-base, model-only, status-only, self/author, or administrative-bypass evidence is non-passing. A head change invalidates predecessor review/check receipts for readiness. Force-push, destructive rebase, self-approval, gate weakening, fabricated evidence, and unrelated rollback are prohibited.
 
@@ -69,15 +69,15 @@ Active work is Draft/unshipped until normally integrated into protected `develop
 | Merge-train control plane | Issue #966; queue lane PR #968 | #968 is Draft on #1116 and owns exactly 22 queue-control workflow/ADR/reference/manifest/script/test files. Every #1116 source move requires ordinary non-force reconciliation preserving those files and a non-divergent baseline blob. Live #968 state plus fresh #1116→#968 compare is exact-head authority. |
 | Canonical baseline | PR #1116, this file | Draft. This source is the single writer for `docs/product-technical-gap-baseline.md`; active PR behavior is described as Draft evidence, never promoted into shipped truth. |
 | Trusted distribution | Issue #960; release-identity lane #1126; dependency/model blockers #1129/#1180/#1181 | Windows signing, macOS signing/notarization, checksums, SBOM/provenance, signature-verified updater, staged rollout, rollback/repair, `libsndfile` removal, and a commercially admissible immutable separation model are not yet one integrated protected-head receipt. |
-| Active rehearsal player | Issue #961; #971 with source stack #1159 → #1160 | #1160 remains Draft and has not yet adopted current #970. Native stem admission/playback/source switching exists on that branch, but persisted source intent must be reconciled with fresh Full mix/current-stem audible authority after reopen. Missing preferred stems must fail closed to Full mix. |
-| Crash-safe project | Issue #962; PR #970 | #970 is Draft and has ordinarily adopted Resource Admission #866. It implements v3 Save/load, path-free source evidence, restart exact-content re-admission, analysis-time source revalidation and snapshot-bound decode, local Demucs compatibility admission, mounted Open→Save preservation of native project selection plus `selectedPlaybackSource`, and bounded PyTorch weights-only incompatibility handling. Autosave/global recovery UX, broader fault injection, descriptor-bound higher-parent authority, and Active Player audible-authority reconstruction remain open. |
+| Active rehearsal player | Issue #961; #971 with source stack #1159 → #1160 | #1160 remains Draft and has not yet adopted the current Project Persistence/Resource Admission prerequisites. Native stem admission/playback/source switching exists on that branch, but persisted source intent must be reconciled with fresh Full mix/current-stem audible authority after protected #866 and the reconciled #970 lineage. Missing preferred stems must fail closed to Full mix. |
+| Crash-safe project | Issue #962; PR #970 | #970 is Draft and contains only earlier Resource Admission ancestry; the current canonical #866 descendant is not ancestry of #970. The branch already carries v3 Save/load, path-free source evidence, restart exact-content re-admission, analysis-time source revalidation and snapshot-bound decode, local Demucs compatibility admission, mounted Open→Save preservation of native project selection plus `selectedPlaybackSource`, and bounded PyTorch weights-only incompatibility handling. These are Draft branch capabilities, not evidence that current #866 has been consumed. After normal protected #866 merge, #970 must ordinarily reconcile/revalidate before Active Player consumption. Autosave/global recovery UX, broader fault injection, descriptor-bound higher-parent authority, and audible-authority reconstruction remain open. |
 | Real-audio science | Issue #770 and active benchmark lanes | Rights-cleared decoded-audio MIR acceptance, recognized task metrics, uncertainty and reproducibility remain incomplete. Synthetic/generated audio remains unit-test evidence only. |
-| Resource admission/decode | Issue #781; PR #866; commercial dependency defect #1129 | #866 owns app-owned audio materialization/publication and `LocalAudioPublicationIdentity`; #970 consumes it through typed persistence/re-admission ACLs. #1129 still owns removal of the `soundfile`/`libsndfile` LGPL runtime path with equivalent supported-platform real-audio/SBOM evidence. |
+| Resource admission/decode | Issue #781; PR #866; commercial dependency defect #1129 | #866 owns app-owned audio materialization/publication, `LocalAudioPublicationIdentity`, bounded replay/admission contracts and the current Resource Admission source lineage. #970 consumes an earlier version of that contract today and must reconcile only after #866 reaches protected `develop`. #1129 still owns removal of the `soundfile`/`libsndfile` LGPL runtime path with equivalent supported-platform real-audio/SBOM evidence. |
 | Commercial separation model | Issue #1180; rights blocker #1181 | #970's local Demucs compatibility admission is technical Draft evidence only. Distribution still requires an immutable commercially admissible exact artifact with full provenance/size/digest-or-signature, explicit serialization/loader policy, release inventory, updater/rollback behavior, and rights-cleared Windows/macOS real-audio evidence. #1181 independently blocks upstream pretrained weights absent explicit commercial-use/redistribution rights. |
 | Diagnostics/supportability | Issue #963 | Typed redacted crash/hang evidence and a user-previewable offline support bundle remain incomplete. |
 | Activation | Issue #964 | A measured production-path first rehearsal remains incomplete. |
 | Accessibility/design parity | Issue #965 and active component/player lanes | WCAG 2.2 AA, keyboard/screen-reader parity, KO/EN/JA/ZH/VI/ES/DE/FR expansion, CJK/text expansion/font fallback, exact-value alternatives, and current-head material-UI evidence remain incomplete. |
-| Quality floor | PR #1057 and successors | Repository-owned production Docstring/rustdoc, Test, and Edge Case Coverage targets remain 100%; denominator reduction, skip/xfail, generated-code relabeling, or source-text-only success cannot manufacture compliance. |
+| Quality floor | PR #1057 and successors; #1210 | Repository-owned production Docstring/rustdoc, Test, and Edge Case Coverage targets remain 100%. Desktop Vitest currently scopes coverage to a selected subset with 90% configured thresholds, so the executable frontend gate does not yet prove the stated 100% owned-production standard. Denominator reduction, skip/xfail, generated-code relabeling, or source-text-only success cannot manufacture compliance. |
 
 The product boundary, tests, contracts, and unique behavior decide succession, not PR number or title. Duplicate closure requires a technical succession receipt naming the unique behavior/tests preserved in the successor. Checks, approvals, and model output do not transfer to a changed successor head.
 
@@ -206,11 +206,11 @@ Decode, analysis, persistence, and playback failures remain typed and bounded. P
 
 ### 7.3 Project Persistence / Resource Admission truth
 
-Current Draft #970 has ordinarily adopted #866 rather than duplicating its audio-publication policy. Live PR state is the exact-head authority for both moving Drafts.
+Current Draft #970 contains only earlier #866 ancestry. The latest canonical #866 descendant is not ancestry of #970 and remains unshipped until normal protected merge. The semantic projection below describes capabilities that exist on #970's current Draft lineage; it must be ordinarily reconciled and revalidated against protected #866 before any current-contract integration claim.
 
 #866 owns selected-local-audio copy/admission/publication. It stages selected bytes, synchronizes and publishes the app-owned `source.<extension>`, reopens the published object, verifies exact size + SHA-256 receipt equality, then creates a path-free `LocalAudioPublicationIdentity`. Native state retains that verified identity keyed by BandScope project id.
 
-#970 consumes that identity. Draft `projectFormatVersion: 3` stores `song`, `preferences.selectedPlaybackSource`, and optional path-free `sourceReference = projectId + artifactName + extension + fileSizeBytes + contentSha256`. Legacy/v1/v2 input is migrated deterministically and never invents missing source evidence. Renderer-authored path, artifact name, byte count, digest, or `sourceReference` is rejected; the renderer may return only an already-minted project selector and durable playback-source intent to native Save.
+#970 consumes its earlier inherited form of that identity. Draft `projectFormatVersion: 3` stores `song`, `preferences.selectedPlaybackSource`, and optional path-free `sourceReference = projectId + artifactName + extension + fileSizeBytes + contentSha256`. Legacy/v1/v2 input is migrated deterministically and never invents missing source evidence. Renderer-authored path, artifact name, byte count, digest, or `sourceReference` is rejected; the renderer may return only an already-minted project selector and durable playback-source intent to native Save.
 
 On restart, production `load_project` resolves only an existing app-local aggregate, opens the fixed source through the canonical native opener, re-verifies exact bounded bytes, and restores native publication/bootstrap state only after that reverse admission succeeds. A persisted source reference is evidence, not authority.
 
@@ -222,7 +222,7 @@ Residual persistence work includes global/startup recovery policy, autosave/back
 
 ### 7.4 Active Player authority
 
-Project Persistence and analysis authority do not imply audible authority. On reopen, persisted `selectedPlaybackSource` is intent only. #1160 must ordinarily adopt current #970/#866 ancestry, remove its private duplicate SHA-256 implementation in favor of the canonical desktop-core reader, re-admit current Full mix and current stem artifacts, and only then mint fresh `PlaybackAuthority`. If the preferred persisted stem no longer exists or fails admission, the product falls back to Full mix without preserving stale prior authority.
+Project Persistence and analysis authority do not imply audible authority. On reopen, persisted `selectedPlaybackSource` is intent only. #1160 must ordinarily adopt the protected current #866 contract through reconciled #970 ancestry, remove its private duplicate SHA-256 implementation in favor of the canonical desktop-core reader, re-admit current Full mix and current stem artifacts, and only then mint fresh `PlaybackAuthority`. If the preferred persisted stem no longer exists or fails admission, the product falls back to Full mix without preserving stale prior authority.
 
 The material UI must prove source selection, play/pause/seek/stop/loop/count-in/rate/cue navigation, source replacement, stale async/media events, persistence/reload, and exact accessible alternatives with actual admitted media.
 
@@ -300,7 +300,7 @@ Moved/replaced/truncated/growing audio and model files; symlink/reparse and link
 
 #### Remaining risk
 
-Higher-parent directory authority is not yet descriptor-bound against every concurrent replacement. Commercial model/dependency rights and release provenance remain unresolved. Active Player still needs fresh audible Full mix/stem authority on current #970 ancestry. Global autosave/recovery UX and broad fault injection remain incomplete.
+Higher-parent directory authority is not yet descriptor-bound against every concurrent replacement. Commercial model/dependency rights and release provenance remain unresolved. Active Player still needs fresh audible Full mix/stem authority after protected #866 and #970 reconciliation. Global autosave/recovery UX and broad fault injection remain incomplete. GHAS Trivy/Scorecard PR-comparison configuration continuity remains incomplete under #1209 even though the required Actions contexts are GREEN.
 
 ## 11. UI/UX evidence gate
 
@@ -308,7 +308,7 @@ Figma is the reviewed interaction/visual specification, Storybook the executable
 
 Material UI work must verify actual pointer/touch/keyboard interaction, section/time-axis identity, playback cursor, persistence/reload, stale-response/media races, normal/loading/empty/error/permission/unsupported-codec/missing-stem states, responsive window sizes, visible focus, reduced motion, non-color-only status, screen-reader names/states, KO/EN/JA/ZH/VI/ES/DE/FR expansion, CJK/text expansion/font fallback, and exact-value/list/table alternatives for graph/timeline/waveform content.
 
-Current #970 preserves reopened project id and `selectedPlaybackSource` through mounted Open→Save, but that does not prove Active Player delivery. #1160 must still compose persisted intent with fresh native audible availability on the current Project Persistence/Resource Admission ancestry. Wider locale/accessibility/browser/screen-reader and rights-cleared desktop audible evidence remain open.
+Current #970 preserves reopened project id and `selectedPlaybackSource` through mounted Open→Save on its Draft lineage, but that does not prove Active Player delivery and does not mean current canonical #866 has been adopted. #1160 must still compose persisted intent with fresh native audible availability after protected Resource Admission and Project Persistence reconciliation. Wider locale/accessibility/browser/screen-reader and rights-cleared desktop audible evidence remain open.
 
 Anti-Slop is a delivery filter rather than a replacement visual style: components, copy, cards, decoration and motion must exist for actual rehearsal tasks/information hierarchy, not template completion. Displayed controls must work; generic marketing copy, decorative fake interactions, unverifiable metrics, and repetitive AI-default visual treatments do not pass material UI acceptance.
 
@@ -318,9 +318,11 @@ Anti-Slop is a delivery filter rather than a replacement visual style: component
 
 Repository-owned production Docstring/rustdoc, Test, and Edge Case Coverage targets are each 100%. Lower configured thresholds are gaps, not equivalent evidence. Denominator reduction, skip/xfail, source-text matching, generated-code relabeling, mocked production success, or shrinking performance samples cannot manufacture compliance.
 
+Desktop coverage policy is itself an open executable-gap under #1210: the current Vitest configuration measures only a selected production-file subset and uses 90% statement/branch/function/line thresholds, so a reported 100% subset result cannot prove repository-wide owned-production frontend coverage. The fix must expand the real production denominator and enforce 100% rather than suppressing or narrowing it.
+
 Production-path tests include supported sample rates/channels, short/long recordings, pickup before bar one, odd meter/tempo change where supported, silence near boundaries, unsupported codecs, moved/replaced files, cancellation, memory/CPU/disk bounds, corrupted project state, stale async/media responses, missing stems, device changes, keyboard/screen-reader operation, locale expansion, updater rollback and redacted support export.
 
-Applicable buyer-facing web/API paths target measured p95 ≤20 ms where that budget is meaningful. Measurements exclude unrealistic warm-cache-only claims and are profiled before optimization. JS bundle/heap/DOM/hydration/main-thread/GC and native/process cleanup remain part of operability review.
+Applicable buyer-facing web/API paths target measured p95 ≤20 ms where that budget is meaningful. Measurements exclude unrealistic warm-cache-only claims and are profiled before optimization. JS bundle/heap/DOM/hydration/main-thread/GC and native/process cleanup remain part of operability review. The current production build's >500 kB main-JS warning is owned by #1208; the first causal candidate is eager loading of the interaction-only Score/PDF path, and acceptance requires measured lazy feature loading rather than increasing the warning limit.
 
 ## 13. Release gate
 
@@ -328,7 +330,9 @@ A release may be created only from one exact integrated protected head where all
 
 Unsigned validation artifacts are not releases. Queued evidence, stale Figma states, mock-only audio journeys, predecessor check receipts, developer model caches, scientific-use-only pretrained weights, permissive legacy-deserialization flags, or package-name-only dependency substitutions cannot establish release readiness.
 
-Commercial blockers currently include #1129 (`libsndfile` LGPL runtime path) and #1181 (upstream pretrained Demucs weight rights); #1180 owns the resulting immutable commercially admissible model artifact contract. No immutable release beyond historical `v0.1.3` is claimed by current Draft work.
+Commercial blockers currently include #1129 (`libsndfile` LGPL runtime path), #1181 (upstream pretrained Demucs weight rights), #1180 (immutable commercially admissible model artifact), #1206 (clean-install moderate npm advisories), #1208 (production JS bundle warning), #1209 (GHAS code-scanning configuration continuity), #1210 (frontend coverage-policy mismatch), crash-safe final-result persistence, rights-cleared real-audio MIR acceptance, and signed/notarized updater rollback evidence. Central `.github#2040` is the CodeQL compatibility owner: its current ordinary successor repaired source-neutral freshness manufacture, but the staged pre-cutover handler bootstrap/run-wide-settlement boundary remains open. Direct dynamic `Analyze (...)` success or dispatch success alone does not establish that central settlement.
+
+No immutable release beyond historical `v0.1.3` is claimed by current Draft work.
 
 ## 14. Traceability
 
