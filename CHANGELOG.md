@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Preserved native disabled semantics for score pagination while making project-bound score actions focusable only with an explicit `aria-disabled` state and persistent accessible explanation.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
