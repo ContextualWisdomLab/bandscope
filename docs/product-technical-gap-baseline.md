@@ -218,6 +218,16 @@ Before `start_analysis_job` queue admission, retained publication identity is re
 
 Mounted Open→Save previously dropped the reopened source selector and reset non-default `selectedPlaybackSource`. The current #970 lineage makes `App` retain the validated path-free project selector plus versioned playback intent and return them through native-authoritative Save. It still cannot mint source evidence.
 
+The recovery interaction keeps source authority explicit across the two cases where no source is currently authoritative and where a validated source is already retained. These trigger/acknowledgement edges are part of the Project Persistence UI contract; success/reconstruction semantics remain owned by #970 rather than inferred from this baseline.
+
+```mermaid
+stateDiagram-v2
+    NoSource --> RecoveringWithoutSource: project recovery requested
+    Ready --> RecoveringWithSource: project recovery requested
+    RecoveryFailedWithoutSource --> NoSource: recovery failure acknowledged
+    RecoveryFailedWithSource --> Ready: recovery failure acknowledged / keep prior source
+```
+
 Residual persistence work includes global/startup recovery policy, autosave/backup rotation and Restore/Compare/Discard UX, broader power-loss/disk-full/interrupted-migration fault injection, application downgrade/rollback policy, and descriptor-bound protection against concurrent replacement of higher parent directories.
 
 ### 7.4 Active Player authority
