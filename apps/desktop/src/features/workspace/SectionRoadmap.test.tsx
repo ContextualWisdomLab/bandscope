@@ -36,21 +36,19 @@ describe("SectionRoadmap", () => {
     expect(screen.getAllByText("verse 들어가기 전에 이 음역을 악기로 확인해 보세요.").length).toBeGreaterThan(0);
   });
 
-  it("keeps unavailable chord edits focusable, described, semantically disabled, and inert", () => {
+  it("keeps unavailable chord edits focusable, visibly described, semantically disabled, and inert", () => {
     setNavigatorLanguage("ko-KR");
     const song = createDemoRehearsalSong();
     const promptSpy = vi.spyOn(window, "prompt");
 
     render(<SectionRoadmap song={song} activeRole="bass-guitar" />);
 
+    const description = screen.getByText("이 화면에서는 코드를 수정할 수 없습니다.");
     const button = screen.getByRole("button", { name: "Bass Guitar의 verse 코드 수정, 현재 C#m7" });
     expect(button.getAttribute("aria-disabled")).toBe("true");
     expect(button.hasAttribute("disabled")).toBe(false);
     expect(button.tabIndex).toBe(0);
-
-    const descriptionId = button.getAttribute("aria-describedby");
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId!)?.textContent).toBe("이 화면에서는 코드를 수정할 수 없습니다.");
+    expect(button.getAttribute("aria-describedby")).toBe(description.id);
 
     fireEvent.click(button);
     expect(promptSpy).not.toHaveBeenCalled();

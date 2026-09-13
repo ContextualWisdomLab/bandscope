@@ -18,6 +18,7 @@ interface SectionRoadmapProps {
 /** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
+  const chordEditDisabledDescriptionId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
@@ -91,12 +92,19 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 id={sectionRoadmapTitleId} className="flex items-center text-xl font-black tracking-tight text-white">
-          <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
-          {t("sectionRoadmapTitle")}
-        </h2>
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id={sectionRoadmapTitleId} className="flex items-center text-xl font-black tracking-tight text-white">
+            <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
+            {t("sectionRoadmapTitle")}
+          </h2>
+          {!onSongUpdate && (
+            <p id={chordEditDisabledDescriptionId} className="mt-1 text-xs font-medium text-slate-400">
+              {t("chordEditDisabledExplanation")}
+            </p>
+          )}
+        </div>
+        <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
       </div>
 
       <div
@@ -128,7 +136,6 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 .filter(role => !activeRole || role.id === activeRole)
                 .map(role => {
                   const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
-                  const chordEditDisabledDescriptionId = `chord-edit-disabled-${section.id}-${role.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
                   return (
                   <div
                     key={role.id}
@@ -180,11 +187,6 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                             {onSongUpdate ? t("chordEditTitle") : t("chordEditDisabledExplanation")}
                           </TooltipContent>
                         </Tooltip>
-                        {!onSongUpdate && (
-                          <span id={chordEditDisabledDescriptionId} className="sr-only">
-                            {t("chordEditDisabledExplanation")}
-                          </span>
-                        )}
                         {role.harmony.source === "user" && (
                           <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
                             {t("harmonySourceUserBadge")}
