@@ -6,6 +6,7 @@ import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucide-react";
 
 interface SectionRoadmapProps {
@@ -152,27 +153,31 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
                         <span className="text-[0.7rem] font-bold uppercase tracking-wider text-slate-400">{t("sectionChordLabel")}</span>
-                        <button
-                          type="button"
-                          aria-label={editChordLabel(role, section.label)}
-                          className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:opacity-50 ${
-                            onSongUpdate
-                              ? "cursor-pointer hover:bg-white/10"
-                              : "cursor-default"
-                          } ${
-                            role.harmony.source === "user"
-                              ? "bg-indigo-300/15 text-indigo-200"
-                              : "text-cyan-100"
-                          }`}
-                          onClick={() => {
-                            if (!onSongUpdate) return;
-                            handleChordEdit(section.id, role);
-                          }}
-                          title={onSongUpdate ? t("chordEditTitle") : t("chordEditUnavailable")}
-                          aria-disabled={!onSongUpdate ? "true" : undefined}
-                        >
-                          {role.harmony.chord}
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            type="button"
+                            aria-label={editChordLabel(role, section.label)}
+                            className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:opacity-50 ${
+                              onSongUpdate
+                                ? "cursor-pointer hover:bg-white/10"
+                                : "cursor-default"
+                            } ${
+                              role.harmony.source === "user"
+                                ? "bg-indigo-300/15 text-indigo-200"
+                                : "text-cyan-100"
+                            }`}
+                            onClick={() => {
+                              if (!onSongUpdate) return;
+                              handleChordEdit(section.id, role);
+                            }}
+                            aria-disabled={!onSongUpdate ? "true" : undefined}
+                          >
+                            {role.harmony.chord}
+                          </TooltipTrigger>
+                          <TooltipContent sideOffset={4}>
+                            {onSongUpdate ? t("chordEditTitle") : t("chordEditDisabledExplanation")}
+                          </TooltipContent>
+                        </Tooltip>
                         {role.harmony.source === "user" && (
                           <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
                             {t("harmonySourceUserBadge")}
