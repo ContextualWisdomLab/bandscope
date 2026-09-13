@@ -128,6 +128,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                 .filter(role => !activeRole || role.id === activeRole)
                 .map(role => {
                   const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
+                  const chordEditDisabledDescriptionId = `chord-edit-disabled-${section.id}-${role.id}`.replace(/[^A-Za-z0-9_-]/g, "-");
                   return (
                   <div
                     key={role.id}
@@ -157,6 +158,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           <TooltipTrigger
                             type="button"
                             aria-label={editChordLabel(role, section.label)}
+                            aria-describedby={!onSongUpdate ? chordEditDisabledDescriptionId : undefined}
                             className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:opacity-50 ${
                               onSongUpdate
                                 ? "cursor-pointer hover:bg-white/10"
@@ -178,6 +180,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                             {onSongUpdate ? t("chordEditTitle") : t("chordEditDisabledExplanation")}
                           </TooltipContent>
                         </Tooltip>
+                        {!onSongUpdate && (
+                          <span id={chordEditDisabledDescriptionId} className="sr-only">
+                            {t("chordEditDisabledExplanation")}
+                          </span>
+                        )}
                         {role.harmony.source === "user" && (
                           <Badge variant="secondary" className="h-4 bg-indigo-300/20 px-1 text-[0.6rem] text-indigo-100 hover:bg-indigo-300/20">
                             {t("harmonySourceUserBadge")}
