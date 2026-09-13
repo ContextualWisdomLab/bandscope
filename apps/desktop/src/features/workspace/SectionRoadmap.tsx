@@ -18,6 +18,7 @@ interface SectionRoadmapProps {
 /** Documented. */
 export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadmapProps) {
   const sectionRoadmapTitleId = useId();
+  const chordEditDisabledDescriptionId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
 
@@ -91,12 +92,19 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
 
   return (
     <div className="mt-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 id={sectionRoadmapTitleId} className="flex items-center text-xl font-black tracking-tight text-white">
-          <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
-          {t("sectionRoadmapTitle")}
-        </h2>
-        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id={sectionRoadmapTitleId} className="flex items-center text-xl font-black tracking-tight text-white">
+            <Music2 className="mr-2 size-5 text-cyan-300" aria-hidden="true" />
+            {t("sectionRoadmapTitle")}
+          </h2>
+          {!onSongUpdate && (
+            <p id={chordEditDisabledDescriptionId} className="mt-1 text-xs font-medium text-slate-400">
+              {t("chordEditDisabledExplanation")}
+            </p>
+          )}
+        </div>
+        <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{t("sectionRoadmapScrollHint")}</span>
       </div>
 
       <div
@@ -157,6 +165,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           <TooltipTrigger
                             type="button"
                             aria-label={editChordLabel(role, section.label)}
+                            aria-describedby={!onSongUpdate ? chordEditDisabledDescriptionId : undefined}
                             className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:opacity-50 ${
                               onSongUpdate
                                 ? "cursor-pointer hover:bg-white/10"
