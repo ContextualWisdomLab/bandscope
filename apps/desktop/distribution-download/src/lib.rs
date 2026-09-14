@@ -311,28 +311,42 @@ pub struct SealedArtifactFile {
 /// Read-only view over the exact still-open sealed artifact descriptor.
 ///
 /// Reads are positional and begin at byte zero without reopening the staging
-/// path. The wrapper intentionally implements `Read` only: callers cannot use
-/// it to recover the underlying write-capable staging descriptor.
+/// path. The stream is capped at the exact byte count admitted before sealing,
+/// so post-seal file growth cannot expand verifier memory or alter the byte
+/// range considered by downstream digest/signature checks. The wrapper
+/// intentionally implements `Read` only: callers cannot recover the underlying
+/// write-capable staging descriptor.
 #[derive(Debug)]
 pub struct SealedArtifactReader<'a> {
     file: &'a File,
     offset: u64,
+    remaining_bytes: u64,
 }
 
 impl Read for SealedArtifactReader<'_> {
     fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-        if buffer.is_empty() {
+        if buffer.is_empty() || self.remaining_bytes == 0 {
             return Ok(0);
         }
-        let read = descriptor_read_at(self.file, buffer, self.offset)?;
-        self.offset = self
-            .offset
-            .checked_add(u64::try_from(read).map_err(|_| {
-                std::io::Error::new(ErrorKind::InvalidData, "sealed read length overflow")
-            })?)
-            .ok_or_else(|| {
-                std::io::Error::new(ErrorKind::InvalidData, "sealed reader offset overflow")
-            })?;
+        let maximum_read = usize::try_from(self.remaining_bytes)
+            .unwrap_or(usize::MAX)
+            .min(buffer.len());
+        let read = descriptor_read_at(self.file, &mut buffer[..maximum_read], self.offset)?;
+        if read == 0 {
+            return Err(std::io::Error::new(
+                ErrorKind::UnexpectedEof,
+                "sealed artifact truncated below admitted byte boundary",
+            ));
+        }
+        let read_u64 = u64::try_from(read).map_err(|_| {
+            std::io::Error::new(ErrorKind::InvalidData, "sealed read length overflow")
+        })?;
+        self.offset = self.offset.checked_add(read_u64).ok_or_else(|| {
+            std::io::Error::new(ErrorKind::InvalidData, "sealed reader offset overflow")
+        })?;
+        self.remaining_bytes = self.remaining_bytes.checked_sub(read_u64).ok_or_else(|| {
+            std::io::Error::new(ErrorKind::InvalidData, "sealed reader boundary underflow")
+        })?;
         Ok(read)
     }
 }
@@ -350,9 +364,10 @@ impl SealedArtifactFile {
 
     /// Open a read-only positional stream over the exact sealed descriptor.
     ///
-    /// The stream starts at byte zero and never reopens the staging path. This
-    /// preserves descriptor binding while withholding the underlying
-    /// write-capable `File` from downstream digest/signature code.
+    /// The stream starts at byte zero, stops at the exact admitted byte count,
+    /// and never reopens the staging path. This preserves descriptor binding,
+    /// prevents post-seal growth from widening verifier input, and withholds the
+    /// underlying write-capable `File` from downstream digest/signature code.
     pub fn reader(&self) -> SealedArtifactReader<'_> {
         SealedArtifactReader {
             file: self
@@ -360,6 +375,7 @@ impl SealedArtifactFile {
                 .as_ref()
                 .expect("sealed artifact descriptor remains present before drop"),
             offset: 0,
+            remaining_bytes: self.bytes_written,
         }
     }
 }
