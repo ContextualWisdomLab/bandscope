@@ -1,6 +1,6 @@
 use bandscope_distribution_download::{ArtifactDownloadAdmission, StagedArtifactFile};
-use std::fs;
-use std::io::Read;
+use std::fs::{self, OpenOptions};
+use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn scratch_dir(label: &str) -> std::path::PathBuf {
@@ -33,6 +33,42 @@ fn sealed_artifact_exposes_descriptor_bound_read_only_stream() {
     reader
         .read_to_end(&mut bytes)
         .expect("read exact sealed descriptor bytes");
+    assert_eq!(bytes, b"data");
+    assert_eq!(sealed.bytes_written(), 4);
+
+    drop(reader);
+    drop(sealed);
+    assert!(!staged_path.exists());
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
+fn sealed_reader_never_crosses_the_admitted_byte_boundary_after_external_growth() {
+    let directory = scratch_dir("sealed-reader-growth");
+    let mut staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
+    let staged_path = staged.path().to_path_buf();
+    let mut admission = ArtifactDownloadAdmission::new(4, Some(4)).expect("admission");
+    staged
+        .admit_chunk(&mut admission, b"data")
+        .expect("write admitted bytes");
+    let receipt = admission.finish().expect("exact response receipt");
+    let sealed = staged.seal(receipt).expect("sync and seal exact artifact");
+
+    let mut external = OpenOptions::new()
+        .append(true)
+        .open(&staged_path)
+        .expect("simulate post-seal local growth");
+    external
+        .write_all(b"untrusted-tail")
+        .expect("append hostile tail");
+    external.sync_all().expect("persist hostile tail");
+    drop(external);
+
+    let mut reader = sealed.reader();
+    let mut bytes = Vec::new();
+    reader
+        .read_to_end(&mut bytes)
+        .expect("reader remains bounded to admitted bytes");
     assert_eq!(bytes, b"data");
     assert_eq!(sealed.bytes_written(), 4);
 
