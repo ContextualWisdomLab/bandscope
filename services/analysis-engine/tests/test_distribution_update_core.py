@@ -9,11 +9,12 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _MANIFESTS = (
     _REPO_ROOT / "apps" / "desktop" / "distribution-core" / "Cargo.toml",
     _REPO_ROOT / "apps" / "desktop" / "distribution-state" / "Cargo.toml",
+    _REPO_ROOT / "apps" / "desktop" / "distribution-runtime" / "Cargo.toml",
 )
 
 
 def test_distribution_update_native_suites_are_green() -> None:
-    """Run the locked Rust decision and durable-state contracts independently."""
+    """Run the locked Rust decision, durable-state, and runtime-admission contracts."""
     for manifest in _MANIFESTS:
         completed = subprocess.run(
             [
