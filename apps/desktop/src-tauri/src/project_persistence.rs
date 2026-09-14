@@ -597,6 +597,74 @@ fn sync_parent_directory(_parent: &Path) -> std::io::Result<()> {
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub(crate) fn publish_synced_file_noreplace(
+    stage: &Path,
+    target: &Path,
+) -> Result<(), String> {
+    publish_synced_file_noreplace_with_directory_sync(stage, target, sync_parent_directory)
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub(crate) fn publish_synced_file_noreplace(
+    _stage: &Path,
+    _target: &Path,
+) -> Result<(), String> {
+    Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+/// Publishes a caller-owned, already-synchronized stage without replacing an existing target.
+///
+/// Project Persistence owns the platform publication primitive so Resource Admission and Active
+/// Player do not grow their own rename/write-through implementations. The stage and target must be
+/// siblings inside a safe project directory. Linux/macOS use the native no-replace rename and fsync
+/// the parent before success; Windows uses `MoveFileExW(MOVEFILE_WRITE_THROUGH)` and the directory
+/// synchronizer is intentionally a no-op. A competing target leaves the stage intact. If parent
+/// durability fails after a successful rename, the complete target is left in place but success is
+/// not acknowledged, preventing a persistence identity from claiming durability that was not proven.
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+pub(crate) fn publish_synced_file_noreplace_with_directory_sync<S>(
+    stage: &Path,
+    target: &Path,
+    mut sync_parent: S,
+) -> Result<(), String>
+where
+    S: FnMut(&Path) -> std::io::Result<()>,
+{
+    let parent = project_parent(target);
+    if target.file_name().is_none()
+        || stage.parent() != Some(parent)
+        || !project_parent_chain_is_safe(parent)
+    {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    let stage_metadata =
+        fs::symlink_metadata(stage).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&stage_metadata) {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+
+    match rename_noreplace(stage, target) {
+        Ok(()) => sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string()),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(PROJECT_EXISTS_ERROR.to_string())
+        }
+        Err(_) => Err(PROJECT_PUBLISH_ERROR.to_string()),
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub(crate) fn publish_synced_file_noreplace_with_directory_sync<S>(
+    _stage: &Path,
+    _target: &Path,
+    _sync_parent: S,
+) -> Result<(), String>
+where
+    S: FnMut(&Path) -> std::io::Result<()>,
+{
+    Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn create_publication_journal(
     target: &Path,
     candidate_stage: &Path,
@@ -1719,7 +1787,7 @@ mod tests {
         assert_eq!(fs::read(&target).expect("target should remain readable"), candidate);
         assert!(!stage.exists(), "the displaced known-good stage should be cleaned");
         assert!(!published.exists(), "the published journal should be cleaned");
-        fs::remove_dir_all(root).expect("fixture directory should be removable");
+        fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
