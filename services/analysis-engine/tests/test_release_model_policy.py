@@ -101,9 +101,9 @@ def _write_evidence_files(repository_root: Path) -> dict[str, str]:
 def _admitted_artifact(
     repository_root: Path, artifact_path: str, payload: bytes
 ) -> dict[str, object]:
-    """Build exact immutable metadata and backing evidence for an admitted test artifact."""
+    """Build immutable metadata, evidence, and inventory for an admitted test artifact."""
     evidence_digests = _write_evidence_files(repository_root)
-    return {
+    admitted: dict[str, object] = {
         "modelId": "cwl/rehearsal-separator-v1",
         "modelVersion": "1.0.0",
         "path": artifact_path,
@@ -112,6 +112,32 @@ def _admitted_artifact(
         "serialization": "safetensors",
         **evidence_digests,
     }
+    inventory_path = repository_root / "supply-chain" / "supplemental-component-inventory.json"
+    inventory_path.parent.mkdir(parents=True, exist_ok=True)
+    inventory_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "generatedBy": "test fixture",
+                "bundledBinaries": [],
+                "modelArtifacts": [
+                    {
+                        "name": admitted["modelId"],
+                        "version": admitted["modelVersion"],
+                        "sourceUrl": f"local-repo://{artifact_path}",
+                        "license": "Proprietary",
+                        "checksum": f"sha256:{admitted['sha256']}",
+                        "storagePath": artifact_path,
+                        "releaseUsage": "Packaged offline rehearsal source-separation model.",
+                        "verification": "Distribution release admission full SHA-256.",
+                    }
+                ],
+                "notes": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return admitted
 
 
 def test_release_preflight_composes_model_policy_without_duplicate_workflow() -> None:
