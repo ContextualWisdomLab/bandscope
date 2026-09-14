@@ -48,11 +48,25 @@ Runtime-core lineage:
 - Crate/lock foundation `1339cfd44aef17743a770449651ee9a233baf4e5` / `0fbb2e8a5396e5b5b123704537e0c4b9719a92e3`: 다른 desktop bounded context나 Tauri/WebView에 의존하지 않는 standalone Rust core를 만들었습니다.
 - Causal fix `42fdeed9a1ddf57d807889e61dee864b931b62a2`: version monotonicity, highest-seen replay/equivocation, target, compatibility floor와 project-schema-aware known-good rollback decision을 구현하고 hostile edge cases를 native unit test로 고정했습니다.
 
-이 core는 아직 network check/install을 실행하지 않습니다. 현재 updater authority가 `blocked`인 상태에서 fake endpoint/key를 넣어 runtime을 강제로 활성화하는 것보다, pure decision contract를 먼저 고정하고 실제 authority provision 후 Tauri `Update.raw_json` + authenticated artifact flow에 연결하는 편이 신뢰 경계를 보존합니다.
+## Highest-seen durable state
+
+Decision core만 있고 authenticated release identity를 restart 뒤 보존하지 않으면 replay 방어는 세션 경계에서 사라집니다. 이 state는 Project Persistence에 넣지 않고 Distribution 내부의 별도 `apps/desktop/distribution-state` crate가 소유합니다. `distribution-core`는 계속 filesystem-independent decision layer로 남고, state crate는 그 `ReleaseIdentity`만 소비합니다.
+
+State format은 bounded append-only log입니다. 정상 record는 `v1|MAJOR.MINOR.PATCH|<40-hex source>|<64-hex updater sha256>\n`이며 최대 64 KiB만 허용합니다. Loader는 regular non-link file만 읽고 committed record를 모두 재검증합니다. version이 감소하거나 같은 version이 다시 committed되면 local authority corruption으로 fail closed합니다. 마지막 append가 crash 중 끊어진 경우에만, trailing bytes가 정확히 valid record prefix일 때 이전 committed highest identity를 복구합니다. 다음 successful append 전에 그 validated partial tail을 잘라냅니다.
+
+`remember_highest_seen`은 lower release를 `Replay`, same-version/different-identity를 `Equivocation`으로 거부합니다. Exact same identity는 log를 늘리지 않는 idempotent no-op입니다. 새 record는 append 후 `sync_all()`이 성공하고 expected byte length가 확인되어야 성공으로 반환합니다. Unix에서는 최초 state-file 생성 시 parent directory도 동기화합니다. Windows에서 directory-entry power-loss semantics까지 source만으로 동일하게 주장하지 않으며, packaged fault-injection acceptance는 계속 남은 release gate입니다.
+
+Durable-state lineage:
+
+- RED `fa5690b53b776ef9d5b31b13b0285de384a53aaf`: repository validation이 별도의 locked `distribution-state` native suite를 요구하도록 확장했습니다.
+- Foundation `f07f35ea68a4eee2e3fd8d7c90af0e778716a9e9` / `30159e004f7c8629ee47dcf89ae311cebf3fa1f7`: path-only dependency graph으로 state owner와 lockfile을 분리했습니다.
+- Causal fix `95889b6a42ecb7452630f94dbff7a9b429e56bde`: bounded append/sync, monotonic/equivocation checks, recoverable torn-tail handling, regular-file/symlink/size admission과 native hostile-case tests를 구현했습니다.
+
+이 state crate는 아직 Tauri `Update.raw_json`을 parse하거나 update check를 실행하지 않습니다. `release/updater-policy.json`이 `blocked`인 동안 fake endpoint/key를 만들어 positive runtime을 흉내 내지 않습니다. 다음 연결은 authenticated `raw_json` admission과 app-owned state path wiring이며, production signature acceptance는 실제 updater authority가 생긴 뒤에만 가능합니다.
 
 ## 보안 경계와 기각한 대안
 
-이 메타데이터와 Rust decision core는 artifact identity와 anti-replay 판단의 입력이지 독립적인 서명 권위가 아닙니다. Tauri의 `.sig`는 updater bundle을 검증하고, GitHub immutable-release attestation은 published release asset 집합을 검증합니다. `bandscope` JSON 필드만 보고 signature validity나 repository compromise resilience를 주장하지 않습니다.
+이 메타데이터와 Rust decision/state core는 artifact identity와 anti-replay 판단의 입력·local memory이지 독립적인 서명 권위가 아닙니다. Tauri의 `.sig`는 updater bundle을 검증하고, GitHub immutable-release attestation은 published release asset 집합을 검증합니다. `bandscope` JSON 필드나 local state만 보고 signature validity나 repository compromise resilience를 주장하지 않습니다.
 
 현재 `release/updater-policy.json`은 updater public key와 production endpoint가 provision되지 않아 `blocked`입니다. private key·public key·endpoint를 source에서 만들거나 추측하지 않습니다. `allowDowngrades` 또는 custom version comparator로 Tauri의 기본 forward version semantics를 약화하는 것도 채택하지 않았습니다.
 
@@ -63,7 +77,7 @@ TUF가 정의하는 rollback/freeze 계열 공격까지 완전히 방어했다�
 Repository-owned 다음 단계는 승인된 updater authority가 provision되었을 때 Tauri runtime과 durable Distribution state를 이 pure core에 연결하는 것입니다. 그 acceptance는 최소한 다음을 요구합니다.
 
 - authenticated `Update.raw_json`에서 exact `bandscope` schema/target/artifact identity를 bounded parsing한 뒤 core에 전달
-- highest-seen release identity의 crash-safe app-owned persistence 및 reload
+- `distribution-state`를 app-owned 경로에 연결하고 실제 packaged restart/power-loss에서 highest-seen reload 검증
 - offline update-check 실패가 일반 startup을 막지 않음
 - truncated/partial download, disk-full, cancel, first-launch failure 뒤 current installation과 project data 보존
 - last-known-good installer retention 및 실제 rollback 전 project-schema compatibility 확인
