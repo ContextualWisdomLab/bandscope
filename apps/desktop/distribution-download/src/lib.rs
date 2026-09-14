@@ -2,19 +2,24 @@
 //!
 //! The current Tauri updater returns verified artifacts as an in-memory byte
 //! vector. BandScope's commercial Distribution boundary needs an independent
-//! streaming primitive before it can claim bounded hostile-response handling.
-//! This crate owns only byte-count admission into a caller-provided sink. It
-//! does not perform HTTP, metadata authentication, signature verification,
-//! digest verification, installation, rollback, or project persistence.
+//! streaming primitive and an exclusive app-owned staging sink before it can
+//! claim bounded hostile-response handling. This crate owns byte-count and
+//! temporary-file admission only. It does not perform HTTP, metadata
+//! authentication, signature or digest verification, installation, rollback,
+//! or project persistence.
 
 #![forbid(unsafe_code)]
 
+use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Write};
+use std::path::{Path, PathBuf};
 
 /// Hard ceiling for one updater artifact accepted by the Distribution boundary.
 pub const MAX_UPDATER_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// Largest single response chunk the adapter may hand to this boundary.
 pub const MAX_DOWNLOAD_CHUNK_BYTES: usize = 1024 * 1024;
+/// Largest product-owned staging filename accepted by this boundary.
+pub const MAX_ARTIFACT_NAME_BYTES: usize = 180;
 
 /// Fail-closed reasons for bounded updater-artifact admission.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,6 +38,31 @@ pub enum DownloadAdmissionError {
     Poisoned,
     /// The response ended before the authenticated artifact length was reached.
     Incomplete,
+}
+
+/// Fail-closed reasons for updater staging-file lifecycle operations.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StagingArtifactError {
+    /// The artifact name is not a bounded portable basename.
+    InvalidArtifactName,
+    /// The supplied staging directory cannot be inspected.
+    StagingDirectoryUnavailable(ErrorKind),
+    /// The staging root is not a direct, non-symlink directory.
+    InvalidStagingDirectory,
+    /// The exact staging destination already exists.
+    DestinationExists,
+    /// Exclusive staging-file creation failed.
+    CreateFailed(ErrorKind),
+    /// Flushing userspace buffers failed before sealing.
+    FlushFailed(ErrorKind),
+    /// Synchronizing staged bytes to the operating system failed.
+    SyncFailed(ErrorKind),
+    /// Descriptor-bound metadata could not be read after synchronization.
+    MetadataFailed(ErrorKind),
+    /// The staged descriptor is no longer a regular file.
+    NonRegularArtifact,
+    /// Descriptor size disagrees with the exact download receipt.
+    SizeMismatch,
 }
 
 /// Byte-count evidence emitted only after an exactly sized stream completes.
@@ -124,7 +154,7 @@ impl ArtifactDownloadAdmission {
         Ok(())
     }
 
-    /// Return bytes durably handed to the sink by successful chunk writes.
+    /// Return bytes handed successfully to the current sink.
     pub const fn received_size_bytes(&self) -> u64 {
         self.received_size_bytes
     }
@@ -141,6 +171,178 @@ impl ArtifactDownloadAdmission {
             bytes_written: self.received_size_bytes,
         })
     }
+}
+
+/// Exclusive temporary artifact owned by the Distribution staging directory.
+///
+/// Creation accepts one portable basename under an already-existing app-owned
+/// non-symlink directory. The file is removed on drop unless `seal` succeeds.
+/// Callers cannot write the descriptor directly; response bytes must pass
+/// through `ArtifactDownloadAdmission` via `admit_chunk`.
+#[derive(Debug)]
+pub struct StagedArtifactFile {
+    file: Option<File>,
+    path: PathBuf,
+    retain_on_drop: bool,
+}
+
+impl StagedArtifactFile {
+    /// Create one new staging artifact without overwriting any existing path.
+    pub fn create(
+        staging_directory: &Path,
+        artifact_name: &str,
+    ) -> Result<Self, StagingArtifactError> {
+        if !is_portable_artifact_name(artifact_name) {
+            return Err(StagingArtifactError::InvalidArtifactName);
+        }
+        let directory_metadata = fs::symlink_metadata(staging_directory)
+            .map_err(|error| StagingArtifactError::StagingDirectoryUnavailable(error.kind()))?;
+        if directory_metadata.file_type().is_symlink() || !directory_metadata.is_dir() {
+            return Err(StagingArtifactError::InvalidStagingDirectory);
+        }
+
+        let path = staging_directory.join(artifact_name);
+        let file = match OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                return Err(StagingArtifactError::DestinationExists);
+            }
+            Err(error) => return Err(StagingArtifactError::CreateFailed(error.kind())),
+        };
+
+        Ok(Self {
+            file: Some(file),
+            path,
+            retain_on_drop: false,
+        })
+    }
+
+    /// Return the direct child path reserved for this staging attempt.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Admit one response chunk through the byte-count guard into this file.
+    pub fn admit_chunk(
+        &mut self,
+        admission: &mut ArtifactDownloadAdmission,
+        chunk: &[u8],
+    ) -> Result<(), DownloadAdmissionError> {
+        let file = self
+            .file
+            .as_mut()
+            .expect("staged artifact descriptor remains present before seal");
+        admission.write_chunk(file, chunk)
+    }
+
+    /// Flush, synchronize, and descriptor-check an exactly downloaded artifact.
+    ///
+    /// A successful seal prevents cleanup-on-drop and returns the still-open
+    /// descriptor so later digest/signature verification can remain bound to
+    /// the exact staged bytes rather than reopening an attacker-selected path.
+    pub fn seal(
+        mut self,
+        receipt: DownloadReceipt,
+    ) -> Result<SealedArtifactFile, StagingArtifactError> {
+        let file = self
+            .file
+            .as_mut()
+            .expect("staged artifact descriptor remains present before seal");
+        file.flush()
+            .map_err(|error| StagingArtifactError::FlushFailed(error.kind()))?;
+        file.sync_all()
+            .map_err(|error| StagingArtifactError::SyncFailed(error.kind()))?;
+        let metadata = file
+            .metadata()
+            .map_err(|error| StagingArtifactError::MetadataFailed(error.kind()))?;
+        if !metadata.file_type().is_file() {
+            return Err(StagingArtifactError::NonRegularArtifact);
+        }
+        if metadata.len() != receipt.bytes_written() {
+            return Err(StagingArtifactError::SizeMismatch);
+        }
+
+        self.retain_on_drop = true;
+        let sealed_file = self
+            .file
+            .take()
+            .expect("staged artifact descriptor remains present after validation");
+        Ok(SealedArtifactFile {
+            file: sealed_file,
+            path: self.path.clone(),
+            bytes_written: receipt.bytes_written(),
+        })
+    }
+}
+
+impl Drop for StagedArtifactFile {
+    fn drop(&mut self) {
+        if self.retain_on_drop {
+            return;
+        }
+        if let Some(file) = self.file.take() {
+            drop(file);
+        }
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+/// Synchronized staging artifact kept open for later identity verification.
+#[derive(Debug)]
+pub struct SealedArtifactFile {
+    file: File,
+    path: PathBuf,
+    bytes_written: u64,
+}
+
+impl SealedArtifactFile {
+    /// Return the synchronized staging path retained after a successful seal.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Return the exact admitted byte count bound to this descriptor.
+    pub const fn bytes_written(&self) -> u64 {
+        self.bytes_written
+    }
+
+    /// Borrow the still-open descriptor for digest or signature verification.
+    pub const fn file(&self) -> &File {
+        &self.file
+    }
+}
+
+fn is_portable_artifact_name(name: &str) -> bool {
+    if name.is_empty() || name.len() > MAX_ARTIFACT_NAME_BYTES || name.starts_with('.') {
+        return false;
+    }
+    if !name
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return false;
+    }
+    if name.ends_with('.') || name.ends_with(' ') {
+        return false;
+    }
+
+    let stem = name.split('.').next().unwrap_or_default().to_ascii_uppercase();
+    !is_windows_reserved_stem(&stem)
+}
+
+fn is_windows_reserved_stem(stem: &str) -> bool {
+    if matches!(stem, "CON" | "PRN" | "AUX" | "NUL") {
+        return true;
+    }
+    let bytes = stem.as_bytes();
+    bytes.len() == 4
+        && matches!(&bytes[..3], b"COM" | b"LPT")
+        && matches!(bytes[3], b'1'..=b'9')
 }
 
 #[cfg(test)]
@@ -268,5 +470,15 @@ mod tests {
             ArtifactDownloadAdmission::new(MAX_UPDATER_ARTIFACT_BYTES + 1, None).unwrap_err(),
             DownloadAdmissionError::InvalidExpectedSize
         );
+    }
+
+    #[test]
+    fn portable_name_policy_rejects_windows_devices_and_hidden_paths() {
+        assert!(is_portable_artifact_name("bandscope-0.1.3.tar.gz"));
+        assert!(!is_portable_artifact_name("CON"));
+        assert!(!is_portable_artifact_name("com1.exe"));
+        assert!(!is_portable_artifact_name(".hidden"));
+        assert!(!is_portable_artifact_name("../escape"));
+        assert!(!is_portable_artifact_name("name%2fescape"));
     }
 }
