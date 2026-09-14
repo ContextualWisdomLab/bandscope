@@ -2,13 +2,14 @@
 """Verify BandScope's fail-closed commercial updater release policy.
 
 Security Notes:
-- updater authority is read only from fixed repository-relative policy and Tauri
-  configuration paths; callers cannot supply alternate files or remote URLs;
-- JSON inputs are bounded, duplicate-member rejecting, regular non-link files
-  whose opened descriptor identity must remain stable while read;
+- updater authority is read only from fixed repository-relative policy, Tauri
+  configuration, Cargo manifest/lock, and desktop runtime source paths; callers
+  cannot supply alternate files or remote URLs;
+- JSON/TOML/source inputs are bounded regular non-link files whose opened
+  descriptor identity must remain stable while read; JSON rejects duplicates;
 - an admitted updater requires Tauri v2 updater artifacts, an exact embedded
-  public verification key, and exact HTTPS endpoints with insecure transport
-  disabled;
+  public verification key, exact HTTPS endpoints, a locked registry updater
+  plugin dependency, and an executable desktop runtime initializer;
 - a blocked policy must keep updater artifact generation/plugin configuration
   disabled, and a tag/release caller may require admission explicitly;
 - this guard never reads private signing keys, downloads updates, signs bytes,
@@ -22,6 +23,7 @@ import os
 import re
 import stat
 import sys
+import tomllib
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -29,8 +31,14 @@ from urllib.parse import urlsplit
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _POLICY_PATH = Path("release/updater-policy.json")
 _TAURI_CONFIG_PATH = Path("apps/desktop/src-tauri/tauri.conf.json")
+_TAURI_CARGO_MANIFEST_PATH = Path("apps/desktop/src-tauri/Cargo.toml")
+_TAURI_CARGO_LOCK_PATH = Path("apps/desktop/src-tauri/Cargo.lock")
+_TAURI_MAIN_PATH = Path("apps/desktop/src-tauri/src/main.rs")
 _MAX_POLICY_BYTES = 64 * 1024
 _MAX_TAURI_CONFIG_BYTES = 256 * 1024
+_MAX_CARGO_MANIFEST_BYTES = 256 * 1024
+_MAX_CARGO_LOCK_BYTES = 4 * 1024 * 1024
+_MAX_TAURI_MAIN_BYTES = 2 * 1024 * 1024
 _MAX_PUBLIC_KEY_CHARACTERS = 16 * 1024
 _MAX_ENDPOINTS = 4
 _ALLOWED_POLICY_KEYS = frozenset(
@@ -53,6 +61,11 @@ _SEMVER_RE = re.compile(
     r"(?:-((?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
     r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?"
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_UPDATER_INITIALIZER_RE = re.compile(
+    r"\.plugin\s*\(\s*tauri_plugin_updater::Builder::new\s*\(\s*\)"
+    r"\s*\.build\s*\(\s*\)\s*\)"
 )
 
 
@@ -114,6 +127,20 @@ def _load_bounded_json_object(path: Path, *, maximum_bytes: int, label: str) -> 
         raise ValueError(f"{label} is not valid UTF-8 JSON") from decode_error
     if not isinstance(document, dict):
         raise ValueError(f"{label} must contain one JSON object")
+    return document
+
+
+def _load_bounded_toml_object(path: Path, *, maximum_bytes: int, label: str) -> dict[str, Any]:
+    """Decode one bounded UTF-8 TOML document from a stable regular file."""
+    raw_bytes = _stable_regular_file_bytes(
+        path, maximum_bytes=maximum_bytes, label=label
+    )
+    try:
+        document = tomllib.loads(raw_bytes.decode("utf-8"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as decode_error:
+        raise ValueError(f"{label} is not valid UTF-8 TOML") from decode_error
+    if not isinstance(document, dict):
+        raise ValueError(f"{label} must contain one TOML document")
     return document
 
 
@@ -187,10 +214,185 @@ def _create_updater_artifacts_value(tauri_document: dict[str, Any]) -> Any:
     return bundle.get("createUpdaterArtifacts")
 
 
+def _updater_dependency_declarations(cargo_document: dict[str, Any]) -> list[Any]:
+    """Return updater dependency declarations from Cargo root/target dependency tables."""
+    declarations: list[Any] = []
+    dependencies = cargo_document.get("dependencies")
+    if dependencies is not None:
+        if not isinstance(dependencies, dict):
+            raise ValueError("desktop Cargo.toml dependencies must be an object")
+        if "tauri-plugin-updater" in dependencies:
+            declarations.append(dependencies["tauri-plugin-updater"])
+
+    targets = cargo_document.get("target")
+    if targets is not None:
+        if not isinstance(targets, dict):
+            raise ValueError("desktop Cargo.toml target must be an object")
+        for target_value in targets.values():
+            if not isinstance(target_value, dict):
+                raise ValueError("desktop Cargo.toml target entry must be an object")
+            target_dependencies = target_value.get("dependencies")
+            if target_dependencies is None:
+                continue
+            if not isinstance(target_dependencies, dict):
+                raise ValueError("desktop target dependencies must be an object")
+            if "tauri-plugin-updater" in target_dependencies:
+                declarations.append(target_dependencies["tauri-plugin-updater"])
+    return declarations
+
+
+def _validate_updater_dependency(declaration: Any) -> None:
+    """Require one versioned non-path/non-git updater dependency declaration."""
+    if isinstance(declaration, str):
+        if not declaration or declaration != declaration.strip():
+            raise ValueError("tauri-plugin-updater dependency version must be explicit")
+        return
+    if not isinstance(declaration, dict):
+        raise ValueError("tauri-plugin-updater dependency declaration is invalid")
+    version = declaration.get("version")
+    if not isinstance(version, str) or not version or version != version.strip():
+        raise ValueError("tauri-plugin-updater dependency version must be explicit")
+    if "path" in declaration or "git" in declaration:
+        raise ValueError("tauri-plugin-updater dependency must use the locked registry graph")
+    if declaration.get("optional") is True:
+        raise ValueError("tauri-plugin-updater dependency must not be optional for release admission")
+
+
+def _validate_locked_updater_package(cargo_lock: dict[str, Any]) -> None:
+    """Require exactly one immutable registry updater package in Cargo.lock."""
+    packages = cargo_lock.get("package")
+    if not isinstance(packages, list):
+        raise ValueError("desktop Cargo.lock must contain package entries")
+    matches = [
+        package
+        for package in packages
+        if isinstance(package, dict) and package.get("name") == "tauri-plugin-updater"
+    ]
+    if len(matches) != 1:
+        raise ValueError("desktop Cargo.lock must contain exactly one tauri-plugin-updater package")
+    package = matches[0]
+    version = package.get("version")
+    source = package.get("source")
+    checksum = package.get("checksum")
+    if not isinstance(version, str) or not version or version != version.strip():
+        raise ValueError("locked tauri-plugin-updater version is invalid")
+    if not isinstance(source, str) or not source.startswith("registry+"):
+        raise ValueError("locked tauri-plugin-updater must come from a registry source")
+    if not isinstance(checksum, str) or _SHA256_RE.fullmatch(checksum) is None:
+        raise ValueError("locked tauri-plugin-updater must carry a full registry checksum")
+
+
+def _rust_code_without_comments_or_strings(source: str) -> str:
+    """Blank Rust comments/string literals so runtime-wiring text cannot be spoofed there."""
+    output: list[str] = []
+    index = 0
+    length = len(source)
+    block_depth = 0
+    while index < length:
+        if block_depth:
+            if source.startswith("/*", index):
+                block_depth += 1
+                output.extend("  ")
+                index += 2
+            elif source.startswith("*/", index):
+                block_depth -= 1
+                output.extend("  ")
+                index += 2
+            else:
+                output.append("\n" if source[index] == "\n" else " ")
+                index += 1
+            continue
+        if source.startswith("//", index):
+            line_end = source.find("\n", index)
+            if line_end == -1:
+                output.extend(" " * (length - index))
+                break
+            output.extend(" " * (line_end - index))
+            output.append("\n")
+            index = line_end + 1
+            continue
+        if source.startswith("/*", index):
+            block_depth = 1
+            output.extend("  ")
+            index += 2
+            continue
+        if source[index] == "r":
+            raw_match = re.match(r'r(#{0,16})"', source[index:])
+            if raw_match is not None:
+                hashes = raw_match.group(1)
+                prefix_length = len(raw_match.group(0))
+                terminator = '"' + hashes
+                raw_end = source.find(terminator, index + prefix_length)
+                if raw_end == -1:
+                    output.extend(" " * (length - index))
+                    break
+                end = raw_end + len(terminator)
+                output.extend(" " * (end - index))
+                index = end
+                continue
+        if source[index] == '"':
+            output.append(" ")
+            index += 1
+            escaped = False
+            while index < length:
+                character = source[index]
+                output.append("\n" if character == "\n" else " ")
+                index += 1
+                if escaped:
+                    escaped = False
+                    continue
+                if character == "\\":
+                    escaped = True
+                elif character == '"':
+                    break
+            continue
+        output.append(source[index])
+        index += 1
+    return "".join(output)
+
+
+def _validate_updater_runtime_wiring(repository_root: Path) -> None:
+    """Bind updater admission to the compiled Cargo graph and desktop initializer."""
+    cargo_manifest = _load_bounded_toml_object(
+        repository_root / _TAURI_CARGO_MANIFEST_PATH,
+        maximum_bytes=_MAX_CARGO_MANIFEST_BYTES,
+        label="desktop Cargo.toml",
+    )
+    declarations = _updater_dependency_declarations(cargo_manifest)
+    if len(declarations) != 1:
+        raise ValueError(
+            "admitted updater policy requires exactly one tauri-plugin-updater dependency"
+        )
+    _validate_updater_dependency(declarations[0])
+
+    cargo_lock = _load_bounded_toml_object(
+        repository_root / _TAURI_CARGO_LOCK_PATH,
+        maximum_bytes=_MAX_CARGO_LOCK_BYTES,
+        label="desktop Cargo.lock",
+    )
+    _validate_locked_updater_package(cargo_lock)
+
+    main_bytes = _stable_regular_file_bytes(
+        repository_root / _TAURI_MAIN_PATH,
+        maximum_bytes=_MAX_TAURI_MAIN_BYTES,
+        label="desktop Tauri main.rs",
+    )
+    try:
+        executable_source = _rust_code_without_comments_or_strings(
+            main_bytes.decode("utf-8")
+        )
+    except UnicodeError as decode_error:
+        raise ValueError("desktop Tauri main.rs is not valid UTF-8") from decode_error
+    if _UPDATER_INITIALIZER_RE.search(executable_source) is None:
+        raise ValueError(
+            "admitted updater policy requires the Tauri updater runtime initializer"
+        )
+
+
 def verify_updater_policy(
     repository_root: Path, *, require_admitted: bool = False
 ) -> dict[str, Any]:
-    """Verify updater authority and its exact Tauri projection for this repository."""
+    """Verify updater authority and its exact Tauri/runtime projection."""
     policy = _load_bounded_json_object(
         repository_root / _POLICY_PATH,
         maximum_bytes=_MAX_POLICY_BYTES,
@@ -251,6 +453,7 @@ def verify_updater_policy(
         raise ValueError("Tauri updater public key does not match release updater policy")
     if updater_config.get("endpoints") != endpoints:
         raise ValueError("Tauri updater endpoints do not match release updater policy")
+    _validate_updater_runtime_wiring(repository_root)
     return policy
 
 
