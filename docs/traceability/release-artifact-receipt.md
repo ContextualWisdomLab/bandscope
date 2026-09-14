@@ -1,6 +1,6 @@
 # Release artifact receipt traceability
 
-BandScope의 Distribution/update bounded context는 설치 파일을 만들었다는 사실과 상용 릴리즈로 신뢰할 수 있다는 판단을 구분합니다. 이 문서는 `scripts/release/package_desktop_artifact.py`가 생성하는 target receipt, Tauri v2 updater artifact와 static manifest binding, 그리고 아직 해결되지 않은 publication/provenance 경계를 기록합니다.
+BandScope의 Distribution/update bounded context는 설치 파일을 만들었다는 사실과 상용 릴리즈로 신뢰할 수 있다는 판단을 구분합니다. 이 문서는 `scripts/release/package_desktop_artifact.py`가 생성하는 target receipt, Tauri v2 updater artifact와 static manifest binding, hosted release byte re-verification, 그리고 아직 해결되지 않은 signing/rollback 경계를 기록합니다.
 
 ## 문제
 
@@ -10,13 +10,15 @@ BandScope의 Distribution/update bounded context는 설치 파일을 만들었�
 
 Tauri의 static updater contract는 각 target에 URL과 signature **내용**을 요구합니다. 공식 `tauri-action` 구현도 generated `.sig` 파일을 읽어 그 문자열을 `latest.json`의 `signature`에 넣습니다. 따라서 파일명이나 signature 경로를 manifest에 넣는 방식은 계약과 맞지 않습니다.
 
+Manifest를 같은 draft release asset set에 포함시킨 뒤에도 마지막 publication boundary가 남았습니다. 로컬에서 검증한 asset을 `gh release create`에 넘겼다는 사실만으로 GitHub에 실제 저장된 draft/published asset bytes가 동일하다고 증명할 수 없습니다. 업로드 누락·잘못된 asset set·전송 후 byte drift를 local receipt에서 곧바로 관찰할 수 없기 때문입니다. GitHub immutable releases는 draft에 모든 asset을 붙인 뒤 publish하는 방식을 권고하고, publication 후 release/tag/assets를 잠그며 release attestation을 생성합니다. 따라서 BandScope의 local release graph와 hosted asset graph를 publication 전후에 다시 맞추는 단계가 필요합니다.
+
 ## 제약과 소유권
 
 - `VERSION`이 버전 권위입니다. `package.json`, Tauri config와 tag parity는 `verify_release_identity.py`가 검증합니다.
 - Windows Authenticode와 macOS code signing/notarization/Gatekeeper 검증은 `verify_release_platform_trust.py`가 소유합니다.
 - Updater policy/config/Cargo/runtime admission은 `verify_release_updater_policy.py`가 소유합니다.
 - Commercial separation-model admission은 `verify_release_model_policy.py`와 #1180/#1181 경계에 남습니다.
-- Target `release-receipt.json`과 `latest.json`은 Distribution package/publication evidence입니다. Project Persistence, Resource Admission 또는 Signal/MIR가 이 포맷을 복제하거나 source-audio/model scientific identity로 사용하지 않습니다.
+- Target `release-receipt.json`, `latest.json`, hosted byte re-verification은 Distribution package/publication evidence입니다. Project Persistence, Resource Admission 또는 Signal/MIR가 이 포맷을 복제하거나 source-audio/model scientific identity로 사용하지 않습니다.
 - 실제 updater private signing key, approved public verification key/production discovery endpoint, Windows signing identity, Apple Developer ID/notarization authority는 repository에서 임의로 생성하지 않습니다.
 
 ## 선택
@@ -43,7 +45,11 @@ Updater source와 copied output은 각각 안정된 regular-file descriptor에�
 
 `build_updater_manifest.py`는 immutable publication 직전에 `select_release_assets.py`를 다시 실행해 extracted release graph를 re-admit합니다. 그 뒤 네 target receipt의 `VERSION`/tag/source identity를 확인하고 target마다 updater artifact가 정확히 하나일 때만 static manifest를 구성합니다. `.sig`는 regular/non-link/64 KiB bounded descriptor에서 다시 읽고 receipt의 exact size/full SHA-256과 일치하는지 확인한 뒤, **그 exact UTF-8 내용**을 `signature`에 넣습니다. URL은 mutable `releases/latest`가 아니라 `https://<release-origin>/<owner>/<repo>/releases/download/v<version>/<exact-bundle>` 형식의 exact-tag asset URL로 생성합니다.
 
-`latest.json`은 deterministic JSON으로 staged write + file `fsync` + `os.replace` + 가능한 플랫폼에서 parent-directory `fsync`로 게시합니다. Release workflow는 manifest를 만든 뒤 `--check`로 동일 release graph에서 다시 계산한 bytes와 exact equality를 확인하고, installer/updater/receipt/SBOM/inventory와 `latest.json`을 같은 draft release asset set으로 전달한 뒤에만 immutable release를 publish합니다. 현재 공개 `v0.1.3` release가 GitHub API에서 immutable release로 보고되는 repository publication model을 그대로 사용하며, manifest URL도 같은 exact-tag release namespace를 사용합니다.
+`latest.json`은 deterministic JSON으로 staged write + file `fsync` + `os.replace` + 가능한 플랫폼에서 parent-directory `fsync`로 게시합니다. Release workflow는 manifest를 만든 뒤 `--check`로 동일 release graph에서 다시 계산한 bytes와 exact equality를 확인하고 installer/updater/receipt/SBOM/inventory와 `latest.json`을 같은 draft release asset set으로 전달합니다.
+
+`verify_hosted_release_assets.py`는 publication transfer를 별도 신뢰 경계로 취급합니다. `release-assets.txt`는 256 KiB/256-member 한도로 제한하고, repository-relative safe path와 unique hosted basename만 허용합니다. Draft release를 만든 뒤 `gh release download <exact-tag>`로 asset을 별도 directory에 다시 내려받고, 예상한 basename set과 downloaded set이 정확히 같은지 확인합니다. 각 local/hosted file은 regular/non-link file이어야 하고 stable descriptor에서 exact byte size와 streaming SHA-256이 같아야 합니다. 누락 asset, extra asset, duplicate publication basename, signature/manifest/installer byte drift는 publish 전에 fail closed합니다.
+
+Draft hosted bytes가 local admitted bytes와 일치한 뒤에만 release를 publish합니다. Publication 후에는 fresh directory로 같은 exact tag assets를 다시 다운로드하고 동일 verifier를 다시 실행합니다. 따라서 local `release-assets.txt` → draft hosted asset set → published hosted asset set의 byte identity를 하나의 workflow 안에서 확인합니다. 이 단계는 GitHub의 release attestation 자체를 검증하는 것과는 구분됩니다. GitHub immutable-release attestation의 cryptographic verification은 이후 `gh release verify`/`gh release verify-asset`을 release gate에 결합하는 별도 강화 항목입니다.
 
 ### 기각한 대안
 
@@ -53,10 +59,12 @@ Updater source와 copied output은 각각 안정된 regular-file descriptor에�
 4. macOS DMG를 updater payload로 간주: Tauri v2의 macOS updater bundle은 `.app.tar.gz`이므로 기각했습니다.
 5. 플랫폼 trust 검증 전에 receipt 생성: 실패한 Authenticode/notarization 후보가 release authority처럼 보일 수 있으므로 기각했습니다.
 6. 짧은 commit SHA 사용: 충돌 가능성과 exact protected source 증거 부족 때문에 전체 40-hex commit을 요구합니다.
-7. receipt를 updater signature 검증 또는 SLSA provenance라고 부르기: 현재 receipt는 별도 서명된 attestation이 아니고 `.sig`의 cryptographic validity를 이 함수에서 검증하지 않으므로 기각합니다.
+7. receipt를 updater signature 검증 또는 SLSA provenance라고 부르기: receipt는 별도 서명된 attestation이 아니고 `.sig`의 cryptographic validity를 이 함수에서 검증하지 않으므로 기각합니다.
 8. `latest.json`에서 `.sig` 경로를 `signature`로 사용: Tauri static updater contract와 공식 `tauri-action` 모두 signature file **내용**을 요구하므로 기각했습니다.
 9. `releases/latest` URL을 bundle authority로 사용: prerelease/channel drift와 mutable lookup을 exact release evidence에 섞게 되므로 exact version tag URL을 사용합니다.
-10. manifest를 receipt와 별도 workflow에서 재구성: 동일 target graph에 대한 publication authority가 분리되고 TOCTOU 검증이 약해지므로 같은 release job에서 build→recheck→draft upload→publish를 수행합니다.
+10. manifest를 receipt와 별도 workflow에서 재구성: 동일 target graph에 대한 publication authority가 분리되고 TOCTOU 검증이 약해지므로 같은 release job에서 build→recheck→draft upload를 수행합니다.
+11. `gh release create` 성공을 hosted byte identity 증거로 간주: API 성공은 local expected set과 remote stored set의 exact parity를 보장하는 BandScope evidence가 아니므로 draft와 published 상태에서 모두 다시 다운로드해 비교합니다.
+12. published release만 사후 확인: immutable publish 뒤 mismatch를 발견하면 정상 release를 수리할 수 없으므로 draft download/re-verification을 publication 전 gate로 먼저 둡니다.
 
 ## 실행 근거
 
@@ -81,24 +89,31 @@ Static updater-manifest slice:
 - Publication wiring `4d6f7cb8cefd382ada8e01925425e5ea192f579b`: tag release job이 manifest를 생성하고 publication 직전 `--check`한 뒤 `latest.json`을 같은 immutable release asset set에 포함하도록 연결했습니다.
 - Primary-contract repair `64fbd14df9bf92ae2618f7cc13008cc283c19545`: official `tauri-action`과 같이 `.sig`의 exact UTF-8 text를 보존하도록 수정했습니다. Receipt hash는 원본 signature bytes에 계속 결합됩니다.
 - Test/format repair `889554d2c9200ec1258d1845655b2785486a6a31`: root pytest/ruff gate가 실행하는 manifest tests를 current failure boundary에 맞추고 unused import와 formatting drift를 제거했습니다.
+- Traceability `f0d6dd57451984820afb07c41cae172f3c7f3628`: static manifest 결정, primary reference와 claim boundary를 기록했습니다.
+
+Hosted publication re-verification slice:
+
+- RED `db4ad0660bc0b262bdf921c243c9691bee29118c`: draft/final hosted asset set과 local admitted bytes의 parity, signature drift, missing/extra asset, duplicate/nested publication authority, workflow ordering을 executable contract로 추가했습니다.
+- Fix `e0227942e31100d4a9a0dc3e8c8f7fa95a8613fb`: `verify_hosted_release_assets.py`를 추가해 bounded safe asset list와 flat hosted asset set을 비교하고 stable regular-file descriptor에서 size/full SHA-256 parity를 검증합니다.
+- Publication wiring `3c9221b4ea517aea296739302e025b0c9196d198`: draft release upload 뒤 fresh download/re-verification이 성공해야 publish하고, publish 뒤 다시 fresh download/re-verification하도록 workflow를 연결했습니다. 이 commit은 이전 workflow EOF newline drift도 함께 바로잡았습니다.
+- Test format `3412a19eb9c2f90ce10fde2d374e3a8a74b91b8e`: repository formatter 규칙에 맞춰 hosted re-verification coverage를 정리했습니다.
 
 Hosted exact-head workflow evidence가 terminal GREEN이 되기 전에는 위 source lineage만으로 release-ready 또는 merge-ready라고 주장하지 않습니다. 이 slice 이후의 head는 predecessor check/review evidence를 승계하지 않습니다.
 
 ## 현재 claim boundary
 
-Target receipt와 generated `latest.json`은 **검증된 tag package bytes, copied updater bundle/signature bytes, exact source identity와 exact-tag download URL을 하나의 publication graph로 결합하는 local release evidence**입니다. Manifest가 receipt에 기록된 `.sig` bytes의 exact text를 싣는다는 것은 검증하지만, 그 signature가 아직 provision되지 않은 organization-approved updater public key로 cryptographically valid하다는 사실까지 증명하지 않습니다.
+Target receipt, generated `latest.json`, draft/final hosted byte parity는 **검증된 tag package bytes, copied updater bundle/signature bytes, exact source identity, exact-tag download URL과 GitHub release asset namespace를 하나의 Distribution publication graph로 결합하는 evidence**입니다. Manifest가 receipt에 기록된 `.sig` bytes의 exact text를 싣고 uploaded/downloaded bytes가 일치한다는 것은 검증하지만, 그 signature가 아직 provision되지 않은 organization-approved updater public key로 cryptographically valid하다는 사실까지 증명하지 않습니다.
 
-현재 updater policy는 의도적으로 `blocked`입니다. 승인된 public verification key와 production discovery endpoint가 provision되지 않았기 때문에 현재 source를 상용 updater authority가 준비된 상태라고 해석하지 않습니다. `latest.json` 생성 기능은 future admitted release에서 사용할 deterministic publication primitive이며, tag preflight는 blocked policy에서 계속 fail closed합니다.
+현재 updater policy는 의도적으로 `blocked`입니다. 승인된 public verification key와 production discovery endpoint가 provision되지 않았기 때문에 현재 source를 상용 updater authority가 준비된 상태라고 해석하지 않습니다. `latest.json` 및 hosted re-verification은 future admitted release에서 사용할 deterministic publication primitive이며, tag preflight는 blocked policy에서 계속 fail closed합니다.
 
 다음은 아직 별도 acceptance 대상입니다.
 
-- receipt/manifest 자체의 authenticated provenance 또는 build-service non-forgeability;
+- GitHub immutable-release attestation에 대한 `gh release verify` 및 각 local asset의 `gh release verify-asset` gate;
 - approved Tauri updater public-key provisioning 및 generated `.sig` cryptographic verification;
-- immutable publication 뒤 hosted `latest.json`과 hosted bundle/signature bytes의 post-publish re-fetch/re-admission evidence;
 - wrong-key/signature/digest/truncation 및 replay/stale-update 방지;
 - staged rollout, explicit deferral, bounded retry, offline startup;
 - failed/cancelled update 후 known-good rollback과 project-schema compatibility;
-- SBOM/provenance/NOTICE/model artifact와 receipt의 complete release-graph 결합;
+- SBOM/provenance/NOTICE/model artifact와 release attestation의 complete release-graph 결합;
 - #770의 rights-cleared real-audio scientific acceptance;
 - #1181의 commercial model-rights 해결.
 
@@ -106,11 +121,17 @@ Target receipt와 generated `latest.json`은 **검증된 tag package bytes, copi
 
 ## 다음 단계
 
-다음 Distribution causal slice는 **published release re-verification과 updater anti-replay/rollback contract**입니다. Draft asset set이 immutable publication으로 승격된 뒤 hosted `latest.json`, target updater bundle과 signature를 다시 읽어 local receipt/digest와 같은지 검증하는 evidence가 필요합니다. 그 다음 version monotonicity/stale metadata 거부, wrong key/signature/digest, truncated download, unsupported target, partial download/disk-full/cancel, offline startup, first-launch failure와 known-good rollback을 packaged-platform acceptance로 연결해야 합니다.
+다음 Distribution causal slice는 **immutable release attestation + updater anti-replay/rollback contract**입니다. GitHub가 published immutable release에 대해 생성하는 cryptographically signed release attestation을 `gh release verify`로 확인하고, local admitted asset 각각을 `gh release verify-asset`으로 검증하여 자체 byte parity와 GitHub attestation을 결합해야 합니다. 그 다음 version monotonicity/stale metadata 거부, wrong key/signature/digest, truncated download, unsupported target, partial download/disk-full/cancel, offline startup, first-launch failure와 known-good rollback을 packaged-platform acceptance로 연결해야 합니다.
 
 승인된 updater public key/production discovery endpoint, Windows/macOS signer authority와 commercial model rights는 외부 권위입니다. 이 값들은 source repair 과정에서 임의 생성하지 않습니다.
 
 ## 참고문헌
+
+GitHub. (2026). *Immutable releases*. https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases
+
+GitHub. (2026). *Verifying the integrity of a release*. https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verify-release-integrity
+
+GitHub CLI. (2026). *gh release download*. https://cli.github.com/manual/gh_release_download
 
 SLSA Community. (2026). *SLSA specification, version 1.2: Provenance*. https://slsa.dev/spec/v1.2/provenance
 
