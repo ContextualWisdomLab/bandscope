@@ -65,13 +65,18 @@ def _replace_windows_write_through(stage: Path, target: Path) -> None:
     import ctypes
     from ctypes import wintypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    win_dll = getattr(ctypes, "WinDLL", None)
+    get_last_error = getattr(ctypes, "get_last_error", None)
+    if win_dll is None or get_last_error is None:
+        raise OSError("Windows write-through publication is unavailable")
+
+    kernel32 = win_dll("kernel32", use_last_error=True)
     move_file_ex = kernel32.MoveFileExW
     move_file_ex.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
     move_file_ex.restype = wintypes.BOOL
     flags = _WINDOWS_MOVEFILE_REPLACE_EXISTING | _WINDOWS_MOVEFILE_WRITE_THROUGH
     if not move_file_ex(str(stage), str(target), flags):
-        error_code = ctypes.get_last_error()
+        error_code = int(get_last_error())
         raise OSError(error_code, "Could not durably publish the final-result cache")
 
 
@@ -87,29 +92,27 @@ def _publish_synced_cache_stage(stage: Path, target: Path) -> None:
 def store_durable_cache_payload(path: Path, payload: object) -> None:
     """Write one JSON cache payload and return only after durable publication succeeds."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path: Path | None = None
+    cache_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=".bandscope-final-cache-",
+        suffix=".tmp",
+        delete=False,
+    )
+    temp_path = Path(cache_file.name)
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=".bandscope-final-cache-",
-            suffix=".tmp",
-            delete=False,
-        ) as cache_file:
-            temp_path = Path(cache_file.name)
+        with cache_file:
             json.dump(payload, cache_file, separators=(",", ":"))
             cache_file.flush()
             os.fsync(cache_file.fileno())
         _publish_synced_cache_stage(temp_path, path)
     except (OSError, TypeError, ValueError):
-        if temp_path is not None:
-            with suppress(OSError):
-                temp_path.unlink(missing_ok=True)
-        raise
-    if temp_path is not None:
         with suppress(OSError):
             temp_path.unlink(missing_ok=True)
+        raise
+    with suppress(OSError):
+        temp_path.unlink(missing_ok=True)
 
 
 def admitted_audio_cache_identity() -> dict[str, object] | None:
