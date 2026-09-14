@@ -101,8 +101,7 @@ def test_cache_publication_failure_is_not_reported_as_stored(
         raise OSError("simulated durability failure")
 
     monkeypatch.setattr(
-        final_result_cache,
-        "store_durable_cache_payload",
+        "bandscope_analysis.api.store_durable_cache_payload",
         fail_publication,
     )
 
