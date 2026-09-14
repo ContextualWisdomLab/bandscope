@@ -25,8 +25,12 @@ from bandscope_analysis.final_result_cache import (
     _reject_duplicate_json_keys,
     _string_list,
     _valid_confidence,
+    _valid_cue,
     _valid_export_summary,
+    _valid_harmony,
+    _valid_manual_override,
     _valid_part_graph_node,
+    _valid_range,
     _valid_rehearsal_song,
     _valid_role,
     _valid_section,
@@ -236,15 +240,74 @@ def test_semantic_cache_predicates_cover_valid_and_invalid_edges() -> None:
 
     assert _valid_confidence(section["confidence"]) is True
     assert _valid_confidence(None) is False
-    for field, value in (("level", ""), ("source", 1), ("notes", 1)):
+    for field, value in (
+        ("level", ""),
+        ("level", "certain"),
+        ("source", 1),
+        ("source", "cache"),
+        ("notes", 1),
+    ):
         candidate = dict(section["confidence"])
         candidate[field] = value
         assert _valid_confidence(candidate) is False
 
+    assert _valid_harmony(role["harmony"]) is True
+    assert _valid_harmony(None) is False
+    for field, value in (("chord", 1), ("functionLabel", 1), ("source", "cache")):
+        candidate = dict(role["harmony"])
+        candidate[field] = value
+        assert _valid_harmony(candidate) is False
+
+    assert _valid_cue(role["cue"]) is True
+    assert _valid_cue(None) is False
+    for field, value in (("kind", "bar"), ("value", 1)):
+        candidate = dict(role["cue"])
+        candidate[field] = value
+        assert _valid_cue(candidate) is False
+
+    assert _valid_range(role["range"]) is True
+    assert _valid_range(None) is False
+    for field in ("lowestNote", "highestNote"):
+        candidate = dict(role["range"])
+        candidate[field] = 1
+        assert _valid_range(candidate) is False
+
+    valid_override = {
+        "field": "harmony",
+        "value": {"chord": "C", "functionLabel": "I", "source": "user"},
+        "source": "user",
+    }
+    assert _valid_manual_override(valid_override) is True
+    assert _valid_manual_override(None) is False
+    for field, value in (
+        ("field", "cue"),
+        ("source", "model"),
+        ("value", None),
+        ("value", {"chord": "C", "functionLabel": "I", "source": "model"}),
+    ):
+        candidate = copy.deepcopy(valid_override)
+        candidate[field] = value
+        assert _valid_manual_override(candidate) is False
+
     assert _valid_role(role) is True
     assert _valid_role(None) is False
-    for field, value in (("id", ""), ("name", 1), ("roleType", ""), ("confidence", None)):
-        candidate = dict(role)
+    for field, value in (
+        ("id", ""),
+        ("name", 1),
+        ("roleType", "other"),
+        ("harmony", None),
+        ("cue", None),
+        ("range", None),
+        ("confidence", None),
+        ("rehearsalPriority", "urgent"),
+        ("simplification", 1),
+        ("setupNote", 1),
+        ("manualOverrides", "bad"),
+        ("manualOverrides", [None]),
+        ("overlapWarnings", "bad"),
+        ("overlapWarnings", [1]),
+    ):
+        candidate = copy.deepcopy(role)
         candidate[field] = value
         assert _valid_role(candidate) is False
 
