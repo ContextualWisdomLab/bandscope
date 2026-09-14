@@ -8,8 +8,10 @@ import logging
 import multiprocessing as mp
 import os
 import queue
+import stat
 import tempfile
 import time
+import zipfile
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
@@ -34,6 +36,15 @@ logger = logging.getLogger(__name__)
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
 FEATURE_CACHE_SCHEMA_VERSION = 2
+FEATURE_CACHE_MANIFEST_MAX_BYTES = 64 * 1024
+FEATURE_CACHE_MAX_STEMS = 4
+FEATURE_CACHE_ARRAYS_MAX_BYTES = (
+    DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes * FEATURE_CACHE_MAX_STEMS
+    + 16 * 1024 * 1024
+)
+FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES = (
+    DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes * FEATURE_CACHE_MAX_STEMS
+)
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
 logger = logging.getLogger(__name__)
@@ -759,20 +770,142 @@ def _valid_sha256(value: object) -> bool:
     )
 
 
+def _reject_duplicate_json_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build a JSON object while rejecting ambiguous duplicate member names."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate feature-cache JSON key")
+        result[key] = value
+    return result
+
+
+def _load_bounded_feature_manifest(path: Path) -> dict[str, object] | None:
+    """Read one small regular manifest without following a final-component symlink."""
+    descriptor: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        descriptor_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(descriptor_stat.st_mode)
+            or descriptor_stat.st_size <= 0
+            or descriptor_stat.st_size > FEATURE_CACHE_MANIFEST_MAX_BYTES
+        ):
+            return None
+        with os.fdopen(descriptor, "rb", closefd=False) as manifest_file:
+            encoded = manifest_file.read(FEATURE_CACHE_MANIFEST_MAX_BYTES + 1)
+        if len(encoded) > FEATURE_CACHE_MANIFEST_MAX_BYTES:
+            return None
+        payload = json.loads(
+            encoded.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_pairs,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return None
+    finally:
+        if descriptor is not None:
+            with suppress(OSError):
+                os.close(descriptor)
+    return payload if isinstance(payload, dict) else None
+
+
+def _load_bounded_feature_arrays(
+    arrays_path: Path,
+    stem_keys: list[str],
+    expected_sha256: str,
+) -> dict[str, np.ndarray] | None:
+    """Admit one regular NPZ by bounded encoded and declared-uncompressed size before NumPy."""
+    descriptor: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(arrays_path, flags)
+        descriptor_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(descriptor_stat.st_mode)
+            or descriptor_stat.st_size <= 0
+            or descriptor_stat.st_size > FEATURE_CACHE_ARRAYS_MAX_BYTES
+        ):
+            return None
+
+        with os.fdopen(descriptor, "rb", closefd=False) as arrays_file:
+            digest = hashlib.sha256()
+            observed_bytes = 0
+            while chunk := arrays_file.read(1024 * 1024):
+                observed_bytes += len(chunk)
+                if observed_bytes > FEATURE_CACHE_ARRAYS_MAX_BYTES:
+                    return None
+                digest.update(chunk)
+            if digest.hexdigest() != expected_sha256:
+                return None
+
+            arrays_file.seek(0)
+            with zipfile.ZipFile(arrays_file) as archive:
+                infos = archive.infolist()
+                expected_members = {f"stem_{stem_key}.npy" for stem_key in stem_keys}
+                if (
+                    len(infos) != len(expected_members)
+                    or {info.filename for info in infos} != expected_members
+                ):
+                    return None
+                total_uncompressed_bytes = 0
+                for info in infos:
+                    if info.is_dir() or info.file_size <= 0:
+                        return None
+                    if info.file_size > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes:
+                        return None
+                    total_uncompressed_bytes += info.file_size
+                    if total_uncompressed_bytes > FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES:
+                        return None
+
+            arrays_file.seek(0)
+            with np.load(arrays_file, allow_pickle=False) as stems_archive:
+                expected_archive_keys = {f"stem_{stem_key}" for stem_key in stem_keys}
+                if set(stems_archive.files) != expected_archive_keys:
+                    return None
+                stems: dict[str, np.ndarray] = {}
+                for stem_key in stem_keys:
+                    stem_array = stems_archive[f"stem_{stem_key}"]
+                    if (
+                        not isinstance(stem_array, np.ndarray)
+                        or stem_array.ndim != 1
+                        or stem_array.size == 0
+                        or not np.issubdtype(stem_array.dtype, np.floating)
+                        or stem_array.nbytes > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes
+                        or not np.isfinite(stem_array).all()
+                    ):
+                        return None
+                    stems[stem_key] = stem_array
+    except (OSError, ValueError, zipfile.BadZipFile, zipfile.LargeZipFile):
+        return None
+    finally:
+        if descriptor is not None:
+            with suppress(OSError):
+                os.close(descriptor)
+    return stems
+
+
 def _load_cached_local_audio_features(
     metadata_path: Path, arrays_path: Path
 ) -> dict[str, Any] | None:
-    """Load source-bound stem/features only when manifest and NPZ bytes still agree."""
+    """Load source-bound stem/features only after bounded manifest and NPZ admission."""
     try:
         expected_identity = admitted_audio_cache_identity()
     except ValueError:
         return None
-    try:
-        with metadata_path.open("r", encoding="utf-8") as metadata_file:
-            metadata_payload = json.load(metadata_file)
-    except (OSError, json.JSONDecodeError):
+    metadata_payload = _load_bounded_feature_manifest(metadata_path)
+    if metadata_payload is None:
         return None
-    if not isinstance(metadata_payload, dict):
+    allowed_manifest_keys = {
+        "schemaVersion",
+        "source",
+        "arraysSha256",
+        "sampleRate",
+        "separation",
+        "stemKeys",
+        "stemRoleTypes",
+    }
+    if set(metadata_payload) != allowed_manifest_keys:
         return None
     if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
         return None
@@ -788,40 +921,35 @@ def _load_cached_local_audio_features(
     arrays_sha256 = metadata_payload.get("arraysSha256")
     if not _valid_sha256(arrays_sha256):
         return None
-    actual_arrays_sha256 = _sha256_file(arrays_path)
-    if actual_arrays_sha256 is None or actual_arrays_sha256 != arrays_sha256:
-        return None
-    if not isinstance(metadata_payload.get("sampleRate"), int):
+    sample_rate = metadata_payload.get("sampleRate")
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
         return None
     separation = metadata_payload.get("separation")
     if not isinstance(separation, dict):
         return None
     stem_keys = metadata_payload.get("stemKeys")
-    if not isinstance(stem_keys, list) or not stem_keys:
+    if (
+        not isinstance(stem_keys, list)
+        or not stem_keys
+        or len(stem_keys) > FEATURE_CACHE_MAX_STEMS
+        or len(set(stem_keys)) != len(stem_keys)
+        or not all(isinstance(stem_key, str) and stem_key for stem_key in stem_keys)
+    ):
         return None
-    if not all(isinstance(stem_key, str) and stem_key for stem_key in stem_keys):
+    raw_stem_role_types = metadata_payload.get("stemRoleTypes")
+    if not isinstance(raw_stem_role_types, dict) or set(raw_stem_role_types) != set(stem_keys):
         return None
-    stem_role_types = _normalize_stem_role_types(metadata_payload.get("stemRoleTypes"), stem_keys)
+    stem_role_types = _normalize_stem_role_types(raw_stem_role_types, stem_keys)
     if stem_role_types is None:
         return None
 
-    try:
-        with np.load(arrays_path, allow_pickle=False) as stems_archive:
-            stems: dict[str, np.ndarray] = {}
-            for stem_key in stem_keys:
-                archive_key = f"stem_{stem_key}"
-                if archive_key not in stems_archive:
-                    return None
-                stem_array = stems_archive[archive_key]
-                if not isinstance(stem_array, np.ndarray):
-                    return None
-                stems[stem_key] = stem_array
-    except (OSError, ValueError):
+    stems = _load_bounded_feature_arrays(arrays_path, stem_keys, arrays_sha256)
+    if stems is None:
         return None
 
     return {
         "stems": stems,
-        "sr": metadata_payload["sampleRate"],
+        "sr": sample_rate,
         "stem_role_types": stem_role_types,
         "separation": {
             "duration_seconds": separation.get("duration_seconds"),
@@ -833,16 +961,26 @@ def _load_cached_local_audio_features(
 
 def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
     """Return validated stem arrays for compressed npz persistence."""
-    if not isinstance(stems, dict) or not stems:
+    if not isinstance(stems, dict) or not stems or len(stems) > FEATURE_CACHE_MAX_STEMS:
         return None
 
     serialized_stems: dict[str, np.ndarray] = {}
+    total_bytes = 0
     for stem_name, stem_value in stems.items():
         if not isinstance(stem_name, str) or not stem_name:
             return None
         if not stem_name.isidentifier():
             return None
-        if not isinstance(stem_value, np.ndarray):
+        if (
+            not isinstance(stem_value, np.ndarray)
+            or stem_value.ndim != 1
+            or stem_value.size == 0
+            or not np.issubdtype(stem_value.dtype, np.floating)
+            or stem_value.nbytes > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes
+        ):
+            return None
+        total_bytes += stem_value.nbytes
+        if total_bytes > FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES:
             return None
         serialized_stems[f"stem_{stem_name}"] = stem_value
     return serialized_stems
@@ -863,7 +1001,7 @@ def _store_cached_local_audio_features(
     sample_rate = audio_features.get("sr")
     if serialized_stems is None:
         return False
-    if not isinstance(sample_rate, int):
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
         return False
     separation = audio_features.get("separation")
     if not isinstance(separation, dict):
@@ -902,6 +1040,9 @@ def _store_cached_local_audio_features(
             np.savez_compressed(arrays_stage, **cast(Any, serialized_stems))
             arrays_stage.flush()
             os.fsync(arrays_stage.fileno())
+        arrays_stat = arrays_temp.stat()
+        if arrays_stat.st_size <= 0 or arrays_stat.st_size > FEATURE_CACHE_ARRAYS_MAX_BYTES:
+            return False
         arrays_sha256 = _sha256_file(arrays_temp)
         if arrays_sha256 is None:
             return False
