@@ -475,3 +475,10 @@ jobs:
             --local-root . \
             --hosted-root published-release-download \
             --asset-list release-assets.txt
+
+          gh release verify "$RELEASE_TAG" --repo "${{ github.repository }}"
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            gh release verify-asset "$RELEASE_TAG" "$asset" \
+              --repo "${{ github.repository }}"
+          done < release-assets.txt
