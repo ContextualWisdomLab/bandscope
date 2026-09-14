@@ -15,6 +15,8 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - Staging RED `dcc04b78b7d51c5e79f39594ac4f02090930792e`: exclusive temporary file, cancellation cleanup, exact-receipt seal, partial-download cleanup, existing-path/path-traversal rejection을 integration contract로 먼저 요구했습니다.
 - Staging fix `ed079fdc4b6150515a1352e892307d6b24bedf6e`: `StagedArtifactFile`과 `SealedArtifactFile`을 추가해 app-owned staging directory 안의 direct portable basename만 `create_new`로 생성하고, response bytes는 public raw-write API가 아니라 `admit_chunk`를 통해서만 descriptor로 보냅니다. Seal은 flush → `sync_all()` → descriptor metadata regular-file/size 확인 후에만 성공하며 still-open descriptor를 반환합니다. Seal 전 drop/cancel/error는 열린 descriptor를 닫은 뒤 staging path를 best-effort 제거합니다.
 - Coverage `762024843218a86567c855ee1474a10549a3032a`: receipt-size mismatch cleanup, missing/non-directory staging root와 Unix symlink staging-root rejection까지 추가했습니다.
+- Trust-promotion RED `a956bcfab7670aa7a461c8929c75cda8b79ba118`: exact-size seal만 성공하면 `SealedArtifactFile` drop 뒤에도 bytes가 남는 기존 동작을 뒤집어, digest/signature trust promotion 전 sealed artifact는 drop 시 제거되어야 한다는 integration contract를 먼저 만들었습니다. 이 head에서는 기존 source가 sealed path를 보존하므로 새 test가 실패하는 RED입니다.
+- Causal fix `e76abddb0c40293901cd8672919172d47a93b5b9`: seal은 더 이상 artifact retention을 의미하지 않습니다. `SealedArtifactFile`이 descriptor cleanup 책임을 넘겨받고, drop 시 descriptor를 먼저 닫은 뒤 staging path를 제거합니다. Windows에서 열린 파일 삭제가 실패할 수 있으므로 descriptor를 `Option<File>`로 보유해 drop 순서를 명시했습니다. 아직 별도의 verified-artifact promotion type은 만들지 않았으므로 unverified sealed bytes를 영구 보존하는 public 경로도 없습니다.
 
 ## 실행 계약
 
@@ -37,8 +39,9 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - cancel, overrun, sink failure 또는 seal failure 상태로 drop되면 partial staging path를 유지하지 않습니다.
 - seal은 userspace flush와 descriptor `sync_all()` 이후 descriptor가 regular file인지, exact receipt size와 같은지 다시 확인합니다.
 - 성공한 `SealedArtifactFile`은 descriptor를 계속 열어 두므로 후속 digest/signature verification이 path reopen보다 exact staged bytes에 결합될 수 있습니다.
+- exact-size seal은 신뢰 승격이 아닙니다. `SealedArtifactFile` 자체는 cleanup-on-drop이며 descriptor를 먼저 닫은 다음 staging path를 제거합니다. 후속 digest/signature/authenticated-metadata 결합이 성공하기 전에는 unverified bytes가 정상 종료 경로에서 남지 않습니다.
 
-Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal/retention, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
+Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
 
 ## 기각한 대안
 
@@ -50,11 +53,13 @@ Declared `sizeBytes`와 `Content-Length`를 동일시하는 방식도 기각합�
 
 Generic temporary pathname에 overwrite-open하고 나중에 검사하는 방식도 기각합니다. Existing file/symlink를 교체하거나 path-like name이 app-owned staging root를 벗어날 수 있고, cancel/error 뒤 partial artifact를 성공 candidate처럼 남길 수 있습니다.
 
+Exact-size seal을 곧바로 artifact retention으로 취급하는 방식도 기각합니다. Byte count와 `sync_all()`은 digest, updater signature, remote metadata authenticity를 증명하지 않습니다. 신뢰 검증 전 sealed bytes를 정상 drop 뒤 남기면 실패한 verifier나 cancelled promotion 뒤 untrusted artifact가 app-owned staging에 잔존할 수 있습니다.
+
 ## Claim boundary
 
 현재 crate는 **network-library-independent streaming + staging primitive**입니다. 실제 production updater가 아직 이 crate를 통해 HTTP body를 수신하지 않으므로 end-to-end bounded download가 완료됐다고 주장하지 않습니다. 또한 `sync_all()`과 cleanup tests를 packaged Windows/macOS power-loss durability와 동일시하지 않습니다. 이 crate는 SHA-256, updater signature, metadata authenticity, installer trust도 검증하지 않습니다.
 
-다음 repository-owned 단계는 production network adapter가 full-response buffering 없이 bounded chunks를 이 primitive에 전달하도록 연결하는 것입니다. 그 adapter는 canonical release origin/redirect 정책을 보존하고, cancel/network error/disk-full을 staged-file cleanup으로 귀결시켜야 합니다. 그 뒤 organization-approved updater key가 provision되면 still-open sealed descriptor의 signature와 digest/size를 authenticated release identity에 묶고, 그 시점에만 `distribution-core`와 `distribution-state`로 freshness authority를 넘깁니다.
+다음 repository-owned 단계는 production network adapter가 full-response buffering 없이 bounded chunks를 이 primitive에 전달하도록 연결하는 것입니다. 그 adapter는 canonical release origin/redirect 정책을 보존하고, cancel/network error/disk-full을 staged-file cleanup으로 귀결시켜야 합니다. 그 뒤 organization-approved updater key가 provision되면 still-open sealed descriptor의 signature와 digest/size를 authenticated release identity에 묶고, 그 검증을 통과한 bytes만 별도의 verified-artifact promotion 경계로 보존한 뒤 `distribution-core`와 `distribution-state`로 freshness authority를 넘겨야 합니다.
 
 ## Security Notes
 
