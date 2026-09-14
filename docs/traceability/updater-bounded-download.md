@@ -17,6 +17,9 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - Coverage `762024843218a86567c855ee1474a10549a3032a`: receipt-size mismatch cleanup, missing/non-directory staging root와 Unix symlink staging-root rejection까지 추가했습니다.
 - Trust-promotion RED `a956bcfab7670aa7a461c8929c75cda8b79ba118`: exact-size seal만 성공하면 `SealedArtifactFile` drop 뒤에도 bytes가 남는 기존 동작을 뒤집어, digest/signature trust promotion 전 sealed artifact는 drop 시 제거되어야 한다는 integration contract를 먼저 만들었습니다. 이 head에서는 기존 source가 sealed path를 보존하므로 새 test가 실패하는 RED입니다.
 - Causal fix `e76abddb0c40293901cd8672919172d47a93b5b9`: seal은 더 이상 artifact retention을 의미하지 않습니다. `SealedArtifactFile`이 descriptor cleanup 책임을 넘겨받고, drop 시 descriptor를 먼저 닫은 뒤 staging path를 제거합니다. Windows에서 열린 파일 삭제가 실패할 수 있으므로 descriptor를 `Option<File>`로 보유해 drop 순서를 명시했습니다. 아직 별도의 verified-artifact promotion type은 만들지 않았으므로 unverified sealed bytes를 영구 보존하는 public 경로도 없습니다.
+- Descriptor-capability RED `56aa7467a43299500e79d2e26469b252ae9519c0`: sealed artifact 검증자가 path reopen 없이 byte zero부터 exact descriptor bytes를 읽을 수 있는 read-only stream contract를 먼저 추가했습니다. 당시 `SealedArtifactFile`에는 `reader()`가 없고 대신 write-enabled staging `File`을 `&File`로 직접 노출하고 있어 RED입니다.
+- Compatibility cleanup `13ca9b7862f59c06f5dcc0337c846c050a3c7199`: 기존 staging lifecycle test가 raw `File` accessor에 의존하지 않도록 정리해 capability 제거를 준비했습니다.
+- Causal fix `6144302ed807367742f87247b353742f213dbedb`: public `&File` accessor를 제거하고 `SealedArtifactReader`를 추가했습니다. Reader는 Unix/macOS에서 `FileExt::read_at`, Windows에서 `FileExt::seek_read`를 사용해 still-open descriptor를 path reopen 없이 positional read하며 `Read`만 구현합니다. Staging descriptor는 내부적으로 read/write로 열려 있어도 downstream verifier가 그 write capability를 회수할 public API가 없습니다.
 
 ## 실행 계약
 
@@ -39,9 +42,10 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - cancel, overrun, sink failure 또는 seal failure 상태로 drop되면 partial staging path를 유지하지 않습니다.
 - seal은 userspace flush와 descriptor `sync_all()` 이후 descriptor가 regular file인지, exact receipt size와 같은지 다시 확인합니다.
 - 성공한 `SealedArtifactFile`은 descriptor를 계속 열어 두므로 후속 digest/signature verification이 path reopen보다 exact staged bytes에 결합될 수 있습니다.
+- sealed verifier access는 `SealedArtifactReader`의 positional `Read` stream으로 제한합니다. 내부 staging `File`은 write-enabled이지만 raw `&File`을 public하게 반환하지 않으므로 verifier가 `Write for &File` 또는 platform `FileExt` write API로 sealed bytes를 바꾸는 capability를 얻지 않습니다.
 - exact-size seal은 신뢰 승격이 아닙니다. `SealedArtifactFile` 자체는 cleanup-on-drop이며 descriptor를 먼저 닫은 다음 staging path를 제거합니다. 후속 digest/signature/authenticated-metadata 결합이 성공하기 전에는 unverified bytes가 정상 종료 경로에서 남지 않습니다.
 
-Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
+Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, descriptor-bound read-only sealed stream, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
 
 ## 기각한 대안
 
@@ -55,6 +59,8 @@ Generic temporary pathname에 overwrite-open하고 나중에 검사하는 방식
 
 Exact-size seal을 곧바로 artifact retention으로 취급하는 방식도 기각합니다. Byte count와 `sync_all()`은 digest, updater signature, remote metadata authenticity를 증명하지 않습니다. 신뢰 검증 전 sealed bytes를 정상 drop 뒤 남기면 실패한 verifier나 cancelled promotion 뒤 untrusted artifact가 app-owned staging에 잔존할 수 있습니다.
 
+Sealed artifact에서 raw `&File`을 verifier에 넘기는 방식도 기각합니다. Rust standard library는 `Write for &File`을 구현하고 있고 staging descriptor 자체가 write access로 열린 상태이므로, immutable borrow처럼 보이는 API가 실제로는 sealed bytes를 바꿀 수 있는 write capability를 노출합니다. 별도 path reopen은 descriptor identity를 잃으므로, 동일 open descriptor에 대한 positional read-only wrapper를 사용합니다.
+
 ## Claim boundary
 
 현재 crate는 **network-library-independent streaming + staging primitive**입니다. 실제 production updater가 아직 이 crate를 통해 HTTP body를 수신하지 않으므로 end-to-end bounded download가 완료됐다고 주장하지 않습니다. 또한 `sync_all()`과 cleanup tests를 packaged Windows/macOS power-loss durability와 동일시하지 않습니다. 이 crate는 SHA-256, updater signature, metadata authenticity, installer trust도 검증하지 않습니다.
@@ -63,10 +69,16 @@ Exact-size seal을 곧바로 artifact retention으로 취급하는 방식도 기
 
 ## Security Notes
 
-Attack surface는 updater HTTP response body, transport length metadata, temporary artifact directory/path, staged descriptor와 cancellation/error paths입니다. Remote response는 canonical release namespace를 통과해도 untrusted입니다. Byte/staging admission failure는 installer 실행이나 highest-seen state mutation으로 승격되지 않아야 하며, staging root는 Distribution-owned app storage로 제한해야 합니다. Cleanup은 app-owned non-symlink directory라는 전제 안에서만 pathname removal을 수행합니다. Audio/project bytes나 paths는 updater request/receipt에 포함하지 않습니다.
+Attack surface는 updater HTTP response body, transport length metadata, temporary artifact directory/path, staged descriptor와 cancellation/error paths입니다. Remote response는 canonical release namespace를 통과해도 untrusted입니다. Byte/staging admission failure는 installer 실행이나 highest-seen state mutation으로 승격되지 않아야 하며, staging root는 Distribution-owned app storage로 제한해야 합니다. Cleanup은 app-owned non-symlink directory라는 전제 안에서만 pathname removal을 수행합니다. Sealed descriptor의 raw write capability는 verifier에 노출하지 않으며, 후속 검증은 descriptor-bound read-only stream을 사용해야 합니다. Audio/project bytes나 paths는 updater request/receipt에 포함하지 않습니다.
 
 ## References
 
 Tauri Contributors. (2026). *Updater*. Tauri v2 documentation. https://v2.tauri.app/plugin/updater/
 
 Tauri Contributors. (2026). *tauri-plugin-updater 2.11.0*. docs.rs. https://docs.rs/tauri-plugin-updater/latest/tauri_plugin_updater/struct.Update.html
+
+Rust Project Developers. (2026). *Write in std::io* (Rust 1.98). https://doc.rust-lang.org/std/io/trait.Write.html
+
+Rust Project Developers. (2026). *FileExt in std::os::unix::fs* (Rust 1.98). https://doc.rust-lang.org/std/os/unix/fs/trait.FileExt.html
+
+Rust Project Developers. (2026). *FileExt in std::os::windows::fs* (Rust 1.98). https://doc.rust-lang.org/std/os/windows/fs/trait.FileExt.html
