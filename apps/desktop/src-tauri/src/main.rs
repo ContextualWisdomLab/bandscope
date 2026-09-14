@@ -229,7 +229,6 @@ fn materialize_local_audio_source(
     drop(staged);
 
     if project_persistence::publish_synced_file_noreplace(&stage, &destination).is_err() {
-        let _ = std::fs::remove_file(&stage);
         return Err("Could not prepare the local project workspace.".to_string());
     }
 
