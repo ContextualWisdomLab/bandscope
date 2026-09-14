@@ -106,12 +106,15 @@ def _workflow_job_block(workflow_text: str, job_name: str) -> str:
     return "\n".join(workflow_lines[start_index:end_index])
 
 
-def test_release_preflight_owns_model_policy_guard() -> None:
-    """Require normal repository verification to validate the model policy document."""
+def test_release_preflight_composes_model_policy_without_duplicate_workflow() -> None:
+    """Keep one release preflight path while composing model admission inside it."""
+    identity_guard_text = _IDENTITY_GUARD_PATH.read_text(encoding="utf-8")
     quickcheck_text = (
         _REPOSITORY_ROOT / "scripts" / "harness" / "quickcheck.sh"
     ).read_text(encoding="utf-8")
-    assert "python3 scripts/checks/verify_release_model_policy.py" in quickcheck_text
+    assert "verify_model_policy" in identity_guard_text
+    assert "python3 scripts/checks/verify_release_identity.py" in quickcheck_text
+    assert "python3 scripts/checks/verify_release_model_policy.py" not in quickcheck_text
 
 
 def test_tag_build_requires_commercially_admitted_model_before_builds(
