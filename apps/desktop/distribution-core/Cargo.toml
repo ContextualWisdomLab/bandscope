@@ -9,3 +9,5 @@ publish = false
 
 [lints.rust]
 unsafe_code = "forbid"
+warnings = "deny"
+missing_docs = "deny"
