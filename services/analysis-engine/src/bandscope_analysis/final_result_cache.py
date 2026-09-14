@@ -74,7 +74,7 @@ def load_admitted_rehearsal_song(path: Path, *, schema_version: int) -> dict[str
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    """Build a JSON object while rejecting duplicate keys at every nesting level."""
+    """Build one JSON object while rejecting duplicate keys at every nesting level."""
     payload: dict[str, object] = {}
     for key, value in pairs:
         if key in payload:
@@ -84,14 +84,17 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, ob
 
 
 def _nonempty_string(value: object) -> bool:
+    """Return whether a value is a non-blank string."""
     return isinstance(value, str) and bool(value.strip())
 
 
 def _string_list(value: object) -> bool:
+    """Return whether a value is a list containing only non-blank strings."""
     return isinstance(value, list) and all(_nonempty_string(item) for item in value)
 
 
 def _valid_confidence(value: object) -> bool:
+    """Validate the persisted confidence payload needed by rehearsal views."""
     return (
         isinstance(value, dict)
         and _nonempty_string(value.get("level"))
@@ -101,6 +104,7 @@ def _valid_confidence(value: object) -> bool:
 
 
 def _valid_role(value: object) -> bool:
+    """Validate role identity and confidence fields required by downstream consumers."""
     if not isinstance(value, dict):
         return False
     if not all(_nonempty_string(value.get(field)) for field in ("id", "name", "roleType")):
@@ -109,6 +113,7 @@ def _valid_role(value: object) -> bool:
 
 
 def _valid_part_graph_node(value: object) -> bool:
+    """Validate one section part-graph node and its handoff references."""
     return (
         isinstance(value, dict)
         and _nonempty_string(value.get("role_id"))
@@ -119,6 +124,7 @@ def _valid_part_graph_node(value: object) -> bool:
 
 
 def _valid_time_range(value: object) -> bool:
+    """Validate the shared unsigned section-time interval contract."""
     if not isinstance(value, dict):
         return False
     start = value.get("start")
@@ -133,6 +139,7 @@ def _valid_time_range(value: object) -> bool:
 
 
 def _valid_section(value: object) -> bool:
+    """Validate one persisted rehearsal section before exposing a cache hit."""
     if not isinstance(value, dict):
         return False
     if not all(_nonempty_string(value.get(field)) for field in ("id", "label", "groove")):
@@ -152,6 +159,7 @@ def _valid_section(value: object) -> bool:
 
 
 def _valid_export_summary(value: object) -> bool:
+    """Validate the cached cue-sheet summary consumed by export and rehearsal UI."""
     return (
         isinstance(value, dict)
         and _nonempty_string(value.get("format"))
@@ -161,6 +169,7 @@ def _valid_export_summary(value: object) -> bool:
 
 
 def _valid_rehearsal_song(value: object) -> bool:
+    """Validate the persisted RehearsalSong envelope before trusting cached content."""
     if not isinstance(value, dict):
         return False
     if not _nonempty_string(value.get("id")) or not _nonempty_string(value.get("title")):
