@@ -4,6 +4,15 @@
 The release policy is deliberately separate from Signal/MIR runtime model selection.
 It answers whether a specific immutable model artifact may enter a BandScope release;
 it does not claim scientific accuracy or create commercial rights.
+
+Security Notes:
+- Model policy, model bytes, and release evidence are untrusted local inputs.
+- Commercial admission uses fixed repository-relative evidence locations rather than
+  policy-controlled evidence paths, preventing path traversal or evidence aliasing.
+- Model/evidence files are opened read-only with no-follow semantics where available,
+  must remain regular files, and are hashed from the same descriptor that is sized.
+- No network lookup, credential access, deserialization, model execution, or write is
+  performed by this verifier. Missing or drifting evidence fails closed.
 """
 
 from __future__ import annotations
@@ -20,6 +29,7 @@ from typing import Any
 
 _POLICY_RELATIVE_PATH = Path("release/model-artifact-policy.json")
 _MAX_POLICY_BYTES = 64 * 1024
+_MAX_EVIDENCE_BYTES = 4 * 1024 * 1024
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _ALLOWED_RELEASE_STATUSES = frozenset({"blocked", "admitted"})
 _ALLOWED_SERIALIZATIONS = frozenset({"safetensors", "onnx", "pytorch-demucs-trusted"})
@@ -41,6 +51,19 @@ _ADMITTED_ARTIFACT_KEYS = frozenset(
         "provenanceEvidenceSha256",
         "loaderPolicySha256",
     }
+)
+_EVIDENCE_FILES = (
+    ("rightsEvidenceSha256", Path("release/evidence/model-rights.txt"), "rights"),
+    (
+        "provenanceEvidenceSha256",
+        Path("release/evidence/model-provenance.json"),
+        "provenance",
+    ),
+    (
+        "loaderPolicySha256",
+        Path("release/evidence/model-loader-policy.json"),
+        "loader policy",
+    ),
 )
 
 
@@ -166,28 +189,36 @@ def _validate_admitted_metadata(value: Any) -> dict[str, Any]:
     return value
 
 
-def _verify_artifact_bytes(repository_root: Path, metadata: dict[str, Any]) -> None:
-    """Verify exact regular model bytes against immutable size and full-digest metadata."""
-    relative_path = _repository_relative_path(metadata["path"])
-    artifact_path = repository_root.joinpath(*relative_path.parts)
-    if artifact_path.is_symlink():
-        raise ValueError("model artifact must be a regular non-link file")
+def _verify_regular_file_digest(
+    path: Path,
+    *,
+    expected_digest: str,
+    label: str,
+    maximum_bytes: int | None = None,
+    expected_size: int | None = None,
+) -> None:
+    """Verify immutable regular bytes from one descriptor without path re-resolution."""
+    if path.is_symlink():
+        raise ValueError(f"{label} must be a regular non-link file")
 
     open_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        file_descriptor = os.open(artifact_path, open_flags)
+        file_descriptor = os.open(path, open_flags)
     except FileNotFoundError as error:
-        raise ValueError("model artifact is missing") from error
+        raise ValueError(f"{label} is missing") from error
     except OSError as error:
-        raise ValueError("model artifact must be a regular non-link file") from error
+        raise ValueError(f"{label} must be a regular non-link file") from error
 
     try:
         initial_metadata = os.fstat(file_descriptor)
         if not stat.S_ISREG(initial_metadata.st_mode):
-            raise ValueError("model artifact must be a regular non-link file")
-        expected_size = metadata["sizeBytes"]
-        if initial_metadata.st_size != expected_size:
-            raise ValueError("model artifact size does not match policy")
+            raise ValueError(f"{label} must be a regular non-link file")
+        if initial_metadata.st_size <= 0:
+            raise ValueError(f"{label} must not be empty")
+        if expected_size is not None and initial_metadata.st_size != expected_size:
+            raise ValueError(f"{label} size does not match policy")
+        if maximum_bytes is not None and initial_metadata.st_size > maximum_bytes:
+            raise ValueError(f"{label} exceeds its bounded size")
 
         digest = hashlib.sha256()
         observed_size = 0
@@ -196,22 +227,48 @@ def _verify_artifact_bytes(repository_root: Path, metadata: dict[str, Any]) -> N
             if not chunk:
                 break
             observed_size += len(chunk)
-            if observed_size > expected_size:
-                raise ValueError("model artifact size does not match policy")
+            if expected_size is not None and observed_size > expected_size:
+                raise ValueError(f"{label} size does not match policy")
+            if maximum_bytes is not None and observed_size > maximum_bytes:
+                raise ValueError(f"{label} exceeds its bounded size")
             digest.update(chunk)
+
         final_metadata = os.fstat(file_descriptor)
-        if observed_size != expected_size or final_metadata.st_size != expected_size:
-            raise ValueError("model artifact size does not match policy")
-        if digest.hexdigest() != metadata["sha256"]:
-            raise ValueError("model artifact SHA-256 does not match policy")
+        if final_metadata.st_size != initial_metadata.st_size or observed_size != initial_metadata.st_size:
+            raise ValueError(f"{label} changed while being read")
+        if digest.hexdigest() != expected_digest:
+            raise ValueError(f"{label} SHA-256 does not match policy")
     finally:
         os.close(file_descriptor)
+
+
+def _verify_artifact_bytes(repository_root: Path, metadata: dict[str, Any]) -> None:
+    """Verify exact regular model bytes against immutable size and full-digest metadata."""
+    relative_path = _repository_relative_path(metadata["path"])
+    artifact_path = repository_root.joinpath(*relative_path.parts)
+    _verify_regular_file_digest(
+        artifact_path,
+        expected_digest=metadata["sha256"],
+        expected_size=metadata["sizeBytes"],
+        label="model artifact",
+    )
+
+
+def _verify_evidence_bytes(repository_root: Path, metadata: dict[str, Any]) -> None:
+    """Bind policy evidence digests to exact repository evidence bytes."""
+    for digest_field, relative_path, evidence_label in _EVIDENCE_FILES:
+        _verify_regular_file_digest(
+            repository_root / relative_path,
+            expected_digest=metadata[digest_field],
+            maximum_bytes=_MAX_EVIDENCE_BYTES,
+            label=f"{evidence_label} evidence",
+        )
 
 
 def verify_model_policy(
     repository_root: Path, *, require_admitted: bool = False
 ) -> dict[str, Any]:
-    """Validate release model policy and optionally require exact admitted artifact bytes."""
+    """Validate model policy and exact artifact/evidence bytes for admitted releases."""
     document = _read_bounded_json(repository_root / _POLICY_RELATIVE_PATH)
     _require_exact_keys(document, _POLICY_KEYS, "policy")
     if document["schemaVersion"] != 1:
@@ -232,6 +289,7 @@ def verify_model_policy(
 
     admitted_metadata = _validate_admitted_metadata(admitted_artifact)
     _verify_artifact_bytes(repository_root, admitted_metadata)
+    _verify_evidence_bytes(repository_root, admitted_metadata)
     return document
 
 
