@@ -20,6 +20,9 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - Descriptor-capability RED `56aa7467a43299500e79d2e26469b252ae9519c0`: sealed artifact 검증자가 path reopen 없이 byte zero부터 exact descriptor bytes를 읽을 수 있는 read-only stream contract를 먼저 추가했습니다. 당시 `SealedArtifactFile`에는 `reader()`가 없고 대신 write-enabled staging `File`을 `&File`로 직접 노출하고 있어 RED입니다.
 - Compatibility cleanup `13ca9b7862f59c06f5dcc0337c846c050a3c7199`: 기존 staging lifecycle test가 raw `File` accessor에 의존하지 않도록 정리해 capability 제거를 준비했습니다.
 - Causal fix `6144302ed807367742f87247b353742f213dbedb`: public `&File` accessor를 제거하고 `SealedArtifactReader`를 추가했습니다. Reader는 Unix/macOS에서 `FileExt::read_at`, Windows에서 `FileExt::seek_read`를 사용해 still-open descriptor를 path reopen 없이 positional read하며 `Read`만 구현합니다. Staging descriptor는 내부적으로 read/write로 열려 있어도 downstream verifier가 그 write capability를 회수할 public API가 없습니다.
+- Post-seal growth RED `e1274bee951b2eb1bb58d3dbbb59d21289434384`: exact-size seal 이후 같은 inode가 외부 경로로 append되더라도 verifier stream이 최초 admitted byte boundary를 넘어 읽어서는 안 된다는 integration contract를 추가했습니다. 기존 reader는 descriptor EOF까지 읽기 때문에 appended tail까지 반환하므로 RED입니다.
+- Causal fix `c4510966b874778a67f3c50f09acaf858fe7c70c`: `SealedArtifactReader`에 `remaining_bytes`를 두고 모든 positional read를 seal 당시 `bytes_written` 범위로 제한했습니다. Reader는 admitted range를 모두 읽은 뒤에는 descriptor가 더 길어져도 EOF를 반환하며, admitted range가 중간에 짧아지면 `UnexpectedEof`로 fail closed합니다.
+- Truncation coverage `e294147e3d93757b7a6115222fb78317152ecc74`: seal 뒤 descriptor가 admitted size 아래로 줄어드는 경우 verifier read가 정상 completion으로 끝나지 않고 `UnexpectedEof`를 반환하는 회귀 테스트를 추가했습니다.
 
 ## 실행 계약
 
@@ -43,9 +46,10 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - seal은 userspace flush와 descriptor `sync_all()` 이후 descriptor가 regular file인지, exact receipt size와 같은지 다시 확인합니다.
 - 성공한 `SealedArtifactFile`은 descriptor를 계속 열어 두므로 후속 digest/signature verification이 path reopen보다 exact staged bytes에 결합될 수 있습니다.
 - sealed verifier access는 `SealedArtifactReader`의 positional `Read` stream으로 제한합니다. 내부 staging `File`은 write-enabled이지만 raw `&File`을 public하게 반환하지 않으므로 verifier가 `Write for &File` 또는 platform `FileExt` write API로 sealed bytes를 바꾸는 capability를 얻지 않습니다.
+- `SealedArtifactReader`는 seal 당시 admitted byte count까지만 읽습니다. Seal 뒤 같은 inode가 더 길어져도 appended bytes는 verifier input이 되지 않으며, admitted range가 짧아지면 정상 EOF가 아니라 `UnexpectedEof`로 거부합니다. 따라서 verifier input의 resource bound가 path-side file growth 때문에 다시 열리지 않습니다.
 - exact-size seal은 신뢰 승격이 아닙니다. `SealedArtifactFile` 자체는 cleanup-on-drop이며 descriptor를 먼저 닫은 다음 staging path를 제거합니다. 후속 digest/signature/authenticated-metadata 결합이 성공하기 전에는 unverified bytes가 정상 종료 경로에서 남지 않습니다.
 
-Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, descriptor-bound read-only sealed stream, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
+Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, descriptor-bound read-only sealed stream, seal 후 external growth에 대한 admitted-range cap, seal 후 truncation fail-closed, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
 
 ## 기각한 대안
 
@@ -61,6 +65,8 @@ Exact-size seal을 곧바로 artifact retention으로 취급하는 방식도 기
 
 Sealed artifact에서 raw `&File`을 verifier에 넘기는 방식도 기각합니다. Rust standard library는 `Write for &File`을 구현하고 있고 staging descriptor 자체가 write access로 열린 상태이므로, immutable borrow처럼 보이는 API가 실제로는 sealed bytes를 바꿀 수 있는 write capability를 노출합니다. 별도 path reopen은 descriptor identity를 잃으므로, 동일 open descriptor에 대한 positional read-only wrapper를 사용합니다.
 
+Descriptor EOF까지 무제한 읽는 방식도 기각합니다. Seal 당시에는 exact size였더라도 이후 같은 inode가 path-side append로 커질 수 있습니다. Verifier가 EOF까지 `read_to_end`하면 byte-admission에서 닫았던 resource bound가 다시 열리고, digest/signature input 범위도 original receipt보다 넓어집니다. Reader가 admitted byte count를 자체적으로 소유하고 그 범위를 넘지 않게 해야 합니다.
+
 ## Claim boundary
 
 현재 crate는 **network-library-independent streaming + staging primitive**입니다. 실제 production updater가 아직 이 crate를 통해 HTTP body를 수신하지 않으므로 end-to-end bounded download가 완료됐다고 주장하지 않습니다. 또한 `sync_all()`과 cleanup tests를 packaged Windows/macOS power-loss durability와 동일시하지 않습니다. 이 crate는 SHA-256, updater signature, metadata authenticity, installer trust도 검증하지 않습니다.
@@ -69,13 +75,15 @@ Sealed artifact에서 raw `&File`을 verifier에 넘기는 방식도 기각합�
 
 ## Security Notes
 
-Attack surface는 updater HTTP response body, transport length metadata, temporary artifact directory/path, staged descriptor와 cancellation/error paths입니다. Remote response는 canonical release namespace를 통과해도 untrusted입니다. Byte/staging admission failure는 installer 실행이나 highest-seen state mutation으로 승격되지 않아야 하며, staging root는 Distribution-owned app storage로 제한해야 합니다. Cleanup은 app-owned non-symlink directory라는 전제 안에서만 pathname removal을 수행합니다. Sealed descriptor의 raw write capability는 verifier에 노출하지 않으며, 후속 검증은 descriptor-bound read-only stream을 사용해야 합니다. Audio/project bytes나 paths는 updater request/receipt에 포함하지 않습니다.
+Attack surface는 updater HTTP response body, transport length metadata, temporary artifact directory/path, staged descriptor와 cancellation/error paths입니다. Remote response는 canonical release namespace를 통과해도 untrusted입니다. Byte/staging admission failure는 installer 실행이나 highest-seen state mutation으로 승격되지 않아야 하며, staging root는 Distribution-owned app storage로 제한해야 합니다. Cleanup은 app-owned non-symlink directory라는 전제 안에서만 pathname removal을 수행합니다. Sealed descriptor의 raw write capability는 verifier에 노출하지 않으며, 후속 검증은 descriptor-bound read-only stream을 사용해야 합니다. 그 stream은 seal 당시 admitted byte count를 상한으로 삼아 post-seal growth를 무시하고 early truncation을 error로 처리해야 합니다. Audio/project bytes나 paths는 updater request/receipt에 포함하지 않습니다.
 
 ## References
 
 Tauri Contributors. (2026). *Updater*. Tauri v2 documentation. https://v2.tauri.app/plugin/updater/
 
 Tauri Contributors. (2026). *tauri-plugin-updater 2.11.0*. docs.rs. https://docs.rs/tauri-plugin-updater/latest/tauri_plugin_updater/struct.Update.html
+
+Rust Project Developers. (2026). *Read in std::io* (Rust 1.98). https://doc.rust-lang.org/std/io/trait.Read.html
 
 Rust Project Developers. (2026). *Write in std::io* (Rust 1.98). https://doc.rust-lang.org/std/io/trait.Write.html
 
