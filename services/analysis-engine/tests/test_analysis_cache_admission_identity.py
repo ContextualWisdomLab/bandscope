@@ -47,14 +47,14 @@ def test_final_cache_cannot_cross_native_content_identity(tmp_path, monkeypatch)
             "tempRoot": str(tmp_path / "temp"),
         }
     )
-    cache_path = _analysis_cache_path(request)
-    assert cache_path is not None
 
     monkeypatch.setenv("BANDSCOPE_ADMITTED_AUDIO_BYTES", str(len(original)))
     monkeypatch.setenv(
         "BANDSCOPE_ADMITTED_AUDIO_SHA256",
         hashlib.sha256(original).hexdigest(),
     )
+    cache_path = _analysis_cache_path(request)
+    assert cache_path is not None
     assert _store_cached_analysis(cache_path, request, build_demo_rehearsal_song()) is True
 
     source_path.write_bytes(replacement)
