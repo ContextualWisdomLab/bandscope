@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Fail closed when BandScope release-version or model admission projections disagree.
+"""Fail closed when BandScope release identity or release admission projections disagree.
 
 Security Notes:
 - ``repository_root`` is an already-selected repository boundary. Version identity
   reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration.
-- The CLI composes the sibling Distribution model-policy guard. Normal branch/PR
-  checks validate that policy; version-tag checks additionally require exact
-  commercially admitted model bytes before any platform build can start.
+- The CLI composes the sibling Distribution model-policy and updater-policy guards.
+  Normal branch/PR checks validate both policies; version-tag checks additionally
+  require exact commercially admitted model and updater release authority before
+  any platform build can start.
 - VERSION and JSON fields are validated as exact, non-empty, trimmed strings
   before comparison; malformed text or JSON fails closed without echoing values.
 - These guards have no network, filesystem-write, update, credential, signing,
@@ -55,28 +56,43 @@ def _required_string(
     return field_value
 
 
-def _load_model_policy_module() -> ModuleType:
-    """Load the adjacent Distribution model-policy guard without another package owner."""
-    guard_path = Path(__file__).with_name("verify_release_model_policy.py")
-    guard_spec = importlib.util.spec_from_file_location(
-        "bandscope_verify_release_model_policy", guard_path
-    )
+def _load_policy_module(filename: str, module_name: str, label: str) -> ModuleType:
+    """Load one adjacent Distribution policy guard without creating another owner."""
+    guard_path = Path(__file__).with_name(filename)
+    guard_spec = importlib.util.spec_from_file_location(module_name, guard_path)
     if guard_spec is None or guard_spec.loader is None:
-        raise ValueError("could not load release model policy guard")
+        raise ValueError(f"could not load {label}")
     guard_module = importlib.util.module_from_spec(guard_spec)
     try:
         guard_spec.loader.exec_module(guard_module)
     except (ImportError, OSError, SyntaxError) as load_error:
-        raise ValueError("could not load release model policy guard") from load_error
+        raise ValueError(f"could not load {label}") from load_error
     return guard_module
 
 
 def _model_policy_verifier() -> Callable[..., dict[str, Any]]:
-    """Return the sibling policy verifier and reject an incomplete guard module."""
-    guard_module = _load_model_policy_module()
+    """Return the sibling model-policy verifier and reject an incomplete module."""
+    guard_module = _load_policy_module(
+        "verify_release_model_policy.py",
+        "bandscope_verify_release_model_policy",
+        "release model policy guard",
+    )
     verifier = getattr(guard_module, "verify_model_policy", None)
     if not callable(verifier):
         raise ValueError("release model policy guard lacks verify_model_policy")
+    return verifier
+
+
+def _updater_policy_verifier() -> Callable[..., dict[str, Any]]:
+    """Return the sibling updater-policy verifier and reject an incomplete module."""
+    guard_module = _load_policy_module(
+        "verify_release_updater_policy.py",
+        "bandscope_verify_release_updater_policy",
+        "release updater policy guard",
+    )
+    verifier = getattr(guard_module, "verify_updater_policy", None)
+    if not callable(verifier):
+        raise ValueError("release updater policy guard lacks verify_updater_policy")
     return verifier
 
 
@@ -122,7 +138,7 @@ def verify_release_identity(
 
 
 def main() -> int:
-    """Run version and model-admission gates for repository and tag workflows."""
+    """Run version, model-admission, and updater-admission release gates."""
     release_tag = (
         os.environ.get("GITHUB_REF_NAME")
         if os.environ.get("GITHUB_REF_TYPE") == "tag"
@@ -134,6 +150,11 @@ def main() -> int:
         )
         verify_model_policy = _model_policy_verifier()
         verify_model_policy(
+            _REPOSITORY_ROOT,
+            require_admitted=release_tag is not None,
+        )
+        verify_updater_policy = _updater_policy_verifier()
+        verify_updater_policy(
             _REPOSITORY_ROOT,
             require_admitted=release_tag is not None,
         )
