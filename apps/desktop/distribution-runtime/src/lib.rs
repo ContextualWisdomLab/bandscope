@@ -33,6 +33,9 @@ const MAX_JSON_MEMBERS: usize = 64;
 const MAX_STRING_BYTES: usize = 128 * 1024;
 const STATE_DIRECTORY: &str = "distribution";
 const HIGHEST_SEEN_STATE_FILE: &str = "highest-seen-v1.log";
+const RELEASE_HOST: &str = "github.com";
+const RELEASE_OWNER: &str = "ContextualWisdomLab";
+const RELEASE_REPOSITORY: &str = "bandscope";
 
 /// Fail-closed reasons for provisional updater metadata admission.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -51,7 +54,7 @@ pub enum MetadataError {
     UnsupportedTarget,
     /// A platform signature field is empty, oversized, or contains a NUL byte.
     InvalidSignature,
-    /// A platform URL is not a bounded HTTPS exact-tag release URL.
+    /// A platform URL is not the canonical bounded GitHub exact-tag release URL.
     InvalidUrl,
     /// An updater artifact declares a zero or excessive byte length.
     InvalidArtifactSize,
@@ -109,10 +112,10 @@ impl ProvisionalUpdateMetadata {
 /// Security Notes: `raw_json` is remote metadata, not proof that the announced
 /// version, commit, or digest is authentic. The function rejects duplicate and
 /// unknown members, enforces all four release targets, bounds signature/URL and
-/// artifact-size fields, and delegates release-identity syntax to the pure
-/// Distribution core. Success is deliberately *provisional* and must never be
-/// persisted as highest-seen authority without a separate authenticated
-/// metadata binding.
+/// artifact-size fields, pins artifact URLs to BandScope's exact GitHub release
+/// namespace, and delegates release-identity syntax to the pure Distribution
+/// core. Success is deliberately *provisional* and must never be persisted as
+/// highest-seen authority without a separate authenticated metadata binding.
 pub fn admit_untrusted_raw_json(
     raw_json: &[u8],
     expected_target: &str,
@@ -238,16 +241,43 @@ fn validate_signature(value: &str) -> Result<(), MetadataError> {
 fn validate_release_url(value: &str, version: &str) -> Result<(), MetadataError> {
     if value.is_empty()
         || value.len() > MAX_URL_BYTES
-        || !value.starts_with("https://")
         || value.bytes().any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+        || value.contains(['?', '#', '\\'])
     {
         return Err(MetadataError::InvalidUrl);
     }
-    let tag_segment = format!("/releases/download/v{version}/");
-    if !value.contains(&tag_segment) || value.contains("/releases/latest/") {
+
+    let remainder = value
+        .strip_prefix("https://")
+        .ok_or(MetadataError::InvalidUrl)?;
+    let (authority, path) = remainder
+        .split_once('/')
+        .ok_or(MetadataError::InvalidUrl)?;
+    if !authority.eq_ignore_ascii_case(RELEASE_HOST) || authority.contains('@') {
+        return Err(MetadataError::InvalidUrl);
+    }
+
+    let segments: Vec<&str> = path.split('/').collect();
+    if segments.len() != 6
+        || segments[0] != RELEASE_OWNER
+        || segments[1] != RELEASE_REPOSITORY
+        || segments[2] != "releases"
+        || segments[3] != "download"
+        || segments[4] != format!("v{version}")
+        || !is_safe_release_asset_name(segments[5])
+    {
         return Err(MetadataError::InvalidUrl);
     }
     Ok(())
+}
+
+fn is_safe_release_asset_name(value: &str) -> bool {
+    !value.is_empty()
+        && value != "."
+        && value != ".."
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+        })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -603,6 +633,48 @@ mod tests {
         );
         assert_eq!(
             admit_untrusted_raw_json(mutable_url.as_bytes(), "windows-x86_64"),
+            Err(MetadataError::InvalidUrl)
+        );
+    }
+
+    #[test]
+    fn release_download_namespace_is_pinned_before_any_network_adapter_can_use_it() {
+        let hostile_host = manifest("2.0.0").replace("https://github.com/", "https://evil.example/");
+        assert_eq!(
+            admit_untrusted_raw_json(hostile_host.as_bytes(), "windows-x86_64"),
+            Err(MetadataError::InvalidUrl)
+        );
+
+        let hostile_repo = manifest("2.0.0").replace(
+            "/ContextualWisdomLab/bandscope/",
+            "/attacker/bandscope/",
+        );
+        assert_eq!(
+            admit_untrusted_raw_json(hostile_repo.as_bytes(), "windows-x86_64"),
+            Err(MetadataError::InvalidUrl)
+        );
+
+        let userinfo = manifest("2.0.0").replace(
+            "https://github.com/",
+            "https://github.com@evil.example/",
+        );
+        assert_eq!(
+            admit_untrusted_raw_json(userinfo.as_bytes(), "windows-x86_64"),
+            Err(MetadataError::InvalidUrl)
+        );
+
+        let query = manifest("2.0.0").replace(
+            "win-x86.zip\"",
+            "win-x86.zip?mirror=/releases/download/v2.0.0/other.zip\"",
+        );
+        assert_eq!(
+            admit_untrusted_raw_json(query.as_bytes(), "windows-x86_64"),
+            Err(MetadataError::InvalidUrl)
+        );
+
+        let encoded_path = manifest("2.0.0").replace("win-x86.zip", "win%2Fx86.zip");
+        assert_eq!(
+            admit_untrusted_raw_json(encoded_path.as_bytes(), "windows-x86_64"),
             Err(MetadataError::InvalidUrl)
         );
     }
