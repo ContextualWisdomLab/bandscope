@@ -129,3 +129,74 @@ def test_cache_accepts_valid_optional_shared_contract_fields(tmp_path, monkeypat
     song["scoreAttachments"] = [{"id": "score-1", "fileName": "verse-chart.pdf"}]
 
     assert _load_candidate(tmp_path, monkeypatch, song) == song
+
+
+def test_cache_rejects_unknown_keys_at_shared_contract_boundaries(tmp_path, monkeypatch) -> None:
+    """Reject forward-incompatible fields anywhere the shared validator is key-strict."""
+    base_song = build_demo_rehearsal_song()
+
+    candidates = []
+
+    song = copy.deepcopy(base_song)
+    song["futureSongField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["futureSectionField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["confidence"]["futureConfidenceField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["roles"][0]["futureRoleField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["roles"][0]["harmony"]["futureHarmonyField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["roles"][0]["cue"]["futureCueField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["roles"][0]["range"]["futureRangeField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["roles"][0]["manualOverrides"][0]["futureOverrideField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["partGraph"][0]["futureGraphField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["timeRange"]["futureRangeField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["exportSummary"]["futureExportField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["collaboration"] = {
+        "syncMode": "local_only",
+        "syncNote": "Local rehearsal notes only.",
+        "assignments": [],
+        "comments": [],
+        "approvals": [],
+        "futureCollaborationField": True,
+    }
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["scoreAttachments"] = [
+        {"id": "score-1", "fileName": "verse-chart.pdf", "futureScoreField": True}
+    ]
+    candidates.append(song)
+
+    for candidate in candidates:
+        assert _load_candidate(tmp_path, monkeypatch, candidate) is None
