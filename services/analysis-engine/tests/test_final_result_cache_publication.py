@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import ctypes
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -35,6 +37,89 @@ def test_store_durable_cache_syncs_staged_bytes_before_publication(
     assert list(tmp_path.iterdir()) == []
 
 
+def test_store_durable_cache_cleans_stage_when_publication_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed durable publish leaves no orphaned final-result staging file."""
+    target = tmp_path / "analysis.json"
+
+    monkeypatch.setattr(final_result_cache.os, "fsync", lambda _fd: None)
+    monkeypatch.setattr(
+        final_result_cache,
+        "_publish_synced_cache_stage",
+        lambda _stage, _target: (_ for _ in ()).throw(OSError("disk sync failed")),
+    )
+
+    with pytest.raises(OSError, match="disk sync failed"):
+        final_result_cache.store_durable_cache_payload(target, {"schemaVersion": 1})
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_store_durable_cache_propagates_stage_creation_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failure before a staging path exists is propagated without inventing cleanup state."""
+    target = tmp_path / "analysis.json"
+
+    def fail_named_temporary_file(**_kwargs: object) -> Any:
+        raise OSError("stage creation failed")
+
+    monkeypatch.setattr(final_result_cache.tempfile, "NamedTemporaryFile", fail_named_temporary_file)
+
+    with pytest.raises(OSError, match="stage creation failed"):
+        final_result_cache.store_durable_cache_payload(target, {"schemaVersion": 1})
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_sync_parent_directory_closes_descriptor_after_flush(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Directory durability does not leak its descriptor after a successful flush."""
+    events: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(
+        final_result_cache.os,
+        "open",
+        lambda path, flags: events.append(("open", (path, flags))) or 41,
+    )
+    monkeypatch.setattr(
+        final_result_cache.os,
+        "fsync",
+        lambda fd: events.append(("fsync", fd)),
+    )
+    monkeypatch.setattr(
+        final_result_cache.os,
+        "close",
+        lambda fd: events.append(("close", fd)),
+    )
+
+    final_result_cache._sync_parent_directory(tmp_path)
+
+    assert [event[0] for event in events] == ["open", "fsync", "close"]
+    assert events[1:] == [("fsync", 41), ("close", 41)]
+
+
+def test_sync_parent_directory_closes_descriptor_when_flush_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed directory flush still closes the descriptor and propagates failure."""
+    closed: list[int] = []
+    monkeypatch.setattr(final_result_cache.os, "open", lambda _path, _flags: 52)
+    monkeypatch.setattr(
+        final_result_cache.os,
+        "fsync",
+        lambda _fd: (_ for _ in ()).throw(OSError("directory fsync failed")),
+    )
+    monkeypatch.setattr(final_result_cache.os, "close", closed.append)
+
+    with pytest.raises(OSError, match="directory fsync failed"):
+        final_result_cache._sync_parent_directory(tmp_path)
+
+    assert closed == [52]
+
+
 def test_posix_cache_publication_syncs_parent_after_replace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -62,6 +147,84 @@ def test_posix_cache_publication_syncs_parent_after_replace(
     final_result_cache._publish_synced_cache_stage(stage, target)
 
     assert events == ["replace", "parent-fsync"]
+
+
+def test_windows_cache_publication_uses_write_through_move(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows publication uses replace-existing plus write-through rather than plain rename."""
+    stage = tmp_path / ".cache.stage"
+    target = tmp_path / "analysis.json"
+    calls: list[tuple[str, str, int]] = []
+
+    class MoveFileExW:
+        argtypes: object = None
+        restype: object = None
+
+        def __call__(self, source: str, destination: str, flags: int) -> int:
+            calls.append((source, destination, flags))
+            return 1
+
+    class Kernel32:
+        MoveFileExW = MoveFileExW()
+
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel32(), raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
+
+    final_result_cache._replace_windows_write_through(stage, target)
+
+    assert calls == [(str(stage), str(target), 0x00000001 | 0x00000008)]
+
+
+def test_windows_cache_publication_propagates_move_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows write-through failures remain explicit durability failures."""
+    stage = tmp_path / ".cache.stage"
+    target = tmp_path / "analysis.json"
+
+    class MoveFileExW:
+        argtypes: object = None
+        restype: object = None
+
+        def __call__(self, _source: str, _destination: str, _flags: int) -> int:
+            return 0
+
+    class Kernel32:
+        MoveFileExW = MoveFileExW()
+
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel32(), raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
+
+    with pytest.raises(OSError) as error:
+        final_result_cache._replace_windows_write_through(stage, target)
+
+    assert error.value.errno == 5
+
+
+def test_publish_synced_cache_stage_dispatches_windows_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The platform dispatcher never falls through to POSIX replacement on Windows."""
+    stage = tmp_path / ".cache.stage"
+    target = tmp_path / "analysis.json"
+    calls: list[tuple[Path, Path]] = []
+
+    monkeypatch.setattr(final_result_cache.os, "name", "nt")
+    monkeypatch.setattr(
+        final_result_cache,
+        "_replace_windows_write_through",
+        lambda source, destination: calls.append((source, destination)),
+    )
+    monkeypatch.setattr(
+        final_result_cache.os,
+        "replace",
+        lambda *_args: pytest.fail("Windows publication fell through to os.replace"),
+    )
+
+    final_result_cache._publish_synced_cache_stage(stage, target)
+
+    assert calls == [(stage, target)]
 
 
 def test_cache_publication_failure_is_not_reported_as_stored(
