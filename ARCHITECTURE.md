@@ -59,6 +59,7 @@ Last updated: 2026-09-15
 
 - `apps/desktop` - desktop shell and user-facing React UI
 - `apps/desktop/distribution-core` - Tauri-independent Rust security policy for updater release identity, anti-replay, target compatibility, and project-schema-aware rollback decisions
+- `apps/desktop/distribution-state` - Distribution-owned bounded append/sync log for the highest authenticated updater identity; consumes `distribution-core` identity and never project bytes
 - `packages/shared-types` - stable cross-layer types shared by the UI and orchestration layer
 - `services/analysis-engine` - Python analysis service for source separation and music analysis
 - `scripts/harness` - fail-fast repo verification
@@ -68,6 +69,7 @@ Last updated: 2026-09-15
 
 - Distribution owns commercial release identity, native signing/notarization admission, updater policy, immutable publication evidence, highest-seen update freshness state, and last-known-good installer recovery decisions.
 - `apps/desktop/distribution-core` contains deterministic security decisions only. It does not fetch metadata, verify Tauri signatures, write project data, run installers, or manufacture signing/key authority.
+- `apps/desktop/distribution-state` persists only the highest authenticated release identity as a bounded append-only log. It revalidates committed identities, rejects local version regression/equivocation, synchronizes accepted appends, and recovers only a syntactically valid torn final-record prefix; it does not own Tauri networking/signature verification, installer execution, or project persistence.
 - The updater runtime must authenticate Tauri metadata and artifact signatures before projecting exact `version`, `sourceCommit`, updater SHA-256, target, and compatibility floor into the Rust decision core.
 - Stable-channel automatic update decisions use canonical numeric `MAJOR.MINOR.PATCH`. Prerelease/build ordering is not approximated; a future beta channel requires a separate ADR and canonical SemVer implementation.
 - A release older than locally persisted highest-seen authenticated metadata is replay, and the same version with a different source commit or updater digest is equivocation. Neither may be silently downgraded into a normal update offer.
@@ -113,7 +115,7 @@ Last updated: 2026-09-15
 - The desktop shell uses an explicit Tauri CSP that only allows self-hosted assets, inline styles, Tauri IPC, and loopback development traffic.
 - Mechanical gates focus on lint, typecheck, unit tests, coverage for Python, and documentation presence.
 - Python quality gates also require 100% docstring coverage via `package.json` script `check:python-docstrings`, enforced with Ruff rules `D100` through `D107` across tracked packages, modules, classes, nested classes, functions, methods (including `__init__`), `services/analysis-engine` tests, and repo-owned Python scripts.
-- Distribution security-core Rust compilation denies warnings and missing public rustdoc; its standalone locked unit suite is invoked by the repository analysis test harness without adding Python production logic.
+- Distribution `distribution-core` and `distribution-state` Rust compilation denies warnings and missing public rustdoc; their standalone locked unit suites are invoked by the repository analysis test harness without adding Python production logic.
 - Mechanical gates also enforce security document presence, plan `Security Notes`, and basic forbidden-pattern checks.
 - Security context is part of architecture, not just implementation detail; docs and plans must record the trust boundary touched by risky changes.
 - Supply-chain controls are part of the bootstrap architecture, not a release-afterthought.
