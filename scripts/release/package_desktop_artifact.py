@@ -14,17 +14,15 @@ import sys
 import tempfile
 from collections import Counter
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 CommandRunner = Callable[..., Any]
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _FULL_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
-@dataclass(frozen=True)
-class PackagedArtifact:
+class PackagedArtifact(NamedTuple):
     """Identify one packaged installer and its supporting checksum/manifest evidence."""
 
     platform: str
