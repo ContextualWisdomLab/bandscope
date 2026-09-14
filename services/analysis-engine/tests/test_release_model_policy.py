@@ -12,19 +12,37 @@ import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_model_policy.py"
+_IDENTITY_GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_identity.py"
 _BUILD_BASELINE_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
+
+
+def _load_module(module_name: str, module_path: Path) -> ModuleType:
+    """Load one repository-owned executable guard for focused contract tests."""
+    assert module_path.is_file(), f"release preflight guard is missing: {module_path.name}"
+    module_spec = importlib.util.spec_from_file_location(module_name, module_path)
+    assert module_spec is not None and module_spec.loader is not None
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module
 
 
 def _load_guard() -> ModuleType:
     """Load the Distribution-owned model release guard from its executable path."""
-    assert _GUARD_PATH.is_file(), "release preflight must own a model artifact guard"
-    guard_module_spec = importlib.util.spec_from_file_location(
-        "verify_release_model_policy", _GUARD_PATH
+    return _load_module("verify_release_model_policy", _GUARD_PATH)
+
+
+def _write_release_metadata(repository_root: Path, release_version: str) -> None:
+    """Write the version projections consumed by the composed release preflight."""
+    (repository_root / "apps" / "desktop" / "src-tauri").mkdir(parents=True)
+    (repository_root / "VERSION").write_text(f"{release_version}\n", encoding="utf-8")
+    (repository_root / "package.json").write_text(
+        json.dumps({"name": "bandscope", "version": release_version}),
+        encoding="utf-8",
     )
-    assert guard_module_spec is not None and guard_module_spec.loader is not None
-    guard_module = importlib.util.module_from_spec(guard_module_spec)
-    guard_module_spec.loader.exec_module(guard_module)
-    return guard_module
+    (repository_root / "apps" / "desktop" / "src-tauri" / "tauri.conf.json").write_text(
+        json.dumps({"productName": "BandScope", "version": release_version}),
+        encoding="utf-8",
+    )
 
 
 def _write_policy(
@@ -96,12 +114,25 @@ def test_release_preflight_owns_model_policy_guard() -> None:
     assert "python3 scripts/checks/verify_release_model_policy.py" in quickcheck_text
 
 
-def test_tag_build_requires_commercially_admitted_model_before_builds() -> None:
+def test_tag_build_requires_commercially_admitted_model_before_builds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Fail a version-tag build before packaging when no model artifact is admitted."""
     workflow_text = _BUILD_BASELINE_PATH.read_text(encoding="utf-8")
     identity_job = _workflow_job_block(workflow_text, "release-identity")
-    assert "python3 scripts/checks/verify_release_model_policy.py" in identity_job
-    assert "--require-admitted" in identity_job
+    assert "run: python3 scripts/checks/verify_release_identity.py" in identity_job
+
+    _write_release_metadata(tmp_path, "1.2.3")
+    _write_policy(tmp_path, release_status="blocked", admitted_artifact=None)
+    identity_guard = _load_module("verify_release_identity", _IDENTITY_GUARD_PATH)
+    monkeypatch.setattr(identity_guard, "_REPOSITORY_ROOT", tmp_path)
+    monkeypatch.setenv("GITHUB_REF_TYPE", "tag")
+    monkeypatch.setenv("GITHUB_REF_NAME", "v1.2.3")
+    assert identity_guard.main() == 1
+
+    monkeypatch.delenv("GITHUB_REF_TYPE")
+    monkeypatch.delenv("GITHUB_REF_NAME")
+    assert identity_guard.main() == 0
 
 
 def test_repository_policy_is_valid_but_blocks_commercial_tag_release() -> None:
@@ -194,9 +225,7 @@ def test_model_policy_rejects_path_escape_and_symlink(tmp_path: Path) -> None:
     _write_policy(
         tmp_path,
         release_status="admitted",
-        admitted_artifact=_admitted_artifact(
-            "release/models/model.safetensors", payload
-        ),
+        admitted_artifact=_admitted_artifact("release/models/model.safetensors", payload),
     )
     with pytest.raises(ValueError, match="model artifact must be a regular non-link file"):
         guard.verify_model_policy(tmp_path, require_admitted=True)
