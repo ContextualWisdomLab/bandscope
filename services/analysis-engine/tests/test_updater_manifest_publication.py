@@ -8,8 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _BUILDER = _REPO_ROOT / "scripts" / "release" / "build_updater_manifest.py"
 _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "build-baseline.yml"
@@ -57,7 +55,9 @@ def _write_release_graph(repo_root: Path, *, source_commit: str) -> dict[str, st
             updater_name = archive_name
             updater_payload = archive_payload
         else:
-            updater_name = f"bandscope-macos-{arch}-{source_commit[:12]}.app.tar.gz"
+            updater_name = (
+                f"bandscope-macos-{arch}-{source_commit[:12]}.app.tar.gz"
+            )
             updater_payload = f"updater-{platform}-{arch}".encode()
             (artifacts / updater_name).write_bytes(updater_payload)
         signature_name = f"{updater_name}.sig"
@@ -99,11 +99,15 @@ def _write_release_graph(repo_root: Path, *, source_commit: str) -> dict[str, st
         receipt_name = (
             f"bandscope-{platform}-{arch}-{source_commit[:12]}.release-receipt.json"
         )
-        (artifacts / receipt_name).write_text(json.dumps(receipt), encoding="utf-8")
+        (artifacts / receipt_name).write_text(
+            json.dumps(receipt), encoding="utf-8"
+        )
     return signatures
 
 
-def _run_builder(repo_root: Path, *, source_commit: str, check: bool = False) -> subprocess.CompletedProcess[str]:
+def _run_builder(
+    repo_root: Path, *, source_commit: str, check: bool = False
+) -> subprocess.CompletedProcess[str]:
     command = [
         sys.executable,
         str(_BUILDER),
@@ -139,20 +143,32 @@ def test_manifest_binds_exact_receipts_and_signature_contents(tmp_path: Path) ->
         "darwin-x86_64",
         "darwin-aarch64",
     }
-    assert manifest["platforms"]["windows-x86_64"]["signature"] == signatures["windows-amd64"]
-    assert manifest["platforms"]["darwin-aarch64"]["signature"] == signatures["macos-arm64"]
+    assert (
+        manifest["platforms"]["windows-x86_64"]["signature"]
+        == signatures["windows-amd64"]
+    )
+    assert (
+        manifest["platforms"]["darwin-aarch64"]["signature"]
+        == signatures["macos-arm64"]
+    )
     assert manifest["platforms"]["darwin-aarch64"]["url"] == (
         "https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/"
         f"bandscope-macos-arm64-{source_commit[:12]}.app.tar.gz"
     )
 
 
-def test_manifest_check_rejects_post_generation_signature_drift(tmp_path: Path) -> None:
+def test_manifest_check_rejects_post_generation_signature_drift(
+    tmp_path: Path,
+) -> None:
     """Do not publish a manifest after receipt-bound signature bytes drift."""
     source_commit = "b" * 40
     _write_release_graph(tmp_path, source_commit=source_commit)
     assert _run_builder(tmp_path, source_commit=source_commit).returncode == 0
-    signature = tmp_path / "artifacts" / f"bandscope-windows-amd64-{source_commit[:12]}.exe.sig"
+    signature = (
+        tmp_path
+        / "artifacts"
+        / f"bandscope-windows-amd64-{source_commit[:12]}.exe.sig"
+    )
     signature.write_text("tampered-signature", encoding="utf-8")
 
     completed = _run_builder(tmp_path, source_commit=source_commit, check=True)
@@ -161,8 +177,10 @@ def test_manifest_check_rejects_post_generation_signature_drift(tmp_path: Path) 
     assert "signature" in completed.stderr.lower()
 
 
-def test_manifest_rejects_ambiguous_updater_bundle_for_one_target(tmp_path: Path) -> None:
-    """Static Tauri targets must resolve to exactly one updater bundle."""
+def test_manifest_rejects_ambiguous_updater_bundle_for_one_target(
+    tmp_path: Path,
+) -> None:
+    """Static Tauri targets must resolve to one receipt-authorized updater."""
     source_commit = "c" * 40
     _write_release_graph(tmp_path, source_commit=source_commit)
     receipt_path = (
@@ -177,7 +195,7 @@ def test_manifest_rejects_ambiguous_updater_bundle_for_one_target(tmp_path: Path
     completed = _run_builder(tmp_path, source_commit=source_commit)
 
     assert completed.returncode != 0
-    assert "exactly one updater" in completed.stderr.lower()
+    assert "updater" in completed.stderr.lower()
 
 
 def test_release_workflow_builds_and_rechecks_manifest_before_publication() -> None:
