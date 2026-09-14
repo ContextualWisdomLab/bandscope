@@ -6,7 +6,9 @@ import hashlib
 import json
 import logging
 import multiprocessing as mp
+import os
 import queue
+import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -16,6 +18,7 @@ import numpy as np
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
 from bandscope_analysis.final_result_cache import (
+    _publish_synced_cache_stage as publish_synced_cache_stage,
     admitted_audio_cache_identity,
     load_admitted_rehearsal_song,
     store_durable_cache_payload,
@@ -30,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
-FEATURE_CACHE_SCHEMA_VERSION = 1
+FEATURE_CACHE_SCHEMA_VERSION = 2
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
 logger = logging.getLogger(__name__)
@@ -198,6 +201,7 @@ class CachedFeaturePayload(TypedDict):
 
     schemaVersion: int
     source: dict[str, object]
+    arraysSha256: str
     sampleRate: int
     separation: dict[str, object]
     stemKeys: list[str]
@@ -733,10 +737,36 @@ def _normalize_stem_role_types(
     return normalized
 
 
+def _sha256_file(path: Path) -> str | None:
+    """Return a streaming SHA-256 for a derived cache artifact, or ``None`` on read failure."""
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as artifact:
+            while chunk := artifact.read(1024 * 1024):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def _valid_sha256(value: object) -> bool:
+    """Return whether a persisted digest is canonical lowercase SHA-256 hex."""
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and value == value.lower()
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _load_cached_local_audio_features(
     metadata_path: Path, arrays_path: Path
 ) -> dict[str, Any] | None:
-    """Load cached stem/features payload, treating malformed files as cache misses."""
+    """Load source-bound stem/features only when manifest and NPZ bytes still agree."""
+    try:
+        expected_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return None
     try:
         with metadata_path.open("r", encoding="utf-8") as metadata_file:
             metadata_payload = json.load(metadata_file)
@@ -745,6 +775,21 @@ def _load_cached_local_audio_features(
     if not isinstance(metadata_payload, dict):
         return None
     if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
+        return None
+    source = metadata_payload.get("source")
+    if not isinstance(source, dict):
+        return None
+    manifest_identity = source.get("admittedAudio")
+    if expected_identity is None:
+        if manifest_identity is not None:
+            return None
+    elif manifest_identity != expected_identity:
+        return None
+    arrays_sha256 = metadata_payload.get("arraysSha256")
+    if not _valid_sha256(arrays_sha256):
+        return None
+    actual_arrays_sha256 = _sha256_file(arrays_path)
+    if actual_arrays_sha256 is None or actual_arrays_sha256 != arrays_sha256:
         return None
     if not isinstance(metadata_payload.get("sampleRate"), int):
         return None
@@ -809,8 +854,10 @@ def _store_cached_local_audio_features(
     request: AnalysisJobRequest,
     audio_features: dict[str, Any],
 ) -> bool:
-    """Persist reusable local-audio features with atomic writes."""
+    """Persist source-bound reusable features with arrays-first durable publication."""
     if "localSource" not in request:
+        return False
+    if metadata_path.parent != arrays_path.parent:
         return False
     serialized_stems = _serialize_stem_arrays(audio_features.get("stems"))
     sample_rate = audio_features.get("sr")
@@ -821,6 +868,10 @@ def _store_cached_local_audio_features(
     separation = audio_features.get("separation")
     if not isinstance(separation, dict):
         return False
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return False
 
     stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
     stem_role_types = _normalize_stem_role_types(audio_features.get("stem_role_types"), stem_keys)
@@ -828,34 +879,55 @@ def _store_cached_local_audio_features(
         return False
 
     local_source = request["localSource"]
-    metadata_payload: CachedFeaturePayload = {
-        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
-        "source": {
-            "fileName": local_source["fileName"],
-            "extension": local_source["extension"],
-            "fileSizeBytes": local_source["fileSizeBytes"],
-        },
-        "sampleRate": sample_rate,
-        "separation": {
-            "duration_seconds": separation.get("duration_seconds"),
-            "chunk_count": separation.get("chunk_count"),
-            "notes": separation.get("notes"),
-        },
-        "stemKeys": stem_keys,
-        "stemRoleTypes": stem_role_types,
+    source_metadata: dict[str, object] = {
+        "fileName": local_source["fileName"],
+        "extension": local_source["extension"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
     }
+    if admitted_identity is not None:
+        source_metadata["admittedAudio"] = admitted_identity
+
+    arrays_temp: Path | None = None
     try:
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
-        arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
-        with metadata_temp.open("w", encoding="utf-8") as metadata_file:
-            json.dump(metadata_payload, metadata_file, separators=(",", ":"))
-        with arrays_temp.open("wb") as arrays_file:
-            np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
-        arrays_temp.replace(arrays_path)
-        metadata_temp.replace(metadata_path)
-    except OSError:
+        arrays_path.parent.mkdir(parents=True, exist_ok=True)
+        arrays_stage = tempfile.NamedTemporaryFile(
+            mode="w+b",
+            dir=arrays_path.parent,
+            prefix=".bandscope-feature-arrays-",
+            suffix=".npz",
+            delete=False,
+        )
+        arrays_temp = Path(arrays_stage.name)
+        with arrays_stage:
+            np.savez_compressed(arrays_stage, **cast(Any, serialized_stems))
+            arrays_stage.flush()
+            os.fsync(arrays_stage.fileno())
+        arrays_sha256 = _sha256_file(arrays_temp)
+        if arrays_sha256 is None:
+            return False
+
+        metadata_payload: CachedFeaturePayload = {
+            "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+            "source": source_metadata,
+            "arraysSha256": arrays_sha256,
+            "sampleRate": sample_rate,
+            "separation": {
+                "duration_seconds": separation.get("duration_seconds"),
+                "chunk_count": separation.get("chunk_count"),
+                "notes": separation.get("notes"),
+            },
+            "stemKeys": stem_keys,
+            "stemRoleTypes": stem_role_types,
+        }
+        publish_synced_cache_stage(arrays_temp, arrays_path)
+        arrays_temp = None
+        store_durable_cache_payload(metadata_path, metadata_payload)
+    except (OSError, TypeError, ValueError):
         return False
+    finally:
+        if arrays_temp is not None:
+            with suppress(OSError):
+                arrays_temp.unlink(missing_ok=True)
     return True
 
 
@@ -998,14 +1070,26 @@ def _run_stem_separation_with_timeout(
     if kind == "ok_file":
         if not isinstance(payload, dict):
             raise RuntimeError("Stem separation returned invalid metadata.")
+        arrays_output_path = Path(str(payload.get("arraysPath", "")))
+        arrays_sha256 = _sha256_file(arrays_output_path)
+        if arrays_sha256 is None:
+            raise RuntimeError("Stem separation returned unreadable stem arrays.")
+        try:
+            admitted_identity = admitted_audio_cache_identity()
+        except ValueError as error:
+            raise RuntimeError("Stem separation source identity became invalid.") from error
+        source_metadata: dict[str, object] = {}
+        if admitted_identity is not None:
+            source_metadata["admittedAudio"] = admitted_identity
         metadata_payload = {
             "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+            "source": source_metadata,
+            "arraysSha256": arrays_sha256,
             "sampleRate": payload.get("sampleRate"),
             "separation": payload.get("separation"),
             "stemKeys": payload.get("stemKeys"),
             "stemRoleTypes": payload.get("stemRoleTypes"),
         }
-        arrays_output_path = Path(str(payload.get("arraysPath", "")))
         metadata_temp = arrays_output_path.with_suffix(".json")
         try:
             metadata_temp.write_text(json.dumps(metadata_payload), encoding="utf-8")
