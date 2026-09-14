@@ -202,6 +202,20 @@ def test_windows_cache_publication_propagates_move_failure(
     assert error.value.errno == 5
 
 
+def test_windows_cache_publication_fails_closed_without_win32_bindings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing Win32 binding cannot silently downgrade to a non-durable rename."""
+    monkeypatch.setattr(ctypes, "WinDLL", None, raising=False)
+    monkeypatch.setattr(ctypes, "get_last_error", None, raising=False)
+
+    with pytest.raises(OSError, match="write-through publication is unavailable"):
+        final_result_cache._replace_windows_write_through(
+            tmp_path / ".cache.stage",
+            tmp_path / "analysis.json",
+        )
+
+
 def test_publish_synced_cache_stage_dispatches_windows_owner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
