@@ -32,7 +32,7 @@ fn cancelled_staging_file_is_removed_on_drop() {
 }
 
 #[test]
-fn admitted_exact_artifact_can_be_sealed_and_retained() {
+fn sealed_but_unverified_artifact_is_removed_on_drop() {
     let directory = scratch_dir("seal");
     let mut staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
     let mut admission = ArtifactDownloadAdmission::new(4, Some(4)).expect("admission");
@@ -48,8 +48,7 @@ fn admitted_exact_artifact_can_be_sealed_and_retained() {
     let path = sealed.path().to_path_buf();
     drop(sealed);
 
-    assert!(path.is_file());
-    fs::remove_file(path).expect("remove sealed fixture");
+    assert!(!path.exists());
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
