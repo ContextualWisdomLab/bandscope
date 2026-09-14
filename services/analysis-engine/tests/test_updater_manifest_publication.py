@@ -23,16 +23,35 @@ def _digest(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _write_release_graph(repo_root: Path, *, source_commit: str) -> dict[str, str]:
+def _write_release_graph(
+    repo_root: Path, *, source_commit: str
+) -> tuple[dict[str, str], dict[str, dict[str, object]]]:
     """Write four receipt-bound updater targets and release metadata."""
     (repo_root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
     (repo_root / "bandscope-sbom.cdx.json").write_text("{}", encoding="utf-8")
     inventory = repo_root / "supply-chain" / "supplemental-component-inventory.json"
     inventory.parent.mkdir(parents=True)
     inventory.write_text("{}", encoding="utf-8")
+    release = repo_root / "release"
+    release.mkdir()
+    (release / "updater-policy.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "state": "admitted",
+                "channel": "stable",
+                "minimumSupportedVersion": "1.0.0",
+                "publicKey": "fixture-public-key",
+                "endpoints": ["https://updates.example.test/latest.json"],
+                "reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
     artifacts = repo_root / "artifacts"
     artifacts.mkdir()
     signatures: dict[str, str] = {}
+    updater_identities: dict[str, dict[str, object]] = {}
 
     for platform, arch, target_triple, suffix in _TARGETS:
         archive_name = f"bandscope-{platform}-{arch}-{source_commit[:12]}{suffix}"
@@ -65,6 +84,10 @@ def _write_release_graph(repo_root: Path, *, source_commit: str) -> dict[str, st
         signature_payload = signature_text.encode()
         (artifacts / signature_name).write_bytes(signature_payload)
         signatures[f"{platform}-{arch}"] = signature_text
+        updater_identities[f"{platform}-{arch}"] = {
+            "sizeBytes": len(updater_payload),
+            "sha256": _digest(updater_payload),
+        }
 
         receipt = {
             "schemaVersion": 1,
@@ -102,7 +125,7 @@ def _write_release_graph(repo_root: Path, *, source_commit: str) -> dict[str, st
         (artifacts / receipt_name).write_text(
             json.dumps(receipt), encoding="utf-8"
         )
-    return signatures
+    return signatures, updater_identities
 
 
 def _run_builder(
@@ -130,7 +153,9 @@ def _run_builder(
 def test_manifest_binds_exact_receipts_and_signature_contents(tmp_path: Path) -> None:
     """Generate Tauri static JSON from exact receipt-bound updater bytes."""
     source_commit = "a" * 40
-    signatures = _write_release_graph(tmp_path, source_commit=source_commit)
+    signatures, updater_identities = _write_release_graph(
+        tmp_path, source_commit=source_commit
+    )
 
     completed = _run_builder(tmp_path, source_commit=source_commit)
 
@@ -155,6 +180,17 @@ def test_manifest_binds_exact_receipts_and_signature_contents(tmp_path: Path) ->
         "https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/"
         f"bandscope-macos-arm64-{source_commit[:12]}.app.tar.gz"
     )
+    assert manifest["bandscope"] == {
+        "schemaVersion": 1,
+        "sourceCommit": source_commit,
+        "minimumSupportedVersion": "1.0.0",
+        "artifacts": {
+            "windows-x86_64": updater_identities["windows-amd64"],
+            "windows-aarch64": updater_identities["windows-arm64"],
+            "darwin-x86_64": updater_identities["macos-amd64"],
+            "darwin-aarch64": updater_identities["macos-arm64"],
+        },
+    }
 
 
 def test_manifest_check_rejects_post_generation_signature_drift(
