@@ -420,7 +420,7 @@ jobs:
             --output latest.json
           cp release-artifacts.txt release-assets.txt
           printf '%s\n' latest.json >> release-assets.txt
-      - name: Create draft release with complete assets, then publish
+      - name: Create draft release, re-verify hosted bytes, then publish
         env:
           GH_TOKEN: ${{ secrets.BANDSCOPE_RELEASE_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -453,4 +453,25 @@ jobs:
             --title "BandScope ${RELEASE_TAG#v}" \
             --verify-tag \
             --repo "${{ github.repository }}"
+
+          rm -rf draft-release-download
+          mkdir draft-release-download
+          gh release download "$RELEASE_TAG" \
+            --dir draft-release-download \
+            --repo "${{ github.repository }}"
+          python3 scripts/release/verify_hosted_release_assets.py \
+            --local-root . \
+            --hosted-root draft-release-download \
+            --asset-list release-assets.txt
+
           gh release edit "$RELEASE_TAG" --draft=false --repo "${{ github.repository }}"
+
+          rm -rf published-release-download
+          mkdir published-release-download
+          gh release download "$RELEASE_TAG" \
+            --dir published-release-download \
+            --repo "${{ github.repository }}"
+          python3 scripts/release/verify_hosted_release_assets.py \
+            --local-root . \
+            --hosted-root published-release-download \
+            --asset-list release-assets.txt
