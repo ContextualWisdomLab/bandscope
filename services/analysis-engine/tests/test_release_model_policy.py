@@ -13,7 +13,7 @@ import pytest
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_model_policy.py"
 _IDENTITY_GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_identity.py"
-_BUILD_BASELINE_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
+_PACKAGER_PATH = _REPOSITORY_ROOT / "scripts" / "release" / "package_desktop_artifact.py"
 
 
 def _load_module(module_name: str, module_path: Path) -> ModuleType:
@@ -88,43 +88,23 @@ def _admitted_artifact(artifact_path: str, payload: bytes) -> dict[str, object]:
     }
 
 
-def _workflow_job_block(workflow_text: str, job_name: str) -> str:
-    """Return one top-level GitHub Actions job without a YAML parser dependency."""
-    workflow_lines = workflow_text.splitlines()
-    job_marker = f"  {job_name}:"
-    try:
-        start_index = workflow_lines.index(job_marker)
-    except ValueError as lookup_error:
-        raise AssertionError(f"workflow job is missing: {job_name}") from lookup_error
-
-    end_index = len(workflow_lines)
-    for line_index in range(start_index + 1, len(workflow_lines)):
-        line = workflow_lines[line_index]
-        if line.startswith("  ") and not line.startswith("    ") and line.endswith(":"):
-            end_index = line_index
-            break
-    return "\n".join(workflow_lines[start_index:end_index])
-
-
 def test_release_preflight_composes_model_policy_without_duplicate_workflow() -> None:
-    """Keep one release preflight path while composing model admission inside it."""
+    """Keep one preflight guard while making artifact packaging enforce it independently."""
     identity_guard_text = _IDENTITY_GUARD_PATH.read_text(encoding="utf-8")
     quickcheck_text = (
         _REPOSITORY_ROOT / "scripts" / "harness" / "quickcheck.sh"
     ).read_text(encoding="utf-8")
+    packager_text = _PACKAGER_PATH.read_text(encoding="utf-8")
     assert "verify_model_policy" in identity_guard_text
     assert "python3 scripts/checks/verify_release_identity.py" in quickcheck_text
     assert "python3 scripts/checks/verify_release_model_policy.py" not in quickcheck_text
+    assert "verify_tag_release_preflight(repo_root)" in packager_text
 
 
-def test_tag_build_requires_commercially_admitted_model_before_builds(
+def test_tag_packaging_requires_commercially_admitted_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Fail a version-tag build before packaging when no model artifact is admitted."""
-    workflow_text = _BUILD_BASELINE_PATH.read_text(encoding="utf-8")
-    identity_job = _workflow_job_block(workflow_text, "release-identity")
-    assert "run: python3 scripts/checks/verify_release_identity.py" in identity_job
-
+    """Reject a version-tag preflight when the release model remains legally blocked."""
     _write_release_metadata(tmp_path, "1.2.3")
     _write_policy(tmp_path, release_status="blocked", admitted_artifact=None)
     identity_guard = _load_module("verify_release_identity", _IDENTITY_GUARD_PATH)
