@@ -35,10 +35,11 @@ def _write_fixture(
     create_updater_artifacts: bool = False,
     updater_config: dict[str, object] | None = None,
 ) -> None:
-    """Write the minimum policy and Tauri config consumed by the guard."""
+    """Write the minimum updater authority plus valid admitted runtime wiring."""
     (repository_root / "release").mkdir(parents=True, exist_ok=True)
     tauri_root = repository_root / "apps" / "desktop" / "src-tauri"
-    tauri_root.mkdir(parents=True, exist_ok=True)
+    source_root = tauri_root / "src"
+    source_root.mkdir(parents=True, exist_ok=True)
     (repository_root / "release" / "updater-policy.json").write_text(
         json.dumps(
             {
@@ -65,6 +66,32 @@ def _write_fixture(
     (tauri_root / "tauri.conf.json").write_text(
         json.dumps(tauri_document), encoding="utf-8"
     )
+
+    if state == "admitted":
+        (tauri_root / "Cargo.toml").write_text(
+            "[package]\nname = \"bandscope-desktop\"\nversion = \"0.1.0\"\n"
+            "edition = \"2021\"\n\n[dependencies]\n"
+            "tauri = \"2.11.1\"\n"
+            "tauri-plugin-updater = \"2.9.0\"\n",
+            encoding="utf-8",
+        )
+        (tauri_root / "Cargo.lock").write_text(
+            "version = 4\n\n"
+            "[[package]]\nname = \"bandscope-desktop\"\nversion = \"0.1.0\"\n\n"
+            "[[package]]\nname = \"tauri-plugin-updater\"\nversion = \"2.9.0\"\n"
+            "source = \"registry+https://github.com/rust-lang/crates.io-index\"\n"
+            "checksum = \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n",
+            encoding="utf-8",
+        )
+        (source_root / "main.rs").write_text(
+            "fn main() {\n"
+            "    tauri::Builder::default()\n"
+            "        .plugin(tauri_plugin_updater::Builder::new().build())\n"
+            "        .run(tauri::generate_context!())\n"
+            "        .expect(\"error while running tauri application\");\n"
+            "}\n",
+            encoding="utf-8",
+        )
 
 
 def test_checked_in_updater_policy_is_explicitly_blocked_until_authority_exists() -> None:
