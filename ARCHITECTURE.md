@@ -4,28 +4,54 @@ Last updated: 2026-09-15
 
 ## Brand source
 
-BandScope's product framing and UX hierarchy are governed by `docs/brand-story.md` and `docs/prd/bandscope-prd.md`. Architecture exists to preserve that rehearsal-first product truth rather than to surface implementation capabilities for their own sake.
+- Product identity, UX tone, copy rules, and prioritization tie-breakers live in `docs/brand-story.md`.
+- Future PRDs, TRDs, onboarding copy, empty states, error messages, and marketing copy should use that document as the single brand source of truth.
 
-## Architectural direction
+## Security source
 
-BandScope is a local-first rehearsal decision tool whose scientific and operational claims must remain traceable to actual decoded audio, explicit provenance, deterministic contracts, and release evidence.
+- App security rules, trust boundaries, and required `Security Notes` behavior live in `docs/security/app-security.md`.
+- Future work that touches files, URLs, subprocesses, IPC, WebView, model downloads, updates, or cache/export behavior should reference that document before implementation.
+- Code Security and SBOM retention baselines live in `docs/security/code-security.md` and `docs/security/sbom-policy.md`.
 
-The system favors narrow bounded contexts, explicit ownership, typed contracts, fail-closed resource admission, and durable local state. Cross-context sharing should use released contracts rather than source copies, direct database access, or implicit mutable state.
+## Supply-chain source
 
-## Product-level invariants
+- Dependency and SBOM policy lives in `docs/security/dependency-policy.md`.
+- Intended required checks for `main` and `develop` live in `docs/security/github-required-checks.md`.
 
-- Actual audio is the source of rehearsal truth. Synthetic data is unit-test evidence only.
-- Source admission, decode, scientific analysis, rehearsal insight, playback, project state, distribution/update state, and UI interaction have distinct ownership.
-- A derived artifact must carry enough generation and provenance identity to decide whether it remains equivalent to the current source and implementation.
-- Local project state must survive process interruption and recover without silently presenting stale or incompatible analysis as current.
-- A packaged release is not commercial-ready until exact source, package, signing/notarization, model rights, SBOM/provenance, update and recovery evidence agree.
-- Distribution/update trust is promoted in stages; remote JSON, downloaded bytes, a synchronized file, a signature, publication evidence, and local freshness state are not interchangeable evidence classes.
+## Engineering acceptance and workflow source
 
-## Security posture
+- Repository completion criteria live in `docs/engineering/acceptance-criteria.md`.
+- Harness/runtime verification guidance lives in `docs/engineering/harness-engineering.md`.
+- Canonical delivery flow lives in `docs/workflow/one-day-delivery-plan.md`.
+- PR canonicalization and duplicate-handling policy lives in `docs/workflow/pr-continuity.md`.
 
-- Treat local and remote paths, links, media, updater metadata, model bytes, archives and subprocess boundaries as untrusted until admitted by their owning context.
-- Avoid privilege expansion caused by generic filesystem handles, generic process execution, mutable release references, unbounded response buffering or cross-context state mutation.
-- Keep write authority narrow. A read-side verification interface must not accidentally expose a writable underlying object.
+## Agent and review operations source
+
+- Agent/subagent/skill usage baseline lives in `docs/agents/README.md`.
+- CodeRabbit command and review handling baseline lives in `docs/coderabbit/review-commands.md`.
+
+## Deployment and runtime verification source
+
+- Deployment/release/runtime verification runbook lives in `docs/operations/deploy-runbook.md`.
+
+## Cross-platform build source
+
+- Windows and macOS build security policy lives in `docs/security/cross-platform-build-policy.md`.
+- Target-OS builds are merge gates and release-validation controls, not optional compatibility checks.
+- Windows amd64 + arm64 and macOS amd64 + arm64 are all part of the protected-branch and release-validation build baseline.
+- Windows build runners should verify antivirus protection before native packaging begins.
+
+## GitHub bootstrap source
+
+- GitHub bootstrap execution policy lives in `docs/workflow/github-bootstrap-execution-policy.md`.
+- Repository governance and Gitflow execution details live in `docs/repository/governance.md`, `docs/repository/bootstrap-plan.md`, and `docs/repository/gitflow.md`.
+- The harness should treat missing local git state or missing GitHub repo state as bootstrap work when the task requires GitHub execution.
+
+## Cross-cutting security constraints
+
+- Treat files, URLs, metadata, project files, model artifacts, exports, and remote responses as untrusted.
+- Keep security-sensitive capabilities narrow and allowlisted rather than generic.
+- Prefer local processing, predictable storage locations, and minimal network use.
 - Split privilege where feasible across UI, analysis workers, subprocesses, model delivery, and updater behavior.
 - Fail safely when a link, file, artifact, or boundary cannot be validated.
 
@@ -46,7 +72,7 @@ The system favors narrow bounded contexts, explicit ownership, typed contracts, 
 - Distribution owns commercial release identity, native signing/notarization admission, updater policy, immutable publication evidence, bounded updater artifact transport/storage admission, highest-seen update freshness state, and last-known-good installer recovery decisions.
 - `apps/desktop/distribution-core` contains deterministic security decisions only. It does not fetch metadata, verify Tauri signatures, write project data, run installers, or manufacture signing/key authority.
 - `apps/desktop/distribution-runtime` admits the current static updater JSON only as bounded provisional remote input. It rejects duplicate/unknown members, unexpected targets, mutable release URLs and invalid release-identity syntax, and it projects the fixed app-owned highest-seen path without creating or writing it. It deliberately has no `distribution-state` dependency.
-- `apps/desktop/distribution-download` owns the pure streaming/staging primitive used before artifact trust is established. It enforces a 2 GiB artifact ceiling, exact optional `Content-Length`, 1 MiB maximum caller chunk, cumulative overrun rejection before sink write, sink-error poisoning, exact-length completion, exclusive app-owned staging and cleanup-on-drop. A sealed artifact remains provisional; downstream verification reads the exact still-open descriptor through a positional `Read` wrapper and cannot obtain the underlying write-capable staging `File` through the public API. This context does not perform network I/O, authenticate metadata, verify signatures/digests, run installers or mutate freshness state. Commercial completion requires the production HTTP adapter to route actual response bytes through this boundary instead of relying on Tauri's full-response buffering.
+- `apps/desktop/distribution-download` owns the pure streaming/staging primitive used before artifact trust is established. It enforces a 2 GiB artifact ceiling, exact optional `Content-Length`, 1 MiB maximum caller chunk, cumulative overrun rejection before sink write, sink-error poisoning, exact-length completion, exclusive app-owned staging and cleanup-on-drop. A sealed artifact remains provisional; downstream verification reads the exact still-open descriptor through a positional `Read` wrapper and cannot obtain the underlying write-capable staging `File` through the public API. It does not perform network I/O, authenticate metadata, verify signatures/digests, run installers or mutate freshness state. Commercial completion requires the production HTTP adapter to route actual response bytes through this boundary instead of relying on Tauri's full-response buffering.
 - `apps/desktop/distribution-state` persists only the highest authenticated release identity as a bounded append-only log. It revalidates committed identities, rejects local version regression/equivocation, synchronizes accepted appends, and recovers only a syntactically valid torn final-record prefix; it does not own Tauri networking/signature verification, installer execution, or project persistence.
 - Tauri updater signatures authenticate downloaded updater artifact bytes. They do not, by themselves, authenticate the whole `Update.raw_json` response or BandScope's `sourceCommit`/digest extensions. Remote metadata therefore stays provisional until a canonical metadata-authentication path binds its release identity to trusted authority.
 - Only after metadata authentication and updater artifact signature/digest/size binding may exact `version`, `sourceCommit`, updater SHA-256, target, and compatibility floor enter `distribution-core` and `distribution-state` as freshness authority.
@@ -77,3 +103,48 @@ The system favors narrow bounded contexts, explicit ownership, typed contracts, 
   - section roadmap with entries, dropouts, pickups, stops, tags, and handoffs
   - groove and timing cues relevant to locking the band together
   - playable ranges and density or overlap warnings, with the ready workspace naming tonight's first span and the next instrument check
+  - simplification, transposition, capo, tuning, or setup cues where applicable
+  - role-specific rehearsal priorities and confidence flags
+  - cue-sheet or chart-style exports that summarize the analysis in rehearsal-friendly form
+
+## Confidence, edits, and provenance
+
+- Confidence must be representable at the section and role level.
+- Automatic analysis should remain editable without losing provenance of what was model-generated versus user-confirmed.
+- Future shared contracts should preserve manual overrides, confidence markers, and export-safe summaries of those states.
+
+## Harness decisions
+
+- The harness uses `npm` workspaces for JavaScript/TypeScript and `uv` for Python.
+- The desktop app is scaffolded as `Tauri + Vite + React`. Full Tauri packaging remains outside the default quickcheck path, while security-critical Tauri-independent Rust bounded-context suites may be invoked from repository tests through a narrow validation boundary.
+- The desktop shell uses an explicit Tauri CSP that only allows self-hosted assets, inline styles, Tauri IPC, and loopback development traffic.
+- Mechanical gates focus on lint, typecheck, unit tests, coverage for Python, and documentation presence.
+- Python quality gates also require 100% docstring coverage via `package.json` script `check:python-docstrings`, enforced with Ruff rules `D100` through `D107` across tracked packages, modules, classes, nested classes, functions, methods (including `__init__`), `services/analysis-engine` tests, and repo-owned Python scripts.
+- Distribution `distribution-core`, `distribution-runtime`, `distribution-download`, and `distribution-state` Rust compilation denies warnings and missing public rustdoc; their standalone locked unit suites are invoked by the repository analysis test harness without adding Python production logic.
+- Mechanical gates also enforce security document presence, plan `Security Notes`, and basic forbidden-pattern checks.
+- Security context is part of architecture, not just implementation detail; docs and plans must record the trust boundary touched by risky changes.
+- Supply-chain controls are part of the bootstrap architecture, not a release-afterthought.
+- Dependency review, audit, supply-chain inventory validation, and SBOM generation are expected protected-branch gates for both `develop` and `main`.
+- Cross-platform Windows and macOS build coverage is part of the bootstrap security architecture.
+- Release artifacts, checksums, and manifests should encode both OS and architecture so packaged binaries remain traceable.
+- Exact Windows 10 and macOS 24/25 GitHub-hosted coverage is a platform-capability constraint today; the current hosted baseline uses the closest published explicit runner labels and must move to self-hosted or larger runners if exact-version enforcement becomes mandatory.
+- GitHub-facing setup is staged: no-git -> local-git -> GitHub-connected -> protected-branches with required checks.
+- Shared contracts live in `packages/shared-types` so the UI can evolve without importing Python internals.
+- Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.
+- The current shared-types baseline includes a rehearsal-domain fixture that exercises section, role, cue, confidence, provenance, and export-summary fields in the desktop shell before the full analysis pipeline lands.
+- Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener.
+- Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
+- Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
+- Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
+- Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.
+
+## Verification model
+
+- `scripts/harness/quickcheck.sh` is the primary local verification entrypoint.
+- `scripts/checks/check_rust.sh` is an opt-in local Rust/Tauri gate used when the host has the native desktop toolchain ready.
+- CI mirrors the default sequence for JS and Python, and adds dedicated Windows/macOS native build coverage for both amd64 and arm64 runners.
+- Smoke-grade app verification is currently the React shell render plus Python engine health report.
+- Security docs and checks are part of the default quickcheck path so design drift is caught early.
+- Supply-chain docs, workflow pinning, and lockfile verification are part of the default quickcheck path so dependency drift is caught early.
+- Quickcheck and CI are expected to verify dependency review, audit, supplemental inventory, and SBOM baseline presence as part of bootstrap.
+- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path so dependency drift is caught early.
