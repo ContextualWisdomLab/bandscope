@@ -66,6 +66,6 @@ Hosted exact-head workflow evidence가 terminal GREEN이 되기 전에는 위 so
 
 SLSA Community. (2026). *SLSA specification, version 1.2: Provenance*. https://slsa.dev/spec/v1.2/provenance
 
-The Update Framework/Tauri Contributors. (2026). *Tauri v2 updater plugin*. https://v2.tauri.app/plugin/updater/
+Tauri Contributors. (2026). *Tauri v2 updater plugin*. https://v2.tauri.app/plugin/updater/
 
 in-toto Authors. (2024). *in-toto specifications: Stable specification and Attestation Framework v1.0*. https://in-toto.io/docs/specs/
