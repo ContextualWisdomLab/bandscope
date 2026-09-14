@@ -176,9 +176,10 @@ impl ArtifactDownloadAdmission {
 /// Exclusive temporary artifact owned by the Distribution staging directory.
 ///
 /// Creation accepts one portable basename under an already-existing app-owned
-/// non-symlink directory. The file is removed on drop unless `seal` succeeds.
-/// Callers cannot write the descriptor directly; response bytes must pass
-/// through `ArtifactDownloadAdmission` via `admit_chunk`.
+/// non-symlink directory. The file is removed on drop unless `seal` transfers
+/// cleanup ownership to `SealedArtifactFile`. Callers cannot write the
+/// descriptor directly; response bytes must pass through
+/// `ArtifactDownloadAdmission` via `admit_chunk`.
 #[derive(Debug)]
 pub struct StagedArtifactFile {
     file: Option<File>,
@@ -242,9 +243,11 @@ impl StagedArtifactFile {
 
     /// Flush, synchronize, and descriptor-check an exactly downloaded artifact.
     ///
-    /// A successful seal prevents cleanup-on-drop and returns the still-open
-    /// descriptor so later digest/signature verification can remain bound to
-    /// the exact staged bytes rather than reopening an attacker-selected path.
+    /// A successful seal transfers cleanup responsibility to a still-open
+    /// `SealedArtifactFile` so later digest/signature verification remains
+    /// bound to the exact staged bytes rather than reopening an
+    /// attacker-selected path. Sealing is not trust promotion: the sealed file
+    /// remains cleanup-on-drop until a later verified-artifact boundary exists.
     pub fn seal(
         mut self,
         receipt: DownloadReceipt,
@@ -273,7 +276,7 @@ impl StagedArtifactFile {
             .take()
             .expect("staged artifact descriptor remains present after validation");
         Ok(SealedArtifactFile {
-            file: sealed_file,
+            file: Some(sealed_file),
             path: self.path.clone(),
             bytes_written: receipt.bytes_written(),
         })
@@ -292,16 +295,21 @@ impl Drop for StagedArtifactFile {
     }
 }
 
-/// Synchronized staging artifact kept open for later identity verification.
+/// Synchronized but still unverified staging artifact.
+///
+/// The descriptor stays open for later digest/signature verification. Dropping
+/// this value closes the descriptor before removing the staged path, including
+/// on Windows where deleting an open file can fail. A later trust-promotion
+/// type, not this byte-count boundary, must explicitly retain verified bytes.
 #[derive(Debug)]
 pub struct SealedArtifactFile {
-    file: File,
+    file: Option<File>,
     path: PathBuf,
     bytes_written: u64,
 }
 
 impl SealedArtifactFile {
-    /// Return the synchronized staging path retained after a successful seal.
+    /// Return the synchronized staging path held for identity verification.
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -312,8 +320,19 @@ impl SealedArtifactFile {
     }
 
     /// Borrow the still-open descriptor for digest or signature verification.
-    pub const fn file(&self) -> &File {
-        &self.file
+    pub fn file(&self) -> &File {
+        self.file
+            .as_ref()
+            .expect("sealed artifact descriptor remains present before drop")
+    }
+}
+
+impl Drop for SealedArtifactFile {
+    fn drop(&mut self) {
+        if let Some(file) = self.file.take() {
+            drop(file);
+        }
+        let _ = fs::remove_file(&self.path);
     }
 }
 
