@@ -4,7 +4,7 @@
 
 BandScope originally validated an OS-selected local audio file and then let later analysis reopen the canonical external filesystem path. That left analysis and restart dependent on mutable host authority: the selected file could be moved, replaced, truncated, or grown after admission. Project Persistence #962 also needs a durable source identity that does not serialize an arbitrary user filesystem path.
 
-Resource Admission & Decode therefore owns creation and verification of the app-owned `source.<extension>` artifact and the native content identity for that publication. Project Persistence owns the later versioned project reference that consumes this evidence; it does not copy or hash user media itself.
+Resource Admission & Decode owns creation and verification of the app-owned `source.<extension>` bytes and the native content identity for that publication. Project Persistence owns the filesystem publication primitive and the later versioned project reference that consumes this evidence. Neither context re-hashes the user's original media for persistence, and neither copies the other's platform publication implementation.
 
 The hardening sequence exposed distinct defects:
 
@@ -16,12 +16,13 @@ The hardening sequence exposed distinct defects:
 - publication verification initially read against the product-wide 100 MiB ceiling instead of the receipt's tighter expected length;
 - the production Tauri materializer initially discarded the receipt and stayed on the byte-count-only adapter;
 - publication initially used `destination.exists()` followed by overwrite-capable `rename`, creating a check-then-act clobber window;
+- hard-link publication removed the private stage after syncing its bytes but did not prove the buyer-visible `source.<extension>` directory entry durable before returning publication identity;
 - even after publication verification existed, Project Persistence still had no typed path-free handoff value for `projectId + artifactName + extension + fileSizeBytes + contentSha256`;
 - after that type existed, the production selector still discarded the verified identity instead of retaining it in native state for the persistence owner.
 
-The canonical #866 branch now repairs those defects through native retention. Production local-file materialization consumes the native receipt, synchronizes the stage, publishes with a same-filesystem no-clobber hard link, removes the private stage name, verifies the published bytes, derives `LocalAudioPublicationIdentity` from that verified receipt, and retains the path-free value in native Tauri state keyed by the locally minted project id before returning bootstrap authority. The strict analysis-runtime `LocalAudioSource` wire remains unchanged.
+The canonical #970 Project Persistence branch now owns durable publication of an already-synchronized source stage. Production local-file materialization consumes the Resource Admission receipt, synchronizes the private stage, delegates publication to `project_persistence::publish_synced_file_noreplace`, verifies the published bytes, derives `LocalAudioPublicationIdentity` from that verified receipt, and retains the path-free value in native Tauri state keyed by the locally minted project id before returning bootstrap authority. Linux/macOS publish with the native no-replace rename and synchronize the parent directory before success; Windows uses `MoveFileExW(MOVEFILE_WRITE_THROUGH)`. A competing destination is never replaced. If the durability step fails after the complete target becomes visible, bootstrap/publication identity is not returned.
 
-The remaining integration is now across the owning persistence boundary rather than the intake copy/hash path: #970 must consume this native identity when constructing durable `sourceReference`, and restart must re-admit the app-owned artifact before fresh playback authority is minted. Platform-atomic no-follow descriptor acquisition, parent-directory crash durability, YouTube durable-source policy, and decoder licensing remain separate open work.
+The remaining integration is across the same owning persistence boundary: durable project `sourceReference` and restart re-admission are already represented on #970, while broader startup recovery, final-result durability, autosave/backup UX and product release acceptance remain open. Platform-atomic no-follow descriptor acquisition, YouTube durable-source policy, and decoder licensing remain separate work.
 
 ## Constraints and invariants
 
@@ -35,14 +36,14 @@ The remaining integration is now across the owning persistence boundary rather t
 - SHA-256 is content-identity/correctness evidence only. This code does not claim CAVP validation, FIPS 140 validation, authenticity, or protection against an actor who can replace both artifact and stored digest.
 - Reusable SHA-256 and publication-verification APIs accept caller-owned `Read` values and acquire no path authority.
 - Publication verification consumes at most `expected.file_size_bytes + 1` bytes and rejects invalid expected lengths before reading.
-- Publication must not overwrite an existing app-owned source name. Same-project hard-link publication fails closed when the destination exists or the filesystem cannot provide that primitive; it does not fall back to overwrite-capable rename.
+- Publication must not overwrite an existing app-owned source name. Project Persistence uses the supported platform's native no-replace move; a competing destination leaves the synchronized candidate stage intact at that owner boundary.
+- Production success is stronger than target visibility: Unix must successfully synchronize the target's parent directory after native publication, and Windows relies on the native write-through move. A durability failure must not mint bootstrap or persistence identity.
 - The analysis-runtime `LocalAudioSource` contract remains `sourcePath + fileName + extension + fileSizeBytes`. `contentSha256` is not injected into that strict Rust/TypeScript/Python request without a versioned contract change.
 - The persistence identity is a distinct contract. It contains exactly `projectId + artifactName + extension + fileSizeBytes + contentSha256`; it contains no `path` or `sourcePath` field.
 - The persistence identity accepts only an existing BandScope project-id grammar, canonical lowercase admitted extension, byte size `1..=100 MiB`, and exactly 64 lowercase hexadecimal SHA-256 characters. `artifactName` is derived as `source.<extension>` rather than accepted from renderer input.
 - Verified persistence identity is retained only in native Tauri state keyed by the minted project id. The renderer does not author or supply that evidence.
 - If native identity state cannot be retained, local-source selection fails closed rather than returning bootstrap authority without persistence evidence.
 - Portable `symlink_metadata` / open / re-check logic narrows linked-object substitution but does not claim atomic `O_NOFOLLOW` or Windows reparse-point-equivalent semantics.
-- The parent project directory is not yet explicitly synchronized after destination-link creation and stage unlink, so power-loss durability of the directory entries is not claimed.
 
 ## Decision record
 
@@ -56,10 +57,11 @@ The remaining integration is now across the owning persistence boundary rather t
 8. Re-read every published object up to 100 MiB — rejected. The native receipt gives a tighter expected length.
 9. Leave the Tauri caller on `copy_bounded_local_audio -> u64` — rejected. Production publication must retain native size+digest evidence and verify the publication before bootstrap authority is returned.
 10. Check `destination.exists()` and then rename the stage — rejected. On overwrite-capable rename semantics the sequence is racy.
-11. Create the destination with `std::fs::hard_link(stage, destination)` and remove the private stage name — selected for the same-filesystem project root. It creates the destination without clobbering an existing name and keeps the synchronized bytes unchanged.
+11. Create the destination with `std::fs::hard_link(stage, destination)` and immediately remove the private stage — superseded. It solved no-clobber publication but did not establish crash durability of the new directory entry, and it would require a second platform durability implementation outside Project Persistence.
 12. Add `contentSha256` to the existing analysis `LocalAudioSource` payload — rejected. Python admission is strict and this would mix persistence evidence with a narrower runtime request.
 13. Define a separate path-free `LocalAudioPublicationIdentity` whose artifact name is derived from canonical native evidence — selected. This keeps Resource Admission as the copy/hash authority and gives #970 a serializable persistence input without absolute paths.
-14. Return bootstrap authority while leaving the verified identity only in a local stack variable — rejected. The selector now retains the typed identity in native Tauri state keyed by project id before returning; #970 can adopt that native evidence without trusting renderer-authored digest/path data.
+14. Return bootstrap authority while leaving the verified identity only in a local stack variable — rejected. The selector retains the typed identity in native Tauri state keyed by project id before returning.
+15. Reuse Project Persistence's platform-native no-replace publication owner for the synchronized local-audio stage — selected. Linux/macOS use no-replace rename plus parent-directory synchronization; Windows uses the existing write-through native move. This closes the local-source directory-durability gap without copying platform code into Resource Admission.
 
 ## Implementation and exact evidence
 
@@ -80,6 +82,8 @@ The cumulative hardening remains test-first where behavior changed:
 - An earlier exploratory retention RED `cbfa967b16e94f2d84940665ce38537075a8ce41` was intentionally neutralized by `d8c57ce1d64d0bc9963219740aeaa83d9569a90b` rather than leaving a known failing head; those two commits add no production claim.
 - Production native-retention RED `106ae75cad85553e56964a9844ea7a01f6ce456c` requires the materializer to derive the typed identity from the verified receipt, the selector to store it in native state, and Tauri to register that state.
 - Native-retention fix `e4e2ba734bc80304a754ce2eb52e473fd9ee3631` returns `LocalAudioSourcePayload + LocalAudioPublicationIdentity` from materialization, stores the identity in `LocalAudioPublicationIdentityState` before bootstrap authority is returned, and registers the native state with the Tauri runtime.
+- Local-source durability RED `f408b5a4e322b16159fb87df6c5e3e07692fd36c` adds executable success, competing-destination, and injected directory-sync-failure cases for the Project Persistence owner port.
+- `b758debc93b7b11eff22b515642d1265bc83da51` implements the reusable native no-replace publication port; `834b45fe00371c2bae455fb7a43e7df48a1e13fd` moves the production local-audio materializer onto it; `920bacfc9b5ae833473b4f17bfac82391a45160c` replaces the obsolete hard-link implementation assertion with the owner-boundary contract.
 
 The SHA-256 implementation is checked against standard known-answer vectors including the empty message, `abc`, the multi-block vector, and one million `a` bytes. Those are correctness regressions, not validation-module evidence.
 
@@ -87,9 +91,9 @@ The SHA-256 implementation is checked against standard known-answer vectors incl
 
 The selected audio path, file metadata, and media bytes are untrusted. The OS file dialog supplies initial user authority; BandScope uses that path only to canonicalize and open the source. The project-owned artifact is the authority after successful admission.
 
-The production Tauri materializer synchronizes the stage, creates the destination through a no-clobber same-filesystem hard link, removes the private stage name, requires regular/non-symlink path observations, opens the publication, checks descriptor size, verifies exact receipt equality, and performs a post-verification path check. Publication mismatch or read failure is normalized to the bounded project-workspace diagnosis; source/destination paths, raw OS errors, and audio bytes are not exposed.
+The production Tauri materializer synchronizes the private stage and delegates filesystem publication to Project Persistence. The owner verifies a safe sibling directory and a regular non-link stage, uses the platform-native no-replace move, and establishes the supported platform's durability condition before the materializer continues. The materializer then requires regular/non-symlink path observations, opens the publication, checks descriptor size, verifies exact receipt equality, and performs a post-verification path check. Publication mismatch, conflicting target, durability failure, or read failure is normalized to the bounded project-workspace diagnosis; source/destination paths, raw OS errors, and audio bytes are not exposed. If directory synchronization fails after native publication, the complete target is intentionally left in place but no bootstrap/publication identity is returned.
 
-`LocalAudioPublicationIdentity` does not acquire filesystem authority. It converts already verified native evidence into a deterministic, path-free value for the persistence boundary. Invalid project ids, extensions, byte counts, or digest encodings fail closed. Production local-file selection now retains that value in native Tauri state before returning the ordinary bootstrap summary, so the renderer does not need to invent a digest or persist a host path. Durable project serialization and restart re-admission remain #970 responsibilities.
+`LocalAudioPublicationIdentity` does not acquire filesystem authority. It converts already verified native evidence into a deterministic, path-free value for the persistence boundary. Invalid project ids, extensions, byte counts, or digest encodings fail closed. Production local-file selection retains that value in native Tauri state before returning the ordinary bootstrap summary, so the renderer does not need to invent a digest or persist a host path.
 
 No new logging, telemetry, network transfer, or raw-media export is introduced. The SHA-256 receipt and publication identity are non-secret content identity.
 
@@ -104,22 +108,23 @@ No new logging, telemetry, network transfer, or raw-media export is introduced. 
 - unchanged published bytes reproduce the staging receipt;
 - same-size mutation, truncation, growth, or publication-read failure fails closed;
 - grown publication stops after expected bytes plus one probe;
-- production publication cannot use existence-check plus overwrite-capable rename;
 - production Tauri local-file materialization consumes receipt and publication-verification ports, not the compatibility byte-count adapter;
+- synchronized local-source publication delegates to the Project Persistence no-replace owner rather than hard-linking or overwrite-renaming in `main.rs`;
+- the Project Persistence executable contract covers successful parent durability, a competing destination with preserved candidate stage, and failure after target visibility but before directory durability;
 - path-free identity serializes exactly the five persistence fields and cannot serialize `path`/`sourcePath`;
 - invalid project ids, uppercase/unsupported extensions, zero/oversized byte counts, and noncanonical SHA-256 encodings are rejected;
 - production local-file selection derives identity from the verified receipt and retains it in registered native Tauri state before returning bootstrap authority;
-- hosted Rust/Tauri, Windows, macOS, security, SBOM, coverage/package, and independent-review evidence must be reacquired on the final exact #866 head.
+- hosted Rust/Tauri, Windows, macOS, security, SBOM, coverage/package, and independent-review evidence must be reacquired on the final exact #970 head.
 
 Synthetic arrays or source-text checks do not substitute for production scientific acceptance. Rights-cleared real decoded audio still has to exercise the integrated Windows/macOS intake/decode/analysis/playback path where the relevant commercial claim is made.
 
 ## Remaining risks and follow-up
 
-The local-file path now has two separate native contracts: `LocalAudioCopyReceipt` proves the exact bytes staged/published, and retained `LocalAudioPublicationIdentity` represents the path-free durable evidence intended for Project Persistence. The next cross-owner step is for #970 to consume that retained identity when writing `sourceReference`; it must not reconstruct digest/path evidence from renderer JSON or re-hash the user's original media.
+The local-file path has separate native contracts: `LocalAudioCopyReceipt` proves the exact bytes staged/published, Project Persistence proves no-replace publication durability on supported platforms, and retained `LocalAudioPublicationIdentity` represents the path-free durable evidence consumed by project serialization and restart re-admission. This does not yet establish global startup recovery after an interrupted project overwrite, final-result/cache power-loss durability, disk-full fault-injection coverage, or autosave/backup UX.
 
-After #970 persists `projectId + artifactName + extension + fileSizeBytes + contentSha256`, restart must resolve only the app-owned artifact, re-establish regular/no-link containment, bounded size/SHA-256 and applicable decode admission, reconstruct a fresh bootstrap, and only then let #1160 combine persisted `selectedPlaybackSource` intent with fresh native stem availability. Missing preferred stems fail closed to Full mix.
+Restart must continue to resolve only the app-owned artifact, re-establish regular/no-link containment, bounded size/SHA-256 and applicable decode admission, reconstruct a fresh bootstrap, and only then let #1160 combine persisted `selectedPlaybackSource` intent with fresh native stem availability. Missing preferred stems fail closed to Full mix.
 
-When #866 enters #1160 ancestry, the private playable-stem SHA-256 implementation should be deleted in favor of `bandscope_desktop_core::sha256_hex_reader` while preserving stem identity/error tests. YouTube intake still uses its owned cache artifact and needs an explicit durable-source promotion decision. Platform-atomic no-follow acquisition and parent-directory crash durability remain Resource Admission/platform work. Issue #1129 remains the commercial decoder-dependency gate.
+When #866 enters #1160 ancestry, the private playable-stem SHA-256 implementation should be deleted in favor of `bandscope_desktop_core::sha256_hex_reader` while preserving stem identity/error tests. YouTube intake still uses its owned cache artifact and needs an explicit durable-source promotion decision. Platform-atomic no-follow acquisition remains open. Issue #1129 remains the commercial decoder-dependency gate.
 
 ## References
 
