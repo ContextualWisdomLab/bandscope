@@ -58,7 +58,10 @@ def _stable_read_bytes(path: Path, *, label: str, maximum_bytes: int) -> bytes:
             raise ValueError(f"{label} exceeds its bounded size policy")
         payload = bytearray()
         while len(payload) <= maximum_bytes:
-            chunk = os.read(descriptor, min(64 * 1024, maximum_bytes + 1 - len(payload)))
+            chunk = os.read(
+                descriptor,
+                min(64 * 1024, maximum_bytes + 1 - len(payload)),
+            )
             if not chunk:
                 break
             payload.extend(chunk)
@@ -85,7 +88,9 @@ def _version(repo_root: Path) -> str:
         value = raw.decode("utf-8").strip()
     except UnicodeError as error:
         raise ValueError("VERSION must be UTF-8") from error
-    if not value or value != value.strip() or any(character.isspace() for character in value):
+    if not value or value != value.strip() or any(
+        character.isspace() for character in value
+    ):
         raise ValueError("VERSION must contain one non-empty token")
     return value
 
@@ -117,7 +122,9 @@ def _normalized_repository(repository: str) -> str:
     return value
 
 
-def _receipt_path(repo_root: Path, target: tuple[str, str], source_commit: str) -> Path:
+def _receipt_path(
+    repo_root: Path, target: tuple[str, str], source_commit: str
+) -> Path:
     """Return the fixed target receipt path for an exact release commit."""
     platform, arch = target
     return (
@@ -132,7 +139,11 @@ def _exact_updater_entry(
 ) -> dict[str, Any]:
     """Return exactly one updater artifact for one static-manifest target."""
     entries = receipt.get("updaterArtifacts")
-    if not isinstance(entries, list) or len(entries) != 1 or not isinstance(entries[0], dict):
+    if (
+        not isinstance(entries, list)
+        or len(entries) != 1
+        or not isinstance(entries[0], dict)
+    ):
         raise ValueError(
             f"exactly one updater artifact is required for {target[0]}-{target[1]}"
         )
@@ -157,7 +168,11 @@ def _signature_text(
     )
     expected_size = entry.get("signatureSizeBytes")
     expected_digest = entry.get("signatureSha256")
-    if isinstance(expected_size, bool) or not isinstance(expected_size, int) or expected_size < 1:
+    if (
+        isinstance(expected_size, bool)
+        or not isinstance(expected_size, int)
+        or expected_size < 1
+    ):
         raise ValueError("updater signature receipt size is invalid")
     if len(payload) != expected_size:
         raise ValueError("updater signature size does not match release receipt")
@@ -165,11 +180,11 @@ def _signature_text(
     if not isinstance(expected_digest, str) or digest != expected_digest:
         raise ValueError("updater signature digest does not match release receipt")
     try:
-        text = payload.decode("utf-8").strip()
+        text = payload.decode("utf-8")
     except UnicodeError as error:
         raise ValueError("updater signature must contain UTF-8 text") from error
-    if not text or "\x00" in text or "\r" in text or "\n" in text:
-        raise ValueError("updater signature must contain one non-empty text value")
+    if not text.strip() or "\x00" in text:
+        raise ValueError("updater signature must contain non-empty UTF-8 text")
     return text
 
 
@@ -267,7 +282,9 @@ def _check_output(path: Path, expected: bytes) -> None:
         maximum_bytes=max(len(expected), 256 * 1024),
     )
     if actual != expected:
-        raise ValueError("updater manifest does not match receipt-authorized release bytes")
+        raise ValueError(
+            "updater manifest does not match receipt-authorized release bytes"
+        )
 
 
 def main() -> int:
@@ -275,8 +292,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--git-sha", default=os.environ.get("GITHUB_SHA", ""))
-    parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY", ""))
-    parser.add_argument("--server-url", default=os.environ.get("GITHUB_SERVER_URL", ""))
+    parser.add_argument(
+        "--repository", default=os.environ.get("GITHUB_REPOSITORY", "")
+    )
+    parser.add_argument(
+        "--server-url", default=os.environ.get("GITHUB_SERVER_URL", "")
+    )
     parser.add_argument("--output", type=Path, default=Path("latest.json"))
     parser.add_argument(
         "--check",
