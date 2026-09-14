@@ -12,7 +12,9 @@ Tauri v2 requires update artifacts to be signed and verifies them with a public 
 
 The first updater-admission slice closed configuration-only authority drift, but fresh review found a second executable gap: a future policy could be `admitted`, `tauri.conf.json` could contain the correct public key/endpoints and updater-artifact setting, yet the shipped desktop binary could omit `tauri-plugin-updater` or never initialize it. The preflight would then report commercial updater admission for a build with no compiled updater runtime.
 
-That is a release-truth defect, not a UI or Active Player concern. Distribution must bind admission to the application dependency/runtime graph before a tag is allowed to proceed.
+After that repair, the release artifact graph still had a third gap. Tauri v2 emits Windows installer `.sig` files and a macOS `.app.tar.gz` updater bundle plus `.sig`, but BandScope's release packager copied only standard DMG/EXE/MSI outputs. Source/config/runtime admission therefore did not prove that the exact generated updater payload/signature bytes were carried into the release candidate and bound to its receipt.
+
+These are Distribution release-truth defects, not UI or Active Player concerns. Distribution must bind authority, compiled runtime, generated updater payload/signature bytes, and eventual manifest/publication evidence without moving secret signing authority into source.
 
 ## Constraints
 
@@ -22,6 +24,7 @@ That is a release-truth defect, not a UI or Active Player concern. Distribution 
 - Ordinary startup and local rehearsal analysis must remain usable while the updater service is unavailable.
 - Distribution owns update publication and trust. Active Player, Project Persistence, Signal/MIR, and Resource Admission do not receive duplicate updater authority.
 - Mutable Git/path updater dependencies are not commercial admission evidence. The release gate requires a versioned dependency and an immutable registry lock entry with checksum.
+- Presence of `.sig` bytes is release evidence, not by itself proof that the signature verifies against the approved public key.
 
 ## Implemented contract
 
@@ -51,13 +54,31 @@ For a future `state=admitted`, the guard requires:
 - exactly one `tauri-plugin-updater` package in `Cargo.lock`, from a registry source with a full registry checksum;
 - an executable desktop source initializer matching `.plugin(tauri_plugin_updater::Builder::new().build())` after comments and string literals are blanked so documentation/example text cannot satisfy release admission.
 
-`verify_release_identity.py` composes this guard with the existing version and commercial-model admission guards. `package_desktop_artifact.py` already invokes that release preflight before creating `artifacts/` for version tags, so updater admission is on the same fail-closed path as tag packaging rather than a detached audit.
+`verify_release_identity.py` composes this guard with the existing version and commercial-model admission guards. `package_desktop_artifact.py` invokes that release preflight before creating `artifacts/` for version tags, so updater admission is on the same fail-closed path as tag packaging rather than a detached audit.
+
+For an admitted tag path, `package_desktop_artifact.py` now also requires the generated Tauri v2 updater outputs:
+
+- Windows: every packaged NSIS/MSI installer must have its adjacent `<installer>.sig`; the copied standard installer must remain byte-identical to the Tauri updater bundle it represents.
+- macOS: exactly one target-local `*.app.tar.gz` updater bundle and adjacent `.sig` must exist in Tauri's macOS bundle directory.
+- `.sig` evidence must be regular, non-link, non-empty and no larger than 64 KiB.
+- source and copied updater bytes are compared by exact size/full SHA-256.
+- `release-receipt.json` re-admits those copied bytes immediately before publication and records bundle/signature names, sizes and full SHA-256 values under `updaterArtifacts`.
+
+This is artifact identity binding. It deliberately does not perform private-key operations or promote `.sig` presence into a cryptographic-validity claim.
 
 ### RED → repair lineage
+
+Runtime-wiring slice:
 
 - `8843a308303d7731a175abfc0b90fb365cb7518e` adds the realistic RED: configuration-only admission must fail when the updater crate or runtime initializer is absent.
 - `9869d32bdad9787f3af6556f73d74070f8541b5f` binds admitted policy to bounded Cargo manifest/lock evidence and the desktop runtime initializer.
 - `6d91f7c7bc117da9ece7563e45a7d88de09b09d4` updates the existing admitted-policy fixtures so configuration tests exercise a genuinely wired updater graph rather than an impossible config-only state.
+
+Generated-artifact slice:
+
+- `421aaeec44fcb93f0250f44487d56a7b711aede0` adds RED coverage for missing Windows `.sig`, missing macOS `.app.tar.gz`/`.sig`, exact receipt binding and post-copy signature drift.
+- `0e012723e2bff7068d162b721a29d3141c036175` packages the platform-correct Tauri v2 updater bundle/signature evidence and binds exact copied bytes to the release receipt.
+- `0fa723801b72c57a0bee8cc706581b0e2b3129d2` updates the release-receipt traceability with the platform artifact semantics and claim limits.
 
 ## Alternatives rejected
 
@@ -73,17 +94,17 @@ Rejected. Configuration can describe a plugin that Cargo does not compile or the
 
 Rejected. A locked crate can remain unused. Dependency presence is supply-chain evidence, not evidence that the desktop runtime actually installs the updater plugin.
 
-### Accept a source initializer without a locked dependency
+### Treat `createUpdaterArtifacts=true` as proof that updater bytes are in the release
 
-Rejected. Source text alone does not establish the immutable package graph. The release contract requires the registry-resolved package and checksum as well.
+Rejected. Configuration expresses intent. The release candidate must contain the platform-specific generated updater bundle/signature bytes and bind their exact identity to the release receipt.
+
+### Treat macOS DMG as the updater payload
+
+Rejected. Tauri v2 generates a separate `.app.tar.gz` update bundle on macOS. The DMG remains the notarized installer evidence; the updater tarball/signature is a distinct release artifact.
 
 ### Enable Tauri updater with placeholder key or endpoint
 
 Rejected. Placeholder release authority is materially worse than an explicit blocked state because it can be mistaken for production readiness or accidentally shipped.
-
-### Allow HTTP for development and rely on environment discipline
-
-Rejected for commercial admission. Tauri exposes `dangerousInsecureTransportProtocol`; production policy explicitly refuses that escape hatch. Development-only update experiments should remain separate from the release authority.
 
 ### Put the private signing key in policy
 
@@ -91,14 +112,14 @@ Rejected. Tauri's private signing key is secret release authority. Repository po
 
 ## Claim boundary
 
-This change proves that BandScope cannot label a version-tag build commercially updater-ready while updater authority is absent, admitted Tauri configuration drifts, the updater crate is missing from the immutable Cargo graph, or the desktop runtime omits the updater plugin initializer.
+Current source-level admission proves that BandScope cannot label a version-tag build commercially updater-ready while updater authority is absent, admitted Tauri configuration drifts, the updater crate is missing from the immutable Cargo graph, or the desktop runtime omits the updater plugin initializer. The package path also fails closed when the expected platform-specific updater bundle/signature evidence is absent or drifts before the release receipt is published.
 
 It does **not** yet prove:
 
 - that an approved signing key has been provisioned;
 - that a production updater endpoint has been provisioned and is operational;
-- that `.sig` files are generated and published for every supported target;
-- that a static/dynamic updater manifest is immutable and bound to exact release receipts;
+- that copied `.sig` bytes cryptographically verify against the approved release public key;
+- that a static/dynamic updater manifest is generated from and immutably bound to the exact `updaterArtifacts` receipt entries;
 - that the runtime successfully checks, downloads, verifies, installs, restarts, and recovers on packaged Windows/macOS builds;
 - that wrong-key/wrong-signature, digest mismatch, truncated/replayed/stale metadata, partial download, disk-full, cancellation, first-launch failure, staged rollout, deferral, retry, offline operation, or rollback behavior has passed acceptance;
 - that project-schema compatibility permits a given rollback;
@@ -108,22 +129,11 @@ Those remain repository-owned work under #960 once external updater key/endpoint
 
 ## Test evidence
 
-`services/analysis-engine/tests/test_release_updater_policy.py` covers:
+`services/analysis-engine/tests/test_release_updater_policy.py` covers checked-in blocked authority, tag-preflight composition, exact admitted key/HTTPS endpoint projection, endpoint drift/insecure transport, missing updater artifact generation, partially enabled blocked state, duplicate JSON members, and an admitted config projected through a valid locked updater/runtime fixture.
 
-- current checked-in blocked authority;
-- tag-preflight composition;
-- exact admitted public-key and HTTPS-endpoint projection;
-- endpoint drift and insecure transport;
-- missing updater artifact generation;
-- a blocked policy hiding partially enabled updater capability;
-- duplicate-member JSON ambiguity;
-- admitted configuration projected through a valid locked updater/runtime fixture.
+`services/analysis-engine/tests/test_release_updater_runtime_wiring.py` covers missing compiled dependency, locked dependency without runtime initializer, and the positive immutable dependency/runtime wiring contract.
 
-`services/analysis-engine/tests/test_release_updater_runtime_wiring.py` covers:
-
-- admitted config with no compiled `tauri-plugin-updater` dependency;
-- a locked updater dependency with no runtime initializer;
-- the positive manifest/lock/runtime wiring contract.
+`services/analysis-engine/tests/test_release_updater_artifact_binding.py` covers missing Windows signature, missing macOS updater bundle/signature, platform-correct copy/binding, post-copy drift rejection, and non-tag independence.
 
 Hosted current-head CI remains authoritative for merge/release status. No predecessor-head GREEN or review transfers after these source commits.
 
