@@ -11,7 +11,7 @@ import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_identity.py"
-_BUILD_BASELINE_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
+_PACKAGER_PATH = _REPOSITORY_ROOT / "scripts" / "release" / "package_desktop_artifact.py"
 
 
 def _load_guard() -> ModuleType:
@@ -50,30 +50,8 @@ def _write_release_metadata(repository_root: Path, release_version: str) -> None
     )
 
 
-def _workflow_job_block(workflow_text: str, job_name: str) -> str:
-    """Return one top-level GitHub Actions job without requiring a YAML runtime dependency."""
-    job_marker = f"  {job_name}:"
-    workflow_lines = workflow_text.splitlines()
-    try:
-        job_start_index = workflow_lines.index(job_marker)
-    except ValueError as lookup_error:
-        raise AssertionError(f"workflow job is missing: {job_name}") from lookup_error
-
-    job_end_index = len(workflow_lines)
-    for line_index in range(job_start_index + 1, len(workflow_lines)):
-        workflow_line = workflow_lines[line_index]
-        if (
-            workflow_line.startswith("  ")
-            and not workflow_line.startswith("    ")
-            and workflow_line.endswith(":")
-        ):
-            job_end_index = line_index
-            break
-    return "\n".join(workflow_lines[job_start_index:job_end_index])
-
-
 def test_release_preflight_executes_version_identity_guard() -> None:
-    """Keep release preflight fail-closed when version projections drift."""
+    """Keep repository and release preflight fail-closed when versions drift."""
     quickcheck_text = (
         _REPOSITORY_ROOT / "scripts" / "harness" / "quickcheck.sh"
     ).read_text(encoding="utf-8")
@@ -85,27 +63,17 @@ def test_release_preflight_executes_version_identity_guard() -> None:
     assert "./scripts/harness/quickcheck.sh" in release_workflow_text
 
 
-def test_tag_build_and_publication_depend_on_release_identity_gate() -> None:
-    """Block package construction and publication when release identity is invalid."""
-    build_workflow_text = _BUILD_BASELINE_PATH.read_text(encoding="utf-8")
+def test_tag_packager_runs_release_preflight_before_artifact_writes() -> None:
+    """Prevent the build workflow from publishing around a failed preflight workflow."""
+    packager_text = _PACKAGER_PATH.read_text(encoding="utf-8")
+    preflight_call = "verify_tag_release_preflight(repo_root)"
+    artifact_directory_creation = "output_dir.mkdir(parents=True, exist_ok=True)"
 
-    identity_job = _workflow_job_block(build_workflow_text, "release-identity")
-    assert "run: python3 scripts/checks/verify_release_identity.py" in identity_job
-
-    for build_job_name in (
-        "build-windows-native",
-        "build-windows-arm64",
-        "build-macos-native",
-        "build-macos-arm64",
-    ):
-        build_job = _workflow_job_block(build_workflow_text, build_job_name)
-        assert "needs: release-identity" in build_job
-
-    publication_job = _workflow_job_block(
-        build_workflow_text, "publish-immutable-release"
+    assert preflight_call in packager_text
+    assert artifact_directory_creation in packager_text
+    assert packager_text.index(preflight_call) < packager_text.index(
+        artifact_directory_creation
     )
-    for required_job_name in ("release-identity", "gate-windows", "gate-macos"):
-        assert f"      - {required_job_name}" in publication_job
 
 
 def test_repository_release_version_matches_authoritative_version_file() -> None:
