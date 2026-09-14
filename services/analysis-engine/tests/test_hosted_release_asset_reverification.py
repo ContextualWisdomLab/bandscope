@@ -113,3 +113,14 @@ def test_release_workflow_reverifies_draft_and_published_assets() -> None:
     assert workflow.index("gh release create") < workflow.index(verifier)
     assert workflow.index(verifier) < workflow.index("gh release edit")
     assert workflow.rindex("gh release edit") < workflow.rindex(verifier)
+
+
+def test_published_release_requires_github_immutable_attestation() -> None:
+    """Published bytes must also match GitHub's signed immutable-release attestation."""
+    workflow = _WORKFLOW.read_text(encoding="utf-8")
+    release_verify = 'gh release verify "$RELEASE_TAG"'
+    asset_verify = 'gh release verify-asset "$RELEASE_TAG" "$asset"'
+    assert release_verify in workflow
+    assert asset_verify in workflow
+    assert workflow.index("gh release edit") < workflow.index(release_verify)
+    assert workflow.index(release_verify) < workflow.index(asset_verify)
