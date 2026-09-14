@@ -15,6 +15,10 @@ from typing import Any, Literal, NotRequired, TypedDict, cast
 import numpy as np
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
+from bandscope_analysis.final_result_cache import (
+    admitted_audio_cache_identity,
+    load_admitted_rehearsal_song,
+)
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
@@ -606,15 +610,21 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     cache_root = request.get("cacheRoot")
     if not cache_root:
         return None
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return None
 
     local_source = request["localSource"]
-    key_payload = {
+    key_payload: dict[str, object] = {
         "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
+    if admitted_identity is not None:
+        key_payload["admittedAudio"] = admitted_identity
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -640,15 +650,21 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
     temp_root = request.get("tempRoot")
     if not temp_root:
         return None
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return None
 
     local_source = request["localSource"]
-    key_payload = {
+    key_payload: dict[str, object] = {
         "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
+    if admitted_identity is not None:
+        key_payload["admittedAudio"] = admitted_identity
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -656,36 +672,34 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
 
 
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
-    """Load a cached rehearsal result, treating malformed cache as a miss."""
-    try:
-        with path.open("r", encoding="utf-8") as cache_file:
-            payload = json.load(cache_file)
-    except (OSError, json.JSONDecodeError):
-        return None
-
-    if not isinstance(payload, dict):
-        return None
-    if payload.get("schemaVersion") != ANALYSIS_CACHE_SCHEMA_VERSION:
-        return None
-    result = payload.get("result")
-    if not isinstance(result, dict):
-        return None
-    return cast(RehearsalSong, result)
+    """Load a bounded, source-bound rehearsal result, treating rejection as a miss."""
+    result = load_admitted_rehearsal_song(
+        path,
+        schema_version=ANALYSIS_CACHE_SCHEMA_VERSION,
+    )
+    return cast(RehearsalSong | None, result)
 
 
 def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: RehearsalSong) -> bool:
     """Persist cache metadata without storing the original absolute source path."""
     if "localSource" not in request:
         return False
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return False
 
     local_source = request["localSource"]
+    source_metadata: dict[str, object] = {
+        "fileName": local_source["fileName"],
+        "extension": local_source["extension"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    if admitted_identity is not None:
+        source_metadata["admittedAudio"] = admitted_identity
     payload: CachedAnalysisPayload = {
         "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
-        "source": {
-            "fileName": local_source["fileName"],
-            "extension": local_source["extension"],
-            "fileSizeBytes": local_source["fileSizeBytes"],
-        },
+        "source": source_metadata,
         "result": result,
     }
     try:
