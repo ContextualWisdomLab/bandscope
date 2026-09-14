@@ -2,6 +2,7 @@ use bandscope_distribution_download::{
     ArtifactDownloadAdmission, StagedArtifactFile, StagingArtifactError,
 };
 use std::fs;
+use std::io::ErrorKind;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn scratch_dir(label: &str) -> std::path::PathBuf {
@@ -42,6 +43,7 @@ fn admitted_exact_artifact_can_be_sealed_and_retained() {
 
     let sealed = staged.seal(receipt).expect("sync and seal exact artifact");
     assert_eq!(sealed.bytes_written(), 4);
+    assert_eq!(sealed.file().metadata().expect("descriptor metadata").len(), 4);
     assert_eq!(fs::metadata(sealed.path()).expect("sealed metadata").len(), 4);
     let path = sealed.path().to_path_buf();
     drop(sealed);
@@ -69,6 +71,23 @@ fn failed_admission_removes_partial_staging_file() {
 }
 
 #[test]
+fn receipt_size_mismatch_removes_unsealed_staging_file() {
+    let directory = scratch_dir("receipt-mismatch");
+    let staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
+    let path = staged.path().to_path_buf();
+    let mut unrelated_sink = Vec::new();
+    let mut unrelated_admission = ArtifactDownloadAdmission::new(1, Some(1)).expect("admission");
+    unrelated_admission
+        .write_chunk(&mut unrelated_sink, b"x")
+        .expect("write unrelated receipt fixture");
+    let receipt = unrelated_admission.finish().expect("receipt");
+
+    assert_eq!(staged.seal(receipt).unwrap_err(), StagingArtifactError::SizeMismatch);
+    assert!(!path.exists());
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
 fn preexisting_destination_and_path_like_names_fail_closed() {
     let directory = scratch_dir("exclusive");
     fs::write(directory.join("update.bin"), b"existing").expect("write existing file");
@@ -83,5 +102,46 @@ fn preexisting_destination_and_path_like_names_fail_closed() {
     );
 
     fs::remove_file(directory.join("update.bin")).expect("remove existing file");
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
+fn unavailable_or_non_directory_staging_roots_fail_closed() {
+    let directory = scratch_dir("invalid-root");
+    let missing = directory.join("missing");
+    let regular_file = directory.join("regular-file");
+    fs::write(&regular_file, b"not a directory").expect("write regular fixture");
+
+    assert_eq!(
+        StagedArtifactFile::create(&missing, "update.bin").unwrap_err(),
+        StagingArtifactError::StagingDirectoryUnavailable(ErrorKind::NotFound)
+    );
+    assert_eq!(
+        StagedArtifactFile::create(&regular_file, "update.bin").unwrap_err(),
+        StagingArtifactError::InvalidStagingDirectory
+    );
+
+    fs::remove_file(regular_file).expect("remove regular fixture");
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[cfg(unix)]
+#[test]
+fn symlink_staging_root_is_rejected() {
+    use std::os::unix::fs::symlink;
+
+    let directory = scratch_dir("symlink-root");
+    let target = directory.join("real");
+    let link = directory.join("link");
+    fs::create_dir(&target).expect("create target directory");
+    symlink(&target, &link).expect("create directory symlink");
+
+    assert_eq!(
+        StagedArtifactFile::create(&link, "update.bin").unwrap_err(),
+        StagingArtifactError::InvalidStagingDirectory
+    );
+
+    fs::remove_file(link).expect("remove symlink");
+    fs::remove_dir(target).expect("remove target directory");
     fs::remove_dir(directory).expect("remove staging directory");
 }
