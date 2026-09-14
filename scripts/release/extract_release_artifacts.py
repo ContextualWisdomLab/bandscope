@@ -1,4 +1,10 @@
-"""Safely extract zipped release artifacts downloaded by GitHub Actions."""
+"""Safely extract zipped release artifacts downloaded by GitHub Actions.
+
+Security Notes:
+    Extraction accepts only target-qualified BandScope installer, updater, receipt,
+    checksum, and manifest filenames. Paths, links, duplicate members, per-file and
+    aggregate byte budgets are fail-closed before publication selection sees them.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +17,18 @@ from pathlib import Path
 from typing import IO
 
 RELEASE_MEMBER = re.compile(
-    r"^bandscope-(?:windows|macos)-(?:amd64|arm64)-[0-9a-f]{12}"
-    r"\.(?:exe|msi|dmg)(?:\.sha256|\.manifest\.txt)?$"
+    r"^bandscope-(?:windows|macos)-(?:amd64|arm64)-[0-9a-f]{12}(?:"
+    r"\.(?:exe|msi)(?:\.sha256|\.manifest\.txt|\.sig)?"
+    r"|\.dmg(?:\.sha256|\.manifest\.txt)?"
+    r"|\.app\.tar\.gz(?:\.sig)?"
+    r"|\.release-receipt\.json"
+    r")$"
 )
 MAX_RELEASE_ARTIFACT_BYTES = 512 * 1024 * 1024
+MAX_UPDATER_SIGNATURE_BYTES = 64 * 1024
+MAX_RELEASE_RECEIPT_BYTES = 256 * 1024
 MAX_TOTAL_RELEASE_ARTIFACT_BYTES = 4 * 1024 * 1024 * 1024
-MAX_RELEASE_ARTIFACT_FILES = 24
+MAX_RELEASE_ARTIFACT_FILES = 32
 READ_CHUNK_BYTES = 64 * 1024
 
 
@@ -55,8 +67,17 @@ def artifact_zip_paths(source: Path) -> list[Path]:
     return candidates
 
 
+def _member_byte_limit(member_name: str) -> int:
+    """Return the narrowest byte ceiling for one allowlisted release member."""
+    if member_name.endswith(".sig"):
+        return MAX_UPDATER_SIGNATURE_BYTES
+    if member_name.endswith(".release-receipt.json"):
+        return MAX_RELEASE_RECEIPT_BYTES
+    return MAX_RELEASE_ARTIFACT_BYTES
+
+
 def validate_member(member: zipfile.ZipInfo) -> None:
-    """Reject unexpected or unsafe ZIP members."""
+    """Reject unexpected, unsafe, or oversized ZIP members."""
     member_path = Path(member.filename)
     unix_mode = member.external_attr >> 16
     if (
@@ -67,7 +88,7 @@ def validate_member(member: zipfile.ZipInfo) -> None:
         or stat.S_ISLNK(unix_mode)
     ):
         raise ValueError(f"unexpected release artifact member: {member.filename}")
-    if member.file_size > MAX_RELEASE_ARTIFACT_BYTES:
+    if member.file_size > _member_byte_limit(member.filename):
         raise ValueError(f"release artifact member too large: {member.filename}")
 
 
