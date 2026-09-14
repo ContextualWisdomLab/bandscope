@@ -11,7 +11,7 @@
 #![forbid(unsafe_code)]
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{ErrorKind, Write};
+use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 
 /// Hard ceiling for one updater artifact accepted by the Distribution boundary.
@@ -308,6 +308,35 @@ pub struct SealedArtifactFile {
     bytes_written: u64,
 }
 
+/// Read-only view over the exact still-open sealed artifact descriptor.
+///
+/// Reads are positional and begin at byte zero without reopening the staging
+/// path. The wrapper intentionally implements `Read` only: callers cannot use
+/// it to recover the underlying write-capable staging descriptor.
+#[derive(Debug)]
+pub struct SealedArtifactReader<'a> {
+    file: &'a File,
+    offset: u64,
+}
+
+impl Read for SealedArtifactReader<'_> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        let read = descriptor_read_at(self.file, buffer, self.offset)?;
+        self.offset = self
+            .offset
+            .checked_add(u64::try_from(read).map_err(|_| {
+                std::io::Error::new(ErrorKind::InvalidData, "sealed read length overflow")
+            })?)
+            .ok_or_else(|| {
+                std::io::Error::new(ErrorKind::InvalidData, "sealed reader offset overflow")
+            })?;
+        Ok(read)
+    }
+}
+
 impl SealedArtifactFile {
     /// Return the synchronized staging path held for identity verification.
     pub fn path(&self) -> &Path {
@@ -319,11 +348,19 @@ impl SealedArtifactFile {
         self.bytes_written
     }
 
-    /// Borrow the still-open descriptor for digest or signature verification.
-    pub fn file(&self) -> &File {
-        self.file
-            .as_ref()
-            .expect("sealed artifact descriptor remains present before drop")
+    /// Open a read-only positional stream over the exact sealed descriptor.
+    ///
+    /// The stream starts at byte zero and never reopens the staging path. This
+    /// preserves descriptor binding while withholding the underlying
+    /// write-capable `File` from downstream digest/signature code.
+    pub fn reader(&self) -> SealedArtifactReader<'_> {
+        SealedArtifactReader {
+            file: self
+                .file
+                .as_ref()
+                .expect("sealed artifact descriptor remains present before drop"),
+            offset: 0,
+        }
     }
 }
 
@@ -334,6 +371,26 @@ impl Drop for SealedArtifactFile {
         }
         let _ = fs::remove_file(&self.path);
     }
+}
+
+#[cfg(unix)]
+fn descriptor_read_at(file: &File, buffer: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    use std::os::unix::fs::FileExt;
+    FileExt::read_at(file, buffer, offset)
+}
+
+#[cfg(windows)]
+fn descriptor_read_at(file: &File, buffer: &mut [u8], offset: u64) -> std::io::Result<usize> {
+    use std::os::windows::fs::FileExt;
+    FileExt::seek_read(file, buffer, offset)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn descriptor_read_at(_file: &File, _buffer: &mut [u8], _offset: u64) -> std::io::Result<usize> {
+    Err(std::io::Error::new(
+        ErrorKind::Unsupported,
+        "sealed descriptor reads are supported only on desktop targets",
+    ))
 }
 
 fn is_portable_artifact_name(name: &str) -> bool {
