@@ -25,7 +25,7 @@ fn local_audio_materializer_consumes_publication_bound_receipt() {
 }
 
 #[test]
-fn local_audio_publication_must_not_overwrite_an_existing_source_name() {
+fn local_audio_publication_uses_project_persistence_no_replace_durability_owner() {
     let source = include_str!("../src/main.rs");
     let materializer_start = source
         .find("fn materialize_local_audio_source(")
@@ -37,8 +37,14 @@ fn local_audio_publication_must_not_overwrite_an_existing_source_name() {
     let materializer = &materializer_tail[..materializer_end];
 
     assert!(
-        materializer.contains("std::fs::hard_link(&stage, &destination)"),
-        "publication must use an atomic no-clobber filesystem create instead of check-then-rename"
+        materializer.contains(
+            "project_persistence::publish_synced_file_noreplace(&stage, &destination)"
+        ),
+        "production publication must delegate no-replace and directory durability to Project Persistence"
+    );
+    assert!(
+        !materializer.contains("std::fs::hard_link(&stage, &destination)"),
+        "Resource Admission must not own a second hard-link publication path"
     );
     assert!(
         !materializer.contains("destination.exists()"),
