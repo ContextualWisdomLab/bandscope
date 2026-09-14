@@ -155,3 +155,102 @@ fn successful_first_save_syncs_the_parent_before_hard_link_stage_cleanup() {
     assert!(stage_paths(&root).is_empty());
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn synced_source_publication_moves_the_owned_stage_only_after_durable_no_replace_publish() {
+    let root = test_dir("synced-source-success");
+    let stage = root.join(".source-candidate.stage");
+    let target = root.join("source.wav");
+    let content = b"RIFF-durable-source";
+    fs::write(&stage, content).expect("source stage should be written");
+    fs::File::open(&stage)
+        .expect("source stage should reopen")
+        .sync_all()
+        .expect("source stage bytes should be durable before publication");
+    let sync_calls = Cell::new(0usize);
+
+    project_persistence::publish_synced_file_noreplace_with_directory_sync(
+        &stage,
+        &target,
+        |parent| {
+            assert_eq!(parent, root.as_path());
+            assert_eq!(
+                fs::read(&target).expect("target must exist before directory sync"),
+                content
+            );
+            sync_calls.set(sync_calls.get() + 1);
+            Ok(())
+        },
+    )
+    .expect("synced source publication should succeed after directory durability");
+
+    assert_eq!(sync_calls.get(), 1);
+    assert_eq!(fs::read(&target).expect("published source should be readable"), content);
+    assert!(!stage.exists(), "native no-replace publication consumes the stage name");
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn synced_source_publication_preserves_a_competing_destination() {
+    let root = test_dir("synced-source-conflict");
+    let stage = root.join(".source-candidate.stage");
+    let target = root.join("source.wav");
+    let candidate = b"candidate-source";
+    let competing = b"competing-source";
+    fs::write(&stage, candidate).expect("source stage should be written");
+    fs::write(&target, competing).expect("competing source should be written");
+    let sync_calls = Cell::new(0usize);
+
+    let error = project_persistence::publish_synced_file_noreplace_with_directory_sync(
+        &stage,
+        &target,
+        |_parent| {
+            sync_calls.set(sync_calls.get() + 1);
+            Ok(())
+        },
+    )
+    .expect_err("no-replace source publication must reject an existing target");
+
+    assert_eq!(error, "Project file already exists. Choose a new file name.");
+    assert_eq!(sync_calls.get(), 0);
+    assert_eq!(fs::read(&target).expect("competing source must remain"), competing);
+    assert_eq!(fs::read(&stage).expect("candidate stage must remain"), candidate);
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn synced_source_publication_never_reports_success_when_directory_durability_fails() {
+    let root = test_dir("synced-source-sync-failure");
+    let stage = root.join(".source-candidate.stage");
+    let target = root.join("source.wav");
+    let content = b"complete-source-before-sync-failure";
+    fs::write(&stage, content).expect("source stage should be written");
+
+    let error = project_persistence::publish_synced_file_noreplace_with_directory_sync(
+        &stage,
+        &target,
+        |parent| {
+            assert_eq!(parent, root.as_path());
+            assert_eq!(
+                fs::read(&target).expect("complete target must be visible before sync"),
+                content
+            );
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "injected source-directory sync failure",
+            ))
+        },
+    )
+    .expect_err("publication authority must not be returned before directory durability");
+
+    assert_eq!(error, "Could not publish the project safely.");
+    assert_eq!(
+        fs::read(&target).expect("complete target must not be deleted after sync failure"),
+        content
+    );
+    assert!(!stage.exists(), "native rename consumes the stage before sync failure");
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
