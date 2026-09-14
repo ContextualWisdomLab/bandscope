@@ -54,6 +54,19 @@ fn local_audio_publication_uses_project_persistence_no_replace_durability_owner(
         !materializer.contains("std::fs::rename(&stage, &destination)"),
         "overwrite-capable rename must not publish the immutable project source"
     );
+
+    let publication_start = materializer
+        .find("project_persistence::publish_synced_file_noreplace(&stage, &destination)")
+        .expect("Project Persistence publication call must remain present");
+    let publication_tail = &materializer[publication_start..];
+    let verification_start = publication_tail
+        .find("let published_path_metadata")
+        .expect("published-source verification must follow publication");
+    let publication_failure_boundary = &publication_tail[..verification_start];
+    assert!(
+        !publication_failure_boundary.contains("remove_file(&stage)"),
+        "a no-replace publication rejection must preserve the candidate stage promised by the Project Persistence owner; the caller must not erase it before recovery/diagnostics can inspect it"
+    );
 }
 
 #[test]
