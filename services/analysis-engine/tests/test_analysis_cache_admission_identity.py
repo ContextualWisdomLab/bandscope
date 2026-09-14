@@ -37,6 +37,7 @@ from bandscope_analysis.final_result_cache import (
     _valid_time_range,
     admitted_audio_cache_identity,
 )
+from bandscope_analysis.separation.generation import separation_generation_identity
 
 
 def _same_size_replacement(payload: bytes) -> bytes:
@@ -106,7 +107,7 @@ def test_final_cache_cannot_cross_native_content_identity(tmp_path, monkeypatch)
 
 
 def test_final_cache_round_trip_uses_same_native_identity(tmp_path, monkeypatch) -> None:
-    """Reuse a valid result only while native admission evidence remains identical."""
+    """Reuse a valid result only while native admission and MIR generation remain identical."""
     payload = b"RIFF-stable-cache-source"
     _set_admitted_identity(monkeypatch, payload)
     request = _local_request(tmp_path, file_size_bytes=len(payload))
@@ -117,11 +118,14 @@ def test_final_cache_round_trip_uses_same_native_identity(tmp_path, monkeypatch)
     assert _store_cached_analysis(cache_path, request, song) is True
     assert _load_cached_analysis(cache_path) == song
 
+    mir_generation = separation_generation_identity()
+    assert mir_generation is not None
     stored = json.loads(cache_path.read_text(encoding="utf-8"))
     assert stored["source"]["admittedAudio"] == {
         "fileSizeBytes": len(payload),
         "contentSha256": hashlib.sha256(payload).hexdigest(),
         "analysisGeneration": FINAL_RESULT_ANALYSIS_GENERATION,
+        "mirGeneration": mir_generation,
     }
 
 
