@@ -18,6 +18,11 @@ from bandscope_analysis.separation.audio_separator import (
 MAX_FINAL_RESULT_CACHE_BYTES = 4 * 1024 * 1024
 FINAL_RESULT_ANALYSIS_GENERATION = 1
 _MAX_SECTION_TIME_SECONDS = 4_294_967_295
+_ROLE_TYPES = frozenset({"instrument", "vocal", "hand"})
+_CONFIDENCE_LEVELS = frozenset({"low", "medium", "high"})
+_PROVENANCE_SOURCES = frozenset({"model", "user"})
+_CUE_KINDS = frozenset({"lyric", "count", "transition"})
+_REHEARSAL_PRIORITIES = frozenset({"low", "medium", "high"})
 
 
 def admitted_audio_cache_identity() -> dict[str, object] | None:
@@ -97,19 +102,87 @@ def _valid_confidence(value: object) -> bool:
     """Validate the persisted confidence payload needed by rehearsal views."""
     return (
         isinstance(value, dict)
-        and _nonempty_string(value.get("level"))
-        and _nonempty_string(value.get("source"))
+        and value.get("level") in _CONFIDENCE_LEVELS
+        and value.get("source") in _PROVENANCE_SOURCES
         and isinstance(value.get("notes"), str)
     )
 
 
-def _valid_role(value: object) -> bool:
-    """Validate role identity and confidence fields required by downstream consumers."""
+def _valid_harmony(value: object) -> bool:
+    """Validate one persisted harmony payload without inventing musical evidence."""
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("chord"), str)
+        and isinstance(value.get("functionLabel"), str)
+        and value.get("source") in _PROVENANCE_SOURCES
+    )
+
+
+def _valid_cue(value: object) -> bool:
+    """Validate one persisted rehearsal cue consumed by timeline and role views."""
+    return (
+        isinstance(value, dict)
+        and value.get("kind") in _CUE_KINDS
+        and isinstance(value.get("value"), str)
+    )
+
+
+def _valid_range(value: object) -> bool:
+    """Validate one persisted note-range summary."""
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("lowestNote"), str)
+        and isinstance(value.get("highestNote"), str)
+    )
+
+
+def _valid_manual_override(value: object) -> bool:
+    """Validate the only currently supported persisted manual override shape."""
     if not isinstance(value, dict):
         return False
-    if not all(_nonempty_string(value.get(field)) for field in ("id", "name", "roleType")):
+    harmony = value.get("value")
+    return (
+        value.get("field") == "harmony"
+        and value.get("source") == "user"
+        and _valid_harmony(harmony)
+        and isinstance(harmony, dict)
+        and harmony.get("source") == "user"
+    )
+
+
+def _valid_role(value: object) -> bool:
+    """Validate every required persisted role field used by downstream consumers."""
+    if not isinstance(value, dict):
         return False
-    return _valid_confidence(value.get("confidence"))
+    if not all(_nonempty_string(value.get(field)) for field in ("id", "name")):
+        return False
+    if value.get("roleType") not in _ROLE_TYPES:
+        return False
+    if not _valid_harmony(value.get("harmony")):
+        return False
+    if not _valid_cue(value.get("cue")):
+        return False
+    if not _valid_range(value.get("range")):
+        return False
+    if not _valid_confidence(value.get("confidence")):
+        return False
+    if value.get("rehearsalPriority") not in _REHEARSAL_PRIORITIES:
+        return False
+    if not isinstance(value.get("simplification"), str):
+        return False
+    if not isinstance(value.get("setupNote"), str):
+        return False
+    manual_overrides = value.get("manualOverrides")
+    if not isinstance(manual_overrides, list) or not all(
+        _valid_manual_override(override) for override in manual_overrides
+    ):
+        return False
+    overlap_warnings = value.get("overlapWarnings")
+    if not isinstance(overlap_warnings, list) or not all(
+        isinstance(warning, str) for warning in overlap_warnings
+    ):
+        return False
+    return True
 
 
 def _valid_part_graph_node(value: object) -> bool:
