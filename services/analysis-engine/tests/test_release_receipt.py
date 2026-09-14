@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import os
+import stat
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -56,6 +58,12 @@ def _write_packaged_artifact(
     )
 
 
+def _set_tag_identity(monkeypatch: pytest.MonkeyPatch, version: str = "1.2.3") -> None:
+    """Set exact GitHub tag/commit identity used by tagged receipt scenarios."""
+    monkeypatch.setenv("GITHUB_REF", f"refs/tags/v{version}")
+    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+
+
 def test_tag_release_receipt_binds_version_commit_and_exact_artifact_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -64,8 +72,7 @@ def test_tag_release_receipt_binds_version_commit_and_exact_artifact_bytes(
     (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
     output_dir = tmp_path / "artifacts"
     packaged_artifact = _write_packaged_artifact(output_dir)
-    monkeypatch.setenv("GITHUB_REF", "refs/tags/v1.2.3")
-    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    _set_tag_identity(monkeypatch)
 
     receipt_path = packager.write_release_receipt(
         tmp_path, output_dir, [packaged_artifact]
@@ -105,8 +112,7 @@ def test_release_receipt_rejects_artifact_drift_after_checksum(
     output_dir = tmp_path / "artifacts"
     packaged_artifact = _write_packaged_artifact(output_dir, payload=b"model-A")
     (output_dir / packaged_artifact.archive_name).write_bytes(b"model-B")
-    monkeypatch.setenv("GITHUB_REF", "refs/tags/v1.2.3")
-    monkeypatch.setenv("GITHUB_SHA", "b" * 40)
+    _set_tag_identity(monkeypatch)
 
     with pytest.raises(RuntimeError, match="packaged artifact checksum does not match"):
         packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
@@ -129,6 +135,162 @@ def test_release_receipt_requires_exact_tag_and_full_source_commit(
     monkeypatch.setenv("GITHUB_SHA", "short-sha")
     with pytest.raises(RuntimeError, match="exact 40-character GITHUB_SHA"):
         packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+
+def test_release_receipt_rejects_ambiguous_version_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep receipt generation bound to the same unambiguous VERSION authority."""
+    packager = _load_packager()
+    output_dir = tmp_path / "artifacts"
+    packaged_artifact = _write_packaged_artifact(output_dir)
+    _set_tag_identity(monkeypatch)
+
+    (tmp_path / "VERSION").write_text("1.2.3\n2.0.0\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="requires one VERSION line"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+    (tmp_path / "VERSION").write_text(" 1.2.3\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="must not contain surrounding whitespace"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+
+def test_release_receipt_rejects_empty_or_mixed_target_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Require one non-empty platform/architecture target per receipt."""
+    packager = _load_packager()
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    output_dir = tmp_path / "artifacts"
+    _set_tag_identity(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="at least one packaged artifact"):
+        packager.write_release_receipt(tmp_path, output_dir, [])
+
+    first = _write_packaged_artifact(output_dir)
+    second = _write_packaged_artifact(
+        output_dir,
+        archive_name="bandscope-macos-amd64-deadbeef0000.dmg",
+        payload=b"signed-macos-installer",
+    )._replace(platform="macos", target_triple="x86_64-apple-darwin")
+    with pytest.raises(RuntimeError, match="cannot mix platform targets"):
+        packager.write_release_receipt(tmp_path, output_dir, [first, second])
+
+
+def test_release_receipt_rejects_missing_or_malformed_support_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Require exact checksum syntax and a regular per-artifact manifest."""
+    packager = _load_packager()
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    output_dir = tmp_path / "artifacts"
+    packaged_artifact = _write_packaged_artifact(output_dir)
+    _set_tag_identity(monkeypatch)
+
+    manifest_path = output_dir / packaged_artifact.manifest_name
+    manifest_path.unlink()
+    with pytest.raises(RuntimeError, match="manifest must be a regular non-link file"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+    manifest_path.write_text("restored\n", encoding="utf-8")
+    checksum_path = output_dir / packaged_artifact.checksum_name
+    checksum_path.write_text("not-a-checksum\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="checksum file is malformed"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+    checksum_path.write_text("x" * 513, encoding="utf-8")
+    with pytest.raises(RuntimeError, match="checksum file is unexpectedly large"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+
+def test_release_receipt_rejects_linked_or_missing_checksum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Do not let supporting checksum authority resolve through missing/link indirection."""
+    packager = _load_packager()
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    output_dir = tmp_path / "artifacts"
+    packaged_artifact = _write_packaged_artifact(output_dir)
+    _set_tag_identity(monkeypatch)
+    checksum_path = output_dir / packaged_artifact.checksum_name
+    checksum_path.unlink()
+
+    with pytest.raises(RuntimeError, match="checksum must be a regular non-link file"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+    target = output_dir / "other-checksum.txt"
+    target.write_text("placeholder\n", encoding="utf-8")
+    try:
+        checksum_path.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this test platform")
+    with pytest.raises(RuntimeError, match="checksum must be a regular non-link file"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+
+def test_release_receipt_rejects_symlinked_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Do not derive immutable release authority through archive symlink indirection."""
+    packager = _load_packager()
+    (tmp_path / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+    output_dir = tmp_path / "artifacts"
+    packaged_artifact = _write_packaged_artifact(output_dir)
+    _set_tag_identity(monkeypatch)
+    archive_path = output_dir / packaged_artifact.archive_name
+    payload = archive_path.read_bytes()
+    archive_path.unlink()
+    target = output_dir / "other.exe"
+    target.write_bytes(payload)
+    try:
+        archive_path.symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this test platform")
+
+    with pytest.raises(RuntimeError, match="artifact must not be a symlink"):
+        packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
+
+
+def test_stable_file_identity_fails_on_non_regular_or_drifting_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fail closed when the opened descriptor is not regular or changes while hashing."""
+    packager = _load_packager()
+    archive_path = tmp_path / "archive.bin"
+    archive_path.write_bytes(b"payload")
+    real_fstat = os.fstat
+
+    monkeypatch.setattr(
+        packager.os,
+        "fstat",
+        lambda _descriptor: SimpleNamespace(
+            st_mode=stat.S_IFDIR,
+            st_dev=1,
+            st_ino=1,
+            st_size=0,
+        ),
+    )
+    with pytest.raises(RuntimeError, match="artifact must be a regular file"):
+        packager._stable_regular_file_identity(archive_path)
+
+    calls = 0
+
+    def drifting_fstat(descriptor: int) -> object:
+        nonlocal calls
+        calls += 1
+        result = real_fstat(descriptor)
+        if calls == 1:
+            return result
+        return SimpleNamespace(
+            st_mode=result.st_mode,
+            st_dev=result.st_dev,
+            st_ino=result.st_ino,
+            st_size=result.st_size + 1,
+        )
+
+    monkeypatch.setattr(packager.os, "fstat", drifting_fstat)
+    with pytest.raises(RuntimeError, match="artifact changed while hashing"):
+        packager._stable_regular_file_identity(archive_path)
 
 
 def test_non_tag_packaging_does_not_publish_release_receipt(
