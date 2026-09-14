@@ -115,6 +115,23 @@ def _is_tag_release() -> bool:
     return os.environ.get("GITHUB_REF", "").startswith("refs/tags/v")
 
 
+def verify_tag_release_preflight(
+    repo_root: Path,
+    *,
+    runner: CommandRunner = subprocess.run,
+) -> None:
+    """Require version and model admission before a tag build writes release artifacts."""
+    if not _is_tag_release():
+        return
+    preflight_path = repo_root / "scripts" / "checks" / "verify_release_identity.py"
+    try:
+        result = runner([sys.executable, str(preflight_path)], check=False)
+    except OSError as verification_error:
+        raise RuntimeError("Tagged release preflight could not run") from verification_error
+    if result.returncode != 0:
+        raise RuntimeError("Tagged release preflight failed")
+
+
 def _platform_trust_command(repo_root: Path, output_dir: Path) -> Sequence[str]:
     """Build the fixed verifier command for the selected tagged release target."""
     verifier_path = repo_root / "scripts" / "checks" / "verify_release_platform_trust.py"
@@ -175,8 +192,10 @@ def verify_tag_platform_trust(
 
 
 def main() -> int:
-    """Find the built installer packages, rename them, calculate checksums, and verify tag trust."""
+    """Preflight, package installers, calculate checksums, and verify tag trust."""
     repo_root = Path(__file__).resolve().parents[2]
+    verify_tag_release_preflight(repo_root)
+
     output_dir = repo_root / "artifacts"
     output_dir.mkdir(parents=True, exist_ok=True)
 
