@@ -12,7 +12,6 @@ import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _GUARD_PATH = _REPOSITORY_ROOT / "scripts" / "checks" / "verify_release_model_policy.py"
-_POLICY_PATH = _REPOSITORY_ROOT / "release" / "model-artifact-policy.json"
 _BUILD_BASELINE_PATH = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
 
 
@@ -67,6 +66,7 @@ def _admitted_artifact(artifact_path: str, payload: bytes) -> dict[str, object]:
         "serialization": "safetensors",
         "rightsEvidenceSha256": "1" * 64,
         "provenanceEvidenceSha256": "2" * 64,
+        "loaderPolicySha256": "3" * 64,
     }
 
 
