@@ -10,7 +10,7 @@ BandScope의 Distribution/update bounded context는 updater artifact 서명, rem
 - Tauri의 `Update::download`는 updater bytes를 내려받은 뒤 `verify_signature(&buffer, &self.signature, &pubkey)`를 호출합니다. 즉 승인된 public key는 **다운로드한 updater artifact bytes**를 인증합니다. `raw_json`의 BandScope 확장 필드 전체를 별도로 서명·인증한다는 계약은 없습니다.
 - 따라서 `sourceCommit`, `minimumSupportedVersion`, target별 SHA-256 같은 `bandscope` 필드를 syntax 검증했다는 이유만으로 highest-seen authority에 기록하면 안 됩니다. Endpoint 또는 metadata publication 경로가 변조된 경우 signed artifact와 독립적으로 version/source/digest 문맥을 오염시킬 수 있습니다.
 
-이 finding 때문에 이번 slice는 state writer를 `raw_json`에 곧바로 연결하지 않았습니다. 먼저 `apps/desktop/distribution-runtime`을 추가해 remote JSON을 **provisional metadata**로만 admit합니다. 이 crate는 state를 쓰거나 anti-replay core에 authenticated candidate를 반환하지 않습니다.
+이 finding 때문에 runtime은 state writer를 `raw_json`에 곧바로 연결하지 않습니다. `apps/desktop/distribution-runtime`은 remote JSON을 **provisional metadata**로만 admit하며, state를 쓰거나 anti-replay core에 authenticated candidate를 반환하지 않습니다.
 
 Runtime-admission lineage:
 
@@ -18,6 +18,15 @@ Runtime-admission lineage:
 - Foundation `5c95912ffedbd69b1bb33773520b73cc68f9dc3c` / `b9f72beb826d5a0dc01b2d82cffbc814c2f91e2a`: runtime crate와 lock graph를 만들었습니다.
 - Causal boundary `85db601ff0771ef59e0601d2c1c2296f827bc5d3`: 최대 256 KiB remote JSON, duplicate/unknown member 거부, 네 release target exact set, bounded signature/URL, exact-tag HTTPS URL, updater artifact size ceiling, exact source/digest/version syntax을 Rust로 검증하되 결과 타입을 `ProvisionalUpdateMetadata`로 제한했습니다. app-local-data의 highest-seen 위치도 fixed path로 projection할 뿐 directory/file을 만들지 않습니다.
 - `def74eff06c1d80521fb43336d461e206937c438` / `418c68d06c7ec2ba4bb2bc6f199ea11482c2f501`: provisional runtime crate에서 durable-state dependency를 제거해 remote metadata parsing과 trust-state mutation 사이의 우발적 결합을 없앴습니다.
+- `59bc8c8c772a75d95d806dc5161b4b9935bcc2f8` / `daad6e54e4b3f4735cf10cbe421dd018a70e145c`: exact-tag 문자열 포함 여부만 보던 URL admission을 BandScope의 현재 GitHub release namespace로 고정했습니다. `github.com/ContextualWisdomLab/bandscope/releases/download/v<version>/<asset>` 이외의 host/repository/path, query, fragment, userinfo 형태, backslash, percent-encoded 또는 path-like asset name은 provisional 단계에서 거부합니다. 첫 commit의 Rust generic-pattern 표현은 hosted compiler에 의존하지 않도록 두 번째 commit에서 명시적인 char checks와 exact tag 비교로 정리했습니다.
+
+## Artifact URL admission
+
+`platforms[target].url`은 metadata authenticity와 별개의 network/resource-admission 입력입니다. Artifact signature가 최종 실행 무결성을 보호하더라도, 서명 검증은 download 뒤에 일어나므로 remote JSON이 임의 host나 URL parser ambiguity를 선택하도록 두면 signature failure 이전에 원하지 않는 network destination과 response body를 소비할 수 있습니다.
+
+현재 publisher인 `build_updater_manifest.py`는 GitHub Actions의 exact repository slug와 exact release tag를 사용해 `https://github.com/ContextualWisdomLab/bandscope/releases/download/v<version>/<asset>` 형태를 생성합니다. Runtime provisional admission도 같은 product-owned namespace만 허용합니다. URL 문자열 안에 `/releases/download/v.../`가 단순히 포함됐다는 이유만으로 허용하지 않으며, query/fragment에 해당 문자열을 숨기거나 `github.com@evil.example` 같은 userinfo 형태를 사용하는 입력도 거부합니다.
+
+이 pin은 remote metadata를 인증하지 않습니다. 또한 GitHub 자체 compromise, organization/repository write compromise, malicious but correctly namespaced asset, oversized body를 해결하지 않습니다. 역할은 "untrusted metadata가 download destination 자체를 임의 host/path로 확장하지 못하게 한다"는 좁은 resource/network boundary입니다. 향후 Distribution이 publication backend를 바꾸려면 runtime의 canonical release-origin contract도 같은 owner에서 versioned migration으로 변경해야 합니다.
 
 ## Manifest evidence
 
@@ -38,7 +47,7 @@ Runtime-admission lineage:
 
 중요한 순서는 다음과 같습니다.
 
-1. Remote updater JSON은 untrusted/provisional input으로 bounded parsing합니다.
+1. Remote updater JSON은 untrusted/provisional input으로 bounded parsing하고 현재 product release namespace 밖 URL을 거부합니다.
 2. Metadata의 version/source/digest 문맥을 조직이 승인한 방식으로 인증합니다. 현재 이 authority는 아직 구현·provision되지 않았습니다.
 3. Updater artifact bytes는 Tauri updater public key로 signature verification을 통과해야 합니다.
 4. Authenticated metadata가 주장한 artifact digest/size와 실제 verified artifact가 일치해야 합니다.
@@ -48,13 +57,15 @@ Runtime-admission lineage:
 
 ## Resource-admission gap
 
-Tauri current source의 `Update::download`는 HTTP body chunk를 `Vec`에 누적한 다음 signature를 검증합니다. BandScope manifest는 declared artifact size를 bounded field로 갖지만, remote server가 그 값을 지킨다는 보장은 signature verification 전에는 없습니다. 따라서 production updater를 켤 때는 declared size만 보는 것으로 resource admission을 완료했다고 주장할 수 없습니다. Bounded streaming/download behavior 또는 동등한 hard memory/disk admission evidence가 별도로 필요합니다.
+Tauri current source의 `Update::download`는 HTTP body chunk를 `Vec`에 누적한 다음 signature를 검증합니다. BandScope manifest는 declared artifact size를 bounded field로 갖지만, remote server가 그 값을 지킨다는 보장은 signature verification 전에는 없습니다. URL namespace pinning은 destination 선택 범위를 줄이지만 response byte 수를 제한하지 않습니다. 따라서 production updater를 켤 때는 declared size나 host pin만으로 resource admission을 완료했다고 주장할 수 없습니다. Bounded streaming/download behavior 또는 동등한 hard memory/disk admission evidence가 별도로 필요합니다.
 
 ## 보안 경계와 기각한 대안
 
 `bandscope` JSON 필드 자체, HTTPS endpoint만의 존재, GitHub immutable-release attestation, updater artifact `.sig` 가운데 어느 하나도 remote metadata 전체의 독립적인 freshness authority를 대신하지 않습니다. GitHub attestation은 published release asset 집합의 publication evidence이고, Tauri `.sig`는 updater artifact bytes의 authenticity/integrity evidence입니다.
 
-`raw_json`을 "Tauri가 받았으므로 authenticated"라고 간주하는 방식은 기각합니다. artifact signature가 통과하기 전 remote JSON을 highest-seen state에 쓰는 방식도 기각합니다. Metadata signature 또는 TUF류 protocol을 도입한다면 BandScope release/update owner에서 versioned contract와 key lifecycle, rotation/recovery, expiry/freeze semantics까지 함께 설계해야 하며 다른 bounded context에 검증 로직을 복제하지 않습니다.
+`raw_json`을 "Tauri가 받았으므로 authenticated"라고 간주하는 방식은 기각합니다. artifact signature가 통과하기 전 remote JSON을 highest-seen state에 쓰는 방식도 기각합니다. URL 안에 exact-tag path 조각이 포함되기만 하면 임의 host를 허용하는 방식도 기각합니다. Metadata signature 또는 TUF류 protocol을 도입한다면 BandScope release/update owner에서 versioned contract와 key lifecycle, rotation/recovery, expiry/freeze semantics까지 함께 설계해야 하며 다른 bounded context에 검증 로직을 복제하지 않습니다.
+
+TUF는 metadata 자체를 threshold signature로 인증하고 version rollback과 expiry/freeze를 확인하며 metadata download에도 명시적인 byte ceiling을 요구합니다. BandScope가 향후 TUF 또는 동등한 metadata-authentication 계층을 채택한다면 이 특성을 축소해서 "서명 하나 추가"로 대체하지 않습니다. 현재 구현은 TUF 준수를 주장하지 않습니다.
 
 현재 `release/updater-policy.json`은 organization-approved updater public key와 production endpoint가 없어 `blocked`입니다. private key·public key·endpoint를 source에서 만들어내지 않습니다. Windows/macOS publisher identity와 notarization authority도 별도 외부 prerequisite입니다.
 
@@ -62,9 +73,10 @@ Tauri current source의 `Update::download`는 HTTP body chunk를 `Vec`에 누적
 
 Repository-owned 다음 단계는 다음 순서가 맞습니다.
 
-- `distribution-runtime` provisional parser를 current Tauri static manifest shape와 계속 동기화
+- `distribution-runtime` provisional parser를 current Tauri static manifest shape와 publication namespace에 계속 동기화
 - remote metadata authenticity를 위한 canonical owner 계약과 verification path 결정 및 RED→GREEN 구현
 - authenticated metadata와 Tauri-verified artifact bytes의 digest/size binding
+- bounded streaming/download 또는 동등한 hard memory/disk admission path
 - 그 이후에만 app-owned highest-seen state path와 `distribution-core`를 실제 updater flow에 연결
 - offline update-check 실패가 normal startup을 막지 않는지 검증
 - partial/truncated/oversized download, disk-full, cancel, first-launch failure 뒤 current installation/project 보존
@@ -75,7 +87,7 @@ Positive production signature acceptance는 organization-approved updater author
 
 ## Security Notes
 
-Attack surface는 remote updater metadata, updater bytes/signatures, release receipts, locally persisted freshness state와 recovery decision입니다. Distribution만 이 trust chain을 소유합니다. Active Player, MIR, Project Persistence는 release/update authority를 복제하지 않습니다. Remote metadata는 bounded strict parser를 통과해도 provisional이며, authenticated evidence가 생기기 전 local freshness state를 mutate하지 않습니다. 원본 audio/project payload는 update metadata나 state에 포함하거나 endpoint로 전송하지 않습니다.
+Attack surface는 remote updater metadata, updater URL/destination, updater bytes/signatures, release receipts, locally persisted freshness state와 recovery decision입니다. Distribution만 이 trust chain을 소유합니다. Active Player, MIR, Project Persistence는 release/update authority를 복제하지 않습니다. Remote metadata는 bounded strict parser와 canonical release-namespace admission을 통과해도 provisional이며, authenticated evidence가 생기기 전 local freshness state를 mutate하지 않습니다. 원본 audio/project payload는 update metadata나 state에 포함하거나 endpoint로 전송하지 않습니다.
 
 ## 참고문헌
 
@@ -83,6 +95,8 @@ Samuel, J., Mathewson, N., Cappos, J., & Dingledine, R. (2010). *Survivable key 
 
 Tauri Contributors. (2026). *Updater*. Tauri v2 documentation. https://v2.tauri.app/plugin/updater/
 
+Tauri Contributors. (2026). *Command line interface: signer*. Tauri v2 documentation. https://v2.tauri.app/reference/cli/
+
 Tauri Contributors. (2026). *tauri-plugin-updater: updater.rs*. https://github.com/tauri-apps/plugins-workspace/blob/v2/plugins/updater/src/updater.rs
 
-The Update Framework. (2026). *The Update Framework specification and security model*. https://theupdateframework.github.io/
+The Update Framework. (2026). *The Update Framework specification and security model*. https://theupdateframework.github.io/specification/draft/
