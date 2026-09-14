@@ -234,6 +234,40 @@ def test_manifest_rejects_ambiguous_updater_bundle_for_one_target(
     assert "updater" in completed.stderr.lower()
 
 
+def test_manifest_rejects_duplicate_updater_policy_members(tmp_path: Path) -> None:
+    """Reject ambiguous minimum-version authority instead of accepting last-value wins."""
+    source_commit = "e" * 40
+    _write_release_graph(tmp_path, source_commit=source_commit)
+    policy_path = tmp_path / "release" / "updater-policy.json"
+    policy_path.write_text(
+        '{"schemaVersion":1,"minimumSupportedVersion":"1.0.0",'
+        '"minimumSupportedVersion":"1.1.0"}',
+        encoding="utf-8",
+    )
+
+    completed = _run_builder(tmp_path, source_commit=source_commit)
+
+    assert completed.returncode != 0
+    assert "duplicate json member" in completed.stderr.lower()
+
+
+def test_manifest_rejects_noncanonical_minimum_supported_version(
+    tmp_path: Path,
+) -> None:
+    """Do not publish replay metadata with a non-SemVer compatibility floor."""
+    source_commit = "f" * 40
+    _write_release_graph(tmp_path, source_commit=source_commit)
+    policy_path = tmp_path / "release" / "updater-policy.json"
+    policy = json.loads(policy_path.read_text(encoding="utf-8"))
+    policy["minimumSupportedVersion"] = "01.0.0"
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+    completed = _run_builder(tmp_path, source_commit=source_commit)
+
+    assert completed.returncode != 0
+    assert "minimumsupportedversion" in completed.stderr.lower()
+
+
 def test_release_workflow_builds_and_rechecks_manifest_before_publication() -> None:
     """Immutable release publication must include the exact generated latest.json."""
     workflow = _WORKFLOW.read_text(encoding="utf-8")
