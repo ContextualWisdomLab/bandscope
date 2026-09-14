@@ -2,7 +2,8 @@
 
 Native Resource Admission remains the authority for source byte-count/SHA-256 evidence.
 This module owns the Python analysis boundary for final-result cache validation and
-crash-aware publication only; it does not create a second source-identity authority.
+crash-aware publication only; it consumes Signal/MIR Analysis generation evidence
+without creating a second source-identity or model-admission authority.
 """
 
 from __future__ import annotations
@@ -18,9 +19,10 @@ from typing import Any
 from bandscope_analysis.separation.audio_separator import (
     _admitted_audio_evidence_from_environment,
 )
+from bandscope_analysis.separation.generation import separation_generation_identity
 
 MAX_FINAL_RESULT_CACHE_BYTES = 4 * 1024 * 1024
-FINAL_RESULT_ANALYSIS_GENERATION = 1
+FINAL_RESULT_ANALYSIS_GENERATION = 2
 _MAX_SECTION_TIME_SECONDS = 4_294_967_295
 _ROLE_TYPES = frozenset({"instrument", "vocal", "hand"})
 _CONFIDENCE_LEVELS = frozenset({"low", "medium", "high"})
@@ -156,20 +158,26 @@ def store_durable_cache_payload(path: Path, payload: object) -> None:
 
 
 def admitted_audio_cache_identity() -> dict[str, object] | None:
-    """Return native-owned source identity fields for one analysis child process.
+    """Return source plus MIR-generation evidence for one analysis child process.
 
-    Missing evidence preserves direct-library compatibility. A partial or malformed
-    pair raises ``ValueError`` so callers can disable cache reuse rather than fall
-    back to a pathname/size-only identity before the decode boundary rejects it.
+    Native byte-count/SHA-256 remains Resource Admission truth.  Persistence adds
+    the current Signal/MIR generation solely to decide whether derived cache bytes
+    may be reused. Missing native evidence preserves direct-library compatibility;
+    partial native evidence or unverifiable MIR generation fails closed so callers
+    disable cache reuse rather than guessing scientific equivalence.
     """
     evidence = _admitted_audio_evidence_from_environment()
     if evidence is None:
         return None
+    mir_generation = separation_generation_identity()
+    if mir_generation is None:
+        raise ValueError("MIR generation identity is unavailable")
     file_size_bytes, content_sha256 = evidence
     return {
         "fileSizeBytes": file_size_bytes,
         "contentSha256": content_sha256,
         "analysisGeneration": FINAL_RESULT_ANALYSIS_GENERATION,
+        "mirGeneration": mir_generation,
     }
 
 
