@@ -6,13 +6,15 @@ It answers whether a specific immutable model artifact may enter a BandScope rel
 it does not claim scientific accuracy or create commercial rights.
 
 Security Notes:
-- Model policy, model bytes, and release evidence are untrusted local inputs.
-- Commercial admission uses fixed repository-relative evidence locations rather than
-  policy-controlled evidence paths, preventing path traversal or evidence aliasing.
+- Model policy, model bytes, release evidence, and supplemental inventory are untrusted
+  local inputs.
+- Commercial admission uses fixed repository-relative evidence/inventory locations
+  rather than policy-controlled authority paths, preventing path traversal or aliasing.
 - Model/evidence files are opened read-only with no-follow semantics where available,
   must remain regular files, and are hashed from the same descriptor that is sized.
+- Policy/inventory JSON is size-bounded and duplicate-member rejecting.
 - No network lookup, credential access, deserialization, model execution, or write is
-  performed by this verifier. Missing or drifting evidence fails closed.
+  performed by this verifier. Missing, ambiguous, or drifting evidence fails closed.
 """
 
 from __future__ import annotations
@@ -28,7 +30,9 @@ import sys
 from typing import Any
 
 _POLICY_RELATIVE_PATH = Path("release/model-artifact-policy.json")
+_INVENTORY_RELATIVE_PATH = Path("supply-chain/supplemental-component-inventory.json")
 _MAX_POLICY_BYTES = 64 * 1024
+_MAX_INVENTORY_BYTES = 256 * 1024
 _MAX_EVIDENCE_BYTES = 4 * 1024 * 1024
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _ALLOWED_RELEASE_STATUSES = frozenset({"blocked", "admitted"})
@@ -77,34 +81,60 @@ def _reject_duplicate_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _read_bounded_json(path: Path) -> dict[str, Any]:
-    """Read one small regular non-link policy document with duplicate rejection."""
+def _read_bounded_json_document(
+    path: Path,
+    *,
+    label: str,
+    maximum_bytes: int,
+    missing_message: str,
+) -> dict[str, Any]:
+    """Read one bounded regular non-link JSON object with duplicate rejection."""
     if path.is_symlink():
-        raise ValueError("model release policy must be a regular non-link file")
+        raise ValueError(f"{label} must be a regular non-link file")
     try:
         metadata = path.stat()
     except FileNotFoundError as error:
-        raise ValueError("model release policy is missing") from error
+        raise ValueError(missing_message) from error
     if not stat.S_ISREG(metadata.st_mode):
-        raise ValueError("model release policy must be a regular non-link file")
-    if metadata.st_size <= 0 or metadata.st_size > _MAX_POLICY_BYTES:
-        raise ValueError("model release policy exceeds its bounded size")
+        raise ValueError(f"{label} must be a regular non-link file")
+    if metadata.st_size <= 0 or metadata.st_size > maximum_bytes:
+        raise ValueError(f"{label} exceeds its bounded size")
 
-    with path.open("rb") as policy_file:
-        payload = policy_file.read(_MAX_POLICY_BYTES + 1)
-    if len(payload) != metadata.st_size or len(payload) > _MAX_POLICY_BYTES:
-        raise ValueError("model release policy changed while being read")
+    with path.open("rb") as source_file:
+        payload = source_file.read(maximum_bytes + 1)
+    if len(payload) != metadata.st_size or len(payload) > maximum_bytes:
+        raise ValueError(f"{label} changed while being read")
     try:
         decoded = payload.decode("utf-8")
     except UnicodeDecodeError as error:
-        raise ValueError("model release policy must be UTF-8") from error
+        raise ValueError(f"{label} must be UTF-8") from error
     try:
         document = json.loads(decoded, object_pairs_hook=_reject_duplicate_members)
     except json.JSONDecodeError as error:
-        raise ValueError("model release policy must be valid JSON") from error
+        raise ValueError(f"{label} must be valid JSON") from error
     if not isinstance(document, dict):
-        raise ValueError("model release policy root must be an object")
+        raise ValueError(f"{label} root must be an object")
     return document
+
+
+def _read_bounded_json(path: Path) -> dict[str, Any]:
+    """Read one small model policy document through the generic JSON admission boundary."""
+    return _read_bounded_json_document(
+        path,
+        label="model release policy",
+        maximum_bytes=_MAX_POLICY_BYTES,
+        missing_message="model release policy is missing",
+    )
+
+
+def _read_inventory(repository_root: Path) -> dict[str, Any]:
+    """Read the fixed supplemental component inventory required by admitted models."""
+    return _read_bounded_json_document(
+        repository_root / _INVENTORY_RELATIVE_PATH,
+        label="supplemental model inventory",
+        maximum_bytes=_MAX_INVENTORY_BYTES,
+        missing_message="supplemental model inventory is missing",
+    )
 
 
 def _require_exact_keys(document: dict[str, Any], expected: frozenset[str], label: str) -> None:
@@ -234,7 +264,10 @@ def _verify_regular_file_digest(
             digest.update(chunk)
 
         final_metadata = os.fstat(file_descriptor)
-        if final_metadata.st_size != initial_metadata.st_size or observed_size != initial_metadata.st_size:
+        if (
+            final_metadata.st_size != initial_metadata.st_size
+            or observed_size != initial_metadata.st_size
+        ):
             raise ValueError(f"{label} changed while being read")
         if digest.hexdigest() != expected_digest:
             raise ValueError(f"{label} SHA-256 does not match policy")
@@ -265,10 +298,42 @@ def _verify_evidence_bytes(repository_root: Path, metadata: dict[str, Any]) -> N
         )
 
 
+def _verify_inventory_binding(repository_root: Path, metadata: dict[str, Any]) -> None:
+    """Bind an admitted model to exactly one matching supplemental inventory entry."""
+    inventory = _read_inventory(repository_root)
+    model_artifacts = inventory.get("modelArtifacts")
+    if not isinstance(model_artifacts, list):
+        raise ValueError("supplemental model inventory modelArtifacts must be a list")
+
+    matching_entries: list[dict[str, Any]] = []
+    for entry in model_artifacts:
+        if not isinstance(entry, dict):
+            raise ValueError("supplemental model inventory entries must be objects")
+        if entry.get("name") == metadata["modelId"]:
+            matching_entries.append(entry)
+    if len(matching_entries) != 1:
+        raise ValueError("supplemental model inventory must contain exactly one admitted model")
+
+    entry = matching_entries[0]
+    expected_checksum = f"sha256:{metadata['sha256']}"
+    if (
+        entry.get("version") != metadata["modelVersion"]
+        or entry.get("storagePath") != metadata["path"]
+        or entry.get("checksum") != expected_checksum
+    ):
+        raise ValueError("supplemental model inventory does not match admitted artifact")
+    _bounded_text(entry.get("license"), "supplemental model inventory license", maximum=256)
+    _bounded_text(
+        entry.get("releaseUsage"),
+        "supplemental model inventory releaseUsage",
+        maximum=1024,
+    )
+
+
 def verify_model_policy(
     repository_root: Path, *, require_admitted: bool = False
 ) -> dict[str, Any]:
-    """Validate model policy and exact artifact/evidence bytes for admitted releases."""
+    """Validate model policy and exact artifact/evidence/inventory for admitted releases."""
     document = _read_bounded_json(repository_root / _POLICY_RELATIVE_PATH)
     _require_exact_keys(document, _POLICY_KEYS, "policy")
     if document["schemaVersion"] != 1:
@@ -290,6 +355,7 @@ def verify_model_policy(
     admitted_metadata = _validate_admitted_metadata(admitted_artifact)
     _verify_artifact_bytes(repository_root, admitted_metadata)
     _verify_evidence_bytes(repository_root, admitted_metadata)
+    _verify_inventory_binding(repository_root, admitted_metadata)
     return document
 
 
