@@ -29,6 +29,43 @@ def _load_candidate(tmp_path, monkeypatch, song):
     return load_admitted_rehearsal_song(path, schema_version=ANALYSIS_CACHE_SCHEMA_VERSION)
 
 
+def _attach_valid_collaboration(song):
+    """Attach one valid optional collaboration payload for nested admission tests."""
+    role = song["sections"][0]["roles"][0]
+    song["collaboration"] = {
+        "syncMode": "local_only",
+        "syncNote": "Local rehearsal notes only.",
+        "assignments": [
+            {
+                "id": "assignment-1",
+                "assignee": "Bass",
+                "summary": "Lock the pickup.",
+                "sectionId": song["sections"][0]["id"],
+                "roleId": role["id"],
+                "status": "in_progress",
+            }
+        ],
+        "comments": [
+            {
+                "id": "comment-1",
+                "author": "MD",
+                "body": "Keep the entrance short.",
+                "sectionId": song["sections"][0]["id"],
+                "roleId": role["id"],
+                "status": "open",
+            }
+        ],
+        "approvals": [
+            {
+                "id": "approval-1",
+                "scope": "Verse entrance",
+                "owner": "MD",
+                "status": "pending",
+            }
+        ],
+    }
+
+
 def test_cache_rejects_section_and_export_enums_outside_shared_contract(tmp_path, monkeypatch) -> None:
     """Do not admit persisted enum values that the shared UI contract cannot consume."""
     song = build_demo_rehearsal_song()
@@ -94,38 +131,7 @@ def test_cache_accepts_valid_optional_shared_contract_fields(tmp_path, monkeypat
         {"pitch": "C4", "onset": 0.0, "offset": 0.5, "velocity": 92.0}
     ]
     role["practiceProgress"] = 60
-    song["collaboration"] = {
-        "syncMode": "local_only",
-        "syncNote": "Local rehearsal notes only.",
-        "assignments": [
-            {
-                "id": "assignment-1",
-                "assignee": "Bass",
-                "summary": "Lock the pickup.",
-                "sectionId": song["sections"][0]["id"],
-                "roleId": role["id"],
-                "status": "in_progress",
-            }
-        ],
-        "comments": [
-            {
-                "id": "comment-1",
-                "author": "MD",
-                "body": "Keep the entrance short.",
-                "sectionId": song["sections"][0]["id"],
-                "roleId": role["id"],
-                "status": "open",
-            }
-        ],
-        "approvals": [
-            {
-                "id": "approval-1",
-                "scope": "Verse entrance",
-                "owner": "MD",
-                "status": "pending",
-            }
-        ],
-    }
+    _attach_valid_collaboration(song)
     song["scoreAttachments"] = [{"id": "score-1", "fileName": "verse-chart.pdf"}]
 
     assert _load_candidate(tmp_path, monkeypatch, song) == song
@@ -166,7 +172,19 @@ def test_cache_rejects_unknown_keys_at_shared_contract_boundaries(tmp_path, monk
     candidates.append(song)
 
     song = copy.deepcopy(base_song)
-    song["sections"][0]["roles"][0]["manualOverrides"][0]["futureOverrideField"] = True
+    song["sections"][0]["roles"][0]["transcription"] = [
+        {
+            "pitch": "C4",
+            "onset": 0.0,
+            "offset": 0.5,
+            "velocity": 92.0,
+            "futureNoteField": True,
+        }
+    ]
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    song["sections"][0]["roles"][4]["manualOverrides"][0]["futureOverrideField"] = True
     candidates.append(song)
 
     song = copy.deepcopy(base_song)
@@ -182,14 +200,23 @@ def test_cache_rejects_unknown_keys_at_shared_contract_boundaries(tmp_path, monk
     candidates.append(song)
 
     song = copy.deepcopy(base_song)
-    song["collaboration"] = {
-        "syncMode": "local_only",
-        "syncNote": "Local rehearsal notes only.",
-        "assignments": [],
-        "comments": [],
-        "approvals": [],
-        "futureCollaborationField": True,
-    }
+    _attach_valid_collaboration(song)
+    song["collaboration"]["futureCollaborationField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    _attach_valid_collaboration(song)
+    song["collaboration"]["assignments"][0]["futureAssignmentField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    _attach_valid_collaboration(song)
+    song["collaboration"]["comments"][0]["futureCommentField"] = True
+    candidates.append(song)
+
+    song = copy.deepcopy(base_song)
+    _attach_valid_collaboration(song)
+    song["collaboration"]["approvals"][0]["futureApprovalField"] = True
     candidates.append(song)
 
     song = copy.deepcopy(base_song)
