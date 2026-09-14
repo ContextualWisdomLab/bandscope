@@ -46,6 +46,46 @@ _ASSIGNMENT_STATUSES = frozenset({"todo", "in_progress", "ready", "blocked"})
 _COMMENT_STATUSES = frozenset({"open", "resolved"})
 _APPROVAL_STATUSES = frozenset({"pending", "approved", "changes_requested"})
 _COLLABORATION_SYNC_MODES = frozenset({"local_only", "planned_cloud"})
+_CONFIDENCE_KEYS = frozenset({"level", "source", "notes"})
+_HARMONY_KEYS = frozenset({"chord", "functionLabel", "source"})
+_CUE_KEYS = frozenset({"kind", "value"})
+_RANGE_KEYS = frozenset({"lowestNote", "highestNote"})
+_MANUAL_OVERRIDE_KEYS = frozenset({"field", "value", "source"})
+_TRANSCRIPTION_NOTE_KEYS = frozenset({"pitch", "onset", "offset", "velocity"})
+_ROLE_KEYS = frozenset(
+    {
+        "id",
+        "name",
+        "roleType",
+        "harmony",
+        "harmonicExplanation",
+        "cue",
+        "range",
+        "confidence",
+        "rehearsalPriority",
+        "simplification",
+        "setupNote",
+        "transpositionPlan",
+        "manualOverrides",
+        "overlapWarnings",
+        "transcription",
+        "practiceProgress",
+    }
+)
+_PART_GRAPH_NODE_KEYS = frozenset({"role_id", "is_active", "handoff_to", "handoff_from"})
+_TIME_RANGE_KEYS = frozenset({"start", "end"})
+_SECTION_KEYS = frozenset(
+    {"id", "label", "groove", "timeRange", "confidence", "roles", "partGraph"}
+)
+_EXPORT_SUMMARY_KEYS = frozenset({"format", "headline", "focusSections"})
+_ASSIGNMENT_KEYS = frozenset({"id", "assignee", "summary", "sectionId", "roleId", "status"})
+_COMMENT_KEYS = frozenset({"id", "author", "body", "sectionId", "roleId", "status"})
+_APPROVAL_KEYS = frozenset({"id", "scope", "owner", "status"})
+_COLLABORATION_KEYS = frozenset({"syncMode", "syncNote", "assignments", "comments", "approvals"})
+_SCORE_ATTACHMENT_KEYS = frozenset({"id", "fileName"})
+_REHEARSAL_SONG_KEYS = frozenset(
+    {"id", "title", "tempo", "sections", "exportSummary", "collaboration", "scoreAttachments"}
+)
 _WINDOWS_MOVEFILE_REPLACE_EXISTING = 0x00000001
 _WINDOWS_MOVEFILE_WRITE_THROUGH = 0x00000008
 
@@ -178,6 +218,11 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict[str, ob
     return payload
 
 
+def _has_only_allowed_keys(value: dict[object, object], allowed_keys: frozenset[str]) -> bool:
+    """Keep persisted JSON key-strict with the canonical shared rehearsal contract."""
+    return all(isinstance(key, str) and key in allowed_keys for key in value)
+
+
 def _nonempty_string(value: object) -> bool:
     """Return whether a value is a non-blank string."""
     return isinstance(value, str) and bool(value.strip())
@@ -201,6 +246,7 @@ def _valid_confidence(value: object) -> bool:
     """Validate the persisted confidence payload needed by rehearsal views."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _CONFIDENCE_KEYS)
         and value.get("level") in _CONFIDENCE_LEVELS
         and value.get("source") in _PROVENANCE_SOURCES
         and isinstance(value.get("notes"), str)
@@ -211,6 +257,7 @@ def _valid_harmony(value: object) -> bool:
     """Validate one persisted harmony payload without inventing musical evidence."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _HARMONY_KEYS)
         and isinstance(value.get("chord"), str)
         and isinstance(value.get("functionLabel"), str)
         and value.get("source") in _PROVENANCE_SOURCES
@@ -221,6 +268,7 @@ def _valid_cue(value: object) -> bool:
     """Validate one persisted rehearsal cue consumed by timeline and role views."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _CUE_KEYS)
         and value.get("kind") in _CUE_KINDS
         and isinstance(value.get("value"), str)
     )
@@ -230,6 +278,7 @@ def _valid_range(value: object) -> bool:
     """Validate one persisted note-range summary."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _RANGE_KEYS)
         and isinstance(value.get("lowestNote"), str)
         and isinstance(value.get("highestNote"), str)
     )
@@ -237,7 +286,7 @@ def _valid_range(value: object) -> bool:
 
 def _valid_manual_override(value: object) -> bool:
     """Validate the only currently supported persisted manual override shape."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _MANUAL_OVERRIDE_KEYS):
         return False
     harmony = value.get("value")
     return (
@@ -253,6 +302,7 @@ def _valid_transcription_note(value: object) -> bool:
     """Validate an optional persisted transcription note consumed by Groove Map."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _TRANSCRIPTION_NOTE_KEYS)
         and isinstance(value.get("pitch"), str)
         and _finite_number(value.get("onset"))
         and _finite_number(value.get("offset"))
@@ -262,7 +312,7 @@ def _valid_transcription_note(value: object) -> bool:
 
 def _valid_role(value: object) -> bool:
     """Validate required and consumer-visible optional persisted role fields."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _ROLE_KEYS):
         return False
     if not all(_nonempty_string(value.get(field)) for field in ("id", "name")):
         return False
@@ -317,6 +367,7 @@ def _valid_part_graph_node(value: object) -> bool:
     """Validate one section part-graph node and its handoff references."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _PART_GRAPH_NODE_KEYS)
         and _nonempty_string(value.get("role_id"))
         and isinstance(value.get("is_active"), bool)
         and _string_list(value.get("handoff_to"))
@@ -326,7 +377,7 @@ def _valid_part_graph_node(value: object) -> bool:
 
 def _valid_time_range(value: object) -> bool:
     """Validate the shared unsigned section-time interval contract."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _TIME_RANGE_KEYS):
         return False
     start = value.get("start")
     end = value.get("end")
@@ -341,7 +392,7 @@ def _valid_time_range(value: object) -> bool:
 
 def _valid_section(value: object) -> bool:
     """Validate one persisted rehearsal section before exposing a cache hit."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _SECTION_KEYS):
         return False
     if not _nonempty_string(value.get("id")):
         return False
@@ -367,6 +418,7 @@ def _valid_export_summary(value: object) -> bool:
     """Validate the cached cue-sheet summary consumed by export and rehearsal UI."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _EXPORT_SUMMARY_KEYS)
         and value.get("format") in _EXPORT_FORMATS
         and _nonempty_string(value.get("headline"))
         and _string_list(value.get("focusSections"))
@@ -375,7 +427,7 @@ def _valid_export_summary(value: object) -> bool:
 
 def _valid_assignment(value: object) -> bool:
     """Validate one optional persisted collaboration assignment."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _ASSIGNMENT_KEYS):
         return False
     if not all(
         isinstance(value.get(field), str)
@@ -389,7 +441,7 @@ def _valid_assignment(value: object) -> bool:
 
 def _valid_comment(value: object) -> bool:
     """Validate one optional persisted rehearsal comment."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _COMMENT_KEYS):
         return False
     if not all(
         isinstance(value.get(field), str)
@@ -405,6 +457,7 @@ def _valid_approval(value: object) -> bool:
     """Validate one optional persisted rehearsal approval."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _APPROVAL_KEYS)
         and all(isinstance(value.get(field), str) for field in ("id", "scope", "owner"))
         and value.get("status") in _APPROVAL_STATUSES
     )
@@ -412,7 +465,7 @@ def _valid_approval(value: object) -> bool:
 
 def _valid_collaboration(value: object) -> bool:
     """Validate optional persisted collaboration state before a cache hit is trusted."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _COLLABORATION_KEYS):
         return False
     if value.get("syncMode") not in _COLLABORATION_SYNC_MODES:
         return False
@@ -435,6 +488,7 @@ def _valid_score_attachment(value: object) -> bool:
     """Validate optional score metadata exposed by rehearsal views."""
     return (
         isinstance(value, dict)
+        and _has_only_allowed_keys(value, _SCORE_ATTACHMENT_KEYS)
         and _nonempty_string(value.get("id"))
         and _nonempty_string(value.get("fileName"))
     )
@@ -442,7 +496,7 @@ def _valid_score_attachment(value: object) -> bool:
 
 def _valid_rehearsal_song(value: object) -> bool:
     """Validate the persisted RehearsalSong envelope before trusting cached content."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or not _has_only_allowed_keys(value, _REHEARSAL_SONG_KEYS):
         return False
     if not _nonempty_string(value.get("id")) or not _nonempty_string(value.get("title")):
         return False
