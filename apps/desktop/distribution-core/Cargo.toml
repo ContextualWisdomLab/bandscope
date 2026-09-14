@@ -1,0 +1,11 @@
+[package]
+name = "bandscope-distribution-core"
+version = "0.1.0"
+edition = "2021"
+description = "Pure Distribution/update anti-replay and rollback decision core for BandScope."
+publish = false
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
