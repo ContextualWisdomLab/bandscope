@@ -7,9 +7,13 @@ Security Notes:
     ``select_release_assets`` and then derives one static updater entry per
     supported target from the exact receipt-bound bundle and signature bytes.
     Signature text is embedded only after a bounded stable regular-file read
-    and an exact size/SHA-256 comparison against the target receipt. Release
-    URLs are exact-tag HTTPS URLs; no mutable latest URL or untrusted receipt
-    path is used as a filesystem authority.
+    and an exact size/SHA-256 comparison against the target receipt. The
+    BandScope extension binds each target's exact bundle size/digest, the full
+    source commit, and the admitted minimum-supported-version policy so a
+    future runtime can make replay/compatibility decisions from ``raw_json``
+    without trusting filenames or mutable release aliases. Release URLs are
+    exact-tag HTTPS URLs; no mutable latest URL or untrusted receipt path is
+    used as a filesystem authority.
 """
 
 from __future__ import annotations
@@ -28,15 +32,35 @@ from urllib.parse import quote, urlsplit
 import select_release_assets as release_assets
 
 _FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+_SEMVER_RE = re.compile(
+    r"^(0|[1-9][0-9]*)\."
+    r"(0|[1-9][0-9]*)\."
+    r"(0|[1-9][0-9]*)"
+    r"(?:-((?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
 _MAX_VERSION_BYTES = 256
 _MAX_SIGNATURE_BYTES = 64 * 1024
+_MAX_POLICY_BYTES = 64 * 1024
 _PLATFORM_KEYS = {
     ("windows", "amd64"): "windows-x86_64",
     ("windows", "arm64"): "windows-aarch64",
     ("macos", "amd64"): "darwin-x86_64",
     ("macos", "arm64"): "darwin-aarch64",
 }
+
+
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build one JSON object while refusing parser-dependent duplicate members."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON member: {key}")
+        result[key] = value
+    return result
 
 
 def _stable_read_bytes(path: Path, *, label: str, maximum_bytes: int) -> bytes:
@@ -95,6 +119,34 @@ def _version(repo_root: Path) -> str:
     return value
 
 
+def _minimum_supported_version(repo_root: Path) -> str:
+    """Return the updater policy's version floor after bounded duplicate-safe admission."""
+    raw = _stable_read_bytes(
+        repo_root / "release" / "updater-policy.json",
+        label="release updater policy",
+        maximum_bytes=_MAX_POLICY_BYTES,
+    )
+    try:
+        document = json.loads(
+            raw.decode("utf-8"), object_pairs_hook=_reject_duplicate_pairs
+        )
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError("release updater policy must be valid UTF-8 JSON") from error
+    if not isinstance(document, dict) or document.get("schemaVersion") != 1:
+        raise ValueError("release updater policy schemaVersion must equal 1")
+    value = document.get("minimumSupportedVersion")
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or _SEMVER_RE.fullmatch(value) is None
+    ):
+        raise ValueError(
+            "release updater policy minimumSupportedVersion must be valid SemVer"
+        )
+    return value
+
+
 def _normalized_server_url(server_url: str) -> str:
     """Return one HTTPS release origin without mutable URL components."""
     parsed = urlsplit(server_url.strip())
@@ -148,6 +200,27 @@ def _exact_updater_entry(
             f"exactly one updater artifact is required for {target[0]}-{target[1]}"
         )
     return entries[0]
+
+
+def _updater_identity_metadata(
+    entry: dict[str, Any], *, target: tuple[str, str]
+) -> dict[str, object]:
+    """Return bounded exact bundle identity for BandScope updater security metadata."""
+    size_bytes = entry.get("sizeBytes")
+    digest = entry.get("sha256")
+    if (
+        isinstance(size_bytes, bool)
+        or not isinstance(size_bytes, int)
+        or size_bytes < 1
+    ):
+        raise ValueError(
+            f"updater bundle size is invalid for {target[0]}-{target[1]}"
+        )
+    if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
+        raise ValueError(
+            f"updater bundle digest is invalid for {target[0]}-{target[1]}"
+        )
+    return {"sizeBytes": size_bytes, "sha256": digest}
 
 
 def _signature_text(
@@ -207,13 +280,17 @@ def build_manifest(
     release_assets.select_release_assets(repo_root, git_sha=source_commit)
 
     version = _version(repo_root)
+    minimum_supported_version = _minimum_supported_version(repo_root)
     platforms: dict[str, dict[str, str]] = {}
+    artifact_identities: dict[str, dict[str, object]] = {}
     for target, platform_key in _PLATFORM_KEYS.items():
         receipt = release_assets._load_receipt(
             _receipt_path(repo_root, target, source_commit)
         )
         if receipt.get("version") != version or receipt.get("tag") != f"v{version}":
             raise ValueError("release receipt version/tag does not match VERSION")
+        if receipt.get("sourceCommit") != source_commit:
+            raise ValueError("release receipt sourceCommit does not match updater source")
         entry = _exact_updater_entry(receipt, target=target)
         bundle_name = entry.get("bundle")
         if not isinstance(bundle_name, str) or Path(bundle_name).name != bundle_name:
@@ -231,10 +308,19 @@ def build_manifest(
             "signature": signature,
             "url": download_url,
         }
+        artifact_identities[platform_key] = _updater_identity_metadata(
+            entry, target=target
+        )
 
     return {
         "version": version,
         "platforms": platforms,
+        "bandscope": {
+            "schemaVersion": 1,
+            "sourceCommit": source_commit,
+            "minimumSupportedVersion": minimum_supported_version,
+            "artifacts": artifact_identities,
+        },
     }
 
 
