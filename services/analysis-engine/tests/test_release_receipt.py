@@ -78,7 +78,9 @@ def test_tag_release_receipt_binds_version_commit_and_exact_artifact_bytes(
         tmp_path, output_dir, [packaged_artifact]
     )
 
-    assert receipt_path == output_dir / "release-receipt.json"
+    assert receipt_path == (
+        output_dir / "bandscope-windows-amd64-aaaaaaaaaaaa.release-receipt.json"
+    )
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     assert receipt == {
         "schemaVersion": 1,
@@ -308,14 +310,14 @@ def test_non_tag_packaging_does_not_publish_release_receipt(
         packager.write_release_receipt(tmp_path, output_dir, [packaged_artifact])
         is None
     )
-    assert not (output_dir / "release-receipt.json").exists()
+    assert list(output_dir.glob("*.release-receipt.json")) == []
 
 
 def test_tag_packager_writes_receipt_only_after_platform_trust() -> None:
     """Never publish release receipt authority before native signing/notarization checks pass."""
     packager_text = _PACKAGER_PATH.read_text(encoding="utf-8")
     trust_call = "verify_tag_platform_trust(repo_root, output_dir)"
-    receipt_call = "write_release_receipt(repo_root, output_dir, packaged_artifacts)"
+    receipt_call = "write_release_receipt("
     assert trust_call in packager_text
     assert receipt_call in packager_text
     assert packager_text.index(trust_call) < packager_text.index(receipt_call)
