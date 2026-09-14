@@ -1,14 +1,17 @@
-"""Final rehearsal-result cache admission helpers.
+"""Final rehearsal-result cache admission and publication helpers.
 
-This module is intentionally limited to cache identity and read-time admission. Native
-Resource Admission remains the authority for source byte-count/SHA-256 evidence, and
-Project Persistence remains the authority for crash-durable filesystem publication.
+Native Resource Admission remains the authority for source byte-count/SHA-256 evidence.
+This module owns the Python analysis boundary for final-result cache validation and
+crash-aware publication only; it does not create a second source-identity authority.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import os
+import tempfile
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +46,70 @@ _ASSIGNMENT_STATUSES = frozenset({"todo", "in_progress", "ready", "blocked"})
 _COMMENT_STATUSES = frozenset({"open", "resolved"})
 _APPROVAL_STATUSES = frozenset({"pending", "approved", "changes_requested"})
 _COLLABORATION_SYNC_MODES = frozenset({"local_only", "planned_cloud"})
+_WINDOWS_MOVEFILE_REPLACE_EXISTING = 0x00000001
+_WINDOWS_MOVEFILE_WRITE_THROUGH = 0x00000008
+
+
+def _sync_parent_directory(directory: Path) -> None:
+    """Flush a POSIX parent directory after an atomic cache-name replacement."""
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_fd = os.open(directory, flags)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _replace_windows_write_through(stage: Path, target: Path) -> None:
+    """Replace a Windows cache entry with write-through rename semantics."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    move_file_ex = kernel32.MoveFileExW
+    move_file_ex.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
+    move_file_ex.restype = wintypes.BOOL
+    flags = _WINDOWS_MOVEFILE_REPLACE_EXISTING | _WINDOWS_MOVEFILE_WRITE_THROUGH
+    if not move_file_ex(str(stage), str(target), flags):
+        error_code = ctypes.get_last_error()
+        raise OSError(error_code, "Could not durably publish the final-result cache")
+
+
+def _publish_synced_cache_stage(stage: Path, target: Path) -> None:
+    """Publish a fully synced cache stage and durably commit its directory entry."""
+    if os.name == "nt":
+        _replace_windows_write_through(stage, target)
+        return
+    os.replace(stage, target)
+    _sync_parent_directory(target.parent)
+
+
+def store_durable_cache_payload(path: Path, payload: object) -> None:
+    """Write one JSON cache payload and return only after durable publication succeeds."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=".bandscope-final-cache-",
+            suffix=".tmp",
+            delete=False,
+        ) as cache_file:
+            temp_path = Path(cache_file.name)
+            json.dump(payload, cache_file, separators=(",", ":"))
+            cache_file.flush()
+            os.fsync(cache_file.fileno())
+        _publish_synced_cache_stage(temp_path, path)
+    except (OSError, TypeError, ValueError):
+        if temp_path is not None:
+            with suppress(OSError):
+                temp_path.unlink(missing_ok=True)
+        raise
+    if temp_path is not None:
+        with suppress(OSError):
+            temp_path.unlink(missing_ok=True)
 
 
 def admitted_audio_cache_identity() -> dict[str, object] | None:
