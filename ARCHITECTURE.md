@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-09-15
 
 ## Brand source
 
@@ -58,10 +58,23 @@ Last updated: 2026-03-11
 ## Repository map
 
 - `apps/desktop` - desktop shell and user-facing React UI
+- `apps/desktop/distribution-core` - Tauri-independent Rust security policy for updater release identity, anti-replay, target compatibility, and project-schema-aware rollback decisions
 - `packages/shared-types` - stable cross-layer types shared by the UI and orchestration layer
 - `services/analysis-engine` - Python analysis service for source separation and music analysis
 - `scripts/harness` - fail-fast repo verification
 - `scripts/checks` - small doc and structure checks
+
+## Distribution/update bounded context
+
+- Distribution owns commercial release identity, native signing/notarization admission, updater policy, immutable publication evidence, highest-seen update freshness state, and last-known-good installer recovery decisions.
+- `apps/desktop/distribution-core` contains deterministic security decisions only. It does not fetch metadata, verify Tauri signatures, write project data, run installers, or manufacture signing/key authority.
+- The updater runtime must authenticate Tauri metadata and artifact signatures before projecting exact `version`, `sourceCommit`, updater SHA-256, target, and compatibility floor into the Rust decision core.
+- Stable-channel automatic update decisions use canonical numeric `MAJOR.MINOR.PATCH`. Prerelease/build ordering is not approximated; a future beta channel requires a separate ADR and canonical SemVer implementation.
+- A release older than locally persisted highest-seen authenticated metadata is replay, and the same version with a different source commit or updater digest is equivocation. Neither may be silently downgraded into a normal update offer.
+- Highest-seen release identity belongs to Distribution-owned app state and is recorded after metadata/signature admission, not only after installation. Project Persistence remains owner of project bytes and project-schema truth.
+- Automatic rollback may use only a previously authenticated known-good installer whose version is older than the current installation and whose declared reader can open the current on-disk project schema. The decision core does not bypass project recovery or schema ownership.
+- `release/updater-policy.json` remains fail-closed while organization-approved updater key/production endpoint authority is absent. No source code or test fixture is production authority.
+- Traceability and claim boundaries live in `docs/traceability/updater-release-admission.md`, `docs/traceability/release-artifact-receipt.md`, and `docs/traceability/updater-security-metadata.md`.
 
 ## Product capability scope
 
@@ -96,10 +109,11 @@ Last updated: 2026-03-11
 ## Harness decisions
 
 - The harness uses `npm` workspaces for JavaScript/TypeScript and `uv` for Python.
-- The desktop app is scaffolded as `Tauri + Vite + React`, but initial verification keeps Rust packaging out of the default quickcheck path.
+- The desktop app is scaffolded as `Tauri + Vite + React`. Full Tauri packaging remains outside the default quickcheck path, while security-critical Tauri-independent Rust bounded-context suites may be invoked from repository tests through a narrow validation boundary.
 - The desktop shell uses an explicit Tauri CSP that only allows self-hosted assets, inline styles, Tauri IPC, and loopback development traffic.
 - Mechanical gates focus on lint, typecheck, unit tests, coverage for Python, and documentation presence.
 - Python quality gates also require 100% docstring coverage via `package.json` script `check:python-docstrings`, enforced with Ruff rules `D100` through `D107` across tracked packages, modules, classes, nested classes, functions, methods (including `__init__`), `services/analysis-engine` tests, and repo-owned Python scripts.
+- Distribution security-core Rust compilation denies warnings and missing public rustdoc; its standalone locked unit suite is invoked by the repository analysis test harness without adding Python production logic.
 - Mechanical gates also enforce security document presence, plan `Security Notes`, and basic forbidden-pattern checks.
 - Security context is part of architecture, not just implementation detail; docs and plans must record the trust boundary touched by risky changes.
 - Supply-chain controls are part of the bootstrap architecture, not a release-afterthought.
