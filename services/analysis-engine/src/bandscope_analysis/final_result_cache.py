@@ -41,6 +41,11 @@ def admitted_audio_cache_identity() -> dict[str, object] | None:
 def load_admitted_rehearsal_song(path: Path, *, schema_version: int) -> dict[str, Any] | None:
     """Load one bounded, duplicate-free, semantically valid rehearsal result cache."""
     try:
+        expected_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return None
+
+    try:
         with path.open("rb") as cache_file:
             raw_payload = cache_file.read(MAX_FINAL_RESULT_CACHE_BYTES + 1)
     except OSError:
@@ -58,6 +63,10 @@ def load_admitted_rehearsal_song(path: Path, *, schema_version: int) -> dict[str
 
     if not isinstance(payload, dict) or payload.get("schemaVersion") != schema_version:
         return None
+    if expected_identity is not None:
+        source = payload.get("source")
+        if not isinstance(source, dict) or source.get("admittedAudio") != expected_identity:
+            return None
     result = payload.get("result")
     if not _valid_rehearsal_song(result):
         return None
