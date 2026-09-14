@@ -38,7 +38,11 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     hosted_root = tmp_path / "hosted"
     local_root.mkdir()
     hosted_root.mkdir()
-    names = ["latest.json", "bandscope-windows-amd64.exe", "bandscope-windows-amd64.exe.sig"]
+    names = [
+        "latest.json",
+        "bandscope-windows-amd64.exe",
+        "bandscope-windows-amd64.exe.sig",
+    ]
     for name in names:
         payload = f"payload:{name}\n".encode()
         (local_root / name).write_bytes(payload)
@@ -49,7 +53,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
 
 
 def test_hosted_verifier_accepts_exact_uploaded_asset_bytes(tmp_path: Path) -> None:
-    """Every hosted release asset must match the admitted local upload byte-for-byte."""
+    """Every hosted release asset must match admitted local bytes."""
     local_root, hosted_root, asset_list = _fixture(tmp_path)
 
     completed = _run_verifier(local_root, hosted_root, asset_list)
@@ -70,8 +74,10 @@ def test_hosted_verifier_rejects_signature_drift(tmp_path: Path) -> None:
     assert "digest" in completed.stderr.lower()
 
 
-def test_hosted_verifier_rejects_missing_or_unexpected_assets(tmp_path: Path) -> None:
-    """Publication must neither drop admitted assets nor add unreviewed uploaded assets."""
+def test_hosted_verifier_rejects_missing_or_unexpected_assets(
+    tmp_path: Path,
+) -> None:
+    """Publication cannot drop admitted assets or add unreviewed assets."""
     local_root, hosted_root, asset_list = _fixture(tmp_path)
     (hosted_root / "latest.json").unlink()
     (hosted_root / "unexpected.bin").write_bytes(b"unexpected")
@@ -85,9 +91,12 @@ def test_hosted_verifier_rejects_missing_or_unexpected_assets(tmp_path: Path) ->
 def test_hosted_verifier_rejects_duplicate_or_nested_asset_list_members(
     tmp_path: Path,
 ) -> None:
-    """The expected publication set must be one unique basename per uploaded asset."""
+    """Expected publication names must be unique safe basenames."""
     local_root, hosted_root, asset_list = _fixture(tmp_path)
-    asset_list.write_text("latest.json\nlatest.json\n../escape.bin\n", encoding="utf-8")
+    asset_list.write_text(
+        "latest.json\nlatest.json\n../escape.bin\n",
+        encoding="utf-8",
+    )
 
     completed = _run_verifier(local_root, hosted_root, asset_list)
 
@@ -96,7 +105,7 @@ def test_hosted_verifier_rejects_duplicate_or_nested_asset_list_members(
 
 
 def test_release_workflow_reverifies_draft_and_published_assets() -> None:
-    """Release publication must compare downloaded draft and final bytes to local authority."""
+    """Publication compares downloaded draft/final bytes to local authority."""
     workflow = _WORKFLOW.read_text(encoding="utf-8")
     verifier = "python3 scripts/release/verify_hosted_release_assets.py"
     assert workflow.count("gh release download") >= 2
