@@ -18,6 +18,7 @@ from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLI
 from bandscope_analysis.final_result_cache import (
     admitted_audio_cache_identity,
     load_admitted_rehearsal_song,
+    store_durable_cache_payload,
 )
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
@@ -703,12 +704,8 @@ def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: Rehe
         "result": result,
     }
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(".tmp")
-        with temp_path.open("w", encoding="utf-8") as cache_file:
-            json.dump(payload, cache_file, separators=(",", ":"))
-        temp_path.replace(path)
-    except OSError:
+        store_durable_cache_payload(path, payload)
+    except (OSError, TypeError, ValueError):
         return False
     return True
 
