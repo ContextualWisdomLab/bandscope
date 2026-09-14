@@ -242,7 +242,9 @@ fn validate_release_url(value: &str, version: &str) -> Result<(), MetadataError>
     if value.is_empty()
         || value.len() > MAX_URL_BYTES
         || value.bytes().any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
-        || value.contains(['?', '#', '\\'])
+        || value.contains('?')
+        || value.contains('#')
+        || value.contains('\\')
     {
         return Err(MetadataError::InvalidUrl);
     }
@@ -258,12 +260,13 @@ fn validate_release_url(value: &str, version: &str) -> Result<(), MetadataError>
     }
 
     let segments: Vec<&str> = path.split('/').collect();
+    let expected_tag = format!("v{version}");
     if segments.len() != 6
         || segments[0] != RELEASE_OWNER
         || segments[1] != RELEASE_REPOSITORY
         || segments[2] != "releases"
         || segments[3] != "download"
-        || segments[4] != format!("v{version}")
+        || segments[4] != expected_tag.as_str()
         || !is_safe_release_asset_name(segments[5])
     {
         return Err(MetadataError::InvalidUrl);
