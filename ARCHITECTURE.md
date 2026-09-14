@@ -1,6 +1,6 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-09-06
 
 ## Brand source
 
@@ -111,8 +111,9 @@ Last updated: 2026-03-11
 - Shared contracts live in `packages/shared-types` so the UI can evolve without importing Python internals.
 - Shared contracts should ultimately model section, role, cue, confidence, and export artifacts explicitly enough that desktop UI and analysis outputs do not invent their own parallel schemas.
 - The current shared-types baseline includes a rehearsal-domain fixture that exercises section, role, cue, confidence, provenance, and export-summary fields in the desktop shell before the full analysis pipeline lands.
+- Current Project Persistence writes a strict `projectFormatVersion: 3` envelope around the validated rehearsal song, closed Active Player preference, and optional path-free app-owned audio `sourceReference`; legacy raw-song, v1, and v2 inputs remain readable through ordered migration. Resource Admission materializes the admitted local source as the fixed app-owned `source.<extension>` artifact, verifies publication byte identity, and retains a path-free native identity. Project Persistence injects that identity into Save and re-admits the exact size and SHA-256 on restart; production analysis revalidates the retained identity and decodes a verified private byte snapshot. Source/derived/decision/handoff expansion, autosave/recovery UX, and fresh Active Player audible authority remain follow-up work under #962/#961 rather than parallel stores.
 - Local analysis orchestration uses typed Tauri IPC commands and a Python subprocess over stdin/stdout rather than a loopback HTTP listener.
-- Local audio intake bootstraps a project by validating a user-selected file in Rust, creating app-owned temp/cache/project roots, and referencing the original source file rather than copying it in this phase.
+- Local audio intake validates an OS-selected source in Rust, enforces the canonical resource policy, publishes a no-clobber app-owned `source.<extension>` copy under the minted project aggregate, verifies the published bytes, and exposes only bounded bootstrap/path-free identity evidence to downstream Project Persistence and analysis consumers.
 - Those bootstrap roots should resolve from app-owned Tauri data/cache paths instead of the shared system temp namespace.
 - Product and UX decisions should prefer rehearsal-first simplicity while still maintaining high analytical accuracy.
 - Security decisions should prefer allowlisted narrow capabilities over generic convenience APIs.

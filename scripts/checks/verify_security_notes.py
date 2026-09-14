@@ -1,9 +1,10 @@
-"""Verify that design-plan documents include a complete Security Notes section."""
+"""Verify that security-sensitive design and traceability documents include Security Notes."""
 
+import re
 from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
-PLAN_DIR = Path("docs/plans")
+SECURITY_NOTE_DIRS = (Path("docs/plans"), Path("docs/traceability"))
 REQUIRED_SUBSECTIONS = [
     "attack surface",
     "trust boundary",
@@ -12,32 +13,51 @@ REQUIRED_SUBSECTIONS = [
     "realistic threats",
     "remaining risk",
 ]
+MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 
 
 def security_notes_section(content: str) -> str:
-    """Extract the lowercased Security Notes section from a plan document."""
-    lowered = content.lower()
-    marker = SECURITY_NOTES_TEXT.lower()
-    start = lowered.find(marker)
-    if start == -1:
+    """Extract only the lowercased Security Notes section from a governed document."""
+    lines = content.splitlines()
+    start_index: int | None = None
+    heading_level: int | None = None
+
+    for index, line in enumerate(lines):
+        match = MARKDOWN_HEADING.match(line.strip())
+        if match is None:
+            continue
+        heading_text = match.group(2).rstrip("#").strip()
+        if heading_text.casefold() == SECURITY_NOTES_TEXT.casefold():
+            start_index = index
+            heading_level = len(match.group(1))
+            break
+
+    if start_index is None or heading_level is None:
         return ""
 
-    end_candidates = []
-    for delimiter in ["\n---", "\n## approaches considered", "\n## decision"]:
-        end = lowered.find(delimiter, start + len(marker))
-        if end != -1:
-            end_candidates.append(end)
+    end_index = len(lines)
+    for index in range(start_index + 1, len(lines)):
+        match = MARKDOWN_HEADING.match(lines[index].strip())
+        if match is not None and len(match.group(1)) <= heading_level:
+            end_index = index
+            break
 
-    if not end_candidates:
-        return lowered[start:]
+    return "\n".join(lines[start_index:end_index]).lower()
 
-    return lowered[start : min(end_candidates)]
+
+def governed_documents() -> list[Path]:
+    """Return plan and traceability documents governed by the Security Notes contract."""
+    return [
+        path
+        for directory in SECURITY_NOTE_DIRS
+        for path in sorted(directory.glob("*.md"))
+    ]
 
 
 def main() -> int:
     """Return a failing exit code when Security Notes or required subsections are missing."""
     missing: list[str] = []
-    for path in sorted(PLAN_DIR.glob("*.md")):
+    for path in governed_documents():
         content = path.read_text(encoding="utf-8")
         if SECURITY_NOTES_TEXT not in content:
             missing.append(str(path))
