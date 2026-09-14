@@ -1,8 +1,8 @@
-# Reusable feature-cache integrity, durability, and admission
+# Reusable feature-cache integrity, durability, admission, and MIR generation
 
 ## Scope
 
-This note covers the derived local-audio feature cache written as a compressed NumPy stem archive plus a JSON manifest. It does not make the cache a Resource Admission authority and it does not make cached stems scientific ground truth. Native Resource Admission remains authoritative for the admitted source byte count and SHA-256; Project Persistence owns durable publication and cache reuse policy.
+This note covers the derived local-audio feature cache written as a compressed NumPy stem archive plus a JSON manifest. It does not make the cache a Resource Admission authority and it does not make cached stems scientific ground truth. Native Resource Admission remains authoritative for the admitted source byte count and SHA-256; Signal/MIR Analysis owns the scientific separation generation; Project Persistence owns durable publication and cache reuse policy.
 
 ## Problem
 
@@ -10,7 +10,9 @@ The earlier feature cache wrote `*.features.npz.tmp` and `*.features.json.tmp`, 
 
 The integrity repair then exposed a second boundary: locally replaceable cache artifacts were still admitted through unbounded `json.load`, an unbounded NPZ digest pass, and NumPy allocation after only structural member-name checks. Python JSON decoding also permits duplicate object names unless the caller rejects them. A malicious or corrupted cache could therefore turn a disposable optimization into excessive read/parse/allocation work or ambiguous last-key-wins metadata.
 
-That state is acceptable only as disposable scratch data. It is not sufficient for a buyer-visible reusable cache and must not be cited as MIR reproducibility evidence.
+After those repairs, cache equivalence still depended on source identity and artifact integrity alone. The same admitted audio could reuse stems after a BandScope separation-code change, a Demucs/torch runtime change, or a configured `htdemucs` checkpoint-generation change. Integrity answers “are these the same cached bytes?”; it does not answer “were these bytes produced by the same scientific computation?”
+
+That distinction matters for a rehearsal decision tool. A reusable cache may skip expensive MIR work, but it must not silently carry a prior model/runtime generation across a scientifically material change.
 
 ## Decision
 
@@ -35,13 +37,27 @@ Admission is additionally resource-bounded and fail closed:
 
 Manifest and archive descriptors are opened read-only with close-on-exec and `O_NOFOLLOW` where the host exposes it, then checked with `fstat`. The archive SHA-256, ZIP preflight, and NumPy load operate on the same opened descriptor rather than reopening the mutable pathname between checks.
 
+Cache reuse is now also bound to a versioned MIR generation. `admitted_audio_cache_identity()` still consumes native source byte-count/SHA-256 evidence rather than recomputing source identity, but its cache-only envelope additionally includes `mirGeneration` from Signal/MIR Analysis. That generation records:
+
+- BandScope separation implementation generation;
+- model name and canonical checkpoint filename;
+- checkpoint signature and encoded checksum prefix parsed by the existing Demucs model-admission owner;
+- installed Demucs and torch distribution versions;
+- production default target sample rate, overlap, and device.
+
+The generation adapter reads the checkpoint mapping and parser from the existing `audio_separator` owner rather than copying model identifiers into Project Persistence. Installed package versions come from `importlib.metadata.version()` without importing the heavy ML runtimes. If required distribution metadata or a canonical checkpoint identity is unavailable, cache identity construction fails closed and reuse is disabled. The final-result analysis generation is advanced at the same boundary so final rehearsal-result reuse cannot outlive a separation-generation change either.
+
 If NPZ publication succeeds but manifest publication fails, an older manifest cannot authorize the new arrays unless the bytes are exactly identical, because its digest must still match. A missing or rejected manifest is a cache miss. This is deliberate fail-closed behavior; the feature cache is derived and recomputable.
 
-The implementation does not hash the source audio again. It consumes `admitted_audio_cache_identity()` supplied from the native Resource Admission handoff. The NPZ digest is a derived-artifact integrity binding, not a second source-identity authority.
+The NPZ digest is a derived-artifact integrity binding, and `mirGeneration` is a cache-equivalence discriminator. Neither becomes a second source-admission authority.
 
 ## Alternatives rejected
 
 - **Path/size-only reuse:** rejected because neither identifies the admitted source bytes nor the stem archive bytes.
+- **Source SHA-256 + NPZ SHA-256 as scientific equivalence:** rejected because identical input and cached bytes do not identify the code/model/runtime generation that produced those bytes.
+- **Bind only the string `htdemucs`:** rejected because package runtime, checkpoint generation, and BandScope implementation changes can alter the computation while keeping that model alias.
+- **Use the full checkpoint digest on every cache hit:** rejected for this cache-admission slice because model admission already verifies the canonical checksum prefix before inference and repeated full-checkpoint hashing would move release provenance work into the hot reuse path. Full release digest/signature provenance remains Distribution evidence.
+- **Import torch/Demucs to discover versions before every cache hit:** rejected. Installed distribution metadata supplies the version strings without executing heavyweight runtime imports or extension loading.
 - **Validate only NPZ member names and shapes:** rejected because a different valid archive can preserve those structural properties.
 - **Trust ZIP member size and call NumPy directly:** rejected because an NPY header can claim a larger logical array than a small stored member should authorize; the shape and dtype are preflighted before NumPy allocation.
 - **Unbounded local-cache reads because the cache is app-owned:** rejected because local replacement, corruption, downgrade residue, and partially recovered state remain untrusted inputs.
@@ -57,26 +73,35 @@ The implementation does not hash the source audio again. It consumes `admitted_a
 - `9f7cb56a5da977af0e615bf6aada6ae326daaa78` — bounded regular-file manifest/NPZ admission, duplicate-key rejection, descriptor-bound digest/load, exact archive-member set, stem-count/byte limits, and write-side resource checks.
 - `f44e0d9c762145ade763d71eba4e67326c048d8b` — regression proving a tiny NPZ member with an oversized NPY shape declaration must fail before NumPy allocation.
 - `eebc09345bdc5970814e2ec2f723d11c61ae317f` — NPY header preflight closes that declared-shape allocation path before `np.load`.
+- `efcffad68c5f0e1af4f14729bc7e063d9ce5bc82` — executable RED proving cache identity did not yet bind MIR generation and did not fail closed when that generation was unavailable.
+- `33ebea0219e0341dd574af395b1b6b4c93d888d5` — canonical separation-generation adapter consumes the existing checkpoint owner and installed Demucs/torch package metadata without loading the ML runtime.
+- `3b1c2378abfad1a08f0e20e22617bbc06447b283` — Project Persistence cache identity adopts that generation, advances the final-result analysis generation, and treats missing MIR generation as a cache-disable condition.
+- `f17051f8e2fe9fc2b2857232573f617f12d4da44` — edge coverage for canonical generation composition plus missing/malformed checkpoint and missing-runtime-metadata failure paths.
 
-Hosted exact-head checks remain authoritative. These commits are source evidence, not release evidence.
+Hosted exact-head checks remain authoritative. These commits are source evidence, not protected or release evidence.
 
 ## Security Notes
 
 - Cache JSON and NPZ files are treated as untrusted local bytes. A well-formed archive is not trusted merely because it is inside an app-owned cache directory.
 - The source audio is not copied into metadata and full source paths are not added to the feature manifest.
 - A malformed or partial native admitted-audio evidence pair fails closed rather than silently falling back to pathname identity.
-- JSON duplicate keys, oversized manifests, oversized encoded archives, unexpected ZIP members, oversized declared arrays, malformed role metadata, object arrays, non-floating stems, non-finite stems, and integrity mismatches are cache misses.
+- Missing or malformed MIR-generation evidence also disables reuse. Package metadata lookup does not import torch/Demucs merely to decide cache equivalence.
+- JSON duplicate keys, oversized manifests, oversized encoded archives, unexpected ZIP members, oversized declared arrays, malformed role metadata, object arrays, non-floating stems, non-finite stems, integrity mismatches, and generation mismatches are cache misses.
 - NPZ loading keeps `allow_pickle=False` and occurs only after the exact archive digest and bounded NPY header declarations agree with the manifest and resource policy.
 - Publication failure is a cache miss. It does not block the successful analysis result and does not promote partially published cache state to authority.
-- The schema bump intentionally invalidates pre-v2 feature manifests rather than reinterpreting them under stronger semantics.
+- The schema-v2 integrity repair intentionally invalidated pre-v2 feature manifests; the later MIR-generation envelope invalidates prior cache identities without pretending that source SHA-256 proves model equivalence.
 
 ## Remaining scientific/release boundary
 
-The integrity and resource-admission repair does **not** yet bind feature reuse to a complete MIR implementation/model identity. `AudioStemSeparator` currently names canonical `htdemucs` and verifies the local checkpoint against the checksum prefix encoded by `955717e8-8726e21a.th`, but release bundling, full checkpoint digest/signature provenance, model rights, and a versioned analysis/model generation contract remain separate work. Until those are bound into the reproducibility contract and validated on rights-cleared real decoded audio, a feature-cache hit is an integrity-preserving optimization, not evidence that two BandScope releases implement the same scientific analysis.
+The current generation identity is sufficient to prevent reuse across a changed BandScope separation generation, canonical checkpoint filename/signature/checksum prefix, installed Demucs/torch version, target sample rate, overlap, or device. It is **not** release provenance for the checkpoint bytes. `AudioStemSeparator` verifies that the local checkpoint's full SHA-256 begins with the checksum prefix encoded by `955717e8-8726e21a.th`, but immutable release evidence still needs the full checkpoint digest/signature, acquisition provenance, license/rights record, and package/SBOM linkage.
+
+Scientific acceptance also remains distinct from cache identity. Rights-cleared real decoded audio must demonstrate recognized source-separation/MIR metrics, uncertainty and claim boundaries, and reproducibility on the packaged Windows/macOS paths. A feature-cache hit now means “same admitted source + same declared MIR generation + same admitted derived bytes”; it still does not by itself prove accuracy.
 
 Packaged Windows/macOS power-loss, disk-full, and fault-injection acceptance also remains release evidence. Unit/integration tests cannot substitute for that destructive packaged-build evidence.
 
-## Primary implementation references
+## Primary implementation and scientific references
+
+Python Software Foundation. (2026). *importlib.metadata — Accessing package metadata*. Python documentation. https://docs.python.org/3/library/importlib.metadata.html
 
 Python Software Foundation. (2026). *json — JSON encoder and decoder*. Python 3 documentation. https://docs.python.org/3/library/json.html
 
@@ -89,3 +114,5 @@ Microsoft. (2024). *MoveFileExW function (winbase.h)*. Microsoft Learn. https://
 NumPy Developers. (2026). *Input and output: NumPy binary files (`npz`)*. NumPy reference. https://numpy.org/doc/stable/reference/routines.io.html
 
 NumPy Developers. (2026). *numpy.load*. NumPy reference. https://numpy.org/doc/stable/reference/generated/numpy.load.html
+
+Rouard, S., Massa, F., & Défossez, A. (2023). Hybrid Transformers for music source separation. In *ICASSP 2023 - 2023 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)*. IEEE. https://arxiv.org/abs/2211.08553
