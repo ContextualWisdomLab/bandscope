@@ -96,7 +96,9 @@ def _stable_regular_file_identity(path: Path) -> tuple[int, str]:
         os.close(file_descriptor)
 
 
-def _updater_source_identity(path: Path, *, label: str, maximum_bytes: int | None = None) -> tuple[int, str]:
+def _updater_source_identity(
+    path: Path, *, label: str, maximum_bytes: int | None = None
+) -> tuple[int, str]:
     """Return one stable updater-source identity with optional byte ceiling."""
     try:
         size_bytes, digest = _stable_regular_file_identity(path)
@@ -204,7 +206,11 @@ def find_installer_packages(repo_root: Path) -> list[Path]:
     installers = []
 
     if bundle_dir.exists():
-        for subdirectory, pattern in [("dmg", "*.dmg"), ("nsis", "*.exe"), ("msi", "*.msi")]:
+        for subdirectory, pattern in [
+            ("dmg", "*.dmg"),
+            ("nsis", "*.exe"),
+            ("msi", "*.msi"),
+        ]:
             installers.extend(
                 installer
                 for installer in sorted((bundle_dir / subdirectory).glob(pattern))
@@ -603,13 +609,19 @@ def write_release_receipt(
             "arch": first.arch,
             "targetTriple": first.target_triple,
         },
-        "artifacts": sorted(receipt_artifacts, key=lambda artifact: str(artifact["archive"])),
+        "artifacts": sorted(
+            receipt_artifacts, key=lambda artifact: str(artifact["archive"])
+        ),
     }
     if updater_artifacts:
         receipt["updaterArtifacts"] = _updater_receipt_entries(
             output_dir, updater_artifacts, target_identity
         )
-    receipt_path = output_dir / "release-receipt.json"
+    receipt_name = (
+        f"bandscope-{first.platform}-{first.arch}-{source_commit[:12]}"
+        ".release-receipt.json"
+    )
+    receipt_path = output_dir / receipt_name
     payload = json.dumps(receipt, indent=2, sort_keys=False) + "\n"
     _write_receipt_atomically(receipt_path, payload)
     return receipt_path
