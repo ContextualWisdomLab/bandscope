@@ -1,4 +1,15 @@
-"""Package desktop build outputs into traceable release artifacts."""
+"""Package desktop build outputs into traceable release artifacts.
+
+Security Notes:
+- version-tag packaging consumes only fixed local Tauri build-output directories
+  after the repository release-admission preflight succeeds;
+- updater bundles and signatures are treated as untrusted build outputs: links,
+  non-regular/empty signatures, target drift, byte drift, and missing companions
+  fail closed before a release receipt is published;
+- updater signature bytes are copied and digest-bound as evidence only. This
+  module does not invent signing keys or claim cryptographic signature validity;
+  Tauri/client verification and packaged acceptance remain separate gates.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +31,7 @@ from typing import Any, NamedTuple
 CommandRunner = Callable[..., Any]
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _FULL_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+_MAX_UPDATER_SIGNATURE_BYTES = 64 * 1024
 
 
 class PackagedArtifact(NamedTuple):
@@ -31,6 +43,20 @@ class PackagedArtifact(NamedTuple):
     archive_name: str
     checksum_name: str
     manifest_name: str
+
+
+class UpdaterArtifact(NamedTuple):
+    """Bind one Tauri updater bundle to its exact detached signature bytes."""
+
+    platform: str
+    arch: str
+    target_triple: str
+    bundle_name: str
+    bundle_size_bytes: int
+    bundle_sha256: str
+    signature_name: str
+    signature_size_bytes: int
+    signature_sha256: str
 
 
 def sha256_file(path: Path) -> str:
@@ -68,6 +94,40 @@ def _stable_regular_file_identity(path: Path) -> tuple[int, str]:
         return before.st_size, digest.hexdigest()
     finally:
         os.close(file_descriptor)
+
+
+def _updater_source_identity(path: Path, *, label: str, maximum_bytes: int | None = None) -> tuple[int, str]:
+    """Return one stable updater-source identity with optional byte ceiling."""
+    try:
+        size_bytes, digest = _stable_regular_file_identity(path)
+    except RuntimeError as error:
+        raise RuntimeError(f"{label} must be a regular non-link file") from error
+    if size_bytes < 1:
+        raise RuntimeError(f"{label} must not be empty")
+    if maximum_bytes is not None and size_bytes > maximum_bytes:
+        raise RuntimeError(f"{label} exceeds its bounded size policy")
+    return size_bytes, digest
+
+
+def _copy_exact_updater_input(
+    source: Path,
+    destination: Path,
+    *,
+    label: str,
+    maximum_bytes: int | None = None,
+) -> tuple[int, str]:
+    """Copy one admitted updater input and prove destination byte identity."""
+    source_identity = _updater_source_identity(
+        source, label=label, maximum_bytes=maximum_bytes
+    )
+    shutil.copy2(source, destination)
+    try:
+        destination_identity = _stable_regular_file_identity(destination)
+    except RuntimeError as error:
+        raise RuntimeError(f"copied {label} is not stable release evidence") from error
+    if destination_identity != source_identity:
+        raise RuntimeError(f"copied {label} does not match source bytes")
+    return source_identity
 
 
 def normalized_platform() -> str:
@@ -164,7 +224,7 @@ def verify_tag_release_preflight(
     *,
     runner: CommandRunner = subprocess.run,
 ) -> None:
-    """Require version and model admission before a tag build writes release artifacts."""
+    """Require version, model, and updater admission before tag artifact writes."""
     if not _is_tag_release():
         return
     preflight_path = repo_root / "scripts" / "checks" / "verify_release_identity.py"
@@ -254,6 +314,153 @@ def _release_source_commit() -> str:
     return source_commit
 
 
+def _windows_updater_artifacts(
+    output_dir: Path,
+    source_artifacts: Sequence[tuple[Path, PackagedArtifact]],
+) -> list[UpdaterArtifact]:
+    """Bind each v2 Windows installer to its adjacent Tauri `.sig` file."""
+    updater_artifacts: list[UpdaterArtifact] = []
+    for source_installer, packaged_artifact in source_artifacts:
+        if packaged_artifact.platform != "windows":
+            raise RuntimeError("Windows updater packaging cannot mix platform targets")
+        source_signature = Path(f"{source_installer}.sig")
+        signature_identity = _updater_source_identity(
+            source_signature,
+            label="updater signature",
+            maximum_bytes=_MAX_UPDATER_SIGNATURE_BYTES,
+        )
+        packaged_bundle = output_dir / packaged_artifact.archive_name
+        source_bundle_identity = _updater_source_identity(
+            source_installer, label="Windows updater bundle"
+        )
+        packaged_bundle_identity = _updater_source_identity(
+            packaged_bundle, label="packaged Windows updater bundle"
+        )
+        if packaged_bundle_identity != source_bundle_identity:
+            raise RuntimeError("Windows updater bundle does not match packaged installer bytes")
+
+        signature_name = f"{packaged_artifact.archive_name}.sig"
+        copied_signature_identity = _copy_exact_updater_input(
+            source_signature,
+            output_dir / signature_name,
+            label="updater signature",
+            maximum_bytes=_MAX_UPDATER_SIGNATURE_BYTES,
+        )
+        if copied_signature_identity != signature_identity:
+            raise RuntimeError("copied updater signature identity drifted during packaging")
+        updater_artifacts.append(
+            UpdaterArtifact(
+                platform=packaged_artifact.platform,
+                arch=packaged_artifact.arch,
+                target_triple=packaged_artifact.target_triple,
+                bundle_name=packaged_artifact.archive_name,
+                bundle_size_bytes=packaged_bundle_identity[0],
+                bundle_sha256=packaged_bundle_identity[1],
+                signature_name=signature_name,
+                signature_size_bytes=signature_identity[0],
+                signature_sha256=signature_identity[1],
+            )
+        )
+    if not updater_artifacts:
+        raise RuntimeError("Tagged Windows release requires at least one updater bundle")
+    return updater_artifacts
+
+
+def _macos_updater_artifacts(
+    repo_root: Path,
+    output_dir: Path,
+    source_artifacts: Sequence[tuple[Path, PackagedArtifact]],
+) -> list[UpdaterArtifact]:
+    """Package the single v2 macOS `.app.tar.gz` updater bundle plus signature."""
+    if not source_artifacts:
+        raise RuntimeError("Tagged macOS release requires a packaged installer target")
+    first = source_artifacts[0][1]
+    if first.platform != "macos":
+        raise RuntimeError("macOS updater packaging cannot mix platform targets")
+    expected_target = (first.platform, first.arch, first.target_triple)
+    if any(
+        (artifact.platform, artifact.arch, artifact.target_triple) != expected_target
+        for _, artifact in source_artifacts
+    ):
+        raise RuntimeError("macOS updater packaging cannot mix platform targets")
+
+    target_triple = first.target_triple
+    if not target_triple or target_triple == "native":
+        raise RuntimeError("Tagged macOS updater packaging requires an exact target triple")
+    macos_bundle_root = (
+        repo_root
+        / "apps"
+        / "desktop"
+        / "src-tauri"
+        / "target"
+        / target_triple
+        / "release"
+        / "bundle"
+        / "macos"
+    )
+    candidates = sorted(macos_bundle_root.glob("*.app.tar.gz"))
+    if len(candidates) != 1:
+        raise RuntimeError("Tagged macOS release requires exactly one macOS updater bundle")
+    source_bundle = candidates[0]
+    source_signature = Path(f"{source_bundle}.sig")
+    bundle_identity = _updater_source_identity(
+        source_bundle, label="macOS updater bundle"
+    )
+    signature_identity = _updater_source_identity(
+        source_signature,
+        label="updater signature",
+        maximum_bytes=_MAX_UPDATER_SIGNATURE_BYTES,
+    )
+
+    git_sha = _release_source_commit()[:12]
+    bundle_name = f"bandscope-macos-{first.arch}-{git_sha}.app.tar.gz"
+    signature_name = f"{bundle_name}.sig"
+    copied_bundle_identity = _copy_exact_updater_input(
+        source_bundle,
+        output_dir / bundle_name,
+        label="macOS updater bundle",
+    )
+    copied_signature_identity = _copy_exact_updater_input(
+        source_signature,
+        output_dir / signature_name,
+        label="updater signature",
+        maximum_bytes=_MAX_UPDATER_SIGNATURE_BYTES,
+    )
+    if copied_bundle_identity != bundle_identity:
+        raise RuntimeError("copied macOS updater bundle identity drifted during packaging")
+    if copied_signature_identity != signature_identity:
+        raise RuntimeError("copied updater signature identity drifted during packaging")
+    return [
+        UpdaterArtifact(
+            platform=first.platform,
+            arch=first.arch,
+            target_triple=first.target_triple,
+            bundle_name=bundle_name,
+            bundle_size_bytes=bundle_identity[0],
+            bundle_sha256=bundle_identity[1],
+            signature_name=signature_name,
+            signature_size_bytes=signature_identity[0],
+            signature_sha256=signature_identity[1],
+        )
+    ]
+
+
+def package_tag_updater_artifacts(
+    repo_root: Path,
+    output_dir: Path,
+    source_artifacts: Sequence[tuple[Path, PackagedArtifact]],
+) -> list[UpdaterArtifact]:
+    """Copy and bind Tauri v2 updater artifacts for the exact tagged target."""
+    if not _is_tag_release():
+        return []
+    target_platform, _ = resolved_artifact_target()
+    if target_platform == "windows":
+        return _windows_updater_artifacts(output_dir, source_artifacts)
+    if target_platform == "macos":
+        return _macos_updater_artifacts(repo_root, output_dir, source_artifacts)
+    raise RuntimeError("Tagged updater artifact packaging is unsupported on this platform")
+
+
 def _checksum_digest(checksum_path: Path, archive_name: str) -> str:
     """Read the exact single-entry checksum file for one packaged artifact."""
     if checksum_path.is_symlink() or not checksum_path.is_file():
@@ -293,12 +500,59 @@ def _write_receipt_atomically(receipt_path: Path, payload: str) -> None:
             staged_path.unlink()
 
 
+def _updater_receipt_entries(
+    output_dir: Path,
+    updater_artifacts: Sequence[UpdaterArtifact],
+    target_identity: tuple[str, str, str],
+) -> list[dict[str, object]]:
+    """Re-admit copied updater bytes immediately before receipt publication."""
+    entries: list[dict[str, object]] = []
+    for updater_artifact in updater_artifacts:
+        if (
+            updater_artifact.platform,
+            updater_artifact.arch,
+            updater_artifact.target_triple,
+        ) != target_identity:
+            raise RuntimeError("release receipt cannot mix updater platform targets")
+        bundle_identity = _updater_source_identity(
+            output_dir / updater_artifact.bundle_name,
+            label="updater bundle",
+        )
+        if bundle_identity != (
+            updater_artifact.bundle_size_bytes,
+            updater_artifact.bundle_sha256,
+        ):
+            raise RuntimeError("updater bundle changed after packaging")
+        signature_identity = _updater_source_identity(
+            output_dir / updater_artifact.signature_name,
+            label="updater signature",
+            maximum_bytes=_MAX_UPDATER_SIGNATURE_BYTES,
+        )
+        if signature_identity != (
+            updater_artifact.signature_size_bytes,
+            updater_artifact.signature_sha256,
+        ):
+            raise RuntimeError("updater signature changed after packaging")
+        entries.append(
+            {
+                "bundle": updater_artifact.bundle_name,
+                "sizeBytes": updater_artifact.bundle_size_bytes,
+                "sha256": updater_artifact.bundle_sha256,
+                "signatureFile": updater_artifact.signature_name,
+                "signatureSizeBytes": updater_artifact.signature_size_bytes,
+                "signatureSha256": updater_artifact.signature_sha256,
+            }
+        )
+    return sorted(entries, key=lambda entry: str(entry["bundle"]))
+
+
 def write_release_receipt(
     repo_root: Path,
     output_dir: Path,
     packaged_artifacts: Sequence[PackagedArtifact],
+    updater_artifacts: Sequence[UpdaterArtifact] = (),
 ) -> Path | None:
-    """Bind trusted tagged installer bytes to one deterministic machine-readable receipt."""
+    """Bind trusted tagged installer and updater bytes to one machine-readable receipt."""
     if not _is_tag_release():
         return None
     if not packaged_artifacts:
@@ -339,7 +593,7 @@ def write_release_receipt(
             }
         )
 
-    receipt = {
+    receipt: dict[str, object] = {
         "schemaVersion": 1,
         "version": version,
         "tag": tag,
@@ -351,6 +605,10 @@ def write_release_receipt(
         },
         "artifacts": sorted(receipt_artifacts, key=lambda artifact: str(artifact["archive"])),
     }
+    if updater_artifacts:
+        receipt["updaterArtifacts"] = _updater_receipt_entries(
+            output_dir, updater_artifacts, target_identity
+        )
     receipt_path = output_dir / "release-receipt.json"
     payload = json.dumps(receipt, indent=2, sort_keys=False) + "\n"
     _write_receipt_atomically(receipt_path, payload)
@@ -358,7 +616,7 @@ def write_release_receipt(
 
 
 def main() -> int:
-    """Preflight, package installers, calculate checksums, and verify tag trust."""
+    """Preflight, package installers/updater evidence, then verify tagged trust."""
     repo_root = Path(__file__).resolve().parents[2]
     verify_tag_release_preflight(repo_root)
 
@@ -373,6 +631,7 @@ def main() -> int:
 
     suffix_counts = Counter(path.suffix.lower() for path in installers)
     packaged_artifacts: list[PackagedArtifact] = []
+    source_artifacts: list[tuple[Path, PackagedArtifact]] = []
     for installer_path in installers:
         identity = artifact_identity(installer_path.name)
         archive_name = identity["archive_name"]
@@ -411,21 +670,29 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
-        packaged_artifacts.append(
-            PackagedArtifact(
-                platform=identity["platform"],
-                arch=identity["arch"],
-                target_triple=target_triple,
-                archive_name=archive_name,
-                checksum_name=checksum_path.name,
-                manifest_name=manifest_path.name,
-            )
+        packaged_artifact = PackagedArtifact(
+            platform=identity["platform"],
+            arch=identity["arch"],
+            target_triple=target_triple,
+            archive_name=archive_name,
+            checksum_name=checksum_path.name,
+            manifest_name=manifest_path.name,
         )
+        packaged_artifacts.append(packaged_artifact)
+        source_artifacts.append((installer_path, packaged_artifact))
 
         print(f"Packaged {installer_path.name} to artifacts/{archive_name}")
 
+    updater_artifacts = package_tag_updater_artifacts(
+        repo_root, output_dir, source_artifacts
+    )
     verify_tag_platform_trust(repo_root, output_dir)
-    write_release_receipt(repo_root, output_dir, packaged_artifacts)
+    write_release_receipt(
+        repo_root,
+        output_dir,
+        packaged_artifacts,
+        updater_artifacts,
+    )
     return 0
 
 
