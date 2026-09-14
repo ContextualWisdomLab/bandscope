@@ -810,6 +810,33 @@ def _load_bounded_feature_manifest(path: Path) -> dict[str, object] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _npz_member_declared_nbytes(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+) -> int | None:
+    """Return bounded declared NPY payload bytes without allocating the persisted array."""
+    try:
+        with archive.open(info) as member:
+            version = np.lib.format.read_magic(member)
+            if version == (1, 0):
+                shape, _, dtype = np.lib.format.read_array_header_1_0(member)
+            elif version == (2, 0):
+                shape, _, dtype = np.lib.format.read_array_header_2_0(member)
+            else:
+                return None
+    except (EOFError, ValueError):
+        return None
+    if dtype.hasobject or len(shape) != 1 or shape[0] <= 0 or dtype.itemsize <= 0:
+        return None
+    declared_nbytes = shape[0] * dtype.itemsize
+    if (
+        declared_nbytes > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes
+        or declared_nbytes > info.file_size
+    ):
+        return None
+    return declared_nbytes
+
+
 def _load_bounded_feature_arrays(
     arrays_path: Path,
     stem_keys: list[str],
@@ -854,7 +881,10 @@ def _load_bounded_feature_arrays(
                         return None
                     if info.file_size > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes:
                         return None
-                    total_uncompressed_bytes += info.file_size
+                    declared_nbytes = _npz_member_declared_nbytes(archive, info)
+                    if declared_nbytes is None:
+                        return None
+                    total_uncompressed_bytes += declared_nbytes
                     if total_uncompressed_bytes > FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES:
                         return None
 
