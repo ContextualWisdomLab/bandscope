@@ -147,4 +147,4 @@ Last updated: 2026-09-15
 - Security docs and checks are part of the default quickcheck path so design drift is caught early.
 - Supply-chain docs, workflow pinning, and lockfile verification are part of the default quickcheck path so dependency drift is caught early.
 - Quickcheck and CI are expected to verify dependency review, audit, supplemental inventory, and SBOM baseline presence as part of bootstrap.
-- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path so dependency drift is caught early.
+- Cross-platform build workflow presence and trigger coverage are part of the default supply-chain verification path.
