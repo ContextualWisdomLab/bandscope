@@ -8,6 +8,7 @@ Project Persistence remains the authority for crash-durable filesystem publicati
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,25 @@ _CONFIDENCE_LEVELS = frozenset({"low", "medium", "high"})
 _PROVENANCE_SOURCES = frozenset({"model", "user"})
 _CUE_KINDS = frozenset({"lyric", "count", "transition"})
 _REHEARSAL_PRIORITIES = frozenset({"low", "medium", "high"})
+_SECTION_FORM_LABELS = frozenset(
+    {
+        "intro",
+        "verse",
+        "pre-chorus",
+        "chorus",
+        "bridge",
+        "outro",
+        "tag",
+        "pickup",
+        "stop",
+        "handoff",
+    }
+)
+_EXPORT_FORMATS = frozenset({"cue-sheet", "chart-summary"})
+_ASSIGNMENT_STATUSES = frozenset({"todo", "in_progress", "ready", "blocked"})
+_COMMENT_STATUSES = frozenset({"open", "resolved"})
+_APPROVAL_STATUSES = frozenset({"pending", "approved", "changes_requested"})
+_COLLABORATION_SYNC_MODES = frozenset({"local_only", "planned_cloud"})
 
 
 def admitted_audio_cache_identity() -> dict[str, object] | None:
@@ -98,6 +118,15 @@ def _string_list(value: object) -> bool:
     return isinstance(value, list) and all(_nonempty_string(item) for item in value)
 
 
+def _finite_number(value: object) -> bool:
+    """Return whether a value is a finite JSON-style number rather than a Boolean."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )
+
+
 def _valid_confidence(value: object) -> bool:
     """Validate the persisted confidence payload needed by rehearsal views."""
     return (
@@ -150,8 +179,19 @@ def _valid_manual_override(value: object) -> bool:
     )
 
 
+def _valid_transcription_note(value: object) -> bool:
+    """Validate an optional persisted transcription note consumed by Groove Map."""
+    return (
+        isinstance(value, dict)
+        and isinstance(value.get("pitch"), str)
+        and _finite_number(value.get("onset"))
+        and _finite_number(value.get("offset"))
+        and _finite_number(value.get("velocity"))
+    )
+
+
 def _valid_role(value: object) -> bool:
-    """Validate every required persisted role field used by downstream consumers."""
+    """Validate required and consumer-visible optional persisted role fields."""
     if not isinstance(value, dict):
         return False
     if not all(_nonempty_string(value.get(field)) for field in ("id", "name")):
@@ -159,6 +199,8 @@ def _valid_role(value: object) -> bool:
     if value.get("roleType") not in _ROLE_TYPES:
         return False
     if not _valid_harmony(value.get("harmony")):
+        return False
+    if "harmonicExplanation" in value and not isinstance(value["harmonicExplanation"], str):
         return False
     if not _valid_cue(value.get("cue")):
         return False
@@ -172,6 +214,8 @@ def _valid_role(value: object) -> bool:
         return False
     if not isinstance(value.get("setupNote"), str):
         return False
+    if "transpositionPlan" in value and not isinstance(value["transpositionPlan"], str):
+        return False
     manual_overrides = value.get("manualOverrides")
     if not isinstance(manual_overrides, list) or not all(
         _valid_manual_override(override) for override in manual_overrides
@@ -182,6 +226,20 @@ def _valid_role(value: object) -> bool:
         isinstance(warning, str) for warning in overlap_warnings
     ):
         return False
+    if "transcription" in value:
+        transcription = value["transcription"]
+        if not isinstance(transcription, list) or not all(
+            _valid_transcription_note(note) for note in transcription
+        ):
+            return False
+    if "practiceProgress" in value:
+        practice_progress = value["practiceProgress"]
+        if (
+            not isinstance(practice_progress, int)
+            or isinstance(practice_progress, bool)
+            or not 0 <= practice_progress <= 100
+        ):
+            return False
     return True
 
 
@@ -215,7 +273,11 @@ def _valid_section(value: object) -> bool:
     """Validate one persisted rehearsal section before exposing a cache hit."""
     if not isinstance(value, dict):
         return False
-    if not all(_nonempty_string(value.get(field)) for field in ("id", "label", "groove")):
+    if not _nonempty_string(value.get("id")):
+        return False
+    if value.get("label") not in _SECTION_FORM_LABELS:
+        return False
+    if not _nonempty_string(value.get("groove")):
         return False
     if not _valid_time_range(value.get("timeRange")) or not _valid_confidence(
         value.get("confidence")
@@ -235,9 +297,76 @@ def _valid_export_summary(value: object) -> bool:
     """Validate the cached cue-sheet summary consumed by export and rehearsal UI."""
     return (
         isinstance(value, dict)
-        and _nonempty_string(value.get("format"))
+        and value.get("format") in _EXPORT_FORMATS
         and _nonempty_string(value.get("headline"))
         and _string_list(value.get("focusSections"))
+    )
+
+
+def _valid_assignment(value: object) -> bool:
+    """Validate one optional persisted collaboration assignment."""
+    if not isinstance(value, dict):
+        return False
+    if not all(
+        isinstance(value.get(field), str)
+        for field in ("id", "assignee", "summary", "sectionId")
+    ):
+        return False
+    if "roleId" in value and not isinstance(value["roleId"], str):
+        return False
+    return value.get("status") in _ASSIGNMENT_STATUSES
+
+
+def _valid_comment(value: object) -> bool:
+    """Validate one optional persisted rehearsal comment."""
+    if not isinstance(value, dict):
+        return False
+    if not all(
+        isinstance(value.get(field), str)
+        for field in ("id", "author", "body", "sectionId")
+    ):
+        return False
+    if "roleId" in value and not isinstance(value["roleId"], str):
+        return False
+    return value.get("status") in _COMMENT_STATUSES
+
+
+def _valid_approval(value: object) -> bool:
+    """Validate one optional persisted rehearsal approval."""
+    return (
+        isinstance(value, dict)
+        and all(isinstance(value.get(field), str) for field in ("id", "scope", "owner"))
+        and value.get("status") in _APPROVAL_STATUSES
+    )
+
+
+def _valid_collaboration(value: object) -> bool:
+    """Validate optional persisted collaboration state before a cache hit is trusted."""
+    if not isinstance(value, dict):
+        return False
+    if value.get("syncMode") not in _COLLABORATION_SYNC_MODES:
+        return False
+    if not isinstance(value.get("syncNote"), str):
+        return False
+    assignments = value.get("assignments")
+    comments = value.get("comments")
+    approvals = value.get("approvals")
+    return (
+        isinstance(assignments, list)
+        and all(_valid_assignment(item) for item in assignments)
+        and isinstance(comments, list)
+        and all(_valid_comment(item) for item in comments)
+        and isinstance(approvals, list)
+        and all(_valid_approval(item) for item in approvals)
+    )
+
+
+def _valid_score_attachment(value: object) -> bool:
+    """Validate optional score metadata exposed by rehearsal views."""
+    return (
+        isinstance(value, dict)
+        and _nonempty_string(value.get("id"))
+        and _nonempty_string(value.get("fileName"))
     )
 
 
@@ -253,9 +382,19 @@ def _valid_rehearsal_song(value: object) -> bool:
     ):
         return False
     sections = value.get("sections")
-    return (
+    if not (
         isinstance(sections, list)
         and bool(sections)
         and all(_valid_section(section) for section in sections)
         and _valid_export_summary(value.get("exportSummary"))
-    )
+    ):
+        return False
+    if "collaboration" in value and not _valid_collaboration(value["collaboration"]):
+        return False
+    if "scoreAttachments" in value:
+        score_attachments = value["scoreAttachments"]
+        if not isinstance(score_attachments, list) or not all(
+            _valid_score_attachment(attachment) for attachment in score_attachments
+        ):
+            return False
+    return True
