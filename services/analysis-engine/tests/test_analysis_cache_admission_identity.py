@@ -309,3 +309,23 @@ def test_semantic_cache_predicates_cover_valid_and_invalid_edges() -> None:
     candidate = copy.deepcopy(song)
     candidate["tempo"] = 120
     assert _valid_rehearsal_song(candidate) is True
+
+
+def test_final_cache_rejects_role_missing_required_rehearsal_contract_fields() -> None:
+    """Do not return a cached role that cannot satisfy downstream rehearsal consumers."""
+    song = build_demo_rehearsal_song()
+    required_role_fields = (
+        "harmony",
+        "cue",
+        "range",
+        "rehearsalPriority",
+        "simplification",
+        "setupNote",
+        "manualOverrides",
+        "overlapWarnings",
+    )
+
+    for field in required_role_fields:
+        candidate = copy.deepcopy(song)
+        del candidate["sections"][0]["roles"][0][field]
+        assert _valid_rehearsal_song(candidate) is False, field
