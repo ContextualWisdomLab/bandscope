@@ -60,6 +60,7 @@ Last updated: 2026-09-15
 - `apps/desktop` - desktop shell and user-facing React UI
 - `apps/desktop/distribution-core` - Tauri-independent Rust security policy for updater release identity, anti-replay, target compatibility, and project-schema-aware rollback decisions
 - `apps/desktop/distribution-runtime` - stateless Rust admission boundary for untrusted Tauri updater JSON; returns provisional metadata only and cannot mutate freshness state
+- `apps/desktop/distribution-download` - network-library-independent Rust streaming byte-admission boundary for updater artifacts; owns expected-size/content-length/chunk/cumulative limits and fail-closed sink error semantics, but not HTTP, signatures, digests or installation
 - `apps/desktop/distribution-state` - Distribution-owned bounded append/sync log for the highest authenticated updater identity; consumes `distribution-core` identity and never project bytes
 - `packages/shared-types` - stable cross-layer types shared by the UI and orchestration layer
 - `services/analysis-engine` - Python analysis service for source separation and music analysis
@@ -68,9 +69,10 @@ Last updated: 2026-09-15
 
 ## Distribution/update bounded context
 
-- Distribution owns commercial release identity, native signing/notarization admission, updater policy, immutable publication evidence, highest-seen update freshness state, and last-known-good installer recovery decisions.
+- Distribution owns commercial release identity, native signing/notarization admission, updater policy, immutable publication evidence, bounded updater artifact transport/storage admission, highest-seen update freshness state, and last-known-good installer recovery decisions.
 - `apps/desktop/distribution-core` contains deterministic security decisions only. It does not fetch metadata, verify Tauri signatures, write project data, run installers, or manufacture signing/key authority.
 - `apps/desktop/distribution-runtime` admits the current static updater JSON only as bounded provisional remote input. It rejects duplicate/unknown members, unexpected targets, mutable release URLs and invalid release-identity syntax, and it projects the fixed app-owned highest-seen path without creating or writing it. It deliberately has no `distribution-state` dependency.
+- `apps/desktop/distribution-download` owns the pure streaming byte-admission primitive used before artifact trust is established. It enforces a 2 GiB artifact ceiling, exact optional `Content-Length`, 1 MiB maximum caller chunk, cumulative overrun rejection before sink write, sink-error poisoning and exact-length completion. It does not perform network I/O, authenticate metadata, verify signatures/digests, run installers or mutate freshness state. Commercial completion requires the production HTTP adapter and temporary sink to route actual response bytes through this boundary instead of relying on Tauri's full-response buffering.
 - `apps/desktop/distribution-state` persists only the highest authenticated release identity as a bounded append-only log. It revalidates committed identities, rejects local version regression/equivocation, synchronizes accepted appends, and recovers only a syntactically valid torn final-record prefix; it does not own Tauri networking/signature verification, installer execution, or project persistence.
 - Tauri updater signatures authenticate downloaded updater artifact bytes. They do not, by themselves, authenticate the whole `Update.raw_json` response or BandScope's `sourceCommit`/digest extensions. Remote metadata therefore stays provisional until a canonical metadata-authentication path binds its release identity to trusted authority.
 - Only after metadata authentication and updater artifact signature/digest/size binding may exact `version`, `sourceCommit`, updater SHA-256, target, and compatibility floor enter `distribution-core` and `distribution-state` as freshness authority.
@@ -79,7 +81,7 @@ Last updated: 2026-09-15
 - Highest-seen release identity belongs to Distribution-owned app state and is recorded only after its metadata identity has authenticated authority; installation completion is not required, but syntactically valid remote JSON alone is insufficient. Project Persistence remains owner of project bytes and project-schema truth.
 - Automatic rollback may use only a previously authenticated known-good installer whose version is older than the current installation and whose declared reader can open the current on-disk project schema. The decision core does not bypass project recovery or schema ownership.
 - `release/updater-policy.json` remains fail-closed while organization-approved updater key/production endpoint authority is absent. No source code or test fixture is production authority.
-- Traceability and claim boundaries live in `docs/traceability/updater-release-admission.md`, `docs/traceability/release-artifact-receipt.md`, and `docs/traceability/updater-security-metadata.md`.
+- Traceability and claim boundaries live in `docs/traceability/updater-release-admission.md`, `docs/traceability/release-artifact-receipt.md`, `docs/traceability/updater-security-metadata.md`, and `docs/traceability/updater-bounded-download.md`.
 
 ## Product capability scope
 
@@ -118,7 +120,7 @@ Last updated: 2026-09-15
 - The desktop shell uses an explicit Tauri CSP that only allows self-hosted assets, inline styles, Tauri IPC, and loopback development traffic.
 - Mechanical gates focus on lint, typecheck, unit tests, coverage for Python, and documentation presence.
 - Python quality gates also require 100% docstring coverage via `package.json` script `check:python-docstrings`, enforced with Ruff rules `D100` through `D107` across tracked packages, modules, classes, nested classes, functions, methods (including `__init__`), `services/analysis-engine` tests, and repo-owned Python scripts.
-- Distribution `distribution-core`, `distribution-runtime`, and `distribution-state` Rust compilation denies warnings and missing public rustdoc; their standalone locked unit suites are invoked by the repository analysis test harness without adding Python production logic.
+- Distribution `distribution-core`, `distribution-runtime`, `distribution-download`, and `distribution-state` Rust compilation denies warnings and missing public rustdoc; their standalone locked unit suites are invoked by the repository analysis test harness without adding Python production logic.
 - Mechanical gates also enforce security document presence, plan `Security Notes`, and basic forbidden-pattern checks.
 - Security context is part of architecture, not just implementation detail; docs and plans must record the trust boundary touched by risky changes.
 - Supply-chain controls are part of the bootstrap architecture, not a release-afterthought.
