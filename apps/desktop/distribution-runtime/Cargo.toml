@@ -1,0 +1,17 @@
+[package]
+name = "bandscope-distribution-runtime"
+version = "0.1.0"
+edition = "2021"
+description = "Bounded updater-metadata admission and durable freshness orchestration for BandScope."
+publish = false
+
+[dependencies]
+bandscope-distribution-core = { path = "../distribution-core" }
+bandscope-distribution-state = { path = "../distribution-state" }
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+warnings = "deny"
+missing_docs = "deny"
