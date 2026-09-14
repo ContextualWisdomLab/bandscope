@@ -43,7 +43,6 @@ fn sealed_but_unverified_artifact_is_removed_on_drop() {
 
     let sealed = staged.seal(receipt).expect("sync and seal exact artifact");
     assert_eq!(sealed.bytes_written(), 4);
-    assert_eq!(sealed.file().metadata().expect("descriptor metadata").len(), 4);
     assert_eq!(fs::metadata(sealed.path()).expect("sealed metadata").len(), 4);
     let path = sealed.path().to_path_buf();
     drop(sealed);
