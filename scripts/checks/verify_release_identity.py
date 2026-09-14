@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-"""Fail closed when BandScope release-version projections disagree.
+"""Fail closed when BandScope release-version or model admission projections disagree.
 
 Security Notes:
-- ``repository_root`` is an already-selected repository boundary; this guard
-  reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration
-  paths beneath it and never follows metadata-provided file paths.
+- ``repository_root`` is an already-selected repository boundary. Version identity
+  reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration.
+- The CLI composes the sibling Distribution model-policy guard. Normal branch/PR
+  checks validate that policy; version-tag checks additionally require exact
+  commercially admitted model bytes before any platform build can start.
 - VERSION and JSON fields are validated as exact, non-empty, trimmed strings
   before comparison; malformed text or JSON fails closed without echoing values.
-- The guard has no network, filesystem-write, subprocess, update, credential,
-  signing, or publication authority. It only returns a version or a failure.
+- These guards have no network, filesystem-write, update, credential, signing,
+  or publication authority. They only return verified release inputs or failure.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Any, Callable
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
@@ -49,6 +53,31 @@ def _required_string(
             f"{source_name} {field_name} must be a non-empty trimmed string"
         )
     return field_value
+
+
+def _load_model_policy_module() -> ModuleType:
+    """Load the adjacent Distribution model-policy guard without another package owner."""
+    guard_path = Path(__file__).with_name("verify_release_model_policy.py")
+    guard_spec = importlib.util.spec_from_file_location(
+        "bandscope_verify_release_model_policy", guard_path
+    )
+    if guard_spec is None or guard_spec.loader is None:
+        raise ValueError("could not load release model policy guard")
+    guard_module = importlib.util.module_from_spec(guard_spec)
+    try:
+        guard_spec.loader.exec_module(guard_module)
+    except (ImportError, OSError, SyntaxError) as load_error:
+        raise ValueError("could not load release model policy guard") from load_error
+    return guard_module
+
+
+def _model_policy_verifier() -> Callable[..., dict[str, Any]]:
+    """Return the sibling policy verifier and reject an incomplete guard module."""
+    guard_module = _load_model_policy_module()
+    verifier = getattr(guard_module, "verify_model_policy", None)
+    if not callable(verifier):
+        raise ValueError("release model policy guard lacks verify_model_policy")
+    return verifier
 
 
 def verify_release_identity(
@@ -93,7 +122,7 @@ def verify_release_identity(
 
 
 def main() -> int:
-    """Run the release identity gate for repository and tag-triggered workflows."""
+    """Run version and model-admission gates for repository and tag workflows."""
     release_tag = (
         os.environ.get("GITHUB_REF_NAME")
         if os.environ.get("GITHUB_REF_TYPE") == "tag"
@@ -103,10 +132,15 @@ def main() -> int:
         release_version = verify_release_identity(
             _REPOSITORY_ROOT, release_tag=release_tag
         )
+        verify_model_policy = _model_policy_verifier()
+        verify_model_policy(
+            _REPOSITORY_ROOT,
+            require_admitted=release_tag is not None,
+        )
     except ValueError as identity_error:
-        print(f"release identity check failed: {identity_error}", file=sys.stderr)
+        print(f"release preflight check failed: {identity_error}", file=sys.stderr)
         return 1
-    print(f"BandScope release identity verified: v{release_version}")
+    print(f"BandScope release preflight verified: v{release_version}")
     return 0
 
 
