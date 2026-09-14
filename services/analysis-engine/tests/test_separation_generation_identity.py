@@ -62,6 +62,7 @@ def test_separation_generation_identity_fails_closed_without_runtime_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing installed-runtime metadata disables cache equivalence instead of guessing it."""
+
     def missing_version(package_name: str) -> str:
         raise generation.importlib_metadata.PackageNotFoundError(package_name)
 
