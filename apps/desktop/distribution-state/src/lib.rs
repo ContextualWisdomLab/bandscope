@@ -152,7 +152,7 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
     }
 
     let mut bytes = Vec::with_capacity(opened.len() as usize);
-    file.by_ref()
+    Read::by_ref(&mut file)
         .take((MAX_STATE_BYTES + 1) as u64)
         .read_to_end(&mut bytes)
         .map_err(|_| StateError::Io)?;
