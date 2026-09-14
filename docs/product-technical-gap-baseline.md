@@ -20,7 +20,7 @@ The product keeps BandScope-specific audio/rehearsal truth inside BandScope. Org
 | Project Persistence | Project/cache integrity and scientific cache equivalence have dedicated owner work. | Crash/power-loss, disk-full, interrupted write/recovery, last-known-good project state and packaged-OS fault injection remain buyer gates. |
 | Collaboration Handoff | Export/handoff belongs to BandScope without creating a second collaboration platform. | Only released, bounded artifacts should cross product boundaries; mutable shared DB or cross-service SQL is not accepted. |
 | Diagnostics | Existing harness/security/build evidence is substantial. | Buyer-safe diagnostics must avoid audio/project/credential leakage and distinguish user cancel, provider/runtime failure, corrupt project and release/update failure. |
-| Distribution / Update | #1126 owns exact release identity, model/updater admission, native platform trust, receipts, static manifest, hosted-byte re-verification and immutable-release evidence. The static manifest carries exact source commit, per-target updater digest/size and compatibility floor. A Rust Distribution core now defines forward-version, replay/equivocation, target and project-schema-aware rollback decisions. | Production updater authority is intentionally blocked until an organization-approved public key and production endpoint exist. Runtime wiring still needs crash-safe highest-seen state, offline-safe check behavior, partial/disk-full/cancel/first-launch recovery and packaged wrong-key/signature/digest/replay acceptance. Windows/macOS signing/notarization authority and commercial model rights are external prerequisites. |
+| Distribution / Update | #1126 owns exact release identity, model/updater admission, native platform trust, receipts, static manifest, hosted-byte re-verification and immutable-release evidence. The static manifest carries exact source commit, per-target updater digest/size and compatibility floor. Rust decision and state crates now define replay/equivocation/target/schema policy plus a bounded append/sync highest-seen log with torn-tail recovery. | Production updater authority is intentionally blocked until an organization-approved public key and production endpoint exist. Runtime still needs authenticated `Update.raw_json` admission, app-owned state-path wiring, packaged restart/power-loss acceptance, offline-safe checks, partial/disk-full/cancel/first-launch recovery and packaged wrong-key/signature/digest/replay acceptance. Windows/macOS signing/notarization authority and commercial model rights are external prerequisites. |
 | UI / Interaction | Rehearsal-first UI is the product surface; Anti-Slop and accessibility are acceptance criteria, not decoration. | Normal/loading/empty/error/permission/responsive states, KO/EN/JA/ZH/VI/ES/DE/FR expansion/fallback, keyboard/focus/contrast/state semantics and actual-audio E2E must be verified on the exact release candidate. |
 
 ## Distribution/update decision boundary
@@ -33,7 +33,7 @@ The Distribution updater path uses three different evidence classes and must not
 
 The Rust `apps/desktop/distribution-core` is the deterministic decision layer after authentication. It rejects malformed stable versions, target mismatch, downgrade candidates, metadata older than the locally highest authenticated release, same-version release-identity equivocation and rollback to a build that cannot read the current project schema. It does not fetch, install, sign, notarize, parse arbitrary remote JSON, or write project data.
 
-Highest-seen update identity is Distribution state, not Project Persistence state. It should be persisted after authenticated metadata is observed even when installation is deferred, otherwise an attacker can make previously observed old metadata look fresh after restart. Project Persistence remains authoritative only for the project/schema evidence used by rollback compatibility checks.
+Highest-seen update identity is Distribution state, not Project Persistence state. `apps/desktop/distribution-state` now provides a separate bounded append-only Rust log that revalidates committed identities, rejects local version regression/equivocation, synchronizes successful appends and recovers only a syntactically valid torn final record prefix. It deliberately does not claim packaged power-loss equivalence across Windows/macOS until platform fault-injection evidence exists. Project Persistence remains authoritative only for project bytes and the project-schema evidence used by rollback compatibility checks.
 
 ## Release gate
 
@@ -45,7 +45,7 @@ Until those conditions are satisfied, Draft/open PRs and blocked release policie
 
 - Distribution admission: `docs/traceability/updater-release-admission.md`
 - Release receipt/publication: `docs/traceability/release-artifact-receipt.md`
-- Updater security metadata and replay/rollback model: `docs/traceability/updater-security-metadata.md`
+- Updater security metadata, durable freshness state and replay/rollback model: `docs/traceability/updater-security-metadata.md`
 - Security trust boundaries: `docs/security/app-security.md`
 - Cross-platform release controls: `docs/security/cross-platform-build-policy.md`
 - Architecture ownership: `ARCHITECTURE.md`
