@@ -36,9 +36,9 @@ def _write_fixture(
     updater_config: dict[str, object] | None = None,
 ) -> None:
     """Write the minimum policy and Tauri config consumed by the guard."""
-    (repository_root / "release").mkdir(parents=True)
+    (repository_root / "release").mkdir(parents=True, exist_ok=True)
     tauri_root = repository_root / "apps" / "desktop" / "src-tauri"
-    tauri_root.mkdir(parents=True)
+    tauri_root.mkdir(parents=True, exist_ok=True)
     (repository_root / "release" / "updater-policy.json").write_text(
         json.dumps(
             {
