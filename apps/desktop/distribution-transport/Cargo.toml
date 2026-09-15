@@ -1,0 +1,17 @@
+[package]
+name = "bandscope-distribution-transport"
+version = "0.1.0"
+edition = "2021"
+description = "Updater transport admission bridge for BandScope Distribution."
+publish = false
+
+[dependencies]
+bandscope-distribution-download = { path = "../distribution-download" }
+bandscope-distribution-runtime = { path = "../distribution-runtime" }
+
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+warnings = "deny"
+missing_docs = "deny"
