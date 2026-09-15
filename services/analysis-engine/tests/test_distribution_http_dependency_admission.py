@@ -167,9 +167,7 @@ def test_target_specific_reqwest_cannot_bypass_direct_dependency_admission(
 ) -> None:
     """Treat target-scoped runtime reqwest declarations as direct owner dependencies."""
     _write_fixture(tmp_path, reqwest=None, rustls_version="0.23.45")
-    manifest = (
-        tmp_path / "apps/desktop/distribution-transport/Cargo.toml"
-    )
+    manifest = tmp_path / "apps/desktop/distribution-transport/Cargo.toml"
     manifest.write_text(
         manifest.read_text(encoding="utf-8")
         + '\n[target.\'cfg(windows)\'.dependencies]\n'
@@ -190,3 +188,30 @@ def test_target_specific_reqwest_cannot_bypass_direct_dependency_admission(
 
     assert any("gzip" in violation for violation in violations)
     assert any("cfg(windows)" in violation for violation in violations)
+
+
+def test_renamed_reqwest_cannot_bypass_direct_dependency_admission(
+    tmp_path: Path,
+) -> None:
+    """Treat Cargo package aliases as direct reqwest ownership."""
+    _write_fixture(tmp_path, reqwest=None, rustls_version="0.23.45")
+    manifest = tmp_path / "apps/desktop/distribution-transport/Cargo.toml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8")
+        + 'distribution_http = { package = "reqwest", version = "0.13.5", '
+        + 'default-features = false, features = ["rustls", "gzip"] }\n',
+        encoding="utf-8",
+    )
+    lock = tmp_path / "apps/desktop/distribution-transport/Cargo.lock"
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + '\n[[package]]\nname = "reqwest"\nversion = "0.13.5"\n'
+        + 'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+        + 'checksum = "fixture"\n',
+        encoding="utf-8",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("gzip" in violation for violation in violations)
+    assert any("distribution_http" in violation for violation in violations)
