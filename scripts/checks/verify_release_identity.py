@@ -10,6 +10,9 @@ Security Notes:
   any platform build can start.
 - VERSION and JSON fields are validated as exact, non-empty, trimmed strings
   before comparison; malformed text or JSON fails closed without echoing values.
+- Stable release versions use the same canonical numeric MAJOR.MINOR.PATCH grammar
+  as the native Distribution/update policy core. Prerelease/build forms therefore
+  cannot enter packaging and later become updater metadata the runtime rejects.
 - These guards have no network, filesystem-write, update, credential, signing,
   or publication authority. They only return verified release inputs or failure.
 """
@@ -19,12 +22,16 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+_STABLE_VERSION_RE = re.compile(
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
+)
 
 
 def _read_json_object(metadata_path: Path) -> dict[str, Any]:
@@ -114,6 +121,8 @@ def verify_release_identity(
     ):
         raise ValueError("VERSION must contain exactly one non-empty version line")
     release_version = version_lines[0]
+    if _STABLE_VERSION_RE.fullmatch(release_version) is None:
+        raise ValueError("VERSION must be canonical stable MAJOR.MINOR.PATCH")
 
     package_document = _read_json_object(repository_root / "package.json")
     tauri_document = _read_json_object(
