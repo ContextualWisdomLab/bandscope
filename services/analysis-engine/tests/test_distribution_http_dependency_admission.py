@@ -215,3 +215,34 @@ def test_renamed_reqwest_cannot_bypass_direct_dependency_admission(
 
     assert any("gzip" in violation for violation in violations)
     assert any("distribution_http" in violation for violation in violations)
+
+
+def test_workspace_inherited_reqwest_cannot_bypass_direct_dependency_admission(
+    tmp_path: Path,
+) -> None:
+    """Reject reqwest hidden behind workspace dependency inheritance."""
+    _write_fixture(tmp_path, reqwest=None, rustls_version="0.23.45")
+    manifest = tmp_path / "apps/desktop/distribution-transport/Cargo.toml"
+    manifest.write_text(
+        '[package]\nname = "fixture"\nversion = "0.0.0"\n\n'
+        '[dependencies]\n'
+        'distribution_http = { workspace = true, features = ["gzip"] }\n\n'
+        '[workspace]\n\n'
+        '[workspace.dependencies]\n'
+        'distribution_http = { package = "reqwest", version = "0.13.5", '
+        'default-features = false, features = ["rustls"] }\n',
+        encoding="utf-8",
+    )
+    lock = tmp_path / "apps/desktop/distribution-transport/Cargo.lock"
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + '\n[[package]]\nname = "reqwest"\nversion = "0.13.5"\n'
+        + 'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+        + 'checksum = "fixture"\n',
+        encoding="utf-8",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("workspace" in violation for violation in violations)
+    assert any("distribution_http" in violation for violation in violations)
