@@ -12,12 +12,15 @@ Reqwest 0.13.5 exposes optional behavior that changes updater transport semantic
 
 The preceding checker used a narrower TLS deny-list. It correctly rejected the affected rustls interval and the known native-TLS feature spellings, but a future manifest such as `features = ["rustls", "gzip"]` would still have passed pre-compilation admission. Reqwest documents that enabling `gzip`, `brotli`, `zstd` or `deflate` turns automatic response decompression on by default and can remove `Content-Encoding` and `Content-Length` before application code observes the response. That is incompatible with BandScope's requirement that `distribution-transport` admit the exact wire response metadata and that `distribution-download` receive the exact updater artifact bytes.
 
-This finding does not prove that an existing transitive `rustls` entry elsewhere in BandScope is exploitable. The gate is deliberately activated when `apps/desktop/distribution-transport/Cargo.toml` acquires a direct `reqwest` dependency, because that is the repository-owned production HTTP boundary being prepared here.
+A second review of the executable gate found an ownership-location bypass after the feature allow-list was added. The checker originally read only top-level `[dependencies].reqwest`. Cargo permits normal runtime dependencies under target-scoped tables such as `[target.'cfg(windows)'.dependencies]`; a future Windows-only or macOS-only reqwest declaration there would have activated the production client while the checker returned early as if Distribution had no direct HTTP dependency. Target-scoped normal dependencies therefore belong to the same owner admission surface as unconditional normal dependencies.
+
+This finding does not prove that an existing transitive `rustls` entry elsewhere in BandScope is exploitable. The gate is deliberately activated when `apps/desktop/distribution-transport/Cargo.toml` acquires a direct runtime `reqwest` dependency, unconditional or target-scoped, because that is the repository-owned production HTTP boundary being prepared here.
 
 ## Constraints
 
 - The production updater client must remain in the Distribution bounded context and must not reimplement metadata, project persistence, authentication, or installer ownership.
-- A direct `reqwest` dependency must use table syntax with `default-features = false` and exactly the approved direct feature set: `features = ["rustls"]`.
+- Any direct runtime `reqwest` dependency, whether under top-level `[dependencies]` or a Cargo `[target.<selector>.dependencies]` table, must use table syntax with `default-features = false` and exactly the approved direct feature set: `features = ["rustls"]`.
+- `dev-dependencies` and `build-dependencies` do not activate the production client and are not treated as runtime owner declarations by this gate.
 - Additional direct reqwest features are rejected until a concrete Distribution requirement, threat analysis, tests and traceability justify widening the allow-list. This currently rejects native/default TLS alternatives, transparent decompression, proxy, alternate DNS and HTTP/2/HTTP/3 feature activation at the owner manifest.
 - Runtime code must still call `ClientBuilder::tls_backend_rustls()`. Cargo features are additive across the dependency graph, so the manifest allow-list is not a substitute for explicit runtime backend selection.
 - Runtime code must also call `no_gzip()`, `no_brotli()`, `no_zstd()`, `no_deflate()`, `redirect(Policy::none())` and `no_proxy()`. Reqwest intentionally provides the `no_*` decompression methods even when the corresponding optional feature is not selected so an additive transitive feature cannot silently change client behavior.
@@ -33,6 +36,8 @@ Using reqwest defaults was rejected because the default TLS backend is intention
 
 Maintaining separate forbidden-feature sets for native TLS, decompression, proxies and protocols was rejected after the feature review. Reqwest features are additive and its public feature surface can grow; a deny-list fails open whenever a newly relevant feature is omitted. The selected allow-list has the inverse property: a new direct feature requires an explicit repository decision before it can enter the release transport.
 
+Inspecting only top-level `[dependencies]` was rejected because Cargo target tables can declare the same normal runtime dependency for one platform. Distribution supports Windows and macOS explicitly; platform scoping changes where the dependency is declared, not who owns its network/TLS semantics. The checker therefore enumerates both unconditional and target-scoped normal dependency tables and applies the same declaration policy to each one.
+
 Enabling reqwest's optional `stream` feature was rejected for the current adapter design because `Response::chunk()` already provides bounded asynchronous chunk retrieval without that feature. Avoiding `stream` also avoids an unnecessary `futures`/`tokio-util` surface in this small security-sensitive owner.
 
 Rejecting every rustls version below 0.23.45 was also rejected. RustSec explicitly lists versions below 0.23.13 as unaffected by this advisory, and future 0.24+ lines should not fail a check written for a 0.23 advisory. The selected check therefore models the published affected interval exactly.
@@ -41,11 +46,11 @@ Scanning every Cargo.lock in the repository and treating any affected transitive
 
 ## Selected design
 
-`scripts/checks/verify_distribution_http_dependencies.py` is a dependency-free Python 3 gate using `tomllib`. With no direct reqwest dependency in the Distribution transport manifest it returns success and does not infer exposure from unrelated graphs. Once reqwest is declared directly, it requires explicit rustls backend ownership, requires the direct reqwest feature set to be exactly `rustls`, requires a committed standalone lock containing reqwest and rustls, and rejects every locked rustls version inside the `RUSTSEC-2026-0285` affected interval.
+`scripts/checks/verify_distribution_http_dependencies.py` is a dependency-free Python 3 gate using `tomllib`. It enumerates direct runtime reqwest declarations from top-level `[dependencies]` and every `[target.<selector>.dependencies]` table. If none exists it returns success and does not infer exposure from unrelated graphs. Once any direct runtime reqwest declaration exists, every declaration must explicitly own the rustls backend and use exactly the direct feature set `{rustls}`; the gate then requires a committed standalone lock containing reqwest and rustls and rejects every locked rustls version inside the `RUSTSEC-2026-0285` affected interval.
 
 `.github/workflows/ci.yml` runs this check in `lock-validation` immediately after checkout. The Distribution Windows/macOS/Linux Rust jobs depend on that job, so an unsafe future HTTP graph is rejected before those crates compile rather than after a platform matrix has already exercised it. `scripts/harness/quickcheck.sh` invokes the same checker so local canonical validation and hosted admission share one rule.
 
-The regression suite uses synthetic Cargo manifest/lock fixtures only for policy-unit coverage. It proves rejection of rustls 0.23.44, acceptance of 0.23.45 and 0.24.0, non-activation when Distribution has no direct reqwest dependency, rejection of implicit reqwest TLS feature selection, and rejection of unapproved direct transport features including gzip/Brotli/Zstandard/deflate decoding, system/SOCKS proxy, alternate DNS, HTTP/2 and HTTP/3. Those fixtures are not production networking evidence.
+The regression suite uses synthetic Cargo manifest/lock fixtures only for policy-unit coverage. It proves rejection of rustls 0.23.44, acceptance of 0.23.45 and 0.24.0, non-activation when Distribution has no direct reqwest dependency, rejection of implicit reqwest TLS feature selection, rejection of unapproved direct transport features including gzip/Brotli/Zstandard/deflate decoding, system/SOCKS proxy, alternate DNS, HTTP/2 and HTTP/3, and rejection of the same invalid reqwest declaration when it is moved under a Windows target dependency table. Those fixtures are not production networking evidence.
 
 ## RED -> repair evidence
 
@@ -57,6 +62,8 @@ The regression suite uses synthetic Cargo manifest/lock fixtures only for policy
 - `621bac6b543255e1fd6c01ce03068c8870a43773` added a RED contract proving that the narrower checker still admitted `features = ["rustls", "gzip"]`, even though gzip activation can transparently transform response bytes and strip transport headers before BandScope admission.
 - `43d786362a15afa23824878091c2edea07b474bd` replaced feature-specific deny-listing with the exact direct reqwest allow-list `{"rustls"}`.
 - `eb10409b07d26247d6060466b93ad37ec02f9870` expanded edge coverage across transparent decompression, proxy, DNS and HTTP protocol feature classes so a future widening of the allow-list is an explicit contract change.
+- `d36c4d647ace77d8a0d68a2e3690460cadd980ed` added a RED contract moving the invalid `rustls + gzip` declaration under `[target.'cfg(windows)'.dependencies]`; the preceding checker treated the manifest as having no direct reqwest dependency.
+- `da209f160bcf4e81cc70cf4760ad658c9d78c679` makes target-scoped normal runtime reqwest declarations enter the same fail-closed owner admission as top-level declarations.
 
 Hosted exact-head checks remain authoritative for repository integration. This source-level gate does not claim that the production HTTP adapter exists, that remote metadata is authenticated, that updater artifact signatures have been verified, or that current packaged Windows/macOS network behavior is release-ready.
 
