@@ -22,10 +22,17 @@ fn updater_document() -> Vec<u8> {
     updater_document_with_signature("c2ln")
 }
 
-fn policy() -> ReleaseTransportPolicy {
-    let metadata = admit_untrusted_raw_json(&updater_document(), "windows-x86_64")
-        .expect("fixture must satisfy provisional metadata admission");
+fn policy_with_signature(signature: &str) -> ReleaseTransportPolicy {
+    let metadata = admit_untrusted_raw_json(
+        &updater_document_with_signature(signature),
+        "windows-x86_64",
+    )
+    .expect("fixture must satisfy provisional metadata admission");
     ReleaseTransportPolicy::from_provisional(&metadata).expect("transport projection")
+}
+
+fn policy() -> ReleaseTransportPolicy {
+    policy_with_signature("c2ln")
 }
 
 fn scratch_dir(label: &str) -> std::path::PathBuf {
@@ -83,6 +90,24 @@ fn github_release_redirect_is_one_hop_and_streams_through_bounded_staging() {
     drop(sealed);
     assert!(!path.exists(), "unverified sealed bytes remain cleanup-on-drop");
     fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
+fn redirect_decision_cannot_cross_provisional_policy_identity() {
+    let originating_policy = policy_with_signature("c2ln");
+    let different_policy = policy_with_signature("c2lnMQ==");
+    let redirect = match originating_policy
+        .admit_initial_response(302, INITIAL_URL, Some(CDN_URL))
+        .expect("originating policy admits one redirect")
+    {
+        ResponseDecision::FollowRedirect(redirect) => redirect,
+        ResponseDecision::Download(_) => panic!("302 must require a redirect follow-up"),
+    };
+
+    assert_eq!(
+        different_policy.admit_redirect_response(&redirect, 200, CDN_URL),
+        Err(TransportPolicyError::RedirectPolicyMismatch)
+    );
 }
 
 #[test]
