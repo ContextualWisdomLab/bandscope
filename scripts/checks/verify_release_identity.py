@@ -4,10 +4,10 @@
 Security Notes:
 - ``repository_root`` is an already-selected repository boundary. Version identity
   reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration.
-- VERSION and JSON projections are read once from bounded regular non-link file
-  descriptors; descriptor identity/size must remain stable while read, and JSON
-  duplicate members and non-standard numeric constants are rejected before any
-  version value is compared.
+- VERSION and JSON projections are read twice from the same bounded regular
+  non-link file descriptor; both byte snapshots plus descriptor identity/size
+  must remain stable, and JSON duplicate members and non-standard numeric
+  constants are rejected before any version value is compared.
 - The CLI composes the sibling Distribution model-policy and updater-policy guards.
   Normal branch/PR checks validate both policies; version-tag checks additionally
   require exact commercially admitted model and updater release authority before
@@ -102,23 +102,40 @@ def _read_bounded_regular_text(
         if before.st_size < 1 or before.st_size > maximum_bytes:
             raise ValueError(f"{label} exceeds its bounded size policy")
 
-        chunks: list[bytes] = []
-        remaining = maximum_bytes + 1
-        while remaining > 0:
-            chunk = os.read(descriptor, min(64 * 1024, remaining))
-            if not chunk:
-                break
-            chunks.append(chunk)
-            remaining -= len(chunk)
-        payload = b"".join(chunks)
-        if len(payload) > maximum_bytes:
-            raise ValueError(f"{label} exceeds its bounded size policy")
+        def read_snapshot() -> bytes:
+            chunks: list[bytes] = []
+            remaining = maximum_bytes + 1
+            while remaining > 0:
+                chunk = os.read(descriptor, min(64 * 1024, remaining))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            payload = b"".join(chunks)
+            if len(payload) > maximum_bytes:
+                raise ValueError(f"{label} exceeds its bounded size policy")
+            return payload
 
-        after = os.fstat(descriptor)
+        payload = read_snapshot()
+        after_first = os.fstat(descriptor)
         if (
             (before.st_dev, before.st_ino, before.st_size)
-            != (after.st_dev, after.st_ino, after.st_size)
+            != (after_first.st_dev, after_first.st_ino, after_first.st_size)
             or len(payload) != before.st_size
+        ):
+            raise ValueError(f"{label} changed while being read")
+
+        try:
+            os.lseek(descriptor, 0, os.SEEK_SET)
+        except OSError as seek_error:
+            raise ValueError(f"{label} changed while being read") from seek_error
+        verification_payload = read_snapshot()
+        after_second = os.fstat(descriptor)
+        if (
+            (before.st_dev, before.st_ino, before.st_size)
+            != (after_second.st_dev, after_second.st_ino, after_second.st_size)
+            or len(verification_payload) != before.st_size
+            or verification_payload != payload
         ):
             raise ValueError(f"{label} changed while being read")
         try:
