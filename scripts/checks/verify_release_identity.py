@@ -6,8 +6,10 @@ Security Notes:
   reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration.
 - VERSION and JSON projections are read twice from the same bounded regular
   non-link file descriptor; both byte snapshots plus descriptor identity/size
-  must remain stable, and JSON duplicate members and non-standard numeric
-  constants are rejected before any version value is compared.
+  must remain stable, and the repository path is revalidated against that same
+  descriptor after the stable read before JSON/version values are trusted.
+- JSON duplicate members and non-standard numeric constants are rejected before
+  any version value is compared.
 - The CLI composes the sibling Distribution model-policy and updater-policy guards.
   Normal branch/PR checks validate both policies; version-tag checks additionally
   require exact commercially admitted model and updater release authority before
@@ -138,6 +140,19 @@ def _read_bounded_regular_text(
             or verification_payload != payload
         ):
             raise ValueError(f"{label} changed while being read")
+
+        try:
+            final_path_identity = os.lstat(path)
+        except OSError as identity_error:
+            raise ValueError(f"{label} changed while being read") from identity_error
+        if (
+            stat.S_ISLNK(final_path_identity.st_mode)
+            or not stat.S_ISREG(final_path_identity.st_mode)
+            or (final_path_identity.st_dev, final_path_identity.st_ino)
+            != (after_second.st_dev, after_second.st_ino)
+        ):
+            raise ValueError(f"{label} changed while being read")
+
         try:
             return payload.decode("utf-8")
         except UnicodeError as decode_error:
