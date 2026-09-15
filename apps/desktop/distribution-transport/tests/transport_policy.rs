@@ -49,6 +49,14 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
     path
 }
 
+fn staging_lease_path(directory: &Path) -> std::path::PathBuf {
+    directory.join(".bandscope-staging.lock")
+}
+
+fn remove_staging_lease(directory: &Path) {
+    fs::remove_file(staging_lease_path(directory)).expect("remove persistent staging lease fixture");
+}
+
 fn assert_platform_drop_cleanup(path: &Path) {
     #[cfg(unix)]
     assert!(!path.exists(), "Unix removes the descriptor-owned staging path");
@@ -104,6 +112,7 @@ fn github_release_redirect_is_one_hop_and_streams_through_bounded_staging() {
     let path = sealed.path().to_path_buf();
     drop(sealed);
     assert_platform_drop_cleanup(&path);
+    remove_staging_lease(&directory);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -207,11 +216,12 @@ fn explicit_identity_content_encoding_remains_admitted() {
     let path = sealed.path().to_path_buf();
     drop(sealed);
     assert_platform_drop_cleanup(&path);
+    remove_staging_lease(&directory);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
 #[test]
-fn cancelled_transport_drops_partial_staging_bytes() {
+fn cancelled_transport_releases_lease_and_preserves_platform_cleanup_contract() {
     let policy = policy();
     let head = match policy
         .admit_initial_response(200, INITIAL_URL, None)
@@ -225,10 +235,13 @@ fn cancelled_transport_drops_partial_staging_bytes() {
         .start_staging(&directory, None, None)
         .expect("start bounded staging");
     download.admit_chunk(b"da").expect("partial chunk");
-    assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 1);
     let path = download.path().to_path_buf();
+    assert!(path.is_file());
+    assert!(staging_lease_path(&directory).is_file());
+
     drop(download);
     assert_platform_drop_cleanup(&path);
-    assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 0);
+    assert!(staging_lease_path(&directory).is_file());
+    remove_staging_lease(&directory);
     fs::remove_dir(directory).expect("remove staging directory");
 }
