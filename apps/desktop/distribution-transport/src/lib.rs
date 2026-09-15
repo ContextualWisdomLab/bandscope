@@ -45,6 +45,8 @@ pub enum TransportPolicyError {
 /// Failure while converting an admitted response head into bounded staged bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TransportDownloadError {
+    /// The response declared a content coding that would transform artifact bytes.
+    UnsupportedContentEncoding,
     /// Byte-count or content-length admission failed.
     Download(DownloadAdmissionError),
     /// App-owned staging-file admission or sealing failed.
@@ -103,14 +105,22 @@ impl AdmittedDownloadHead {
 
     /// Start one bounded staged body after response-head admission succeeds.
     ///
-    /// Content-length admission runs before filesystem mutation, so an immediate
-    /// length mismatch cannot create a staging artifact. The returned value owns
-    /// cleanup through the underlying `StagedArtifactFile` lifecycle.
+    /// Content-encoding and content-length admission run before filesystem
+    /// mutation. Updater signatures and digests are defined over exact release
+    /// artifact bytes, so any response content coding other than the explicit
+    /// identity coding is rejected rather than relying on HTTP-client
+    /// decompression behavior. `None` means the response omitted the header.
     pub fn start_staging(
         &self,
         staging_directory: &Path,
         response_content_length: Option<u64>,
+        response_content_encoding: Option<&str>,
     ) -> Result<TransportDownload, TransportDownloadError> {
+        if response_content_encoding
+            .is_some_and(|encoding| !encoding.eq_ignore_ascii_case("identity"))
+        {
+            return Err(TransportDownloadError::UnsupportedContentEncoding);
+        }
         let admission = ArtifactDownloadAdmission::new(
             self.expected_size_bytes,
             response_content_length,
