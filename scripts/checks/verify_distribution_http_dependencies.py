@@ -47,7 +47,10 @@ def _direct_reqwest_declarations(manifest: dict[str, Any]) -> list[tuple[str, An
             target_dependencies = target_table.get("dependencies", {})
             if isinstance(target_dependencies, dict) and "reqwest" in target_dependencies:
                 declarations.append(
-                    (f"target.{selector}.dependencies.reqwest", target_dependencies["reqwest"])
+                    (
+                        f"target.{selector}.dependencies.reqwest",
+                        target_dependencies["reqwest"],
+                    )
                 )
     return declarations
 
