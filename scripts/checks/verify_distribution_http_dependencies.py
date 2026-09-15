@@ -161,6 +161,21 @@ def _validate_reqwest_declaration(location: str, reqwest: Any) -> list[str]:
     return violations
 
 
+def _validate_crates_io_lock_source(
+    *,
+    package_name: str,
+    package: dict[str, Any],
+) -> str | None:
+    """Return a violation when a security-owned package is not crates.io-backed."""
+    source = package.get("source")
+    if source == CRATES_IO_LOCK_SOURCE:
+        return None
+    return (
+        f"{DISTRIBUTION_TRANSPORT_LOCK}: {package_name} source must be canonical "
+        f"crates.io registry; found {source!r}"
+    )
+
+
 def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
     """Verify direct reqwest admission before the production Distribution client compiles."""
     manifest_path = repo_root / DISTRIBUTION_TRANSPORT_MANIFEST
@@ -192,26 +207,31 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
             "committed lock graph"
         )
     for package in reqwest_packages:
-        source = package.get("source")
-        if source != CRATES_IO_LOCK_SOURCE:
-            violations.append(
-                f"{DISTRIBUTION_TRANSPORT_LOCK}: reqwest source must be canonical "
-                f"crates.io registry; found {source!r}"
-            )
+        source_violation = _validate_crates_io_lock_source(
+            package_name="reqwest",
+            package=package,
+        )
+        if source_violation:
+            violations.append(source_violation)
 
-    rustls_versions = [
-        str(package.get("version", ""))
-        for package in packages
-        if package.get("name") == "rustls"
+    rustls_packages = [
+        package for package in packages if package.get("name") == "rustls"
     ]
-    if not rustls_versions:
+    if not rustls_packages:
         violations.append(
             f"{DISTRIBUTION_TRANSPORT_LOCK}: reqwest rustls backend is selected but "
             "rustls is absent"
         )
         return violations
 
-    for version in rustls_versions:
+    for package in rustls_packages:
+        source_violation = _validate_crates_io_lock_source(
+            package_name="rustls",
+            package=package,
+        )
+        if source_violation:
+            violations.append(source_violation)
+        version = str(package.get("version", ""))
         if _version_triplet(version) is None:
             violations.append(
                 f"{DISTRIBUTION_TRANSPORT_LOCK}: cannot parse rustls version {version!r}"
