@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 use bandscope_distribution_core::ReleaseIdentity;
 use bandscope_distribution_state::{load_highest_seen, remember_highest_seen, StateError};
 use std::path::{Path, PathBuf};
