@@ -13,6 +13,8 @@ DISTRIBUTION_TRANSPORT_LOCK = Path("apps/desktop/distribution-transport/Cargo.lo
 RUSTLS_ENCRYPTION_LEVEL_ADVISORY = "RUSTSEC-2026-0285"
 RUSTLS_AFFECTED_MIN = (0, 23, 13)
 RUSTLS_PATCHED_MIN = (0, 23, 45)
+REQWEST_REVIEWED_MIN = (0, 13, 5)
+REQWEST_REVIEWED_UPPER = (0, 14, 0)
 REQWEST_APPROVED_FEATURES = frozenset({"rustls"})
 REQWEST_APPROVED_DECLARATION_KEYS = frozenset(
     {"version", "package", "default-features", "features"}
@@ -21,7 +23,7 @@ CRATES_IO_LOCK_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
 
 def _version_triplet(raw: str) -> tuple[int, int, int] | None:
-    """Return the numeric core used by the advisory range."""
+    """Return the numeric core used by owner version and advisory ranges."""
     core = raw.split("+", 1)[0].split("-", 1)[0]
     parts = core.split(".")
     if len(parts) != 3 or any(not part.isdigit() for part in parts):
@@ -37,6 +39,15 @@ def _is_bounded_three_component_requirement(raw: str) -> bool:
         return False
     canonical = ".".join(str(component) for component in version)
     return raw == canonical
+
+
+def _is_reviewed_reqwest_version(raw: str) -> bool:
+    """Return whether reqwest stays inside the currently reviewed 0.13 release line."""
+    version = _version_triplet(raw)
+    return (
+        version is not None
+        and REQWEST_REVIEWED_MIN <= version < REQWEST_REVIEWED_UPPER
+    )
 
 
 def _is_affected_rustls(raw: str) -> bool:
@@ -153,6 +164,12 @@ def _validate_reqwest_declaration(location: str, reqwest: Any) -> list[str]:
             f"{prefix}: reqwest version must use one bounded three-component Cargo "
             f"requirement such as 0.13.5; found {version!r}"
         )
+    elif not _is_reviewed_reqwest_version(version):
+        violations.append(
+            f"{prefix}: reqwest {version} is outside the reviewed reqwest range "
+            ">=0.13.5,<0.14.0; a downgrade or SemVer-line change requires a new "
+            "Distribution owner decision and evidence"
+        )
 
     if reqwest.get("default-features") is not False:
         violations.append(
@@ -227,6 +244,17 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
         )
         if source_violation:
             violations.append(source_violation)
+        version = str(package.get("version", ""))
+        if _version_triplet(version) is None:
+            violations.append(
+                f"{DISTRIBUTION_TRANSPORT_LOCK}: cannot parse reqwest version {version!r}"
+            )
+        elif not _is_reviewed_reqwest_version(version):
+            violations.append(
+                f"{DISTRIBUTION_TRANSPORT_LOCK}: resolved reqwest {version} is outside "
+                "the reviewed reqwest range >=0.13.5,<0.14.0; refresh only within the "
+                "reviewed line or record a new Distribution owner decision"
+            )
 
     rustls_packages = [
         package for package in packages if package.get("name") == "rustls"
