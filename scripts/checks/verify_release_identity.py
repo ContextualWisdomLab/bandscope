@@ -4,6 +4,9 @@
 Security Notes:
 - ``repository_root`` is an already-selected repository boundary. Version identity
   reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration.
+- VERSION and JSON projections are read once from bounded regular non-link file
+  descriptors; descriptor identity/size must remain stable while read, and JSON
+  duplicate members are rejected before any version value is compared.
 - The CLI composes the sibling Distribution model-policy and updater-policy guards.
   Normal branch/PR checks validate both policies; version-tag checks additionally
   require exact commercially admitted model and updater release authority before
@@ -24,6 +27,7 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -34,6 +38,8 @@ _STABLE_VERSION_RE = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 )
 _U64_MAX_DECIMAL = "18446744073709551615"
+_MAX_VERSION_BYTES = 128
+_MAX_RELEASE_METADATA_BYTES = 256 * 1024
 
 
 def _is_u64_decimal(component: str) -> bool:
@@ -53,11 +59,82 @@ def _is_canonical_stable_version(value: str) -> bool:
     )
 
 
-def _read_json_object(metadata_path: Path) -> dict[str, Any]:
-    """Read one release metadata document and require a JSON object root."""
+def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build a JSON object while rejecting parser-dependent duplicate members."""
+    document: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in document:
+            raise ValueError(f"duplicate JSON member in release metadata: {key}")
+        document[key] = value
+    return document
+
+
+def _read_bounded_regular_text(
+    path: Path, *, maximum_bytes: int, label: str
+) -> str:
+    """Read one bounded regular non-link file from one stable descriptor."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
-        metadata_document = json.loads(metadata_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as metadata_error:
+        descriptor = os.open(path, flags)
+    except OSError as read_error:
+        raise ValueError(f"{label} must be a regular non-link file") from read_error
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError(f"{label} must be a regular non-link file")
+        try:
+            path_identity = os.lstat(path)
+        except OSError as identity_error:
+            raise ValueError(f"{label} changed while being opened") from identity_error
+        if (
+            stat.S_ISLNK(path_identity.st_mode)
+            or not stat.S_ISREG(path_identity.st_mode)
+            or (path_identity.st_dev, path_identity.st_ino)
+            != (before.st_dev, before.st_ino)
+        ):
+            raise ValueError(f"{label} must be a regular non-link file")
+        if before.st_size < 1 or before.st_size > maximum_bytes:
+            raise ValueError(f"{label} exceeds its bounded size policy")
+
+        chunks: list[bytes] = []
+        remaining = maximum_bytes + 1
+        while remaining > 0:
+            chunk = os.read(descriptor, min(64 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+        if len(payload) > maximum_bytes:
+            raise ValueError(f"{label} exceeds its bounded size policy")
+
+        after = os.fstat(descriptor)
+        if (
+            (before.st_dev, before.st_ino, before.st_size)
+            != (after.st_dev, after.st_ino, after.st_size)
+            or len(payload) != before.st_size
+        ):
+            raise ValueError(f"{label} changed while being read")
+        try:
+            return payload.decode("utf-8")
+        except UnicodeError as decode_error:
+            raise ValueError(f"{label} is not valid UTF-8") from decode_error
+    finally:
+        os.close(descriptor)
+
+
+def _read_json_object(metadata_path: Path) -> dict[str, Any]:
+    """Read one bounded release metadata document and require a JSON object root."""
+    raw_text = _read_bounded_regular_text(
+        metadata_path,
+        maximum_bytes=_MAX_RELEASE_METADATA_BYTES,
+        label=metadata_path.name,
+    )
+    try:
+        metadata_document = json.loads(
+            raw_text, object_pairs_hook=_reject_duplicate_pairs
+        )
+    except json.JSONDecodeError as metadata_error:
         raise ValueError(
             f"could not read release metadata: {metadata_path.name}"
         ) from metadata_error
@@ -126,10 +203,11 @@ def verify_release_identity(
     repository_root: Path, release_tag: str | None = None
 ) -> str:
     """Verify package, Tauri, and optional tag versions against ``VERSION``."""
-    try:
-        version_text = (repository_root / "VERSION").read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as identity_error:
-        raise ValueError("could not read authoritative VERSION") from identity_error
+    version_text = _read_bounded_regular_text(
+        repository_root / "VERSION",
+        maximum_bytes=_MAX_VERSION_BYTES,
+        label="VERSION",
+    )
 
     version_lines = version_text.splitlines()
     if (
