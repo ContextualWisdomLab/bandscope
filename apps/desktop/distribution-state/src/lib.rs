@@ -9,7 +9,7 @@
 #![forbid(unsafe_code)]
 
 use bandscope_distribution_core::ReleaseIdentity;
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, TryLockError};
 use std::io::{Read, Write};
 use std::path::Path;
 
@@ -18,6 +18,7 @@ pub const MAX_STATE_BYTES: usize = 64 * 1024;
 
 const RECORD_PREFIX: &str = "v1|";
 const MAX_RECORD_BYTES: usize = 192;
+const STATE_LEASE_FILE_NAME: &str = ".bandscope-highest-seen.lock";
 
 /// Successful result of remembering an authenticated release identity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,17 +44,20 @@ pub enum StateError {
     Replay,
     /// The same release version was presented with different immutable identity.
     Equivocation,
-    /// State bytes changed between admission and append under the single-writer contract.
+    /// Another process owns the state lease or bytes changed during admission.
     ConcurrentMutation,
 }
 
 /// Load the highest committed authenticated release identity from local state.
 ///
-/// A final non-newline-terminated fragment is treated as recoverable only when
-/// every byte is a valid prefix of one state record. This is the sole torn-write
-/// case accepted. Malformed committed records fail closed rather than silently
-/// discarding anti-replay evidence.
+/// Access is serialized through a sibling OS file lease so a reader cannot
+/// observe a stale highest-seen snapshot while another process is appending a
+/// newer authenticated release. A final non-newline-terminated fragment is
+/// treated as recoverable only when every byte is a valid prefix of one state
+/// record. This is the sole torn-write case accepted. Malformed committed
+/// records fail closed rather than silently discarding anti-replay evidence.
 pub fn load_highest_seen(path: &Path) -> Result<Option<ReleaseIdentity>, StateError> {
+    let _lease = acquire_state_lease(path)?;
     let bytes = read_state_bytes(path)?.unwrap_or_default();
     parse_state_bytes(&bytes).map(|parsed| parsed.highest)
 }
@@ -61,14 +65,17 @@ pub fn load_highest_seen(path: &Path) -> Result<Option<ReleaseIdentity>, StateEr
 /// Remember a newly authenticated release identity in an append-only state log.
 ///
 /// The caller must invoke this only after updater metadata and artifact
-/// authenticity have been established. The record is appended, flushed and
-/// synchronized before success is returned. If a previous process was torn
-/// during its final append, the validated incomplete tail is truncated first;
-/// committed records are never rewritten.
+/// authenticity have been established. One sibling OS file lease is held from
+/// the first state read through tail repair, append, and synchronization so two
+/// app processes cannot append from the same stale snapshot. The record is
+/// appended, flushed and synchronized before success is returned. If a previous
+/// process was torn during its final append, the validated incomplete tail is
+/// truncated first; committed records are never rewritten.
 pub fn remember_highest_seen(
     path: &Path,
     identity: &ReleaseIdentity,
 ) -> Result<RememberOutcome, StateError> {
+    let _lease = acquire_state_lease(path)?;
     let original = read_state_bytes(path)?;
     let bytes = original.as_deref().unwrap_or(&[]);
     let parsed = parse_state_bytes(bytes)?;
@@ -130,6 +137,37 @@ pub fn remember_highest_seen(
 struct ParsedState {
     highest: Option<ReleaseIdentity>,
     committed_len: usize,
+}
+
+fn acquire_state_lease(path: &Path) -> Result<File, StateError> {
+    let parent = path.parent().ok_or(StateError::Io)?;
+    let lease_path = parent.join(STATE_LEASE_FILE_NAME);
+    let lease_file = match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&lease_path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let metadata = std::fs::symlink_metadata(&lease_path).map_err(|_| StateError::Io)?;
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(StateError::NotRegularFile);
+            }
+            OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&lease_path)
+                .map_err(|_| StateError::Io)?
+        }
+        Err(_) => return Err(StateError::Io),
+    };
+
+    match lease_file.try_lock() {
+        Ok(()) => Ok(lease_file),
+        Err(TryLockError::WouldBlock) => Err(StateError::ConcurrentMutation),
+        Err(TryLockError::Error(_)) => Err(StateError::Io),
+    }
 }
 
 fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
