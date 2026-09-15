@@ -320,9 +320,8 @@ impl Drop for StagedArtifactFile {
             return;
         }
         if let Some(file) = self.file.take() {
-            drop(file);
+            cleanup_owned_staging_path(file, &self.path);
         }
-        let _ = fs::remove_file(&self.path);
         let _ = self.staging_lease.take();
     }
 }
@@ -330,10 +329,12 @@ impl Drop for StagedArtifactFile {
 /// Synchronized but still unverified staging artifact.
 ///
 /// The descriptor and staging lease stay open for later digest/signature
-/// verification. Dropping this value closes the descriptor before removing the
-/// staged path, including on Windows where deleting an open file can fail. The
-/// lease is released only after path cleanup. A later trust-promotion type, not
-/// this byte-count boundary, must explicitly retain verified bytes.
+/// verification. Dropping this value removes the staging pathname only when it
+/// still resolves to the descriptor-owned file on Unix; a replacement pathname
+/// is left untouched. Other desktop targets retain the historical best-effort
+/// cleanup until an equally strong stable file-identity primitive is available.
+/// The lease is released only after path cleanup. A later trust-promotion type,
+/// not this byte-count boundary, must explicitly retain verified bytes.
 #[derive(Debug)]
 pub struct SealedArtifactFile {
     file: Option<File>,
@@ -417,11 +418,35 @@ impl SealedArtifactFile {
 impl Drop for SealedArtifactFile {
     fn drop(&mut self) {
         if let Some(file) = self.file.take() {
-            drop(file);
+            cleanup_owned_staging_path(file, &self.path);
         }
-        let _ = fs::remove_file(&self.path);
         let _ = self.staging_lease.take();
     }
+}
+
+#[cfg(unix)]
+fn cleanup_owned_staging_path(file: File, path: &Path) {
+    use std::os::unix::fs::MetadataExt;
+
+    let descriptor_identity = file.metadata().ok().map(|metadata| (metadata.dev(), metadata.ino()));
+    if let (Some((descriptor_dev, descriptor_ino)), Ok(path_metadata)) =
+        (descriptor_identity, fs::symlink_metadata(path))
+    {
+        if !path_metadata.file_type().is_symlink()
+            && path_metadata.is_file()
+            && path_metadata.dev() == descriptor_dev
+            && path_metadata.ino() == descriptor_ino
+        {
+            let _ = fs::remove_file(path);
+        }
+    }
+    drop(file);
+}
+
+#[cfg(not(unix))]
+fn cleanup_owned_staging_path(file: File, path: &Path) {
+    drop(file);
+    let _ = fs::remove_file(path);
 }
 
 fn acquire_staging_lease(staging_directory: &Path) -> Result<File, StagingArtifactError> {
