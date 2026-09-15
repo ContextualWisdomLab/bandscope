@@ -187,10 +187,13 @@ impl ArtifactDownloadAdmission {
 /// live attempt and mistake it for crash residue. Symlinks and other non-regular
 /// children are never reclaimed. A later verified artifact owner must move
 /// trusted bytes out of this staging namespace before retaining them across
-/// launches. The file is removed on drop unless `seal` transfers both cleanup
-/// and lease ownership to `SealedArtifactFile`. Callers cannot write the
-/// descriptor directly; response bytes must pass through
-/// `ArtifactDownloadAdmission` via `admit_chunk`.
+/// launches. Unix removes a descriptor-owned pathname on drop after identity
+/// confirmation. Windows deliberately defers pathname reclamation to the next
+/// leased staging attempt because stable Rust does not expose an equivalent
+/// by-handle file identity suitable for proving that a remembered pathname still
+/// denotes the owned object. Callers cannot write the descriptor directly;
+/// response bytes must pass through `ArtifactDownloadAdmission` via
+/// `admit_chunk`.
 #[derive(Debug)]
 pub struct StagedArtifactFile {
     file: Option<File>,
@@ -329,12 +332,15 @@ impl Drop for StagedArtifactFile {
 /// Synchronized but still unverified staging artifact.
 ///
 /// The descriptor and staging lease stay open for later digest/signature
-/// verification. Dropping this value removes the staging pathname only when it
-/// still resolves to the descriptor-owned file on Unix; a replacement pathname
-/// is left untouched. Other desktop targets retain the historical best-effort
-/// cleanup until an equally strong stable file-identity primitive is available.
-/// The lease is released only after path cleanup. A later trust-promotion type,
-/// not this byte-count boundary, must explicitly retain verified bytes.
+/// verification. On Unix, dropping this value removes the staging pathname only
+/// when it still resolves to the descriptor-owned file; a replacement pathname
+/// is left untouched. On Windows, drop closes the descriptor but intentionally
+/// leaves the pathname in the app-owned scratch directory because stable Rust
+/// does not expose the by-handle identity needed to prove that path ownership.
+/// A later staging attempt reclaims a stale regular child only while holding the
+/// same process-shared lease. The lease is released after descriptor cleanup. A
+/// later trust-promotion type, not this byte-count boundary, must explicitly
+/// retain verified bytes.
 #[derive(Debug)]
 pub struct SealedArtifactFile {
     file: Option<File>,
@@ -444,9 +450,11 @@ fn cleanup_owned_staging_path(file: File, path: &Path) {
 }
 
 #[cfg(not(unix))]
-fn cleanup_owned_staging_path(file: File, path: &Path) {
+fn cleanup_owned_staging_path(file: File, _path: &Path) {
+    // Stable Rust does not expose a portable by-handle file identity here.
+    // Closing without pathname deletion avoids deleting a replacement object;
+    // the next leased staging attempt reclaims stale regular scratch files.
     drop(file);
-    let _ = fs::remove_file(path);
 }
 
 fn acquire_staging_lease(staging_directory: &Path) -> Result<File, StagingArtifactError> {
