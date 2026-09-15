@@ -133,19 +133,30 @@ def test_direct_reqwest_rejects_vendored_native_tls_without_alpn(tmp_path: Path)
     )
 
 
-def test_direct_reqwest_rejects_transparent_response_decoding_feature(
-    tmp_path: Path,
-) -> None:
-    """Reject feature-level body transforms before exact updater bytes reach admission."""
-    _write_fixture(
-        tmp_path,
-        reqwest=(
-            'reqwest = { version = "0.13.5", default-features = false, '
-            'features = ["rustls", "gzip"] }\n'
-        ),
-        rustls_version="0.23.45",
+def test_direct_reqwest_rejects_unapproved_transport_features(tmp_path: Path) -> None:
+    """Keep updater transport semantics explicit instead of activating optional behavior."""
+    unapproved_features = (
+        "gzip",
+        "brotli",
+        "zstd",
+        "deflate",
+        "system-proxy",
+        "socks",
+        "hickory-dns",
+        "http2",
+        "http3",
     )
+    for feature in unapproved_features:
+        fixture = tmp_path / feature
+        _write_fixture(
+            fixture,
+            reqwest=(
+                'reqwest = { version = "0.13.5", default-features = false, '
+                f'features = ["rustls", "{feature}"] }}\n'
+            ),
+            rustls_version="0.23.45",
+        )
 
-    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+        violations = POLICY.verify_distribution_http_dependency_admission(fixture)
 
-    assert any("gzip" in violation for violation in violations)
+        assert any(feature in violation for violation in violations), feature
