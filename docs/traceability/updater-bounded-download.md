@@ -23,6 +23,8 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - Post-seal growth RED `e1274bee951b2eb1bb58d3dbbb59d21289434384`: exact-size seal 이후 같은 inode가 외부 경로로 append되더라도 verifier stream이 최초 admitted byte boundary를 넘어 읽어서는 안 된다는 integration contract를 추가했습니다. 기존 reader는 descriptor EOF까지 읽기 때문에 appended tail까지 반환하므로 RED입니다.
 - Causal fix `c4510966b874778a67f3c50f09acaf858fe7c70c`: `SealedArtifactReader`에 `remaining_bytes`를 두고 모든 positional read를 seal 당시 `bytes_written` 범위로 제한했습니다. Reader는 admitted range를 모두 읽은 뒤에는 descriptor가 더 길어져도 EOF를 반환하며, admitted range가 중간에 짧아지면 `UnexpectedEof`로 fail closed합니다.
 - Truncation coverage `e294147e3d93757b7a6115222fb78317152ecc74`: seal 뒤 descriptor가 admitted size 아래로 줄어드는 경우 verifier read가 정상 completion으로 끝나지 않고 `UnexpectedEof`를 반환하는 회귀 테스트를 추가했습니다.
+- Restart-recovery RED `5b0ddb585ee1eb7ddadaa66eeab267c6f55d6467`: process kill/power loss가 `Drop`을 건너뛰어 exact staging basename의 regular file을 남긴 상황을 재현하고, 다음 실행이 stale bytes를 신뢰하지 않으면서 새 attempt를 시작해야 한다는 integration contract를 추가했습니다. 기존 `create_new`-only 구현은 `DestinationExists`로 실패합니다.
+- Causal fix `b7a1839d5941c52800bbeaf22921e143060d1ff6`: app-owned non-symlink staging root와 portable basename을 먼저 검증한 뒤 exact child를 `symlink_metadata`로 분류합니다. Existing regular file만 interrupted unverified attempt로 제거하고 다시 `create_new`하며, symlink/directory 등 non-regular entry는 자동 제거하지 않고 fail closed합니다. Cleanup 뒤 path를 다른 writer가 선점하면 exclusive create가 다시 실패하므로 overwrite로 내려가지 않습니다.
 
 ## 실행 계약
 
@@ -40,7 +42,8 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 
 - staging root는 이미 존재하는 non-symlink directory여야 합니다. Directory 생성이나 임의 parent traversal은 이 crate가 수행하지 않습니다.
 - artifact name은 bounded ASCII portable basename이고 `/`, `\\`, percent encoding, hidden/path-like name과 Windows reserved device stem을 허용하지 않습니다.
-- destination은 `create_new`로만 만들며 기존 file/symlink를 overwrite하지 않습니다.
+- staging namespace는 unverified scratch 전용입니다. 같은 exact basename의 pre-existing regular file은 interrupted attempt로 간주해 bytes를 재사용하지 않고 제거한 뒤 byte zero에서 새 `create_new` attempt를 시작합니다.
+- pre-existing symlink, directory 또는 기타 non-regular destination은 stale regular artifact로 자동 정리하지 않습니다. Cleanup 뒤 다른 writer가 path를 선점한 경우에도 `create_new`가 overwrite하지 않고 `DestinationExists`로 실패합니다.
 - response write는 `ArtifactDownloadAdmission`을 통과해야 하므로 staged descriptor에 caller가 raw bytes를 직접 쓰는 public API가 없습니다.
 - cancel, overrun, sink failure 또는 seal failure 상태로 drop되면 partial staging path를 유지하지 않습니다.
 - seal은 userspace flush와 descriptor `sync_all()` 이후 descriptor가 regular file인지, exact receipt size와 같은지 다시 확인합니다.
@@ -48,8 +51,9 @@ BandScope의 Distribution/update 경계는 updater artifact를 신뢰하기 전�
 - sealed verifier access는 `SealedArtifactReader`의 positional `Read` stream으로 제한합니다. 내부 staging `File`은 write-enabled이지만 raw `&File`을 public하게 반환하지 않으므로 verifier가 `Write for &File` 또는 platform `FileExt` write API로 sealed bytes를 바꾸는 capability를 얻지 않습니다.
 - `SealedArtifactReader`는 seal 당시 admitted byte count까지만 읽습니다. Seal 뒤 같은 inode가 더 길어져도 appended bytes는 verifier input이 되지 않으며, admitted range가 짧아지면 정상 EOF가 아니라 `UnexpectedEof`로 거부합니다. 따라서 verifier input의 resource bound가 path-side file growth 때문에 다시 열리지 않습니다.
 - exact-size seal은 신뢰 승격이 아닙니다. `SealedArtifactFile` 자체는 cleanup-on-drop이며 descriptor를 먼저 닫은 다음 staging path를 제거합니다. 후속 digest/signature/authenticated-metadata 결합이 성공하기 전에는 unverified bytes가 정상 종료 경로에서 남지 않습니다.
+- verified artifact promotion은 이 scratch basename을 장기 보존 위치로 재사용해서는 안 됩니다. 검증된 bytes를 별도 retained/known-good owner로 이동한 뒤에만 launch 간 보존을 허용해야 합니다.
 
-Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, descriptor-bound read-only sealed stream, seal 후 external growth에 대한 admitted-range cap, seal 후 truncation fail-closed, failed-admission cleanup, receipt mismatch, existing destination, path-like name, invalid staging root와 Unix symlink root를 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
+Unit/integration tests는 exact chunked completion, missing `Content-Length`, header mismatch, overrun-before-write, oversized single chunk, truncated response, partial sink failure, zero/over-ceiling expected size, cancellation cleanup, exact seal 후 unverified cleanup, descriptor-bound read-only sealed stream, seal 후 external growth에 대한 admitted-range cap, seal 후 truncation fail-closed, failed-admission cleanup, receipt mismatch, stale regular destination restart recovery, path-like name, invalid staging root, Unix symlink root와 Unix symlink destination 보존을 다룹니다. Python production logic은 추가하지 않았고 repository harness는 locked Rust suite를 validation boundary로 호출합니다.
 
 ## 기각한 대안
 
@@ -61,6 +65,10 @@ Declared `sizeBytes`와 `Content-Length`를 동일시하는 방식도 기각합�
 
 Generic temporary pathname에 overwrite-open하고 나중에 검사하는 방식도 기각합니다. Existing file/symlink를 교체하거나 path-like name이 app-owned staging root를 벗어날 수 있고, cancel/error 뒤 partial artifact를 성공 candidate처럼 남길 수 있습니다.
 
+Crash 뒤 남은 regular staging file을 그대로 resume하는 방식도 기각합니다. 이전 process의 response completion, metadata/signature context와 admitted byte boundary를 증명할 수 없으므로 stale bytes는 새 response와 혼합하지 않고 제거한 뒤 처음부터 받습니다.
+
+모든 pre-existing destination을 자동 삭제하는 방식도 기각합니다. Symlink나 directory 같은 non-regular entry를 stale partial과 동일 취급하면 app-owned scratch 경계를 벗어난 mutation 가능성이 생깁니다. Regular child만 reclaim하고 non-regular entry는 fail closed합니다.
+
 Exact-size seal을 곧바로 artifact retention으로 취급하는 방식도 기각합니다. Byte count와 `sync_all()`은 digest, updater signature, remote metadata authenticity를 증명하지 않습니다. 신뢰 검증 전 sealed bytes를 정상 drop 뒤 남기면 실패한 verifier나 cancelled promotion 뒤 untrusted artifact가 app-owned staging에 잔존할 수 있습니다.
 
 Sealed artifact에서 raw `&File`을 verifier에 넘기는 방식도 기각합니다. Rust standard library는 `Write for &File`을 구현하고 있고 staging descriptor 자체가 write access로 열린 상태이므로, immutable borrow처럼 보이는 API가 실제로는 sealed bytes를 바꿀 수 있는 write capability를 노출합니다. 별도 path reopen은 descriptor identity를 잃으므로, 동일 open descriptor에 대한 positional read-only wrapper를 사용합니다.
@@ -69,13 +77,13 @@ Descriptor EOF까지 무제한 읽는 방식도 기각합니다. Seal 당시에�
 
 ## Claim boundary
 
-현재 crate는 **network-library-independent streaming + staging primitive**입니다. 실제 production updater가 아직 이 crate를 통해 HTTP body를 수신하지 않으므로 end-to-end bounded download가 완료됐다고 주장하지 않습니다. 또한 `sync_all()`과 cleanup tests를 packaged Windows/macOS power-loss durability와 동일시하지 않습니다. 이 crate는 SHA-256, updater signature, metadata authenticity, installer trust도 검증하지 않습니다.
+현재 crate는 **network-library-independent streaming + staging primitive**입니다. 실제 production updater가 아직 이 crate를 통해 HTTP body를 수신하지 않으므로 end-to-end bounded download가 완료됐다고 주장하지 않습니다. Stale regular child를 reclaim하는 source test는 process-kill/power-loss 뒤 동일 update가 영구 차단되는 경로를 닫지만, packaged Windows/macOS power-loss durability나 filesystem race hardening 전체를 증명하지 않습니다. 또한 `sync_all()`과 cleanup tests를 packaged Windows/macOS power-loss durability와 동일시하지 않습니다. 이 crate는 SHA-256, updater signature, metadata authenticity, installer trust도 검증하지 않습니다.
 
 다음 repository-owned 단계는 production network adapter가 full-response buffering 없이 bounded chunks를 이 primitive에 전달하도록 연결하는 것입니다. 그 adapter는 canonical release origin/redirect 정책을 보존하고, cancel/network error/disk-full을 staged-file cleanup으로 귀결시켜야 합니다. 그 뒤 organization-approved updater key가 provision되면 still-open sealed descriptor의 signature와 digest/size를 authenticated release identity에 묶고, 그 검증을 통과한 bytes만 별도의 verified-artifact promotion 경계로 보존한 뒤 `distribution-core`와 `distribution-state`로 freshness authority를 넘겨야 합니다.
 
 ## Security Notes
 
-Attack surface는 updater HTTP response body, transport length metadata, temporary artifact directory/path, staged descriptor와 cancellation/error paths입니다. Remote response는 canonical release namespace를 통과해도 untrusted입니다. Byte/staging admission failure는 installer 실행이나 highest-seen state mutation으로 승격되지 않아야 하며, staging root는 Distribution-owned app storage로 제한해야 합니다. Cleanup은 app-owned non-symlink directory라는 전제 안에서만 pathname removal을 수행합니다. Sealed descriptor의 raw write capability는 verifier에 노출하지 않으며, 후속 검증은 descriptor-bound read-only stream을 사용해야 합니다. 그 stream은 seal 당시 admitted byte count를 상한으로 삼아 post-seal growth를 무시하고 early truncation을 error로 처리해야 합니다. Audio/project bytes나 paths는 updater request/receipt에 포함하지 않습니다.
+Attack surface는 updater HTTP response body, transport length metadata, temporary artifact directory/path, staged descriptor와 cancellation/error paths입니다. Remote response는 canonical release namespace를 통과해도 untrusted입니다. Byte/staging admission failure는 installer 실행이나 highest-seen state mutation으로 승격되지 않아야 하며, staging root는 Distribution-owned app storage로 제한해야 합니다. Restart recovery는 stale bytes를 살리는 기능이 아니라 app-owned scratch의 exact regular child를 제거하고 새 admission을 시작하는 기능입니다. Symlink와 기타 non-regular destination은 자동 정리하지 않습니다. Sealed descriptor의 raw write capability는 verifier에 노출하지 않으며, 후속 검증은 descriptor-bound read-only stream을 사용해야 합니다. 그 stream은 seal 당시 admitted byte count를 상한으로 삼아 post-seal growth를 무시하고 early truncation을 error로 처리해야 합니다. Audio/project bytes나 paths는 updater request/receipt에 포함하지 않습니다.
 
 ## References
 
