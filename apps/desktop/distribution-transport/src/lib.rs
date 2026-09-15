@@ -21,6 +21,7 @@ use std::path::Path;
 pub const MAX_REDIRECT_URL_BYTES: usize = 16 * 1024;
 
 const RELEASE_ASSET_CDN_PREFIX: &str = "https://release-assets.githubusercontent.com/";
+const REDACTED_SIGNATURE: &str = "<redacted-signature>";
 
 struct RedactedUrl<'a>(&'a str);
 
@@ -107,7 +108,7 @@ impl fmt::Debug for AdmittedDownloadHead {
             .field("artifact_name", &self.artifact_name)
             .field("expected_size_bytes", &self.expected_size_bytes)
             .field("expected_artifact_sha256", &self.expected_artifact_sha256)
-            .field("artifact_signature", &self.artifact_signature)
+            .field("artifact_signature", &REDACTED_SIGNATURE)
             .finish()
     }
 }
@@ -180,13 +181,26 @@ pub enum ResponseDecision {
 }
 
 /// Deterministic transport policy derived from one strictly admitted updater target.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ReleaseTransportPolicy {
     initial_url: String,
     artifact_name: String,
     expected_size_bytes: u64,
     expected_artifact_sha256: String,
     artifact_signature: String,
+}
+
+impl fmt::Debug for ReleaseTransportPolicy {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ReleaseTransportPolicy")
+            .field("initial_url", &self.initial_url)
+            .field("artifact_name", &self.artifact_name)
+            .field("expected_size_bytes", &self.expected_size_bytes)
+            .field("expected_artifact_sha256", &self.expected_artifact_sha256)
+            .field("artifact_signature", &REDACTED_SIGNATURE)
+            .finish()
+    }
 }
 
 impl ReleaseTransportPolicy {
