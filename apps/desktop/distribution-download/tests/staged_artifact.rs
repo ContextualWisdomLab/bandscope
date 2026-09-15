@@ -63,6 +63,30 @@ fn sealed_but_unverified_artifact_is_removed_on_drop() {
 }
 
 #[test]
+fn sealed_unverified_artifact_keeps_staging_lease() {
+    let directory = scratch_dir("sealed-lease");
+    let mut staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
+    let mut admission = ArtifactDownloadAdmission::new(4, Some(4)).expect("admission");
+    staged
+        .admit_chunk(&mut admission, b"data")
+        .expect("write admitted bytes");
+    let receipt = admission.finish().expect("exact response receipt");
+    let sealed = staged.seal(receipt).expect("seal artifact");
+
+    assert_eq!(
+        StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
+        StagingArtifactError::ConcurrentAttempt
+    );
+    assert_eq!(fs::read(sealed.path()).expect("read sealed path"), b"data");
+
+    drop(sealed);
+    let replacement = StagedArtifactFile::create(&directory, "update.bin")
+        .expect("lease must release after sealed cleanup");
+    drop(replacement);
+    remove_scratch_dir(&directory);
+}
+
+#[test]
 fn failed_admission_removes_partial_staging_file() {
     let directory = scratch_dir("overrun");
     let mut staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
@@ -187,6 +211,31 @@ fn symlink_staging_root_is_rejected() {
     fs::remove_file(link).expect("remove symlink");
     fs::remove_dir(target).expect("remove target directory");
     remove_scratch_dir(&directory);
+}
+
+#[cfg(unix)]
+#[test]
+fn symlink_staging_lease_is_not_followed() {
+    use std::os::unix::fs::symlink;
+
+    let directory = scratch_dir("symlink-lease");
+    let target = directory.join("outside.lock");
+    let lease = directory.join(".bandscope-staging.lock");
+    fs::write(&target, b"must-not-be-used-as-lock").expect("write lease target fixture");
+    symlink(&target, &lease).expect("create lease symlink");
+
+    assert_eq!(
+        StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
+        StagingArtifactError::DestinationExists
+    );
+    assert_eq!(
+        fs::read(&target).expect("read lease target fixture"),
+        b"must-not-be-used-as-lock"
+    );
+
+    fs::remove_file(lease).expect("remove lease symlink");
+    fs::remove_file(target).expect("remove lease target fixture");
+    fs::remove_dir(directory).expect("remove staging directory");
 }
 
 #[cfg(unix)]
