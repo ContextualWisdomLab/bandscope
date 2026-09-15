@@ -31,6 +31,11 @@ fn assert_platform_drop_cleanup(path: &Path) {
     }
 }
 
+fn remove_staging_lease(directory: &Path) {
+    fs::remove_file(directory.join(".bandscope-staging.lock"))
+        .expect("remove persistent staging lease fixture");
+}
+
 #[test]
 fn sealed_artifact_exposes_descriptor_bound_read_only_stream() {
     let directory = scratch_dir("sealed-reader");
@@ -54,6 +59,7 @@ fn sealed_artifact_exposes_descriptor_bound_read_only_stream() {
     drop(reader);
     drop(sealed);
     assert_platform_drop_cleanup(&staged_path);
+    remove_staging_lease(&directory);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -90,6 +96,7 @@ fn sealed_reader_never_crosses_the_admitted_byte_boundary_after_external_growth(
     drop(reader);
     drop(sealed);
     assert_platform_drop_cleanup(&staged_path);
+    remove_staging_lease(&directory);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -124,5 +131,6 @@ fn sealed_reader_fails_closed_when_the_admitted_descriptor_is_truncated() {
     drop(reader);
     drop(sealed);
     assert_platform_drop_cleanup(&staged_path);
+    remove_staging_lease(&directory);
     fs::remove_dir(directory).expect("remove staging directory");
 }
