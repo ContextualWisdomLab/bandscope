@@ -3,8 +3,10 @@
 //! This crate owns only the locally persisted highest authenticated release
 //! identity used by the anti-replay decision core. It does not fetch update
 //! metadata, verify Tauri signatures, install software, or write BandScope
-//! project data. The on-disk format is append-only so a torn final write can be
-//! discarded without losing the previous committed release identity.
+//! project data. Unix keeps the bounded state log append-only. Windows publishes
+//! an equivalent committed log snapshot through a synchronized sibling file and
+//! pathname replacement so updating state cannot mutate a pre-existing hard-link
+//! alias when stable Rust cannot inspect link count safely.
 
 #![forbid(unsafe_code)]
 
@@ -19,11 +21,13 @@ pub const MAX_STATE_BYTES: usize = 64 * 1024;
 const RECORD_PREFIX: &str = "v1|";
 const MAX_RECORD_BYTES: usize = 192;
 const STATE_LEASE_FILE_NAME: &str = ".bandscope-highest-seen.lock";
+#[cfg(windows)]
+const STATE_NEXT_FILE_NAME: &str = ".bandscope-highest-seen.next";
 
 /// Successful result of remembering an authenticated release identity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RememberOutcome {
-    /// The new highest authenticated identity was appended and synchronized.
+    /// The new highest authenticated identity was durably committed.
     Remembered,
     /// The exact identity was already the committed highest-seen release.
     AlreadyRemembered,
@@ -34,7 +38,7 @@ pub enum RememberOutcome {
 pub enum StateError {
     /// A local filesystem operation failed.
     Io,
-    /// The configured state path is a link or is not a regular file.
+    /// The configured state path is a link or is not an admissible regular file.
     NotRegularFile,
     /// The state log exceeded its bounded storage budget.
     TooLarge,
@@ -51,26 +55,29 @@ pub enum StateError {
 /// Load the highest committed authenticated release identity from local state.
 ///
 /// Access is serialized through a sibling OS file lease so a reader cannot
-/// observe a stale highest-seen snapshot while another process is appending a
-/// newer authenticated release. A final non-newline-terminated fragment is
-/// treated as recoverable only when every byte is a valid prefix of one state
-/// record. This is the sole torn-write case accepted. Malformed committed
-/// records fail closed rather than silently discarding anti-replay evidence.
+/// observe a stale highest-seen snapshot while another cooperating process is
+/// committing a newer authenticated release. A final non-newline-terminated
+/// fragment is treated as recoverable only when every byte is a valid prefix of
+/// one state record. This is the sole torn-write case accepted. Malformed
+/// committed records fail closed rather than silently discarding anti-replay
+/// evidence.
 pub fn load_highest_seen(path: &Path) -> Result<Option<ReleaseIdentity>, StateError> {
     let _lease = acquire_state_lease(path)?;
     let bytes = read_state_bytes(path)?.unwrap_or_default();
     parse_state_bytes(&bytes).map(|parsed| parsed.highest)
 }
 
-/// Remember a newly authenticated release identity in an append-only state log.
+/// Remember a newly authenticated release identity in durable local state.
 ///
 /// The caller must invoke this only after updater metadata and artifact
 /// authenticity have been established. One sibling OS file lease is held from
-/// the first state read through tail repair, append, and synchronization so two
-/// app processes cannot append from the same stale snapshot. The record is
-/// appended, flushed and synchronized before success is returned. If a previous
-/// process was torn during its final append, the validated incomplete tail is
-/// truncated first; committed records are never rewritten.
+/// the first state read through repair and synchronization so two app processes
+/// cannot commit from the same stale snapshot. Unix appends to the single-link
+/// log and truncates only a validated torn tail. Windows constructs the same
+/// committed log bytes in a sibling scratch file, synchronizes them, and
+/// replaces only the state pathname; this avoids in-place mutation of a
+/// pre-existing hard-link alias without relying on nightly-only Windows
+/// metadata APIs.
 pub fn remember_highest_seen(
     path: &Path,
     identity: &ReleaseIdentity,
@@ -89,48 +96,59 @@ pub fn remember_highest_seen(
                 return Err(StateError::Equivocation);
             }
             if parsed.committed_len != bytes.len() {
-                truncate_recoverable_tail(path, parsed.committed_len)?;
+                repair_recoverable_tail(path, bytes, parsed.committed_len)?;
             }
             return Ok(RememberOutcome::AlreadyRemembered);
         }
     }
 
-    if parsed.committed_len != bytes.len() {
-        truncate_recoverable_tail(path, parsed.committed_len)?;
-    }
-
     let record = encode_record(identity);
-    if parsed
+    let expected_len = parsed
         .committed_len
         .checked_add(record.len())
-        .is_none_or(|next_len| next_len > MAX_STATE_BYTES)
-    {
+        .ok_or(StateError::TooLarge)?;
+    if expected_len > MAX_STATE_BYTES {
         return Err(StateError::TooLarge);
     }
 
-    let existed = original.is_some();
-    let mut file = open_for_append(path, existed)?;
-    let current_len = file.metadata().map_err(|_| StateError::Io)?.len() as usize;
-    if current_len != parsed.committed_len {
-        return Err(StateError::ConcurrentMutation);
+    #[cfg(windows)]
+    {
+        let mut committed = Vec::with_capacity(expected_len);
+        committed.extend_from_slice(&bytes[..parsed.committed_len]);
+        committed.extend_from_slice(record.as_bytes());
+        publish_state_snapshot(path, &committed)?;
+        return Ok(RememberOutcome::Remembered);
     }
 
-    file.write_all(record.as_bytes()).map_err(|_| StateError::Io)?;
-    file.sync_all().map_err(|_| StateError::Io)?;
-    let expected_len = parsed.committed_len + record.len();
-    if file.metadata().map_err(|_| StateError::Io)?.len() as usize != expected_len {
-        return Err(StateError::ConcurrentMutation);
-    }
+    #[cfg(not(windows))]
+    {
+        if parsed.committed_len != bytes.len() {
+            repair_recoverable_tail(path, bytes, parsed.committed_len)?;
+        }
 
-    #[cfg(unix)]
-    if !existed {
-        let parent = path.parent().ok_or(StateError::Io)?;
-        File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|_| StateError::Io)?;
-    }
+        let existed = original.is_some();
+        let mut file = open_for_append(path, existed)?;
+        let current_len = file.metadata().map_err(|_| StateError::Io)?.len() as usize;
+        if current_len != parsed.committed_len {
+            return Err(StateError::ConcurrentMutation);
+        }
 
-    Ok(RememberOutcome::Remembered)
+        file.write_all(record.as_bytes()).map_err(|_| StateError::Io)?;
+        file.sync_all().map_err(|_| StateError::Io)?;
+        if file.metadata().map_err(|_| StateError::Io)?.len() as usize != expected_len {
+            return Err(StateError::ConcurrentMutation);
+        }
+
+        #[cfg(unix)]
+        if !existed {
+            let parent = path.parent().ok_or(StateError::Io)?;
+            File::open(parent)
+                .and_then(|directory| directory.sync_all())
+                .map_err(|_| StateError::Io)?;
+        }
+
+        Ok(RememberOutcome::Remembered)
+    }
 }
 
 #[derive(Debug)]
@@ -178,7 +196,7 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
     };
     if metadata.file_type().is_symlink()
         || !metadata.is_file()
-        || !has_single_filesystem_link(&metadata)
+        || !has_admissible_filesystem_link_count(&metadata)
     {
         return Err(StateError::NotRegularFile);
     }
@@ -189,7 +207,7 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
     let mut file = File::open(path).map_err(|_| StateError::Io)?;
     let opened = file.metadata().map_err(|_| StateError::Io)?;
     if !opened.is_file()
-        || !has_single_filesystem_link(&opened)
+        || !has_admissible_filesystem_link_count(&opened)
         || opened.len() != metadata.len()
     {
         return Err(StateError::ConcurrentMutation);
@@ -209,7 +227,7 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
     Ok(Some(bytes))
 }
 
-fn has_single_filesystem_link(metadata: &std::fs::Metadata) -> bool {
+fn has_admissible_filesystem_link_count(metadata: &std::fs::Metadata) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -217,8 +235,12 @@ fn has_single_filesystem_link(metadata: &std::fs::Metadata) -> bool {
     }
     #[cfg(windows)]
     {
-        use std::os::windows::fs::MetadataExt;
-        return metadata.number_of_links() == Some(1);
+        // Windows never mutates an admitted existing state file in place; it
+        // publishes a synchronized sibling snapshot and replaces only this
+        // pathname. Stable Rust therefore does not need the nightly-only
+        // `windows_by_handle` link-count API for safe alias preservation.
+        let _ = metadata;
+        return true;
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -352,6 +374,23 @@ fn is_lower_hex(byte: u8) -> bool {
     byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
 }
 
+fn repair_recoverable_tail(
+    path: &Path,
+    bytes: &[u8],
+    committed_len: usize,
+) -> Result<(), StateError> {
+    #[cfg(windows)]
+    {
+        return publish_state_snapshot(path, &bytes[..committed_len]);
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = bytes;
+        truncate_recoverable_tail(path, committed_len)
+    }
+}
+
+#[cfg(not(windows))]
 fn truncate_recoverable_tail(path: &Path, committed_len: usize) -> Result<(), StateError> {
     let metadata = std::fs::symlink_metadata(path).map_err(|_| StateError::Io)?;
     if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -369,6 +408,7 @@ fn truncate_recoverable_tail(path: &Path, committed_len: usize) -> Result<(), St
     file.sync_all().map_err(|_| StateError::Io)
 }
 
+#[cfg(not(windows))]
 fn open_for_append(path: &Path, existed: bool) -> Result<File, StateError> {
     if existed {
         let metadata = std::fs::symlink_metadata(path).map_err(|_| StateError::Io)?;
@@ -386,6 +426,57 @@ fn open_for_append(path: &Path, existed: bool) -> Result<File, StateError> {
             .open(path)
             .map_err(|_| StateError::Io)
     }
+}
+
+#[cfg(windows)]
+fn publish_state_snapshot(path: &Path, committed: &[u8]) -> Result<(), StateError> {
+    let parent = path.parent().ok_or(StateError::Io)?;
+    let next_path = parent.join(STATE_NEXT_FILE_NAME);
+
+    match std::fs::symlink_metadata(&next_path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(StateError::NotRegularFile);
+            }
+            std::fs::remove_file(&next_path).map_err(|_| StateError::Io)?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(_) => return Err(StateError::Io),
+    }
+
+    let mut next = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&next_path)
+        .map_err(|_| StateError::Io)?;
+    if let Err(error) = next.write_all(committed) {
+        drop(next);
+        let _ = std::fs::remove_file(&next_path);
+        let _ = error;
+        return Err(StateError::Io);
+    }
+    if next.sync_all().is_err() {
+        drop(next);
+        let _ = std::fs::remove_file(&next_path);
+        return Err(StateError::Io);
+    }
+    if next.metadata().map_err(|_| StateError::Io)?.len() as usize != committed.len() {
+        drop(next);
+        let _ = std::fs::remove_file(&next_path);
+        return Err(StateError::ConcurrentMutation);
+    }
+    drop(next);
+
+    if std::fs::rename(&next_path, path).is_err() {
+        let _ = std::fs::remove_file(&next_path);
+        return Err(StateError::Io);
+    }
+
+    let published = std::fs::read(path).map_err(|_| StateError::Io)?;
+    if published != committed {
+        return Err(StateError::ConcurrentMutation);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
