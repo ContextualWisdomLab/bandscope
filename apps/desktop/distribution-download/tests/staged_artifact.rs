@@ -3,6 +3,7 @@ use bandscope_distribution_download::{
 };
 use std::fs;
 use std::io::ErrorKind;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn scratch_dir(label: &str) -> std::path::PathBuf {
@@ -18,6 +19,16 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
     path
 }
 
+fn remove_scratch_dir(directory: &Path) {
+    let lease_path = directory.join(".bandscope-staging.lock");
+    match fs::remove_file(&lease_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => panic!("remove staging lease fixture: {error}"),
+    }
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
 #[test]
 fn cancelled_staging_file_is_removed_on_drop() {
     let directory = scratch_dir("cancel");
@@ -28,7 +39,7 @@ fn cancelled_staging_file_is_removed_on_drop() {
     drop(staged);
 
     assert!(!path.exists());
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -48,7 +59,7 @@ fn sealed_but_unverified_artifact_is_removed_on_drop() {
     drop(sealed);
 
     assert!(!path.exists());
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -65,7 +76,7 @@ fn failed_admission_removes_partial_staging_file() {
     drop(staged);
 
     assert!(!path.exists());
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -82,7 +93,7 @@ fn receipt_size_mismatch_removes_unsealed_staging_file() {
 
     assert_eq!(staged.seal(receipt).unwrap_err(), StagingArtifactError::SizeMismatch);
     assert!(!path.exists());
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -97,7 +108,7 @@ fn stale_regular_destination_is_reclaimed_before_new_attempt() {
     assert_eq!(fs::metadata(&path).expect("replacement metadata").len(), 0);
     drop(staged);
     assert!(!path.exists());
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -122,7 +133,7 @@ fn active_staging_attempt_is_not_reclaimed_as_stale() {
     let replacement = StagedArtifactFile::create(&directory, "update.bin")
         .expect("released active attempt must allow a fresh retry");
     drop(replacement);
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -134,7 +145,7 @@ fn path_like_artifact_names_fail_closed() {
         StagingArtifactError::InvalidArtifactName
     );
 
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[test]
@@ -154,7 +165,7 @@ fn unavailable_or_non_directory_staging_roots_fail_closed() {
     );
 
     fs::remove_file(regular_file).expect("remove regular fixture");
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[cfg(unix)]
@@ -175,7 +186,7 @@ fn symlink_staging_root_is_rejected() {
 
     fs::remove_file(link).expect("remove symlink");
     fs::remove_dir(target).expect("remove target directory");
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
 
 #[cfg(unix)]
@@ -197,5 +208,5 @@ fn symlink_destination_is_not_reclaimed_as_stale_regular_file() {
 
     fs::remove_file(link).expect("remove destination symlink");
     fs::remove_file(target).expect("remove target fixture");
-    fs::remove_dir(directory).expect("remove staging directory");
+    remove_scratch_dir(&directory);
 }
