@@ -14,12 +14,24 @@ use bandscope_distribution_download::{
     StagingArtifactError,
 };
 use bandscope_distribution_runtime::ProvisionalUpdateMetadata;
+use std::fmt;
 use std::path::Path;
 
 /// Maximum redirect location accepted from one release-asset response.
 pub const MAX_REDIRECT_URL_BYTES: usize = 16 * 1024;
 
 const RELEASE_ASSET_CDN_PREFIX: &str = "https://release-assets.githubusercontent.com/";
+
+struct RedactedUrl<'a>(&'a str);
+
+impl fmt::Debug for RedactedUrl<'_> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.split_once('?') {
+            Some((base, _)) => write!(formatter, "{base}?<redacted-query>"),
+            None => formatter.write_str(self.0),
+        }
+    }
+}
 
 /// Fail-closed reasons for updater transport-policy admission.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,10 +66,20 @@ pub enum TransportDownloadError {
 }
 
 /// A one-hop release-asset redirect admitted by Distribution policy.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct AdmittedRedirect {
     source_url: String,
     location: String,
+}
+
+impl fmt::Debug for AdmittedRedirect {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AdmittedRedirect")
+            .field("source_url", &self.source_url)
+            .field("location", &RedactedUrl(&self.location))
+            .finish()
+    }
 }
 
 impl AdmittedRedirect {
@@ -68,13 +90,26 @@ impl AdmittedRedirect {
 }
 
 /// An admitted final response whose body may enter bounded staging.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct AdmittedDownloadHead {
     effective_url: String,
     artifact_name: String,
     expected_size_bytes: u64,
     expected_artifact_sha256: String,
     artifact_signature: String,
+}
+
+impl fmt::Debug for AdmittedDownloadHead {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AdmittedDownloadHead")
+            .field("effective_url", &RedactedUrl(&self.effective_url))
+            .field("artifact_name", &self.artifact_name)
+            .field("expected_size_bytes", &self.expected_size_bytes)
+            .field("expected_artifact_sha256", &self.expected_artifact_sha256)
+            .field("artifact_signature", &self.artifact_signature)
+            .finish()
+    }
 }
 
 impl AdmittedDownloadHead {
