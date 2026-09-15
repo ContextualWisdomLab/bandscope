@@ -68,11 +68,36 @@ jobs:
       - name: Test Distribution download staging and lease contracts
         run: cargo +stable test --manifest-path apps/desktop/distribution-download/Cargo.toml --locked --all-targets
 
+  distribution-owned-platform:
+    name: gate / ci / distribution-owned / ${{ matrix.os }}
+    needs: lock-validation
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-2025
+          - macos-15
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install stable Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Test Distribution state authority contracts
+        run: cargo +stable test --manifest-path apps/desktop/distribution-state/Cargo.toml --locked --all-targets
+      - name: Test Distribution metadata admission contracts
+        run: cargo +stable test --manifest-path apps/desktop/distribution-runtime/Cargo.toml --locked --all-targets
+      - name: Test Distribution transport contracts
+        run: cargo +stable test --manifest-path apps/desktop/distribution-transport/Cargo.toml --locked --all-targets
+
   verify:
     name: ci / build-and-test
     needs:
       - lock-validation
       - distribution-download-platform
+      - distribution-owned-platform
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
