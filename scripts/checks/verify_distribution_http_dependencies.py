@@ -62,6 +62,7 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
             "native-tls",
             "native-tls-no-alpn",
             "native-tls-vendored",
+            "native-tls-vendored-no-alpn",
         }
         selected = sorted(forbidden.intersection(features if isinstance(features, list) else []))
         if selected:
