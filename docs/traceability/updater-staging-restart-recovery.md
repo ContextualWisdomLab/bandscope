@@ -21,6 +21,7 @@ Stale bytes를 resume하거나 신뢰하는 것도 허용하지 않습니다. �
 - Cross-platform fixture hardening `752b5343c809b8e8f76a9886295de42e19ebc3ff`: Rust가 file lock과 ordinary read/write의 상호작용을 platform-specific으로 명시하므로, lease를 보유한 sealed artifact를 별도 pathname handle로 읽는 테스트 가정을 제거하고 path 존재/ownership과 `ConcurrentAttempt`만 검증하도록 고쳤습니다. Product code나 trust semantics는 바꾸지 않습니다.
 - Platform-evidence RED `41afd2abb6f3beeded35d2576f3f1e9532b75ce3`: Ubuntu-only native-suite execution만으로 Windows/macOS file-lock semantics를 release evidence로 삼지 못하도록, `ci.yml`이 Linux·Windows·macOS에서 exact `distribution-download` locked all-target test를 실행하고 protected `ci / build-and-test`가 그 matrix를 선행조건으로 가져야 한다는 repository contract를 추가했습니다.
 - Platform-evidence fix `cfb3ec11503fd8b7abafce05f07ea916cc34153c`: `distribution-download-platform` CI matrix를 `ubuntu-latest`, `windows-2025`, `macos-15`로 추가하고 각 runner에서 `cargo +stable test --manifest-path apps/desktop/distribution-download/Cargo.toml --locked --all-targets`를 실행합니다. Main `ci / build-and-test`는 이 matrix와 npm lock validation을 모두 `needs`로 요구하므로 platform lease test가 실패한 상태에서 required main CI gate가 성공할 수 없습니다.
+- Real-process coverage `44265a038bf1c162df15539de0bcfaaf6f286bea`: same-process handle contention만으로 process coordination을 추정하지 않도록 integration test가 현재 test binary를 별도 child process로 실행합니다. Child가 실제 staging lease와 artifact를 보유한 뒤 readiness signal을 내고, parent는 같은 staging namespace의 create가 `ConcurrentAttempt`로 실패하며 pathname이 보존되는지 확인합니다. Child process가 lease를 해제한 뒤 parent fresh attempt가 성공해야 test가 끝납니다. 이 test도 위 OS matrix에서 실행됩니다.
 
 ## 실행 계약
 
@@ -34,6 +35,7 @@ Stale bytes를 resume하거나 신뢰하는 것도 허용하지 않습니다. �
 - symlink, directory 또는 기타 non-regular artifact destination은 자동 삭제하지 않습니다.
 - verified artifact를 이 scratch namespace에 장기 보존하는 API는 없습니다.
 - platform-specific lock behavior를 Linux-only unit evidence로 일반화하지 않습니다. Distribution staging/lease integration suite는 Linux·Windows·macOS hosted runner에서 exact-head 실행되어야 하며 main `ci / build-and-test`는 그 matrix를 통과한 뒤에만 시작할 수 있습니다.
+- process-ownership claim은 별도 OS process가 lease를 보유하는 integration case를 포함해야 합니다. 같은 test process 안의 두 file handle만으로 cross-process exclusion을 증명했다고 보지 않습니다.
 
 ## 선택과 기각한 대안
 
@@ -47,11 +49,13 @@ Lease sentinel을 정상 drop마다 삭제하는 방식도 사용하지 않습�
 
 Linux CI 한 곳에서만 lock suite를 실행하고 Windows/macOS 동작을 문서상 동일하다고 간주하는 방식도 기각합니다. Rust 자체가 file lock 구현과 read/write 상호작용을 platform-specific이라고 명시하므로, 판매 대상 desktop OS family에서 실행 evidence를 직접 확보해야 합니다.
 
+Same-process handle contention만으로 process-level lease를 증명하는 방식도 기각합니다. OS lock의 handle/process semantics는 platform-specific할 수 있으므로 별도 process가 실제 lock owner일 때의 exclusion과 release를 각 판매 대상 OS runner에서 실행합니다.
+
 ## Claim boundary
 
 이 수리는 **cooperating BandScope processes 사이에서 active staging attempt를 crash residue로 오인해 reclaim하는 source-level race**와 restart 뒤 stale regular file이 동일 update를 영구 차단하는 경로를 함께 닫습니다. `File::try_lock`은 플랫폼에 따라 advisory 또는 mandatory일 수 있으므로, 이 lease가 임의의 로컬 악성 프로세스가 직접 filesystem을 변조하는 것을 막는 mandatory sandbox라고 주장하지 않습니다. Staging root 자체의 ACL/ownership hardening과 pathname TOCTOU 방어도 별도 security boundary입니다.
 
-Cross-platform CI matrix는 Windows/macOS/Linux에서 현재 source contract가 실행된다는 evidence gate입니다. Packaged application process kill, power loss, disk-full, antivirus/file-lock, filesystem crash가 모두 검증됐다는 뜻은 아닙니다. Production HTTP adapter, cryptographic verification, verified-artifact promotion과 last-known-good retention은 별도 release gate입니다.
+Cross-platform CI matrix와 real-process test는 Windows/macOS/Linux에서 현재 cooperating-process exclusion contract가 실행된다는 evidence gate입니다. Packaged application process kill, power loss, disk-full, antivirus/file-lock, filesystem crash가 모두 검증됐다는 뜻은 아닙니다. Production HTTP adapter, cryptographic verification, verified-artifact promotion과 last-known-good retention은 별도 release gate입니다.
 
 ## 근거
 
