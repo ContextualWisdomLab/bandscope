@@ -49,9 +49,9 @@ pub enum StagingArtifactError {
     StagingDirectoryUnavailable(ErrorKind),
     /// The staging root is not a direct, non-symlink directory.
     InvalidStagingDirectory,
-    /// The exact staging destination already exists.
+    /// A non-regular destination exists or another writer won the exclusive create race.
     DestinationExists,
-    /// Exclusive staging-file creation failed.
+    /// Exclusive staging-file creation or stale-regular cleanup failed.
     CreateFailed(ErrorKind),
     /// Flushing userspace buffers failed before sealing.
     FlushFailed(ErrorKind),
@@ -176,8 +176,13 @@ impl ArtifactDownloadAdmission {
 /// Exclusive temporary artifact owned by the Distribution staging directory.
 ///
 /// Creation accepts one portable basename under an already-existing app-owned
-/// non-symlink directory. The file is removed on drop unless `seal` transfers
-/// cleanup ownership to `SealedArtifactFile`. Callers cannot write the
+/// non-symlink directory. This directory is an unverified scratch namespace:
+/// a pre-existing regular child with the same admitted basename is treated as
+/// an interrupted prior attempt, removed, then replaced with `create_new`.
+/// Symlinks and other non-regular children are never reclaimed. A later verified
+/// artifact owner must move trusted bytes out of this staging namespace before
+/// retaining them across launches. The file is removed on drop unless `seal`
+/// transfers cleanup ownership to `SealedArtifactFile`. Callers cannot write the
 /// descriptor directly; response bytes must pass through
 /// `ArtifactDownloadAdmission` via `admit_chunk`.
 #[derive(Debug)]
@@ -188,7 +193,7 @@ pub struct StagedArtifactFile {
 }
 
 impl StagedArtifactFile {
-    /// Create one new staging artifact without overwriting any existing path.
+    /// Create one new staging artifact, reclaiming only a stale regular child.
     pub fn create(
         staging_directory: &Path,
         artifact_name: &str,
@@ -203,6 +208,18 @@ impl StagedArtifactFile {
         }
 
         let path = staging_directory.join(artifact_name);
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) => {
+                if metadata.file_type().is_symlink() || !metadata.is_file() {
+                    return Err(StagingArtifactError::DestinationExists);
+                }
+                fs::remove_file(&path)
+                    .map_err(|error| StagingArtifactError::CreateFailed(error.kind()))?;
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(StagingArtifactError::CreateFailed(error.kind())),
+        }
+
         let file = match OpenOptions::new()
             .read(true)
             .write(true)
