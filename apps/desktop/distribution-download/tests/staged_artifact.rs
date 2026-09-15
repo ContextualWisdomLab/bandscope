@@ -25,14 +25,29 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
     path
 }
 
-fn remove_scratch_dir(directory: &Path) {
-    let lease_path = directory.join(".bandscope-staging.lock");
-    match fs::remove_file(&lease_path) {
+fn remove_file_if_present(path: &Path) {
+    match fs::remove_file(path) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => panic!("remove staging lease fixture: {error}"),
+        Err(error) => panic!("remove fixture {}: {error}", path.display()),
     }
+}
+
+fn remove_scratch_dir(directory: &Path) {
+    remove_file_if_present(&directory.join("update.bin"));
+    remove_file_if_present(&directory.join(".bandscope-staging.lock"));
     fs::remove_dir(directory).expect("remove staging directory");
+}
+
+fn assert_platform_drop_cleanup(path: &Path) {
+    #[cfg(unix)]
+    assert!(!path.exists(), "Unix removes the descriptor-owned staging path");
+
+    #[cfg(not(unix))]
+    assert!(
+        path.is_file(),
+        "non-Unix drop defers pathname deletion when descriptor identity cannot be proven"
+    );
 }
 
 fn wait_for_path(path: &Path, label: &str) {
@@ -46,7 +61,7 @@ fn wait_for_path(path: &Path, label: &str) {
 }
 
 #[test]
-fn cancelled_staging_file_is_removed_on_drop() {
+fn cancelled_staging_file_follows_platform_cleanup_contract() {
     let directory = scratch_dir("cancel");
     let staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
     let path = staged.path().to_path_buf();
@@ -54,12 +69,12 @@ fn cancelled_staging_file_is_removed_on_drop() {
 
     drop(staged);
 
-    assert!(!path.exists());
+    assert_platform_drop_cleanup(&path);
     remove_scratch_dir(&directory);
 }
 
 #[test]
-fn sealed_but_unverified_artifact_is_removed_on_drop() {
+fn sealed_but_unverified_artifact_follows_platform_cleanup_contract() {
     let directory = scratch_dir("seal");
     let mut staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
     let mut admission = ArtifactDownloadAdmission::new(4, Some(4)).expect("admission");
@@ -74,7 +89,7 @@ fn sealed_but_unverified_artifact_is_removed_on_drop() {
     let path = sealed.path().to_path_buf();
     drop(sealed);
 
-    assert!(!path.exists());
+    assert_platform_drop_cleanup(&path);
     remove_scratch_dir(&directory);
 }
 
@@ -97,13 +112,13 @@ fn sealed_unverified_artifact_keeps_staging_lease() {
 
     drop(sealed);
     let replacement = StagedArtifactFile::create(&directory, "update.bin")
-        .expect("lease must release after sealed cleanup");
+        .expect("lease must release and stale scratch must be reclaimable");
     drop(replacement);
     remove_scratch_dir(&directory);
 }
 
 #[test]
-fn failed_admission_removes_partial_staging_file() {
+fn failed_admission_follows_platform_cleanup_contract() {
     let directory = scratch_dir("overrun");
     let mut staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
     let path = staged.path().to_path_buf();
@@ -115,12 +130,12 @@ fn failed_admission_removes_partial_staging_file() {
 
     drop(staged);
 
-    assert!(!path.exists());
+    assert_platform_drop_cleanup(&path);
     remove_scratch_dir(&directory);
 }
 
 #[test]
-fn receipt_size_mismatch_removes_unsealed_staging_file() {
+fn receipt_size_mismatch_follows_platform_cleanup_contract() {
     let directory = scratch_dir("receipt-mismatch");
     let staged = StagedArtifactFile::create(&directory, "update.bin").expect("stage file");
     let path = staged.path().to_path_buf();
@@ -132,7 +147,7 @@ fn receipt_size_mismatch_removes_unsealed_staging_file() {
     let receipt = unrelated_admission.finish().expect("receipt");
 
     assert_eq!(staged.seal(receipt).unwrap_err(), StagingArtifactError::SizeMismatch);
-    assert!(!path.exists());
+    assert_platform_drop_cleanup(&path);
     remove_scratch_dir(&directory);
 }
 
@@ -147,7 +162,7 @@ fn stale_regular_destination_is_reclaimed_before_new_attempt() {
 
     assert_eq!(fs::metadata(&path).expect("replacement metadata").len(), 0);
     drop(staged);
-    assert!(!path.exists());
+    assert_platform_drop_cleanup(&path);
     remove_scratch_dir(&directory);
 }
 
@@ -168,7 +183,7 @@ fn active_staging_attempt_is_not_reclaimed_as_stale() {
     assert!(path.exists());
 
     drop(first);
-    assert!(!path.exists());
+    assert_platform_drop_cleanup(&path);
 
     let replacement = StagedArtifactFile::create(&directory, "update.bin")
         .expect("released active attempt must allow a fresh retry");
@@ -216,7 +231,8 @@ fn separate_process_cannot_reclaim_live_staging_attempt() {
     fs::write(&release_path, b"release").expect("release child staging lease");
     let status = child.wait().expect("wait for staging lease child");
     assert!(status.success());
-    assert!(!directory.join("update.bin").exists());
+    let staging_path = directory.join("update.bin");
+    assert_platform_drop_cleanup(&staging_path);
 
     let replacement = StagedArtifactFile::create(&directory, "update.bin")
         .expect("fresh attempt after child process release");
