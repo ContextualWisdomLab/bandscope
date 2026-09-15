@@ -113,6 +113,31 @@ def test_release_identity_guard_rejects_wrong_tag(tmp_path: Path) -> None:
         release_guard.verify_release_identity(tmp_path, release_tag="v1.2.2")
 
 
+@pytest.mark.parametrize(
+    "invalid_version",
+    [
+        "1.2.3-rc.1",
+        "1.2.3+build.7",
+        "01.2.3",
+        "1.02.3",
+        "1.2.03",
+        "1.2",
+        "v1.2.3",
+    ],
+)
+def test_release_identity_guard_rejects_noncanonical_stable_version(
+    tmp_path: Path, invalid_version: str
+) -> None:
+    """Keep release publication aligned with the runtime's stable-version grammar."""
+    release_guard = _load_guard()
+    _write_release_metadata(tmp_path, invalid_version)
+
+    with pytest.raises(
+        ValueError, match="VERSION must be canonical stable MAJOR.MINOR.PATCH"
+    ):
+        release_guard.verify_release_identity(tmp_path)
+
+
 def test_release_identity_guard_rejects_multiline_version_authority(tmp_path: Path) -> None:
     """Reject an ambiguous VERSION file even if projections repeat the same text."""
     release_guard = _load_guard()
