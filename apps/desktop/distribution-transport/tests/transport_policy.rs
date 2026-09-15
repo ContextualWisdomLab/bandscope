@@ -11,11 +11,15 @@ const DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 const INITIAL_URL: &str = "https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-windows-x86_64.zip";
 const CDN_URL: &str = "https://release-assets.githubusercontent.com/github-production-release-asset/1178322014/update.zip?sp=r&sv=2021-08-06&sr=b";
 
-fn updater_document() -> Vec<u8> {
+fn updater_document_with_signature(signature: &str) -> Vec<u8> {
     format!(
-        r#"{{"version":"1.2.3","platforms":{{"windows-x86_64":{{"signature":"c2ln","url":"{INITIAL_URL}"}},"windows-aarch64":{{"signature":"c2ln","url":"https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-windows-aarch64.zip"}},"darwin-x86_64":{{"signature":"c2ln","url":"https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-darwin-x86_64.tar.gz"}},"darwin-aarch64":{{"signature":"c2ln","url":"https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-darwin-aarch64.tar.gz"}}}},"bandscope":{{"schemaVersion":1,"sourceCommit":"{SOURCE_COMMIT}","minimumSupportedVersion":"0.1.3","artifacts":{{"windows-x86_64":{{"sizeBytes":4,"sha256":"{DIGEST}"}},"windows-aarch64":{{"sizeBytes":5,"sha256":"{DIGEST}"}},"darwin-x86_64":{{"sizeBytes":6,"sha256":"{DIGEST}"}},"darwin-aarch64":{{"sizeBytes":7,"sha256":"{DIGEST}"}}}}}}}}"#
+        r#"{{"version":"1.2.3","platforms":{{"windows-x86_64":{{"signature":"{signature}","url":"{INITIAL_URL}"}},"windows-aarch64":{{"signature":"c2ln","url":"https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-windows-aarch64.zip"}},"darwin-x86_64":{{"signature":"c2ln","url":"https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-darwin-x86_64.tar.gz"}},"darwin-aarch64":{{"signature":"c2ln","url":"https://github.com/ContextualWisdomLab/bandscope/releases/download/v1.2.3/BandScope-darwin-aarch64.tar.gz"}}}},"bandscope":{{"schemaVersion":1,"sourceCommit":"{SOURCE_COMMIT}","minimumSupportedVersion":"0.1.3","artifacts":{{"windows-x86_64":{{"sizeBytes":4,"sha256":"{DIGEST}"}},"windows-aarch64":{{"sizeBytes":5,"sha256":"{DIGEST}"}},"darwin-x86_64":{{"sizeBytes":6,"sha256":"{DIGEST}"}},"darwin-aarch64":{{"sizeBytes":7,"sha256":"{DIGEST}"}}}}}}}}"#
     )
     .into_bytes()
+}
+
+fn updater_document() -> Vec<u8> {
+    updater_document_with_signature("c2ln")
 }
 
 fn policy() -> ReleaseTransportPolicy {
@@ -35,6 +39,20 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
     ));
     fs::create_dir(&path).expect("create isolated staging directory");
     path
+}
+
+#[test]
+fn malformed_tauri_signature_envelope_is_rejected_before_network_admission() {
+    let metadata = admit_untrusted_raw_json(
+        &updater_document_with_signature("not-base64!"),
+        "windows-x86_64",
+    )
+    .expect("metadata syntax alone remains provisional");
+
+    assert_eq!(
+        ReleaseTransportPolicy::from_provisional(&metadata),
+        Err(TransportPolicyError::InvalidArtifactSignatureEnvelope)
+    );
 }
 
 #[test]
