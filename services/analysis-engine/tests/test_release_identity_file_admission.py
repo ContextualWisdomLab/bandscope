@@ -34,6 +34,24 @@ def test_release_identity_rejects_duplicate_json_version_projection(tmp_path: Pa
         verifier.verify_release_identity(tmp_path)
 
 
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_release_identity_rejects_nonstandard_json_constants(
+    tmp_path: Path, constant: str
+) -> None:
+    """Release projections must remain strict JSON across consumer implementations."""
+    verifier = load_module(
+        "scripts/checks/verify_release_identity.py",
+        f"verify_release_identity_nonstandard_constant_{constant.replace('-', 'neg_')}",
+    )
+    _write_minimal_identity_tree(tmp_path)
+    (tmp_path / "package.json").write_text(
+        f'{{"version":"1.2.3","nonstandard":{constant}}}\n', encoding="utf-8"
+    )
+
+    with pytest.raises(ValueError, match="could not read release metadata"):
+        verifier.verify_release_identity(tmp_path)
+
+
 def test_release_identity_rejects_symlinked_version_authority(tmp_path: Path) -> None:
     """VERSION must be the repository file itself rather than a followed link."""
     verifier = load_module(
