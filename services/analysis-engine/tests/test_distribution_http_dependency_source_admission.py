@@ -65,3 +65,26 @@ def test_reqwest_noncanonical_sources_are_rejected(tmp_path: Path) -> None:
         violations = POLICY.verify_distribution_http_dependency_admission(fixture)
 
         assert any("source" in violation for violation in violations), name
+
+
+def test_rustls_noncanonical_lock_source_is_rejected(tmp_path: Path) -> None:
+    """Reject a patched or forked rustls source hidden behind a safe-looking version."""
+    _write_source_fixture(
+        tmp_path,
+        dependency_fields='version = "0.13.5"',
+        reqwest_source="registry+https://github.com/rust-lang/crates.io-index",
+    )
+    lock = tmp_path / "apps/desktop/distribution-transport/Cargo.lock"
+    lock.write_text(
+        lock.read_text(encoding="utf-8").replace(
+            'name = "rustls"\nversion = "0.23.45"\n'
+            'source = "registry+https://github.com/rust-lang/crates.io-index"',
+            'name = "rustls"\nversion = "0.23.45"\n'
+            'source = "git+https://example.invalid/rustls#deadbeef"',
+        ),
+        encoding="utf-8",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("rustls source" in violation for violation in violations)
