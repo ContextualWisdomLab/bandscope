@@ -30,6 +30,15 @@ def _version_triplet(raw: str) -> tuple[int, int, int] | None:
     return major, minor, patch
 
 
+def _is_bounded_three_component_requirement(raw: str) -> bool:
+    """Return whether a Cargo requirement is one canonical three-component caret form."""
+    version = _version_triplet(raw)
+    if version is None:
+        return False
+    canonical = ".".join(str(component) for component in version)
+    return raw == canonical
+
+
 def _is_affected_rustls(raw: str) -> bool:
     """Return whether a rustls version is inside RUSTSEC-2026-0285's affected range."""
     version = _version_triplet(raw)
@@ -138,6 +147,11 @@ def _validate_reqwest_declaration(location: str, reqwest: Any) -> list[str]:
     if not isinstance(version, str) or not version.strip():
         violations.append(
             f"{prefix}: reqwest source must include an explicit crates.io version requirement"
+        )
+    elif not _is_bounded_three_component_requirement(version):
+        violations.append(
+            f"{prefix}: reqwest version must use one bounded three-component Cargo "
+            f"requirement such as 0.13.5; found {version!r}"
         )
 
     if reqwest.get("default-features") is not False:
