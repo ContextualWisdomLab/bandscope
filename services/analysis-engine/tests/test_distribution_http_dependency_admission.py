@@ -131,3 +131,21 @@ def test_direct_reqwest_rejects_vendored_native_tls_without_alpn(tmp_path: Path)
     assert any(
         "native-tls-vendored-no-alpn" in violation for violation in violations
     )
+
+
+def test_direct_reqwest_rejects_transparent_response_decoding_feature(
+    tmp_path: Path,
+) -> None:
+    """Reject feature-level body transforms before exact updater bytes reach admission."""
+    _write_fixture(
+        tmp_path,
+        reqwest=(
+            'reqwest = { version = "0.13.5", default-features = false, '
+            'features = ["rustls", "gzip"] }\n'
+        ),
+        rustls_version="0.23.45",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("gzip" in violation for violation in violations)
