@@ -10,13 +10,17 @@ Fresh review then found a separate file-admission problem in the same release ga
 
 A further parser-alignment review found that Python's `json.loads()` also accepts the JavaScript-style numeric constants `NaN`, `Infinity`, and `-Infinity` by default. RFC 8259 explicitly excludes those values from the JSON number grammar. A release projection containing the correct `version` plus one of those constants could therefore pass BandScope preflight while remaining invalid JSON for stricter package, signing, or release consumers. Release identity admission must reject parser extensions that are outside the interchange format rather than treating Python's permissive decoder as the format authority.
 
+The descriptor repair still had one concurrency hole. `_read_bounded_regular_text()` compared descriptor identity and file length before and after one read, but a writer could replace bytes in place without changing inode or length. A same-size rewrite of `package.json` immediately after the read could therefore leave preflight holding the old bytes while the repository path already exposed different release metadata. Size stability is not content stability.
+
 ## Decision
 
 `verify_release_identity.py` is the release-pipeline version gate because `package_desktop_artifact.py` invokes release preflight before creating release artifacts. Stable-channel `VERSION` must match exact numeric `MAJOR.MINOR.PATCH`; each component is `0` or a non-zero decimal without leading zeros and must also fit the same unsigned 64-bit range consumed by `distribution-core::StableVersion`.
 
 The Python guard compares decimal text against the exact `u64::MAX` decimal boundary instead of converting arbitrary-length input to Python integers. This keeps the accepted domain explicit and avoids a second numeric interpretation. The rule intentionally does not broaden the runtime to prerelease/build SemVer. A future beta/prerelease channel requires a separate release decision and one canonical ordering implementation.
 
-Release identity inputs are admitted from one opened descriptor each. `VERSION` is capped at 128 bytes; repository JSON projections are capped at 256 KiB. The opened object must be a regular file, its path must resolve to the same non-link file identity at admission, descriptor device/inode/size must remain stable through the read, and the byte count must match the descriptor size. JSON decoding uses an object-pairs hook that rejects duplicate members before `version` is read. No admitted value is obtained by reopening the pathname after this check.
+Release identity inputs are admitted from one opened descriptor each. `VERSION` is capped at 128 bytes; repository JSON projections are capped at 256 KiB. The opened object must be a regular file, its path must resolve to the same non-link file identity at admission, and descriptor device/inode/size must remain stable. The guard now reads the bounded descriptor twice from offset zero and requires byte-for-byte equality between the two snapshots as well as exact length agreement with the descriptor. JSON decoding uses an object-pairs hook that rejects duplicate members before `version` is read. No admitted value is obtained by reopening the pathname after this check.
+
+The double read is deliberately small and deterministic: the largest projection is 256 KiB, there is no network or subprocess boundary, and release preflight runs before packaging rather than in a latency-sensitive product path. It detects same-size in-place mutation during admission without adding a new lock owner or relying on filesystem timestamp granularity.
 
 JSON decoding also supplies an explicit `parse_constant` rejection hook. `NaN`, `Infinity`, and `-Infinity` therefore fail as malformed release metadata instead of entering the object graph as Python floating-point extensions. This keeps the gate aligned with RFC 8259 and with stricter downstream JSON consumers while preserving the existing duplicate-member error path.
 
@@ -30,6 +34,8 @@ JSON decoding also supplies an explicit `parse_constant` rejection hook. `NaN`, 
 - Causal file-admission fix `42d34b5e0b0bb01ebc8c6801552e10b9857ab1f0` replaces pathname reads with bounded descriptor reads, rejects non-regular/link identities, verifies descriptor identity/size stability, and rejects duplicate JSON members before projection comparison.
 - Strict-JSON RED `68f1bb5531879b8f75d08f1a7e0db84f0b4a36c6` adds `NaN`, `Infinity`, and `-Infinity` fixtures alongside an otherwise-correct release version. Python's default decoder accepts all three even though they are not valid JSON numbers.
 - Causal strict-JSON fix `494aa0f5d0b966a1a6e2c5fcc64ab5655c56d5d0` supplies an explicit `parse_constant` rejection hook so non-standard constants fail before any release version projection is consumed.
+- Same-size mutation RED `a418640ae4c3775f967bab695422c77ee3d6f32e` rewrites `package.json` from `1.2.3` to `9.9.9` immediately after the first descriptor read while preserving byte length. The predecessor identity/size-only check can return the old bytes even though the repository file has already changed.
+- Causal snapshot fix `438dca03c6cfcd2f1d2a1fd6084483d98879270f` performs a second bounded read on the same descriptor from offset zero and requires exact byte equality and stable descriptor identity/size before decoding.
 - The checked-in current authority remains `0.1.3`; these repairs change future admission, not the identity of the current source tree.
 
 ## Alternatives rejected
@@ -54,9 +60,17 @@ Rejected. Git can represent symlinks, and JSON duplicate-member behavior is pars
 
 Rejected. RFC 8259 does not permit `NaN` or infinities as JSON numbers. Allowing them because Python can materialize them would make preflight validity depend on a decoder extension that stricter release consumers are not required to share.
 
-### Read the path twice and compare only size
+### Read once and compare only inode and size
 
-Rejected. A same-sized replacement can pass a size-only comparison. Release identity is read once from the admitted descriptor and validated against that descriptor; later pathname state is not used as the source of the already-admitted bytes.
+Rejected. Same-length in-place writes leave inode and size unchanged. The release gate must know that the bytes it parsed remained stable while it admitted them, not merely that the same file object retained the same length.
+
+### Use timestamps as the content-stability authority
+
+Rejected. Filesystem timestamp precision and update semantics vary by platform, and timestamps are metadata rather than the release bytes themselves. Two bounded reads of at most 256 KiB compare the actual content with negligible release-time cost.
+
+### Add a long-lived repository lock
+
+Rejected. Release preflight does not own Git checkout mutation or the entire packaging transaction. A new lock would create a second repository writer protocol and still would not make later consumers immutable. The guard instead proves stability for its own bounded read boundary and leaves post-gate repository immutability to the release workflow/commit identity contract.
 
 ### Validate only in the updater-manifest builder
 
@@ -68,7 +82,7 @@ Rejected. Prerelease precedence and build metadata semantics would then differ a
 
 ## Claim boundary
 
-This repair proves that repository-controlled stable release preflight and the native updater decision core agree on version syntax and numeric component range, and that the three release-identity projection files are read through a bounded, duplicate-rejecting, strict-standard-JSON, descriptor-stable admission boundary. It does not make the entire checked-out repository immutable against a privileged local actor after the gate completes, authenticate remote updater metadata, verify updater signatures, provision signing authority, prove packaged update/recovery behavior, or make the current blocked updater/model policies commercially releasable.
+This repair proves that repository-controlled stable release preflight and the native updater decision core agree on version syntax and numeric component range, and that the three release-identity projection files are admitted through bounded, non-link, duplicate-rejecting, strict-standard-JSON descriptors whose two read snapshots must agree byte-for-byte. It does not make the entire checked-out repository immutable against a privileged local actor after the gate completes, prevent a later post-gate checkout mutation, authenticate remote updater metadata, verify updater signatures, provision signing authority, prove packaged update/recovery behavior, or make the current blocked updater/model policies commercially releasable.
 
 Hosted exact-head CI and independent review remain required before merge. Version/file-admission agreement does not substitute for Windows/macOS signing, updater-key authority, immutable release publication, or rights-cleared real-audio scientific acceptance.
 
@@ -80,4 +94,4 @@ Preston-Werner, T. (n.d.). *Semantic Versioning 2.0.0*. https://semver.org/spec/
 
 Python Software Foundation. (2026). *json — JSON encoder and decoder: `parse_constant`*. Python 3 standard library documentation.
 
-Python Software Foundation. (2026). *os — Miscellaneous operating system interfaces: `open`, `fstat`, and `lstat`*. Python 3 standard library documentation.
+Python Software Foundation. (2026). *os — Miscellaneous operating system interfaces: `open`, `fstat`, `lseek`, and `lstat`*. Python 3 standard library documentation.
