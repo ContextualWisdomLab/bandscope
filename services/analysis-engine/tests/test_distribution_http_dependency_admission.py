@@ -1,0 +1,98 @@
+"""Regression tests for Distribution HTTP dependency admission."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from conftest import load_module
+
+POLICY = load_module(
+    "scripts/checks/verify_distribution_http_dependencies.py",
+    "verify_distribution_http_dependencies",
+)
+
+
+def _write_fixture(
+    root: Path,
+    *,
+    reqwest: str | None,
+    rustls_version: str | None,
+) -> None:
+    crate = root / "apps/desktop/distribution-transport"
+    crate.mkdir(parents=True)
+    dependency = reqwest or ""
+    (crate / "Cargo.toml").write_text(
+        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n"
+        "[dependencies]\n"
+        f"{dependency}",
+        encoding="utf-8",
+    )
+    packages = []
+    if reqwest is not None:
+        packages.append(
+            '[[package]]\nname = "reqwest"\nversion = "0.13.5"\n'
+            'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+            'checksum = "fixture"\n'
+        )
+    if rustls_version is not None:
+        packages.append(
+            f'[[package]]\nname = "rustls"\nversion = "{rustls_version}"\n'
+            'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+            'checksum = "fixture"\n'
+        )
+    (crate / "Cargo.lock").write_text(
+        "version = 4\n\n" + "\n".join(packages),
+        encoding="utf-8",
+    )
+
+
+def test_direct_reqwest_rejects_rustls_advisory_range(tmp_path: Path) -> None:
+    _write_fixture(
+        tmp_path,
+        reqwest='reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }\n',
+        rustls_version="0.23.44",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("RUSTSEC-2026-0285" in violation for violation in violations)
+    assert any("rustls >=0.23.45" in violation for violation in violations)
+
+
+def test_direct_reqwest_accepts_patched_rustls(tmp_path: Path) -> None:
+    _write_fixture(
+        tmp_path,
+        reqwest='reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }\n',
+        rustls_version="0.23.45",
+    )
+
+    assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
+
+
+def test_direct_reqwest_accepts_later_unaffected_rustls_line(tmp_path: Path) -> None:
+    _write_fixture(
+        tmp_path,
+        reqwest='reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }\n',
+        rustls_version="0.24.0",
+    )
+
+    assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
+
+
+def test_unrelated_transitive_rustls_does_not_activate_distribution_gate(tmp_path: Path) -> None:
+    _write_fixture(tmp_path, reqwest=None, rustls_version="0.23.44")
+
+    assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
+
+
+def test_direct_reqwest_requires_explicit_tls_feature_ownership(tmp_path: Path) -> None:
+    _write_fixture(
+        tmp_path,
+        reqwest='reqwest = { version = "0.13.5" }\n',
+        rustls_version="0.23.45",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("default features must be disabled" in violation for violation in violations)
+    assert any("explicitly enable the rustls feature" in violation for violation in violations)
