@@ -10,7 +10,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -20,6 +20,8 @@ pub const MAX_UPDATER_ARTIFACT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const MAX_DOWNLOAD_CHUNK_BYTES: usize = 1024 * 1024;
 /// Largest product-owned staging filename accepted by this boundary.
 pub const MAX_ARTIFACT_NAME_BYTES: usize = 180;
+
+const STAGING_LEASE_FILE_NAME: &str = ".bandscope-staging.lock";
 
 /// Fail-closed reasons for bounded updater-artifact admission.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,9 +51,11 @@ pub enum StagingArtifactError {
     StagingDirectoryUnavailable(ErrorKind),
     /// The staging root is not a direct, non-symlink directory.
     InvalidStagingDirectory,
+    /// A live staging attempt already owns the scratch namespace lease.
+    ConcurrentAttempt,
     /// A non-regular destination exists or another writer won the exclusive create race.
     DestinationExists,
-    /// Exclusive staging-file creation or stale-regular cleanup failed.
+    /// Exclusive staging-file creation, lease acquisition, or stale-regular cleanup failed.
     CreateFailed(ErrorKind),
     /// Flushing userspace buffers failed before sealing.
     FlushFailed(ErrorKind),
@@ -176,18 +180,21 @@ impl ArtifactDownloadAdmission {
 /// Exclusive temporary artifact owned by the Distribution staging directory.
 ///
 /// Creation accepts one portable basename under an already-existing app-owned
-/// non-symlink directory. This directory is an unverified scratch namespace:
-/// a pre-existing regular child with the same admitted basename is treated as
-/// an interrupted prior attempt, removed, then replaced with `create_new`.
-/// Symlinks and other non-regular children are never reclaimed. A later verified
-/// artifact owner must move trusted bytes out of this staging namespace before
-/// retaining them across launches. The file is removed on drop unless `seal`
-/// transfers cleanup ownership to `SealedArtifactFile`. Callers cannot write the
+/// non-symlink directory. A process-scoped exclusive lease is acquired before
+/// any pre-existing regular artifact can be classified as stale. This directory
+/// is an unverified scratch namespace: a regular child may be reclaimed only
+/// while that lease is held, so a second cooperating process cannot unlink a
+/// live attempt and mistake it for crash residue. Symlinks and other non-regular
+/// children are never reclaimed. A later verified artifact owner must move
+/// trusted bytes out of this staging namespace before retaining them across
+/// launches. The file is removed on drop unless `seal` transfers both cleanup
+/// and lease ownership to `SealedArtifactFile`. Callers cannot write the
 /// descriptor directly; response bytes must pass through
 /// `ArtifactDownloadAdmission` via `admit_chunk`.
 #[derive(Debug)]
 pub struct StagedArtifactFile {
     file: Option<File>,
+    staging_lease: Option<File>,
     path: PathBuf,
     retain_on_drop: bool,
 }
@@ -207,6 +214,7 @@ impl StagedArtifactFile {
             return Err(StagingArtifactError::InvalidStagingDirectory);
         }
 
+        let staging_lease = acquire_staging_lease(staging_directory)?;
         let path = staging_directory.join(artifact_name);
         match fs::symlink_metadata(&path) {
             Ok(metadata) => {
@@ -235,6 +243,7 @@ impl StagedArtifactFile {
 
         Ok(Self {
             file: Some(file),
+            staging_lease: Some(staging_lease),
             path,
             retain_on_drop: false,
         })
@@ -260,9 +269,9 @@ impl StagedArtifactFile {
 
     /// Flush, synchronize, and descriptor-check an exactly downloaded artifact.
     ///
-    /// A successful seal transfers cleanup responsibility to a still-open
-    /// `SealedArtifactFile` so later digest/signature verification remains
-    /// bound to the exact staged bytes rather than reopening an
+    /// A successful seal transfers cleanup responsibility and the staging lease
+    /// to a still-open `SealedArtifactFile` so later digest/signature verification
+    /// remains bound to the exact staged bytes rather than reopening an
     /// attacker-selected path. Sealing is not trust promotion: the sealed file
     /// remains cleanup-on-drop until a later verified-artifact boundary exists.
     pub fn seal(
@@ -292,8 +301,13 @@ impl StagedArtifactFile {
             .file
             .take()
             .expect("staged artifact descriptor remains present after validation");
+        let staging_lease = self
+            .staging_lease
+            .take()
+            .expect("staging lease remains held through seal");
         Ok(SealedArtifactFile {
             file: Some(sealed_file),
+            staging_lease: Some(staging_lease),
             path: self.path.clone(),
             bytes_written: receipt.bytes_written(),
         })
@@ -309,18 +323,21 @@ impl Drop for StagedArtifactFile {
             drop(file);
         }
         let _ = fs::remove_file(&self.path);
+        let _ = self.staging_lease.take();
     }
 }
 
 /// Synchronized but still unverified staging artifact.
 ///
-/// The descriptor stays open for later digest/signature verification. Dropping
-/// this value closes the descriptor before removing the staged path, including
-/// on Windows where deleting an open file can fail. A later trust-promotion
-/// type, not this byte-count boundary, must explicitly retain verified bytes.
+/// The descriptor and staging lease stay open for later digest/signature
+/// verification. Dropping this value closes the descriptor before removing the
+/// staged path, including on Windows where deleting an open file can fail. The
+/// lease is released only after path cleanup. A later trust-promotion type, not
+/// this byte-count boundary, must explicitly retain verified bytes.
 #[derive(Debug)]
 pub struct SealedArtifactFile {
     file: Option<File>,
+    staging_lease: Option<File>,
     path: PathBuf,
     bytes_written: u64,
 }
@@ -403,6 +420,38 @@ impl Drop for SealedArtifactFile {
             drop(file);
         }
         let _ = fs::remove_file(&self.path);
+        let _ = self.staging_lease.take();
+    }
+}
+
+fn acquire_staging_lease(staging_directory: &Path) -> Result<File, StagingArtifactError> {
+    let lease_path = staging_directory.join(STAGING_LEASE_FILE_NAME);
+    let lease_file = match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create_new(true)
+        .open(&lease_path)
+    {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+            let metadata = fs::symlink_metadata(&lease_path)
+                .map_err(|error| StagingArtifactError::CreateFailed(error.kind()))?;
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(StagingArtifactError::DestinationExists);
+            }
+            OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&lease_path)
+                .map_err(|error| StagingArtifactError::CreateFailed(error.kind()))?
+        }
+        Err(error) => return Err(StagingArtifactError::CreateFailed(error.kind())),
+    };
+
+    match lease_file.try_lock() {
+        Ok(()) => Ok(lease_file),
+        Err(TryLockError::WouldBlock) => Err(StagingArtifactError::ConcurrentAttempt),
+        Err(TryLockError::Error(error)) => Err(StagingArtifactError::CreateFailed(error.kind())),
     }
 }
 
