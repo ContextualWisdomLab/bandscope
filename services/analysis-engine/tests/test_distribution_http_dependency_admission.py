@@ -18,11 +18,12 @@ def _write_fixture(
     reqwest: str | None,
     rustls_version: str | None,
 ) -> None:
+    """Write the smallest standalone Distribution transport dependency graph."""
     crate = root / "apps/desktop/distribution-transport"
     crate.mkdir(parents=True)
     dependency = reqwest or ""
     (crate / "Cargo.toml").write_text(
-        "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n"
+        '[package]\nname = "fixture"\nversion = "0.0.0"\n\n'
         "[dependencies]\n"
         f"{dependency}",
         encoding="utf-8",
@@ -47,9 +48,13 @@ def _write_fixture(
 
 
 def test_direct_reqwest_rejects_rustls_advisory_range(tmp_path: Path) -> None:
+    """Reject the affected rustls 0.23.13 through 0.23.44 range."""
     _write_fixture(
         tmp_path,
-        reqwest='reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }\n',
+        reqwest=(
+            'reqwest = { version = "0.13.5", default-features = false, '
+            'features = ["rustls"] }\n'
+        ),
         rustls_version="0.23.44",
     )
 
@@ -60,9 +65,13 @@ def test_direct_reqwest_rejects_rustls_advisory_range(tmp_path: Path) -> None:
 
 
 def test_direct_reqwest_accepts_patched_rustls(tmp_path: Path) -> None:
+    """Accept the first patched rustls 0.23 release."""
     _write_fixture(
         tmp_path,
-        reqwest='reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }\n',
+        reqwest=(
+            'reqwest = { version = "0.13.5", default-features = false, '
+            'features = ["rustls"] }\n'
+        ),
         rustls_version="0.23.45",
     )
 
@@ -70,22 +79,30 @@ def test_direct_reqwest_accepts_patched_rustls(tmp_path: Path) -> None:
 
 
 def test_direct_reqwest_accepts_later_unaffected_rustls_line(tmp_path: Path) -> None:
+    """Do not freeze the gate to the 0.23 minor line."""
     _write_fixture(
         tmp_path,
-        reqwest='reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }\n',
+        reqwest=(
+            'reqwest = { version = "0.13.5", default-features = false, '
+            'features = ["rustls"] }\n'
+        ),
         rustls_version="0.24.0",
     )
 
     assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
 
 
-def test_unrelated_transitive_rustls_does_not_activate_distribution_gate(tmp_path: Path) -> None:
+def test_unrelated_transitive_rustls_does_not_activate_distribution_gate(
+    tmp_path: Path,
+) -> None:
+    """Scope the gate to the Distribution transport crate's direct HTTP client."""
     _write_fixture(tmp_path, reqwest=None, rustls_version="0.23.44")
 
     assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
 
 
 def test_direct_reqwest_requires_explicit_tls_feature_ownership(tmp_path: Path) -> None:
+    """Reject reqwest's implicit default TLS/backend feature selection."""
     _write_fixture(
         tmp_path,
         reqwest='reqwest = { version = "0.13.5" }\n',
