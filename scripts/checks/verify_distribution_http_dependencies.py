@@ -14,6 +14,10 @@ RUSTLS_ENCRYPTION_LEVEL_ADVISORY = "RUSTSEC-2026-0285"
 RUSTLS_AFFECTED_MIN = (0, 23, 13)
 RUSTLS_PATCHED_MIN = (0, 23, 45)
 REQWEST_APPROVED_FEATURES = frozenset({"rustls"})
+REQWEST_APPROVED_DECLARATION_KEYS = frozenset(
+    {"version", "package", "default-features", "features"}
+)
+CRATES_IO_LOCK_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
 
 def _version_triplet(raw: str) -> tuple[int, int, int] | None:
@@ -121,6 +125,21 @@ def _validate_reqwest_declaration(location: str, reqwest: Any) -> list[str]:
             'and features = ["rustls"] directly in this runtime dependency table'
         ]
 
+    unapproved_keys = sorted(
+        set(reqwest).difference(REQWEST_APPROVED_DECLARATION_KEYS)
+    )
+    if unapproved_keys:
+        violations.append(
+            f"{prefix}: reqwest source must be the versioned crates.io package; "
+            "git/path/alternate-registry and other declaration controls are not admitted; "
+            f"unapproved keys: {', '.join(unapproved_keys)}"
+        )
+    version = reqwest.get("version")
+    if not isinstance(version, str) or not version.strip():
+        violations.append(
+            f"{prefix}: reqwest source must include an explicit crates.io version requirement"
+        )
+
     if reqwest.get("default-features") is not False:
         violations.append(
             f"{prefix}: reqwest default features must be disabled so TLS/backend "
@@ -164,16 +183,21 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
 
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     packages = lock.get("package", [])
-    reqwest_versions = [
-        str(package.get("version", ""))
-        for package in packages
-        if package.get("name") == "reqwest"
+    reqwest_packages = [
+        package for package in packages if package.get("name") == "reqwest"
     ]
-    if not reqwest_versions:
+    if not reqwest_packages:
         violations.append(
             f"{DISTRIBUTION_TRANSPORT_LOCK}: direct reqwest is missing from the "
             "committed lock graph"
         )
+    for package in reqwest_packages:
+        source = package.get("source")
+        if source != CRATES_IO_LOCK_SOURCE:
+            violations.append(
+                f"{DISTRIBUTION_TRANSPORT_LOCK}: reqwest source must be canonical "
+                f"crates.io registry; found {source!r}"
+            )
 
     rustls_versions = [
         str(package.get("version", ""))
