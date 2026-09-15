@@ -176,7 +176,10 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(StateError::Io),
     };
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || !has_single_filesystem_link(&metadata)
+    {
         return Err(StateError::NotRegularFile);
     }
     if metadata.len() as usize > MAX_STATE_BYTES {
@@ -185,7 +188,10 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
 
     let mut file = File::open(path).map_err(|_| StateError::Io)?;
     let opened = file.metadata().map_err(|_| StateError::Io)?;
-    if !opened.is_file() || opened.len() != metadata.len() {
+    if !opened.is_file()
+        || !has_single_filesystem_link(&opened)
+        || opened.len() != metadata.len()
+    {
         return Err(StateError::ConcurrentMutation);
     }
 
@@ -201,6 +207,24 @@ fn read_state_bytes(path: &Path) -> Result<Option<Vec<u8>>, StateError> {
         return Err(StateError::ConcurrentMutation);
     }
     Ok(Some(bytes))
+}
+
+fn has_single_filesystem_link(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        return metadata.nlink() == 1;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        return metadata.number_of_links() == Some(1);
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = metadata;
+        false
+    }
 }
 
 fn parse_state_bytes(bytes: &[u8]) -> Result<ParsedState, StateError> {
