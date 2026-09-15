@@ -54,7 +54,7 @@ pub enum MetadataError {
     UnexpectedShape,
     /// The requested desktop target is not one of BandScope's release targets.
     UnsupportedTarget,
-    /// A platform signature field is empty, oversized, or contains a NUL byte.
+    /// A platform signature field is not a bounded canonical standard-base64 envelope.
     InvalidSignature,
     /// A platform URL is not the canonical bounded GitHub exact-tag release URL.
     InvalidUrl,
@@ -137,13 +137,15 @@ impl ProvisionalUpdateMetadata {
 ///
 /// Security Notes: `raw_json` is remote metadata, not proof that the announced
 /// version, commit, or digest is authentic. The function rejects duplicate and
-/// unknown members, enforces all four release targets, bounds signature/URL and
-/// artifact-size fields, pins artifact URLs to BandScope's exact GitHub release
-/// namespace, and delegates release-identity syntax to the pure Distribution
-/// core. The selected URL and signature are retained from this same strict parse
-/// so a later transport adapter does not need a second, looser metadata parse.
-/// Success is deliberately *provisional* and must never be persisted as
-/// highest-seen authority without a separate authenticated metadata binding.
+/// unknown members, enforces all four release targets, requires every platform
+/// signature to use Tauri's bounded canonical standard-base64 outer envelope,
+/// bounds URL and artifact-size fields, pins artifact URLs to BandScope's exact
+/// GitHub release namespace, and delegates release-identity syntax to the pure
+/// Distribution core. The selected URL and signature are retained from this
+/// same strict parse so a later transport adapter does not need a second,
+/// looser metadata parse. Success is deliberately *provisional* and must never
+/// be persisted as highest-seen authority without a separate authenticated
+/// metadata binding.
 pub fn admit_untrusted_raw_json(
     raw_json: &[u8],
     expected_target: &str,
@@ -272,10 +274,54 @@ fn validate_candidate_syntax(
 }
 
 fn validate_signature(value: &str) -> Result<(), MetadataError> {
-    if value.is_empty() || value.len() > MAX_SIGNATURE_BYTES || value.as_bytes().contains(&0) {
+    if value.len() > MAX_SIGNATURE_BYTES || !is_canonical_standard_base64(value) {
         return Err(MetadataError::InvalidSignature);
     }
     Ok(())
+}
+
+fn is_canonical_standard_base64(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() || bytes.len() % 4 != 0 {
+        return false;
+    }
+
+    let padding = if bytes.ends_with(b"==") {
+        2
+    } else if bytes.ends_with(b"=") {
+        1
+    } else {
+        0
+    };
+    let data_len = bytes.len() - padding;
+    if data_len == 0
+        || bytes[..data_len]
+            .iter()
+            .any(|byte| base64_sextet(*byte).is_none())
+        || bytes[data_len..].iter().any(|byte| *byte != b'=')
+    {
+        return false;
+    }
+
+    match padding {
+        0 => true,
+        1 => base64_sextet(bytes[data_len - 1])
+            .is_some_and(|sextet| sextet & 0b0000_0011 == 0),
+        2 => base64_sextet(bytes[data_len - 1])
+            .is_some_and(|sextet| sextet & 0b0000_1111 == 0),
+        _ => false,
+    }
+}
+
+fn base64_sextet(byte: u8) -> Option<u8> {
+    match byte {
+        b'A'..=b'Z' => Some(byte - b'A'),
+        b'a'..=b'z' => Some(byte - b'a' + 26),
+        b'0'..=b'9' => Some(byte - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    }
 }
 
 fn validate_release_url(value: &str, version: &str) -> Result<(), MetadataError> {
@@ -607,10 +653,10 @@ mod tests {
             r#"{{
   "version": "{version}",
   "platforms": {{
-    "windows-x86_64": {{"signature": "sig-win-x86\\n", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/win-x86.zip"}},
-    "windows-aarch64": {{"signature": "sig-win-arm", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/win-arm.zip"}},
-    "darwin-x86_64": {{"signature": "sig-mac-x86", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/mac-x86.tar.gz"}},
-    "darwin-aarch64": {{"signature": "sig-mac-arm", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/mac-arm.tar.gz"}}
+    "windows-x86_64": {{"signature": "c2ln", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/win-x86.zip"}},
+    "windows-aarch64": {{"signature": "c2lnMQ==", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/win-arm.zip"}},
+    "darwin-x86_64": {{"signature": "c2lnMg==", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/mac-x86.tar.gz"}},
+    "darwin-aarch64": {{"signature": "c2lnMw==", "url": "https://github.com/ContextualWisdomLab/bandscope/releases/download/v{version}/mac-arm.tar.gz"}}
   }},
   "bandscope": {{
     "schemaVersion": 1,
@@ -762,12 +808,19 @@ mod tests {
 
     #[test]
     fn parser_accepts_json_unicode_escape_but_rejects_invalid_surrogate() {
-        let escaped = manifest("2.0.0").replace("sig-win-arm", "sig-\\u2603");
-        assert!(admit_untrusted_raw_json(escaped.as_bytes(), "windows-x86_64").is_ok());
-
-        let invalid = manifest("2.0.0").replace("sig-win-arm", "sig-\\uD800x");
+        let escaped = Parser::new(br#"{"value":"\u2603"}"#)
+            .parse_document()
+            .expect("valid unicode escape should parse");
         assert_eq!(
-            admit_untrusted_raw_json(invalid.as_bytes(), "windows-x86_64"),
+            escaped,
+            JsonValue::Object(vec![(
+                "value".to_owned(),
+                JsonValue::String("☃".to_owned())
+            )])
+        );
+
+        assert_eq!(
+            Parser::new(br#"{"value":"\uD800x"}"#).parse_document(),
             Err(MetadataError::InvalidJson)
         );
     }
