@@ -86,20 +86,29 @@ fn receipt_size_mismatch_removes_unsealed_staging_file() {
 }
 
 #[test]
-fn preexisting_destination_and_path_like_names_fail_closed() {
-    let directory = scratch_dir("exclusive");
-    fs::write(directory.join("update.bin"), b"existing").expect("write existing file");
+fn stale_regular_destination_is_reclaimed_before_new_attempt() {
+    let directory = scratch_dir("stale-restart");
+    let path = directory.join("update.bin");
+    fs::write(&path, b"partial-from-crashed-process").expect("write stale partial artifact");
 
-    assert_eq!(
-        StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
-        StagingArtifactError::DestinationExists
-    );
+    let staged = StagedArtifactFile::create(&directory, "update.bin")
+        .expect("restart should reclaim stale unverified regular file");
+
+    assert_eq!(fs::metadata(&path).expect("replacement metadata").len(), 0);
+    drop(staged);
+    assert!(!path.exists());
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
+fn path_like_artifact_names_fail_closed() {
+    let directory = scratch_dir("path-like-name");
+
     assert_eq!(
         StagedArtifactFile::create(&directory, "../escape.bin").unwrap_err(),
         StagingArtifactError::InvalidArtifactName
     );
 
-    fs::remove_file(directory.join("update.bin")).expect("remove existing file");
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -141,5 +150,27 @@ fn symlink_staging_root_is_rejected() {
 
     fs::remove_file(link).expect("remove symlink");
     fs::remove_dir(target).expect("remove target directory");
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[cfg(unix)]
+#[test]
+fn symlink_destination_is_not_reclaimed_as_stale_regular_file() {
+    use std::os::unix::fs::symlink;
+
+    let directory = scratch_dir("symlink-destination");
+    let target = directory.join("outside.bin");
+    let link = directory.join("update.bin");
+    fs::write(&target, b"must-not-be-touched").expect("write target fixture");
+    symlink(&target, &link).expect("create destination symlink");
+
+    assert_eq!(
+        StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
+        StagingArtifactError::DestinationExists
+    );
+    assert_eq!(fs::read(&target).expect("read target fixture"), b"must-not-be-touched");
+
+    fs::remove_file(link).expect("remove destination symlink");
+    fs::remove_file(target).expect("remove target fixture");
     fs::remove_dir(directory).expect("remove staging directory");
 }
