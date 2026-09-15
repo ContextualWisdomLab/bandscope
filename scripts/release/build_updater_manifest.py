@@ -6,19 +6,22 @@ Security Notes:
     authority. It first re-admits the extracted release graph through
     ``select_release_assets`` and then derives one static updater entry per
     supported target from the exact receipt-bound bundle and signature bytes.
-    Signature text is embedded only after a bounded stable regular-file read
-    and an exact size/SHA-256 comparison against the target receipt. The
-    BandScope extension binds each target's exact bundle size/digest, the full
-    source commit, and the admitted minimum-supported-version policy so a
-    future runtime can make replay/compatibility decisions from ``raw_json``
-    without trusting filenames or mutable release aliases. Release URLs are
-    exact-tag HTTPS URLs; no mutable latest URL or untrusted receipt path is
-    used as a filesystem authority.
+    Signature text is embedded only after a bounded stable regular-file read,
+    an exact size/SHA-256 comparison against the target receipt, and validation
+    of the canonical standard-base64/UTF-8 envelope consumed by Tauri before
+    minisign verification. The BandScope extension binds each target's exact
+    bundle size/digest, the full source commit, and the admitted
+    minimum-supported-version policy so a future runtime can make
+    replay/compatibility decisions from ``raw_json`` without trusting filenames
+    or mutable release aliases. Release URLs are exact-tag HTTPS URLs; no
+    mutable latest URL or untrusted receipt path is used as filesystem authority.
 """
 
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import hashlib
 import json
 import os
@@ -253,11 +256,21 @@ def _signature_text(
     if not isinstance(expected_digest, str) or digest != expected_digest:
         raise ValueError("updater signature digest does not match release receipt")
     try:
-        text = payload.decode("utf-8")
+        text = payload.decode("ascii")
     except UnicodeError as error:
-        raise ValueError("updater signature must contain UTF-8 text") from error
-    if not text.strip() or "\x00" in text:
-        raise ValueError("updater signature must contain non-empty UTF-8 text")
+        raise ValueError("updater signature must contain ASCII base64 text") from error
+    if not text or text != text.strip() or "\x00" in text:
+        raise ValueError("updater signature must contain canonical base64 text")
+    try:
+        decoded = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise ValueError("updater signature must contain canonical base64 text") from error
+    if base64.b64encode(decoded).decode("ascii") != text:
+        raise ValueError("updater signature must contain canonical base64 text")
+    try:
+        decoded.decode("utf-8")
+    except UnicodeError as error:
+        raise ValueError("updater signature base64 payload must decode to UTF-8") from error
     return text
 
 
