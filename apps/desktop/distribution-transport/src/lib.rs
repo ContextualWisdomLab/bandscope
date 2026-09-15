@@ -39,8 +39,6 @@ impl fmt::Debug for RedactedUrl<'_> {
 pub enum TransportPolicyError {
     /// The provisional updater URL did not contain a direct artifact basename.
     InvalidAdmittedArtifactUrl,
-    /// The provisional Tauri updater signature is not canonical standard base64.
-    InvalidArtifactSignatureEnvelope,
     /// The HTTP stack reports an effective URL different from the admitted request URL.
     EffectiveUrlDrift,
     /// The initial response status is not an admitted direct-download or redirect status.
@@ -208,9 +206,11 @@ impl ReleaseTransportPolicy {
     ///
     /// No raw JSON is accepted here. The URL, signature, size and digest are
     /// copied from `ProvisionalUpdateMetadata` and remain provisional evidence.
-    /// The signature is required to have Tauri's outer canonical standard-base64
-    /// envelope before any network request, but this does not verify its minisign
-    /// payload or authenticate the remote metadata that carried it.
+    /// `distribution-runtime` already requires every supported platform's Tauri
+    /// signature to use the canonical standard-base64 outer envelope, so this
+    /// transport layer does not duplicate that metadata syntax authority. This
+    /// still does not verify the minisign payload or authenticate the remote
+    /// metadata that carried it.
     pub fn from_provisional(
         metadata: &ProvisionalUpdateMetadata,
     ) -> Result<Self, TransportPolicyError> {
@@ -220,9 +220,6 @@ impl ReleaseTransportPolicy {
             .map(|(_, name)| name)
             .filter(|name| !name.is_empty())
             .ok_or(TransportPolicyError::InvalidAdmittedArtifactUrl)?;
-        if !is_canonical_standard_base64(metadata.artifact_signature()) {
-            return Err(TransportPolicyError::InvalidArtifactSignatureEnvelope);
-        }
         Ok(Self {
             initial_url: initial_url.to_owned(),
             artifact_name: artifact_name.to_owned(),
@@ -339,50 +336,6 @@ impl TransportDownload {
             .take()
             .expect("transport staging file remains present before finish");
         staged.seal(receipt).map_err(TransportDownloadError::Staging)
-    }
-}
-
-fn is_canonical_standard_base64(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    if bytes.is_empty() || bytes.len() % 4 != 0 {
-        return false;
-    }
-
-    let padding = if bytes.ends_with(b"==") {
-        2
-    } else if bytes.ends_with(b"=") {
-        1
-    } else {
-        0
-    };
-    let data_len = bytes.len() - padding;
-    if data_len == 0
-        || bytes[..data_len]
-            .iter()
-            .any(|byte| base64_sextet(*byte).is_none())
-        || bytes[data_len..].iter().any(|byte| *byte != b'=')
-    {
-        return false;
-    }
-
-    match padding {
-        0 => true,
-        1 => base64_sextet(bytes[data_len - 1])
-            .is_some_and(|sextet| sextet & 0b0000_0011 == 0),
-        2 => base64_sextet(bytes[data_len - 1])
-            .is_some_and(|sextet| sextet & 0b0000_1111 == 0),
-        _ => false,
-    }
-}
-
-fn base64_sextet(byte: u8) -> Option<u8> {
-    match byte {
-        b'A'..=b'Z' => Some(byte - b'A'),
-        b'a'..=b'z' => Some(byte - b'a' + 26),
-        b'0'..=b'9' => Some(byte - b'0' + 52),
-        b'+' => Some(62),
-        b'/' => Some(63),
-        _ => None,
     }
 }
 
