@@ -1,6 +1,7 @@
 use bandscope_distribution_download::{ArtifactDownloadAdmission, StagedArtifactFile};
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn scratch_dir(label: &str) -> std::path::PathBuf {
@@ -14,6 +15,20 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
     ));
     fs::create_dir(&path).expect("create isolated staging directory");
     path
+}
+
+fn assert_platform_drop_cleanup(path: &Path) {
+    #[cfg(unix)]
+    assert!(!path.exists(), "Unix removes the descriptor-owned staging path");
+
+    #[cfg(not(unix))]
+    {
+        assert!(
+            path.is_file(),
+            "non-Unix drop defers pathname deletion when descriptor identity cannot be proven"
+        );
+        fs::remove_file(path).expect("remove deferred unverified scratch fixture");
+    }
 }
 
 #[test]
@@ -38,7 +53,7 @@ fn sealed_artifact_exposes_descriptor_bound_read_only_stream() {
 
     drop(reader);
     drop(sealed);
-    assert!(!staged_path.exists());
+    assert_platform_drop_cleanup(&staged_path);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -74,7 +89,7 @@ fn sealed_reader_never_crosses_the_admitted_byte_boundary_after_external_growth(
 
     drop(reader);
     drop(sealed);
-    assert!(!staged_path.exists());
+    assert_platform_drop_cleanup(&staged_path);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -108,6 +123,6 @@ fn sealed_reader_fails_closed_when_the_admitted_descriptor_is_truncated() {
 
     drop(reader);
     drop(sealed);
-    assert!(!staged_path.exists());
+    assert_platform_drop_cleanup(&staged_path);
     fs::remove_dir(directory).expect("remove staging directory");
 }
