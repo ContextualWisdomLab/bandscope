@@ -48,9 +48,31 @@ jobs:
       - name: Reject manifest or lockfile drift
         run: git diff --exit-code -- package.json package-lock.json
 
+  distribution-download-platform:
+    name: gate / ci / distribution-download / ${{ matrix.os }}
+    needs: lock-validation
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-2025
+          - macos-15
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install stable Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Test Distribution download staging and lease contracts
+        run: cargo +stable test --manifest-path apps/desktop/distribution-download/Cargo.toml --locked --all-targets
+
   verify:
     name: ci / build-and-test
-    needs: lock-validation
+    needs:
+      - lock-validation
+      - distribution-download-platform
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
