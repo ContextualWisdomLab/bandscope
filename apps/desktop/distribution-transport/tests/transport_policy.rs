@@ -4,6 +4,7 @@ use bandscope_distribution_transport::{
     ReleaseTransportPolicy, ResponseDecision, TransportDownloadError, TransportPolicyError,
 };
 use std::fs;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SOURCE_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -48,6 +49,20 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
     path
 }
 
+fn assert_platform_drop_cleanup(path: &Path) {
+    #[cfg(unix)]
+    assert!(!path.exists(), "Unix removes the descriptor-owned staging path");
+
+    #[cfg(not(unix))]
+    {
+        assert!(
+            path.is_file(),
+            "non-Unix drop defers pathname deletion when descriptor identity cannot be proven"
+        );
+        fs::remove_file(path).expect("remove deferred unverified scratch fixture");
+    }
+}
+
 #[test]
 fn malformed_tauri_signature_envelope_is_rejected_by_metadata_owner() {
     assert_eq!(
@@ -88,7 +103,7 @@ fn github_release_redirect_is_one_hop_and_streams_through_bounded_staging() {
     assert_eq!(sealed.bytes_written(), 4);
     let path = sealed.path().to_path_buf();
     drop(sealed);
-    assert!(!path.exists(), "unverified sealed bytes remain cleanup-on-drop");
+    assert_platform_drop_cleanup(&path);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -191,7 +206,7 @@ fn explicit_identity_content_encoding_remains_admitted() {
     let sealed = download.finish().expect("exact response seals");
     let path = sealed.path().to_path_buf();
     drop(sealed);
-    assert!(!path.exists(), "unverified sealed bytes remain cleanup-on-drop");
+    assert_platform_drop_cleanup(&path);
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -211,7 +226,9 @@ fn cancelled_transport_drops_partial_staging_bytes() {
         .expect("start bounded staging");
     download.admit_chunk(b"da").expect("partial chunk");
     assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 1);
+    let path = download.path().to_path_buf();
     drop(download);
+    assert_platform_drop_cleanup(&path);
     assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 0);
     fs::remove_dir(directory).expect("remove staging directory");
 }
