@@ -37,9 +37,11 @@ describe("scoreStorage bridge resolution", () => {
 describe("readScorePdf processing arrays", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    const tauriWindow = window as TauriWindow;
-    delete tauriWindow.__TAURI_INTERNALS__;
-    delete tauriWindow.__TAURI_INVOKE__;
+    if (typeof window !== "undefined") {
+      const tauriWindow = window as TauriWindow;
+      delete tauriWindow.__TAURI_INTERNALS__;
+      delete tauriWindow.__TAURI_INVOKE__;
+    }
   });
 
   it("successfully reads an array of numbers and converts to Uint8Array", async () => {
