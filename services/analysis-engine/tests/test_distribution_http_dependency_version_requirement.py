@@ -14,7 +14,12 @@ POLICY = load_module(
 )
 
 
-def _write_fixture(root: Path, version_requirement: str) -> None:
+def _write_fixture(
+    root: Path,
+    version_requirement: str,
+    *,
+    locked_reqwest_version: str = "0.13.5",
+) -> None:
     """Write a safe lock graph paired with one reqwest version requirement."""
     crate = root / "apps/desktop/distribution-transport"
     crate.mkdir(parents=True)
@@ -27,7 +32,7 @@ def _write_fixture(root: Path, version_requirement: str) -> None:
     )
     (crate / "Cargo.lock").write_text(
         "version = 4\n\n"
-        '[[package]]\nname = "reqwest"\nversion = "0.13.5"\n'
+        f'[[package]]\nname = "reqwest"\nversion = "{locked_reqwest_version}"\n'
         'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
         'checksum = "fixture"\n\n'
         '[[package]]\nname = "rustls"\nversion = "0.23.45"\n'
@@ -55,3 +60,24 @@ def test_direct_reqwest_accepts_bounded_three_component_requirement(tmp_path: Pa
     _write_fixture(tmp_path, "0.13.5")
 
     assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    ("version_requirement", "locked_reqwest_version"),
+    [("0.13.4", "0.13.4"), ("0.14.0", "0.14.0")],
+)
+def test_direct_reqwest_rejects_unreviewed_release_lines(
+    tmp_path: Path,
+    version_requirement: str,
+    locked_reqwest_version: str,
+) -> None:
+    """Require a new owner decision before downgrading or crossing reqwest's 0.13 line."""
+    _write_fixture(
+        tmp_path,
+        version_requirement,
+        locked_reqwest_version=locked_reqwest_version,
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any("reviewed reqwest range" in violation for violation in violations)
