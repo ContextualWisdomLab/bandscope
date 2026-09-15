@@ -101,6 +101,31 @@ fn stale_regular_destination_is_reclaimed_before_new_attempt() {
 }
 
 #[test]
+fn active_staging_attempt_is_not_reclaimed_as_stale() {
+    let directory = scratch_dir("active-attempt");
+    let path = directory.join("update.bin");
+    let mut first = StagedArtifactFile::create(&directory, "update.bin").expect("first attempt");
+    let mut admission = ArtifactDownloadAdmission::new(4, Some(4)).expect("admission");
+    first
+        .admit_chunk(&mut admission, b"da")
+        .expect("write partial active attempt");
+
+    assert_eq!(
+        StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
+        StagingArtifactError::ConcurrentAttempt
+    );
+    assert!(path.exists());
+
+    drop(first);
+    assert!(!path.exists());
+
+    let replacement = StagedArtifactFile::create(&directory, "update.bin")
+        .expect("released active attempt must allow a fresh retry");
+    drop(replacement);
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
 fn path_like_artifact_names_fail_closed() {
     let directory = scratch_dir("path-like-name");
 
