@@ -52,6 +52,38 @@ def test_release_identity_rejects_nonstandard_json_constants(
         verifier.verify_release_identity(tmp_path)
 
 
+def test_release_identity_rejects_same_size_mutation_during_descriptor_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A same-length rewrite during admission must not yield a mixed file snapshot."""
+    verifier = load_module(
+        "scripts/checks/verify_release_identity.py",
+        "verify_release_identity_same_size_mutation",
+    )
+    _write_minimal_identity_tree(tmp_path)
+    package_path = tmp_path / "package.json"
+    original = b'{"version":"1.2.3"}\n'
+    replacement = b'{"version":"9.9.9"}\n'
+    assert len(original) == len(replacement)
+
+    real_read = verifier.os.read
+    mutated = False
+
+    def mutate_after_first_package_read(descriptor: int, size: int) -> bytes:
+        nonlocal mutated
+        chunk = real_read(descriptor, size)
+        if not mutated and chunk == original:
+            package_path.write_bytes(replacement)
+            mutated = True
+        return chunk
+
+    monkeypatch.setattr(verifier.os, "read", mutate_after_first_package_read)
+
+    with pytest.raises(ValueError, match="changed while being read"):
+        verifier.verify_release_identity(tmp_path)
+    assert mutated
+
+
 def test_release_identity_rejects_symlinked_version_authority(tmp_path: Path) -> None:
     """VERSION must be the repository file itself rather than a followed link."""
     verifier = load_module(
