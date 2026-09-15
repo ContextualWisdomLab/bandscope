@@ -18,6 +18,7 @@ Stale bytes를 resume하거나 신뢰하는 것도 허용하지 않습니다. �
 - Causal fix `40cd7543fab6ac6cb203e310b16058645edcedae`: stale-file 분류보다 먼저 app-owned staging directory의 persistent `.bandscope-staging.lock`을 열고 `File::try_lock()` exclusive lease를 취득합니다. 이미 다른 BandScope handle/process가 lease를 갖고 있으면 `ConcurrentAttempt`로 fail closed합니다. Lease는 staged descriptor와 함께 유지되고 `seal` 시 `SealedArtifactFile`로 이동하여 digest/signature verification 전까지 같은 scratch namespace를 보호합니다. Artifact cleanup이 끝난 뒤 handle을 닫아 lease를 해제합니다.
 - Fixture adaptation `ebf94287ea54d329a3276f02a5251054c9b2d20c`: persistent lease sentinel은 crash-safe coordination object이므로 test teardown이 artifact cleanup과 sentinel cleanup을 구분하도록 고쳤습니다.
 - Edge coverage `d2d187288ef27e7fabdacde062d83423bfa2e243`: sealed-but-unverified 상태에서도 lease가 유지되는지, drop 이후 새 attempt가 가능한지, Unix에서 lease sentinel symlink를 따라가지 않는지를 고정했습니다.
+- Cross-platform fixture hardening `752b5343c809b8e8f76a9886295de42e19ebc3ff`: Rust가 file lock과 ordinary read/write의 상호작용을 platform-specific으로 명시하므로, lease를 보유한 sealed artifact를 별도 pathname handle로 읽는 테스트 가정을 제거하고 path 존재/ownership과 `ConcurrentAttempt`만 검증하도록 고쳤습니다. Product code나 trust semantics는 바꾸지 않습니다.
 
 ## 실행 계약
 
@@ -51,7 +52,7 @@ Packaged Windows/macOS에서 실제 process kill, power loss, disk-full, antivir
 
 Rust Project. (2026). *std::fs::File::try_lock and TryLockError* (Rust 1.98.1 standard library). https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock
 
-Rust 표준 라이브러리는 `File::try_lock`/`TryLockError`를 Rust 1.89.0부터 stable로 제공하며, 다른 handle/process가 lock을 보유하면 `WouldBlock`으로 구분합니다. File handle이 닫히면 lock이 해제되고 Unix에서는 `flock`, Windows에서는 `LockFileEx` 계열에 대응하지만 세부 상호작용은 platform-specific이라고 명시합니다. BandScope는 이 API를 cooperating updater process 간 lease로만 사용합니다.
+Rust 표준 라이브러리는 `File::try_lock`/`TryLockError`를 Rust 1.89.0부터 stable로 제공하며, 다른 handle/process가 lock을 보유하면 `WouldBlock`으로 구분합니다. File handle이 닫히면 lock이 해제되고 Unix에서는 `flock`, Windows에서는 `LockFileEx` 계열에 대응하지만 ordinary read/write와의 세부 상호작용은 platform-specific이라고 명시합니다. BandScope는 이 API를 cooperating updater process 간 lease로만 사용하며 테스트도 lock 보유 중 별도 file read 가능성을 전제로 하지 않습니다.
 
 ## Security Notes
 
