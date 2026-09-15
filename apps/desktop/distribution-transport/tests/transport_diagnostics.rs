@@ -16,8 +16,12 @@ fn policy() -> ReleaseTransportPolicy {
 }
 
 #[test]
-fn redirect_query_is_redacted_from_debug_surfaces() {
+fn redirect_query_and_signature_are_redacted_from_debug_surfaces() {
     let policy = policy();
+    let policy_debug = format!("{policy:?}");
+    assert!(policy_debug.contains("<redacted-signature>"));
+    assert!(!policy_debug.contains("c2ln"));
+
     let redirect = match policy
         .admit_initial_response(302, INITIAL_URL, Some(CDN_URL_WITH_QUERY))
         .expect("CDN redirect with an opaque provider query should be admitted")
@@ -36,7 +40,10 @@ fn redirect_query_is_redacted_from_debug_surfaces() {
     let head_debug = format!("{head:?}");
     assert!(head_debug.contains("<redacted-query>"));
     assert!(!head_debug.contains("provider-query-value"));
+    assert!(head_debug.contains("<redacted-signature>"));
+    assert!(!head_debug.contains("c2ln"));
 
     assert_eq!(redirect.location(), CDN_URL_WITH_QUERY);
     assert_eq!(head.effective_url(), CDN_URL_WITH_QUERY);
+    assert_eq!(head.artifact_signature(), "c2ln");
 }
