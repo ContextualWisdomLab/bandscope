@@ -113,3 +113,21 @@ def test_direct_reqwest_requires_explicit_tls_feature_ownership(tmp_path: Path) 
 
     assert any("default features must be disabled" in violation for violation in violations)
     assert any("explicitly enable the rustls feature" in violation for violation in violations)
+
+
+def test_direct_reqwest_rejects_vendored_native_tls_without_alpn(tmp_path: Path) -> None:
+    """Reject the final reqwest native-TLS feature spelling, not just its siblings."""
+    _write_fixture(
+        tmp_path,
+        reqwest=(
+            'reqwest = { version = "0.13.5", default-features = false, '
+            'features = ["rustls", "native-tls-vendored-no-alpn"] }\n'
+        ),
+        rustls_version="0.23.45",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any(
+        "native-tls-vendored-no-alpn" in violation for violation in violations
+    )
