@@ -11,7 +11,8 @@ Security Notes:
 - VERSION and JSON fields are validated as exact, non-empty, trimmed strings
   before comparison; malformed text or JSON fails closed without echoing values.
 - Stable release versions use the same canonical numeric MAJOR.MINOR.PATCH grammar
-  as the native Distribution/update policy core. Prerelease/build forms therefore
+  and unsigned-64-bit component range as the native Distribution/update policy
+  core. Prerelease/build forms, leading zeros, and numeric overflow therefore
   cannot enter packaging and later become updater metadata the runtime rejects.
 - These guards have no network, filesystem-write, update, credential, signing,
   or publication authority. They only return verified release inputs or failure.
@@ -32,6 +33,24 @@ _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _STABLE_VERSION_RE = re.compile(
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 )
+_U64_MAX_DECIMAL = "18446744073709551615"
+
+
+def _is_u64_decimal(component: str) -> bool:
+    """Return whether one canonical decimal component fits Rust ``u64``."""
+    if len(component) < len(_U64_MAX_DECIMAL):
+        return True
+    if len(component) > len(_U64_MAX_DECIMAL):
+        return False
+    return component <= _U64_MAX_DECIMAL
+
+
+def _is_canonical_stable_version(value: str) -> bool:
+    """Match the native ``StableVersion`` grammar and numeric range exactly."""
+    match = _STABLE_VERSION_RE.fullmatch(value)
+    return match is not None and all(
+        _is_u64_decimal(component) for component in match.groups()
+    )
 
 
 def _read_json_object(metadata_path: Path) -> dict[str, Any]:
@@ -121,7 +140,7 @@ def verify_release_identity(
     ):
         raise ValueError("VERSION must contain exactly one non-empty version line")
     release_version = version_lines[0]
-    if _STABLE_VERSION_RE.fullmatch(release_version) is None:
+    if not _is_canonical_stable_version(release_version):
         raise ValueError("VERSION must be canonical stable MAJOR.MINOR.PATCH")
 
     package_document = _read_json_object(repository_root / "package.json")
