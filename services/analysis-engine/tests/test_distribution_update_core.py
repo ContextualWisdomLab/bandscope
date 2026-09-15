@@ -11,11 +11,12 @@ _MANIFESTS = (
     _REPO_ROOT / "apps" / "desktop" / "distribution-state" / "Cargo.toml",
     _REPO_ROOT / "apps" / "desktop" / "distribution-runtime" / "Cargo.toml",
     _REPO_ROOT / "apps" / "desktop" / "distribution-download" / "Cargo.toml",
+    _REPO_ROOT / "apps" / "desktop" / "distribution-transport" / "Cargo.toml",
 )
 
 
 def test_distribution_update_native_suites_are_green() -> None:
-    """Run the locked decision, state, metadata, and bounded-download Rust contracts."""
+    """Run locked decision, state, metadata, download, and transport Rust contracts."""
     for manifest in _MANIFESTS:
         completed = subprocess.run(
             [
