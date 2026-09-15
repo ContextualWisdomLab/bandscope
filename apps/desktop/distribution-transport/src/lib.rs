@@ -45,6 +45,8 @@ pub enum TransportPolicyError {
     UnexpectedInitialStatus(u16),
     /// A redirect response omitted or supplied an invalid Location value.
     InvalidRedirectLocation,
+    /// A redirect decision originated from different provisional transport identity.
+    RedirectPolicyMismatch,
     /// The redirected request completed at a URL different from the admitted Location.
     RedirectEffectiveUrlDrift,
     /// A redirected release-asset request attempted another redirect.
@@ -69,6 +71,9 @@ pub enum TransportDownloadError {
 pub struct AdmittedRedirect {
     source_url: String,
     location: String,
+    expected_size_bytes: u64,
+    expected_artifact_sha256: String,
+    artifact_signature: String,
 }
 
 impl fmt::Debug for AdmittedRedirect {
@@ -259,6 +264,9 @@ impl ReleaseTransportPolicy {
                 Ok(ResponseDecision::FollowRedirect(AdmittedRedirect {
                     source_url: self.initial_url.clone(),
                     location: location.to_owned(),
+                    expected_size_bytes: self.expected_size_bytes,
+                    expected_artifact_sha256: self.expected_artifact_sha256.clone(),
+                    artifact_signature: self.artifact_signature.clone(),
                 }))
             }
             other => Err(TransportPolicyError::UnexpectedInitialStatus(other)),
@@ -267,15 +275,26 @@ impl ReleaseTransportPolicy {
 
     /// Admit the response produced by one previously admitted redirect.
     ///
-    /// A second redirect is never followed. Only a final `200` at the exact
-    /// admitted Location can expose a body to `distribution-download`.
+    /// The redirect token is bound to the same provisional artifact size,
+    /// digest and updater signature that admitted its first response. It cannot
+    /// be replayed across another metadata projection that happens to use the
+    /// same release URL. A second redirect is never followed. Only a final
+    /// `200` at the exact admitted Location can expose a body to
+    /// `distribution-download`.
     pub fn admit_redirect_response(
         &self,
         redirect: &AdmittedRedirect,
         status: u16,
         effective_url: &str,
     ) -> Result<AdmittedDownloadHead, TransportPolicyError> {
-        if redirect.source_url != self.initial_url || effective_url != redirect.location {
+        if redirect.source_url != self.initial_url
+            || redirect.expected_size_bytes != self.expected_size_bytes
+            || redirect.expected_artifact_sha256 != self.expected_artifact_sha256
+            || redirect.artifact_signature != self.artifact_signature
+        {
+            return Err(TransportPolicyError::RedirectPolicyMismatch);
+        }
+        if effective_url != redirect.location {
             return Err(TransportPolicyError::RedirectEffectiveUrlDrift);
         }
         if (300..400).contains(&status) {
