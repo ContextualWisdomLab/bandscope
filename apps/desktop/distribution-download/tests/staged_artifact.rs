@@ -4,7 +4,13 @@ use bandscope_distribution_download::{
 use std::fs;
 use std::io::ErrorKind;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::process::Command;
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+const CHILD_STAGING_DIRECTORY_ENV: &str = "BANDSCOPE_TEST_STAGING_DIRECTORY";
+const CHILD_READY_PATH_ENV: &str = "BANDSCOPE_TEST_STAGING_READY";
+const CHILD_RELEASE_PATH_ENV: &str = "BANDSCOPE_TEST_STAGING_RELEASE";
 
 fn scratch_dir(label: &str) -> std::path::PathBuf {
     let nonce = SystemTime::now()
@@ -27,6 +33,16 @@ fn remove_scratch_dir(directory: &Path) {
         Err(error) => panic!("remove staging lease fixture: {error}"),
     }
     fs::remove_dir(directory).expect("remove staging directory");
+}
+
+fn wait_for_path(path: &Path, label: &str) {
+    for _ in 0..1_000 {
+        if path.exists() {
+            return;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    panic!("timed out waiting for {label}: {}", path.display());
 }
 
 #[test]
@@ -157,6 +173,56 @@ fn active_staging_attempt_is_not_reclaimed_as_stale() {
     let replacement = StagedArtifactFile::create(&directory, "update.bin")
         .expect("released active attempt must allow a fresh retry");
     drop(replacement);
+    remove_scratch_dir(&directory);
+}
+
+#[test]
+fn staging_lease_child_holds_until_release() {
+    let Ok(directory) = std::env::var(CHILD_STAGING_DIRECTORY_ENV) else {
+        return;
+    };
+    let ready_path = std::env::var(CHILD_READY_PATH_ENV).expect("child ready path");
+    let release_path = std::env::var(CHILD_RELEASE_PATH_ENV).expect("child release path");
+    let staged = StagedArtifactFile::create(Path::new(&directory), "update.bin")
+        .expect("child staging attempt");
+    fs::write(&ready_path, b"ready").expect("publish child readiness");
+    wait_for_path(Path::new(&release_path), "parent release signal");
+    drop(staged);
+}
+
+#[test]
+fn separate_process_cannot_reclaim_live_staging_attempt() {
+    let directory = scratch_dir("separate-process");
+    let ready_path = directory.join("child.ready");
+    let release_path = directory.join("child.release");
+    let test_binary = std::env::current_exe().expect("current integration test binary");
+    let mut child = Command::new(test_binary)
+        .arg("--exact")
+        .arg("staging_lease_child_holds_until_release")
+        .arg("--nocapture")
+        .env(CHILD_STAGING_DIRECTORY_ENV, &directory)
+        .env(CHILD_READY_PATH_ENV, &ready_path)
+        .env(CHILD_RELEASE_PATH_ENV, &release_path)
+        .spawn()
+        .expect("spawn staging lease child process");
+
+    wait_for_path(&ready_path, "child staging readiness");
+    assert_eq!(
+        StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
+        StagingArtifactError::ConcurrentAttempt
+    );
+    assert!(directory.join("update.bin").is_file());
+
+    fs::write(&release_path, b"release").expect("release child staging lease");
+    let status = child.wait().expect("wait for staging lease child");
+    assert!(status.success());
+    assert!(!directory.join("update.bin").exists());
+
+    let replacement = StagedArtifactFile::create(&directory, "update.bin")
+        .expect("fresh attempt after child process release");
+    drop(replacement);
+    fs::remove_file(ready_path).expect("remove child readiness fixture");
+    fs::remove_file(release_path).expect("remove child release fixture");
     remove_scratch_dir(&directory);
 }
 
