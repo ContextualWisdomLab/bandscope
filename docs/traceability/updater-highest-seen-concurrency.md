@@ -2,62 +2,73 @@
 
 ## 문제
 
-`bandscope-distribution-state`의 append-only log는 torn final write와 단일 호출 내부의 길이 변화는 검사했지만, 두 BandScope 프로세스가 같은 freshness state를 동시에 갱신하는 경우를 직렬화하지 않았습니다. 두 writer가 같은 committed snapshot을 읽은 뒤 각각 다음 release record를 append하면, append 자체는 모두 성공할 수 있지만 이후 parser는 동일 version의 두 committed record를 equivocation/corruption으로 거부합니다. 더 위험한 경우에는 reader가 writer의 append 직전 snapshot을 정상 값으로 반환해 anti-replay 판단이 이미 진행 중인 다른 프로세스의 최신 authority보다 뒤처질 수 있습니다.
+`bandscope-distribution-state`는 authenticated release의 highest-seen identity를 app-local state로 보존합니다. 이 authority가 두 desktop process 사이에서 직렬화되지 않으면 두 writer가 같은 snapshot에서 출발해 중복/충돌 record를 만들거나 reader가 concurrent update 직전 값을 정상 authority로 사용할 수 있습니다. 그래서 최초 read부터 tail repair, commit, sync까지 sibling OS lease가 필요합니다.
 
-이 문제는 네트워크 metadata나 updater signature의 진위와 별개입니다. `distribution-state`가 실제 flow에 연결되는 시점에는 이미 인증된 release identity만 받더라도, 로컬 freshness authority 자체가 다중 프로세스에서 일관되어야 합니다.
+별도 filesystem finding도 있습니다. Unix에서 `highest-seen.log`가 다른 pathname과 hard link로 같은 inode를 공유한 채 in-place truncate/append되면 BandScope가 다른 alias의 bytes까지 변경할 수 있습니다. Windows에서는 같은 문제를 해결하려고 `std::os::windows::fs::MetadataExt::number_of_links()`를 직접 사용했던 선행 수리가 있었지만, Rust 1.98.1은 이 API를 nightly-only `windows_by_handle` 기능으로 문서화합니다. Hosted Distribution lane은 의도적으로 `cargo +stable`을 사용하므로 그 구현은 commercial evidence가 될 수 없었습니다.
 
-추가 review에서 pathname admission에도 별도 결함이 확인됐습니다. Symlink와 non-regular entry만 거부하면 hard link는 정상 regular file로 보입니다. 공격 또는 잘못된 local-data 조작으로 `highest-seen.log`가 다른 파일과 같은 inode/file record를 공유하면, BandScope의 recoverable-tail truncation이나 monotonic append가 그 다른 pathname이 가리키는 동일 파일 내용까지 변경할 수 있습니다. Anti-replay authority는 app-owned 단일 state object여야 하므로 pre-existing multi-link state는 정상 authority로 인정하지 않습니다.
+## 결정
 
-또한 이 수리 직후 hosted verification graph를 다시 추적한 결과, 기존 `ci.yml`의 explicit cross-platform Rust job은 `distribution-download`만 실행하고 있었습니다. `distribution-state`, `distribution-runtime`, `distribution-transport`는 독립 Cargo crate인데 `quickcheck.sh`의 기본 경로와 `src-tauri` cargo test에도 포함되지 않아, exact-head hosted GREEN이 이 세 owner의 tests를 실행했다는 뜻이 아니었습니다. 특히 이번 hard-link RED는 source에 존재해도 hosted merge gate에서 실행되지 않는 상태였습니다.
+Process serialization은 기존 sibling lease를 유지합니다. `load_highest_seen()`과 `remember_highest_seen()`은 `.bandscope-highest-seen.lock`에 `File::try_lock()`을 획득한 뒤에만 state를 읽거나 갱신합니다. Contention은 `StateError::ConcurrentMutation`으로 fail closed합니다.
 
-## RED와 수정
+Filesystem alias 통제는 OS capability에 맞게 다르게 구현합니다.
 
-- RED `e25fd44daa62f994d40a378de8c06a87eed5fb86`은 sibling lease를 다른 handle이 보유한 동안 `load_highest_seen()`과 `remember_highest_seen()`이 진행되면 안 된다는 cross-process contract를 추가했습니다. 선행 구현은 lease를 전혀 확인하지 않아 write를 수행하고 state file까지 만들 수 있었습니다.
-- Causal fix `dd2ae7f45468ad06bf50a83d279dcb8facf1d783`은 state file과 같은 directory의 `.bandscope-highest-seen.lock`을 열고 `File::try_lock()`의 exclusive OS lock을 획득한 뒤에만 read/repair/append를 시작합니다. `remember_highest_seen()`은 최초 state read부터 recoverable-tail truncation, append, `sync_all()` 및 final length 확인까지 같은 lease를 유지합니다. `load_highest_seen()`도 같은 lease를 사용해 concurrent writer와 stale read가 겹치지 않게 합니다.
-- 기존 `StateError::ConcurrentMutation`을 lease contention에도 사용합니다. 호출자는 이를 freshness authority를 읽거나 갱신할 수 없는 fail-closed 상태로 이미 취급할 수 있으므로 별도 public error family를 만들지 않았습니다.
-- RED `b6334829b474a60ba2ad0e7a7d77ec93822b20f2`는 정상 highest-seen 파일의 hard link를 app-owned state pathname에 만든 뒤, read와 다음-release append가 모두 `StateError::NotRegularFile`로 거부되고 원본 alias bytes가 바뀌지 않아야 한다는 contract를 추가했습니다. 선행 구현은 hard link를 regular file로 받아들여 이 계약을 만족하지 못했습니다.
-- Causal fix `4f8c9336141456ad9f669f88fa5373aa7902c9ca`는 state pathname metadata와 실제 opened descriptor metadata 양쪽에서 filesystem link count가 정확히 1인지 확인합니다. Unix는 `MetadataExt::nlink()`, Windows는 `MetadataExt::number_of_links()`를 사용하고, 이 정보를 제공하지 않는 target은 freshness authority를 추측하지 않고 fail closed합니다.
-- Hosted-evidence RED `8832e62fcc2e711a325d1468f836c06ba91bca33`은 `ci.yml`이 `distribution-download`, `distribution-state`, `distribution-runtime`, `distribution-transport` 네 standalone owner의 exact `cargo +stable test --locked --all-targets` command를 포함하고 최종 `ci / build-and-test`가 추가 Distribution platform lane에 의존해야 한다고 요구합니다. 선행 workflow에는 download 외 세 owner가 없었습니다.
-- Causal CI fix `c5a09d5c0d14dbdba776997ba920dd99dbbba2cf`은 기존 download platform lane을 보존하면서 Ubuntu, Windows 2025, macOS 15에서 state/runtime/transport tests를 실행하는 `distribution-owned-platform` matrix를 추가하고 `ci / build-and-test`가 이 lane 성공에 의존하도록 연결했습니다. 따라서 standalone Distribution source가 바뀌어도 protected CI의 최종 status가 해당 tests를 건너뛸 수 없습니다.
+- **Unix/macOS/Linux**: pathname metadata와 opened descriptor 모두 stable `MetadataExt::nlink() == 1`이어야 합니다. Existing multi-link state는 `NotRegularFile`로 거부하고 기존 append/torn-tail truncation semantics를 유지합니다.
+- **Windows**: stable Rust에서 link count를 읽는다고 가장하지 않습니다. Existing state는 read-only admission 후, mutation이 필요할 때 current committed log bytes를 sibling `.bandscope-highest-seen.next`에 `create_new`로 작성하고 `sync_all()`한 다음 `std::fs::rename()`으로 state pathname만 교체합니다. 따라서 pre-existing hard-link alias가 있더라도 alias가 가리키는 기존 file record를 truncate/append하지 않습니다. Exact-repeat with no torn tail is write-free. Recoverable tail repair도 same-path truncation 대신 synchronized snapshot replacement를 사용합니다.
 
-## 제약과 대안
+Rust `std::fs::rename`은 destination이 존재하면 replacement semantics를 제공하며, Windows 10 1607+에서는 지원 filesystem에서 `FileRenameInfoEx` 기반으로 Unix와 같은 replacement behavior를 사용합니다. 이 선택은 nightly toolchain, shell command, unsafe FFI를 도입하지 않고 stable owner code에서 alias mutation을 피하기 위한 것입니다.
 
-State log 자체를 lock 대상으로 쓰는 방식은 최초 state file이 아직 없을 때와 torn-tail repair에서 lifecycle이 복잡해져 기각했습니다. Process-local mutex만 두는 방식도 별도 desktop process를 직렬화하지 못하므로 기각했습니다. Blocking lock으로 무기한 대기하는 방식 대신 non-blocking `try_lock()`을 사용합니다. updater freshness mutation은 UI hot path가 아니며, lock contention은 다른 프로세스가 authority를 갱신 중이라는 명시적 상태이므로 bounded failure 후 상위 orchestration에서 재시도 여부를 결정하는 편이 낫습니다.
+## RED와 수리 lineage
 
-Lock file은 crash 뒤에도 남을 수 있지만 lock ownership은 open file handle에 결합되므로 stale pathname 자체를 writer ownership으로 간주하지 않습니다. Existing regular lock file을 다시 열어 OS lock 획득을 시도합니다. Symlink 또는 non-regular lease path는 fail closed합니다.
+- `e25fd44daa62f994d40a378de8c06a87eed5fb86`: sibling lease contention에서 reader/writer가 진행하면 안 된다는 cross-process RED.
+- `dd2ae7f45468ad06bf50a83d279dcb8facf1d783`: state read/repair/append 전체를 sibling OS lease로 직렬화.
+- `b6334829b474a60ba2ad0e7a7d77ec93822b20f2`: pre-existing hard-link alias가 다른 pathname bytes를 변경할 수 있다는 filesystem RED.
+- `4f8c9336141456ad9f669f88fa5373aa7902c9ca`: Unix/Windows link-count admission을 처음 도입했으나, Windows `number_of_links()`가 stable API가 아니라는 후속 finding이 남음.
+- #1220: stable Windows CI와 nightly-only `windows_by_handle` 사용 불일치를 repair finding으로 승격.
+- `e07a50ddc343a43e525ccd9c9e6c621f3abfe8df`: Windows mutation을 in-place append/truncate에서 synchronized sibling snapshot + pathname replacement로 전환하고 nightly-only metadata call을 제거.
+- `53037926b0d09ccc2b05cebc5b864c47e20ae620`: direct link-count rejection contract를 Unix로 한정.
+- `2f231d65c0736abfb83feb9223c008357457e5f7`: Windows에서 hard-linked existing state의 monotonic update와 torn-tail repair가 alias bytes를 변경하지 않고 state pathname만 새 committed snapshot으로 전진해야 한다는 platform contract 추가.
+- `8832e62fcc2e711a325d1468f836c06ba91bca33` → `c5a09d5c0d14dbdba776997ba920dd99dbbba2cf`: state/runtime/transport standalone owners를 Ubuntu, Windows 2025, macOS 15에서 exact stable cargo tests로 실행하고 final `ci / build-and-test`가 이 lane에 의존하도록 hosted evidence graph를 수리.
 
-Hard-link alias를 pathname canonicalization으로 찾는 방식은 기각했습니다. Canonical path는 동일 inode의 다른 directory entry 존재 여부를 증명하지 못합니다. App-local tree를 순회해 모든 alias를 찾는 방식도 동일 filesystem 전체를 증명할 수 없고 race가 남습니다. State authority 자체에서 OS metadata의 link count를 검사하는 것이 더 작고 직접적인 invariant입니다.
+## 대안과 기각 이유
 
-Hosted verification에서는 `src-tauri` build 성공을 standalone Distribution crates의 test evidence로 간주하는 방식을 기각했습니다. 현재 이 crate들은 별도 manifests/workspaces이고, shell graph에 우연히 포함되는지 여부와 owner tests 실행 여부는 다른 계약입니다. Linux 한 플랫폼만 돌리는 방식도 state의 OS lock/link-count API와 transport/download desktop behavior를 증명하지 못하므로 기각했습니다. 기존 download platform lane을 삭제하거나 check를 약화하지 않고 별도 세 owner를 같은 3-OS matrix에 추가했습니다.
+Windows CI를 nightly로 바꾸는 방식은 repository toolchain contract를 한 platform metadata helper 때문에 약화하므로 기각했습니다. Windows test만 제외하는 방식은 protected evidence를 줄이므로 기각했습니다. Link count를 확인하지 못하면서 unconditional `true`를 반환하고 기존 in-place append/truncation을 유지하는 방식도 alias mutation을 그대로 남기므로 기각했습니다.
+
+`fsutil`/PowerShell을 runtime에서 호출하는 방식은 locale, binary availability, process execution surface와 operational dependency를 freshness state에 추가하므로 기각했습니다. Win32 FFI를 owner code에 직접 추가하는 방식도 crate의 `unsafe_code = "forbid"` 경계를 깨므로 채택하지 않았습니다. 새로운 safe dependency를 도입하는 방안은 가능하지만 현재 문제는 std-only snapshot publication으로 해결할 수 있어 dependency-policy 비용을 만들 이유가 없습니다.
+
+Windows에서도 물리적 append-only file을 고집하는 방식보다, logical committed log bytes를 synchronized sibling에 작성하고 pathname replacement하는 방식을 선택했습니다. Anti-replay 판단에 필요한 것은 ordered committed records와 crash-safe previous authority 보존이지, 동일 file record에 대한 in-place append 자체가 아닙니다.
 
 ## Claim boundary와 위험
 
-이 변경은 cooperating BandScope processes의 highest-seen read/write를 직렬화하고, admission 시점에 이미 여러 pathname을 가진 state object를 freshness authority로 사용하지 않게 합니다. Advisory file locking을 무시하고 app-local-data directory를 직접 변조할 수 있는 동일 사용자/관리자 프로세스로부터 state를 완전히 보호한다고 주장하지 않습니다. 특히 정상 single-link file이 검사된 뒤 hostile actor가 hard link를 추가하거나 pathname을 교체하는 TOCTOU까지 이번 변경이 제거하지는 않습니다. Rust 표준 라이브러리도 filesystem operation 전반의 TOCTOU 가능성을 명시하므로 descriptor-relative/path-identity hardening과 packaged hostile-race acceptance는 후속 범위입니다.
+Sibling lease는 cooperating BandScope processes를 직렬화합니다. Advisory lock을 무시하고 app-local directory를 직접 조작할 수 있는 동일 사용자/관리자 actor에 대한 sandbox 경계로 보지 않습니다.
 
-`try_lock()`은 2026-09 현재 Rust stable 표준 라이브러리에서 제공되며, 다른 handle/process가 lock을 보유하면 `TryLockError::WouldBlock`을 반환합니다. Rust 1.98.1의 Unix `MetadataExt`는 `nlink()`를, Windows `MetadataExt`는 `number_of_links()`를 제공하므로 supported desktop targets에서 pre-existing hard-link alias를 direct metadata로 검사할 수 있습니다. BandScope가 지원하는 desktop build는 repository의 cross-platform CI에서 이 계약을 다시 실행해야 합니다. 네트워크 filesystem/SMB/NFS는 lock/link semantics가 달라질 수 있으므로 commercial acceptance는 app-local state가 실제 supported local profile/storage에서 동작하는 조건으로 검증합니다.
+Unix link-count admission은 검사 시점의 pre-existing alias를 차단하지만 검사 이후 hostile hard-link/path replacement TOCTOU를 완전히 제거하지 않습니다. Windows snapshot publication은 pre-existing hard-link alias를 in-place 변경하지 않지만, sibling scratch pathname과 final rename 주변의 hostile same-user race를 cryptographic filesystem capability로 제거한 것은 아닙니다.
 
-새 CI lane은 repository-hosted test execution coverage를 보장하는 source contract입니다. Exact current-head Actions가 실제로 terminal GREEN이 되기 전에는 이 문서나 workflow source만으로 Windows/macOS/Linux parity가 통과했다고 주장하지 않습니다. Packaged executable에서 process-kill/power-loss/filesystem fault를 통과했다는 증거도 아닙니다.
+Windows에서 `File::sync_all()`은 snapshot file content durability를 요청하지만 Rust std는 이번 owner에서 parent-directory durability를 Unix와 동일 방식으로 증명하지 않습니다. 따라서 packaged Windows process-kill/power-loss acceptance가 통과하기 전에는 full crash/power-loss durability를 주장하지 않습니다. Network filesystem/SMB/NFS semantics도 commercial local-profile acceptance 범위 밖에서 별도 검증이 필요합니다.
+
+`load_highest_seen()`은 Windows hard-linked state를 read-only로 받아들일 수 있습니다. BandScope-owned mutation은 alias file record를 수정하지 않으며 다음 real update 또는 torn-tail repair에서 state pathname을 독립 snapshot으로 교체합니다. Same-user external alias writer가 lease를 무시하고 bytes를 동시에 바꾸는 공격은 별도 hostile-filesystem boundary입니다.
 
 ## 효과와 후속조치
 
-두 앱 인스턴스가 같은 authenticated release에서 출발해 동일 또는 서로 다른 다음 release를 동시에 append하여 durable log를 자가-corrupt시키는 경로와, pre-existing hard-linked state pathname을 통해 다른 alias의 bytes를 freshness repair/append가 변경하는 경로를 닫았습니다. Remote metadata authenticity, updater signature verification, exact sealed-descriptor digest/size binding, verified-artifact promotion이 완료되기 전에는 이 state writer를 production updater flow에 연결하지 않는 기존 trust order는 그대로입니다.
+정상 cooperating desktop processes는 하나의 freshness authority를 순차적으로 읽고 갱신합니다. Unix는 existing multi-link state를 거부하고, Windows는 stable Rust에서 alias file record를 직접 변경하지 않는 publication semantics를 사용합니다. Replay/equivocation parser와 bounded state format은 그대로 유지됩니다.
 
-Hosted merge evidence도 이제 네 standalone Distribution owner tests를 명시적으로 포함합니다. `distribution-download`는 기존 3-OS lane을 유지하고 state/runtime/transport는 새 3-OS lane에서 실행되며, 둘 모두 final `ci / build-and-test`의 prerequisite입니다. 후속 acceptance는 Windows/macOS에서 실제 두 프로세스 contention, process-kill 직후 lock release, torn tail + contention, hard-link fixture, pathname replacement race, power-loss/restart를 packaged build로 검증해야 합니다. Production HTTP adapter와 metadata authentication은 별도 Distribution vertical입니다.
+Exact current-head Windows/macOS/Linux hosted tests가 terminal GREEN이 되기 전에는 source와 이 문서만으로 platform parity 완료를 주장하지 않습니다. #1220은 exact-head stable Windows evidence가 확인된 뒤에만 resolved 처리합니다.
+
+이 state owner를 production updater flow에 연결하는 순서도 바뀌지 않습니다. Remote metadata authenticity → updater artifact cryptographic signature verification → exact sealed-descriptor digest/authenticated-size binding → explicit verified-artifact promotion → anti-replay decision → highest-seen durable mutation 순입니다. Packaged multi-process contention, process-kill, restart, power-loss, disk-full과 last-known-good rollback은 별도 release acceptance가 필요합니다.
 
 ## Security Notes
 
-Attack surface는 app-local freshness log와 sibling lease pathname입니다. Lease contention은 성공으로 우회하지 않고 `ConcurrentMutation`으로 fail closed합니다. Existing state는 symlink/non-regular뿐 아니라 multi-link object도 거부합니다. Lock file에는 release identity, project/audio path, credential, signature나 PII를 기록하지 않습니다. State log의 resource/record validation과 append durability는 유지됩니다. 이번 link-count admission은 static multi-link alias를 차단하는 통제이며 privileged/same-user hostile filesystem race에 대한 완전한 sandbox 경계로 취급하지 않습니다.
+State log와 sibling lease/snapshot path에는 release identity만 저장하며 project/audio path, credential, PII, private key를 넣지 않습니다. Lease contention은 성공으로 우회하지 않습니다. Sibling snapshot은 `create_new`를 사용하고 pre-existing symlink/non-regular scratch path를 fail closed합니다. Windows fix는 stable Rust 표준 library 범위에서 동작하며 unsafe owner code, shell execution, nightly feature, 새 dependency를 추가하지 않습니다.
 
-CI 변경은 기존 dependency/security/release gate를 우회하지 않고, 추가 Rust owner tests를 `ci / build-and-test`의 dependency로 붙입니다. Third-party Action ref나 권한을 추가하지 않았고, secret/network authority를 새로 요구하지 않습니다.
+Hosted CI는 기존 gate를 제거하지 않고 standalone Distribution tests를 final `ci / build-and-test` prerequisite로 유지합니다.
 
 ## 참고문헌
 
 Rust Project. (2026). *std::fs: Filesystem manipulation operations*. Rust 1.98.1 standard library documentation. https://doc.rust-lang.org/std/fs/
+
+Rust Project. (2026). *rename in std::fs*. Rust 1.98.1 standard library documentation. https://doc.rust-lang.org/std/fs/fn.rename.html
 
 Rust Project. (2026). *MetadataExt in std::os::unix::fs*. Rust 1.98.1 standard library documentation. https://doc.rust-lang.org/std/os/unix/fs/trait.MetadataExt.html
 
 Rust Project. (2026). *MetadataExt in std::os::windows::fs*. Rust 1.98.1 standard library documentation. https://doc.rust-lang.org/std/os/windows/fs/trait.MetadataExt.html
 
 Rust Project. (2026). *TryLockError in std::fs*. Rust 1.98.1 standard library documentation. https://doc.rust-lang.org/std/fs/enum.TryLockError.html
-
-Kerrisk, M. (2026). *flock(2) — apply or remove an advisory lock on an open file*. Linux man-pages project. https://man7.org/linux/man-pages/man2/flock.2.html
