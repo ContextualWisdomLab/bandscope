@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 
 use bandscope_distribution_core::{UpdateCandidate, UpdateRejection};
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 /// Maximum accepted updater JSON payload before parsing.
@@ -36,6 +37,7 @@ const HIGHEST_SEEN_STATE_FILE: &str = "highest-seen-v1.log";
 const RELEASE_HOST: &str = "github.com";
 const RELEASE_OWNER: &str = "ContextualWisdomLab";
 const RELEASE_REPOSITORY: &str = "bandscope";
+const REDACTED_SIGNATURE: &str = "<redacted-signature>";
 
 /// Fail-closed reasons for provisional updater metadata admission.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,12 +71,24 @@ pub enum MetadataError {
 /// This type intentionally exposes no method that writes Distribution state or
 /// calls the anti-replay decision core. The remote JSON fields are not promoted
 /// to durable release authority merely because their syntax is valid.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ProvisionalUpdateMetadata {
     candidate: UpdateCandidate,
     artifact_size_bytes: u64,
     artifact_url: String,
     artifact_signature: String,
+}
+
+impl fmt::Debug for ProvisionalUpdateMetadata {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ProvisionalUpdateMetadata")
+            .field("candidate", &self.candidate)
+            .field("artifact_size_bytes", &self.artifact_size_bytes)
+            .field("artifact_url", &self.artifact_url)
+            .field("artifact_signature", &REDACTED_SIGNATURE)
+            .finish()
+    }
 }
 
 impl ProvisionalUpdateMetadata {
