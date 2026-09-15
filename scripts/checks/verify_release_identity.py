@@ -6,7 +6,8 @@ Security Notes:
   reads only the fixed ``VERSION``, ``package.json``, and Tauri configuration.
 - VERSION and JSON projections are read once from bounded regular non-link file
   descriptors; descriptor identity/size must remain stable while read, and JSON
-  duplicate members are rejected before any version value is compared.
+  duplicate members and non-standard numeric constants are rejected before any
+  version value is compared.
 - The CLI composes the sibling Distribution model-policy and updater-policy guards.
   Normal branch/PR checks validate both policies; version-tag checks additionally
   require exact commercially admitted model and updater release authority before
@@ -67,6 +68,11 @@ def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"duplicate JSON member in release metadata: {key}")
         document[key] = value
     return document
+
+
+def _reject_nonstandard_json_constant(value: str) -> None:
+    """Reject Python's non-standard NaN/Infinity JSON extensions."""
+    raise json.JSONDecodeError("non-standard JSON constant", value, 0)
 
 
 def _read_bounded_regular_text(
@@ -132,7 +138,9 @@ def _read_json_object(metadata_path: Path) -> dict[str, Any]:
     )
     try:
         metadata_document = json.loads(
-            raw_text, object_pairs_hook=_reject_duplicate_pairs
+            raw_text,
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_nonstandard_json_constant,
         )
     except json.JSONDecodeError as metadata_error:
         raise ValueError(
