@@ -317,6 +317,9 @@ fn is_version_prefix(value: &str) -> bool {
         if part.is_empty() && index + 1 != parts.len() {
             return false;
         }
+        if !part.is_empty() && part.parse::<u64>().is_err() {
+            return false;
+        }
     }
     true
 }
