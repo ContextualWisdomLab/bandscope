@@ -12,6 +12,7 @@ DISTRIBUTION_TRANSPORT_LOCK = Path("apps/desktop/distribution-transport/Cargo.lo
 RUSTLS_ENCRYPTION_LEVEL_ADVISORY = "RUSTSEC-2026-0285"
 RUSTLS_AFFECTED_MIN = (0, 23, 13)
 RUSTLS_PATCHED_MIN = (0, 23, 45)
+REQWEST_APPROVED_FEATURES = frozenset({"rustls"})
 
 
 def _version_triplet(raw: str) -> tuple[int, int, int] | None:
@@ -52,24 +53,25 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
                 "disabled so TLS/backend features are never selected implicitly"
             )
         features = reqwest.get("features", [])
-        if not isinstance(features, list) or "rustls" not in features:
+        if (
+            not isinstance(features, list)
+            or not all(isinstance(feature, str) for feature in features)
+            or "rustls" not in features
+        ):
             violations.append(
                 f"{DISTRIBUTION_TRANSPORT_MANIFEST}: reqwest must explicitly enable "
                 "the rustls feature"
             )
-        forbidden = {
-            "default-tls",
-            "native-tls",
-            "native-tls-no-alpn",
-            "native-tls-vendored",
-            "native-tls-vendored-no-alpn",
-        }
-        selected = sorted(forbidden.intersection(features if isinstance(features, list) else []))
-        if selected:
-            violations.append(
-                f"{DISTRIBUTION_TRANSPORT_MANIFEST}: reqwest must not enable alternate "
-                f"or default TLS features: {', '.join(selected)}"
-            )
+        if isinstance(features, list) and all(
+            isinstance(feature, str) for feature in features
+        ):
+            unapproved = sorted(set(features).difference(REQWEST_APPROVED_FEATURES))
+            if unapproved:
+                violations.append(
+                    f"{DISTRIBUTION_TRANSPORT_MANIFEST}: reqwest must use only the "
+                    "approved Distribution feature set (rustls); unapproved features: "
+                    f"{', '.join(unapproved)}"
+                )
 
     if not lock_path.exists():
         violations.append(
