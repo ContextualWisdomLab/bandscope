@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(any(unix, windows))]
 
 use bandscope_distribution_download::{ArtifactDownloadAdmission, StagedArtifactFile};
 use std::fs;
@@ -42,7 +42,7 @@ fn cancelled_attempt_does_not_delete_replacement_path() {
     let original_path = staged.path().to_path_buf();
     let moved_original = directory.join("moved-original.bin");
 
-    fs::rename(&original_path, &moved_original).expect("move owned staging inode away");
+    fs::rename(&original_path, &moved_original).expect("move owned staging file away");
     fs::write(&original_path, b"replacement-must-survive").expect("create unrelated replacement");
 
     drop(staged);
@@ -67,7 +67,7 @@ fn sealed_attempt_does_not_delete_replacement_path() {
     let original_path = sealed.path().to_path_buf();
     let moved_original = directory.join("moved-sealed-original.bin");
 
-    fs::rename(&original_path, &moved_original).expect("move sealed staging inode away");
+    fs::rename(&original_path, &moved_original).expect("move sealed staging file away");
     fs::write(&original_path, b"replacement-must-survive").expect("create unrelated replacement");
 
     drop(sealed);
