@@ -78,3 +78,24 @@ fn sealed_attempt_does_not_delete_replacement_path() {
     );
     cleanup(&directory, &[&original_path, &moved_original]);
 }
+
+#[cfg(windows)]
+#[test]
+fn deferred_windows_stale_file_is_reclaimed_by_next_leased_attempt() {
+    let directory = scratch_dir("windows-deferred-reclaim");
+    let staged = StagedArtifactFile::create(&directory, "update.bin").expect("first stage file");
+    let path = staged.path().to_path_buf();
+
+    drop(staged);
+    assert!(
+        path.is_file(),
+        "Windows drop leaves scratch bytes when pathname ownership cannot be proven"
+    );
+
+    let next = StagedArtifactFile::create(&directory, "update.bin")
+        .expect("next leased attempt reclaims stale regular scratch");
+    assert_eq!(next.path(), path);
+    drop(next);
+
+    cleanup(&directory, &[&path]);
+}
