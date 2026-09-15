@@ -16,12 +16,15 @@ A second review of the executable gate found an ownership-location bypass after 
 
 Fresh review then found a third bypass in dependency identity. Cargo explicitly permits a dependency key to differ from the package name by using `package = "..."`. For example, `distribution_http = { package = "reqwest", ... }` is still a direct runtime dependency on the reqwest package. The previous checker matched only the TOML key `reqwest`, so a renamed reqwest dependency could make the gate return early and skip the feature/TLS/lock admission entirely. The gate must therefore identify owner dependencies by Cargo package identity, not by the local dependency alias.
 
+A fourth review found the same identity gap through Cargo workspace inheritance. This crate is itself a workspace root, so `[workspace.dependencies]` can define `distribution_http = { package = "reqwest", ... }` while `[dependencies]` activates it with `distribution_http = { workspace = true, ... }`. Cargo makes inherited features additive with the workspace declaration. A checker that examines only the local declaration cannot know that the effective package is reqwest or that workspace and local feature sets combine. Until BandScope has a concrete reason to share this security-sensitive client through workspace inheritance, inherited reqwest is rejected rather than partially reconstructing Cargo feature resolution in a Python preflight.
+
 This finding does not prove that an existing transitive `rustls` entry elsewhere in BandScope is exploitable. The gate is deliberately activated when `apps/desktop/distribution-transport/Cargo.toml` acquires a direct runtime `reqwest` package dependency, unconditional or target-scoped and regardless of its local Cargo alias, because that is the repository-owned production HTTP boundary being prepared here.
 
 ## Constraints
 
 - The production updater client must remain in the Distribution bounded context and must not reimplement metadata, project persistence, authentication, or installer ownership.
 - Any direct runtime reqwest package dependency, whether under top-level `[dependencies]` or a Cargo `[target.<selector>.dependencies]` table and whether named `reqwest` locally or renamed with `package = "reqwest"`, must use table syntax with `default-features = false` and exactly the approved direct feature set: `features = ["rustls"]`.
+- A reqwest package inherited with `workspace = true` is not currently admitted. The Distribution transport must declare the package, default-feature policy and direct feature set in its own runtime dependency table so the owner contract is reviewable without reconstructing additive workspace feature inheritance.
 - `dev-dependencies` and `build-dependencies` do not activate the production client and are not treated as runtime owner declarations by this gate.
 - Additional direct reqwest features are rejected until a concrete Distribution requirement, threat analysis, tests and traceability justify widening the allow-list. This currently rejects native/default TLS alternatives, transparent decompression, proxy, alternate DNS and HTTP/2/HTTP/3 feature activation at the owner manifest.
 - Runtime code must still call `ClientBuilder::tls_backend_rustls()`. Cargo features are additive across the dependency graph, so the manifest allow-list is not a substitute for explicit runtime backend selection.
@@ -42,6 +45,8 @@ Inspecting only top-level `[dependencies]` was rejected because Cargo target tab
 
 Matching only a dependency key literally named `reqwest` was rejected because Cargo's `package` key is the authoritative package-selection mechanism when a dependency is renamed. A local alias changes the Rust/Cargo-facing dependency name, not the upstream package being introduced into the Distribution runtime graph. The checker therefore resolves each normal dependency declaration to its Cargo package name first and applies reqwest policy whenever that package name is `reqwest`.
 
+Trying to admit workspace-inherited reqwest by merging `[workspace.dependencies]` and local `features` inside the policy script was rejected for now. Cargo explicitly makes inherited feature lists additive, and inherited default-feature behavior has edition/toolchain semantics. Duplicating that resolver logic in a small Python gate would create a second dependency-resolution authority. The safer current contract is to identify inherited reqwest through the workspace package declaration and reject it until a deliberate owner decision adds equivalent executable resolution evidence.
+
 Enabling reqwest's optional `stream` feature was rejected for the current adapter design because `Response::chunk()` already provides bounded asynchronous chunk retrieval without that feature. Avoiding `stream` also avoids an unnecessary `futures`/`tokio-util` surface in this small security-sensitive owner.
 
 Rejecting every rustls version below 0.23.45 was also rejected. RustSec explicitly lists versions below 0.23.13 as unaffected by this advisory, and future 0.24+ lines should not fail a check written for a 0.23 advisory. The selected check therefore models the published affected interval exactly.
@@ -50,11 +55,11 @@ Scanning every Cargo.lock in the repository and treating any affected transitive
 
 ## Selected design
 
-`scripts/checks/verify_distribution_http_dependencies.py` is a dependency-free Python 3 gate using `tomllib`. It enumerates direct runtime dependency declarations from top-level `[dependencies]` and every `[target.<selector>.dependencies]` table, resolves each declaration's package identity using Cargo's `package` rename semantics, and selects every declaration whose package is `reqwest`. If none exists it returns success and does not infer exposure from unrelated graphs. Once any direct runtime reqwest package declaration exists, every declaration must explicitly own the rustls backend and use exactly the direct feature set `{rustls}`; the gate then requires a committed standalone lock containing reqwest and rustls and rejects every locked rustls version inside the `RUSTSEC-2026-0285` affected interval.
+`scripts/checks/verify_distribution_http_dependencies.py` is a dependency-free Python 3 gate using `tomllib`. It enumerates direct runtime dependency declarations from top-level `[dependencies]` and every `[target.<selector>.dependencies]` table, resolves each declaration's package identity using Cargo's `package` rename semantics, and follows `workspace = true` only far enough to determine the inherited workspace package identity. Every declaration whose effective package is `reqwest` enters the owner gate. Workspace-inherited reqwest is rejected. A directly declared reqwest package must explicitly own the rustls backend and use exactly the direct feature set `{rustls}`; the gate then requires a committed standalone lock containing reqwest and rustls and rejects every locked rustls version inside the `RUSTSEC-2026-0285` affected interval.
 
 `.github/workflows/ci.yml` runs this check in `lock-validation` immediately after checkout. The Distribution Windows/macOS/Linux Rust jobs depend on that job, so an unsafe future HTTP graph is rejected before those crates compile rather than after a platform matrix has already exercised it. `scripts/harness/quickcheck.sh` invokes the same checker so local canonical validation and hosted admission share one rule.
 
-The regression suite uses synthetic Cargo manifest/lock fixtures only for policy-unit coverage. It proves rejection of rustls 0.23.44, acceptance of 0.23.45 and 0.24.0, non-activation when Distribution has no direct reqwest dependency, rejection of implicit reqwest TLS feature selection, rejection of unapproved direct transport features including gzip/Brotli/Zstandard/deflate decoding, system/SOCKS proxy, alternate DNS, HTTP/2 and HTTP/3, rejection of the same invalid reqwest declaration when it is moved under a Windows target dependency table, and rejection when the reqwest package is renamed to another local dependency key. Those fixtures are not production networking evidence.
+The regression suite uses synthetic Cargo manifest/lock fixtures only for policy-unit coverage. It proves rejection of rustls 0.23.44, acceptance of 0.23.45 and 0.24.0, non-activation when Distribution has no direct reqwest dependency, rejection of implicit reqwest TLS feature selection, rejection of unapproved direct transport features including gzip/Brotli/Zstandard/deflate decoding, system/SOCKS proxy, alternate DNS, HTTP/2 and HTTP/3, rejection of the same invalid reqwest declaration when it is moved under a Windows target dependency table, rejection when the reqwest package is renamed to another local dependency key, and rejection when renamed reqwest is hidden behind workspace dependency inheritance. Those fixtures are not production networking evidence.
 
 ## RED -> repair evidence
 
@@ -70,6 +75,8 @@ The regression suite uses synthetic Cargo manifest/lock fixtures only for policy
 - `da209f160bcf4e81cc70cf4760ad658c9d78c679` makes target-scoped normal runtime reqwest declarations enter the same fail-closed owner admission as top-level declarations.
 - `7330af6e40a6ba5b4c49c9de32abf291dd7c515b` adds the Cargo-rename RED: `distribution_http = { package = "reqwest", ..., features = ["rustls", "gzip"] }` must be treated as the same direct reqwest owner dependency rather than bypassing admission because the local key is not `reqwest`.
 - `5356dcfa9a1a75c7cecdf6d185e7359cc056929a` resolves normal dependency declarations to Cargo package identity before selecting reqwest, so unconditional and target-scoped renamed dependencies enter the same policy path.
+- `cf6655d134ebcae57037be2a21a1c8f777437ace` adds the workspace-inheritance RED: a local `workspace = true` dependency whose workspace package is renamed reqwest must not make the gate return early.
+- `8284ae6ccc5034ad4ab1e94f201e125d25f975da` resolves the workspace package identity for admission and fails closed on inherited reqwest instead of implementing a partial Cargo feature resolver.
 
 Hosted exact-head checks remain authoritative for repository integration. This source-level gate does not claim that the production HTTP adapter exists, that remote metadata is authenticated, that updater artifact signatures have been verified, or that current packaged Windows/macOS network behavior is release-ready.
 
@@ -80,6 +87,8 @@ The next Distribution implementation may add reqwest only together with a lock g
 ## References
 
 Rust Project. (2026). *Specifying dependencies: Renaming dependencies in Cargo.toml*. The Cargo Book. https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#renaming-dependencies-in-cargotoml
+
+Rust Project. (2026). *Workspaces: The dependencies table*. The Cargo Book. https://doc.rust-lang.org/cargo/reference/workspaces.html#the-dependencies-table
 
 RustSec. (2026, September 14). *RUSTSEC-2026-0285: rustls: TLS 1.3 handshake messages incorrectly accepted across encryption level boundaries*. RustSec Advisory Database. https://rustsec.org/advisories/RUSTSEC-2026-0285.html
 
