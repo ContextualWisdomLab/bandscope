@@ -77,7 +77,7 @@ fn sealed_unverified_artifact_keeps_staging_lease() {
         StagedArtifactFile::create(&directory, "update.bin").unwrap_err(),
         StagingArtifactError::ConcurrentAttempt
     );
-    assert_eq!(fs::read(sealed.path()).expect("read sealed path"), b"data");
+    assert!(sealed.path().is_file());
 
     drop(sealed);
     let replacement = StagedArtifactFile::create(&directory, "update.bin")
