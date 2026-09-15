@@ -30,14 +30,14 @@ pub enum TransportPolicyError {
     EffectiveUrlDrift,
     /// The initial response status is not an admitted direct-download or redirect status.
     UnexpectedInitialStatus(u16),
-    /// GitHub returned a redirect but this source revision has not admitted it yet.
-    RedirectUnsupported,
     /// A redirect response omitted or supplied an invalid Location value.
     InvalidRedirectLocation,
     /// The redirected request completed at a URL different from the admitted Location.
     RedirectEffectiveUrlDrift,
     /// A redirected release-asset request attempted another redirect.
     RedirectChainingRejected,
+    /// The redirected response did not terminate in an admitted success status.
+    UnexpectedRedirectStatus(u16),
 }
 
 /// Failure while converting an admitted response head into bounded staged bytes.
@@ -170,11 +170,13 @@ impl ReleaseTransportPolicy {
         &self.initial_url
     }
 
-    /// Admit the first HTTP response without trusting the network client's redirect behavior.
+    /// Admit the first HTTP response without trusting automatic redirect behavior.
     ///
     /// The network adapter must disable automatic redirects and report the exact
-    /// effective URL and optional `Location` value. A direct `200` can stream;
-    /// redirect admission is intentionally RED in this source revision.
+    /// effective URL plus an optional `Location` value. A direct `200` can
+    /// stream immediately. A `302` is admitted only when its Location is an
+    /// HTTPS `release-assets.githubusercontent.com` URL and becomes a distinct
+    /// one-hop follow-up decision; no redirect body is exposed for staging.
     pub fn admit_initial_response(
         &self,
         status: u16,
@@ -187,8 +189,13 @@ impl ReleaseTransportPolicy {
         match status {
             200 => Ok(ResponseDecision::Download(self.download_head(effective_url))),
             302 => {
-                let _ = redirect_location.ok_or(TransportPolicyError::InvalidRedirectLocation)?;
-                Err(TransportPolicyError::RedirectUnsupported)
+                let location = redirect_location
+                    .ok_or(TransportPolicyError::InvalidRedirectLocation)?;
+                validate_release_asset_cdn_url(location)?;
+                Ok(ResponseDecision::FollowRedirect(AdmittedRedirect {
+                    source_url: self.initial_url.clone(),
+                    location: location.to_owned(),
+                }))
             }
             other => Err(TransportPolicyError::UnexpectedInitialStatus(other)),
         }
@@ -211,7 +218,7 @@ impl ReleaseTransportPolicy {
             return Err(TransportPolicyError::RedirectChainingRejected);
         }
         if status != 200 {
-            return Err(TransportPolicyError::UnexpectedInitialStatus(status));
+            return Err(TransportPolicyError::UnexpectedRedirectStatus(status));
         }
         Ok(self.download_head(effective_url))
     }
