@@ -73,6 +73,8 @@ pub enum MetadataError {
 pub struct ProvisionalUpdateMetadata {
     candidate: UpdateCandidate,
     artifact_size_bytes: u64,
+    artifact_url: String,
+    artifact_signature: String,
 }
 
 impl ProvisionalUpdateMetadata {
@@ -101,6 +103,16 @@ impl ProvisionalUpdateMetadata {
         self.artifact_size_bytes
     }
 
+    /// Return the canonical exact-tag updater URL selected by strict admission.
+    pub fn artifact_url(&self) -> &str {
+        &self.artifact_url
+    }
+
+    /// Return the updater signature text paired with the selected admitted URL.
+    pub fn artifact_signature(&self) -> &str {
+        &self.artifact_signature
+    }
+
     /// Return the minimum client version allowed on the automatic update path.
     pub fn minimum_supported_version_components(&self) -> (u64, u64, u64) {
         self.candidate.minimum_supported_version().components()
@@ -114,7 +126,9 @@ impl ProvisionalUpdateMetadata {
 /// unknown members, enforces all four release targets, bounds signature/URL and
 /// artifact-size fields, pins artifact URLs to BandScope's exact GitHub release
 /// namespace, and delegates release-identity syntax to the pure Distribution
-/// core. Success is deliberately *provisional* and must never be persisted as
+/// core. The selected URL and signature are retained from this same strict parse
+/// so a later transport adapter does not need a second, looser metadata parse.
+/// Success is deliberately *provisional* and must never be persisted as
 /// highest-seen authority without a separate authenticated metadata binding.
 pub fn admit_untrusted_raw_json(
     raw_json: &[u8],
@@ -134,11 +148,19 @@ pub fn admit_untrusted_raw_json(
     let version = as_string(field(root, "version")?)?;
     let platforms = as_object(field(root, "platforms")?)?;
     require_exact_members(platforms, &SUPPORTED_TARGETS)?;
+    let mut selected_url = None;
+    let mut selected_signature = None;
     for target in SUPPORTED_TARGETS {
         let platform = as_object(field(platforms, target)?)?;
         require_exact_members(platform, &["signature", "url"])?;
-        validate_signature(as_string(field(platform, "signature")?)?)?;
-        validate_release_url(as_string(field(platform, "url")?)?, version)?;
+        let signature = as_string(field(platform, "signature")?)?;
+        let url = as_string(field(platform, "url")?)?;
+        validate_signature(signature)?;
+        validate_release_url(url, version)?;
+        if target == expected_target {
+            selected_url = Some(url.to_owned());
+            selected_signature = Some(signature.to_owned());
+        }
     }
 
     let bandscope = as_object(field(root, "bandscope")?)?;
@@ -186,6 +208,8 @@ pub fn admit_untrusted_raw_json(
 
     let artifact_size_bytes = selected_size.ok_or(MetadataError::UnexpectedShape)?;
     let artifact_sha256 = selected_digest.ok_or(MetadataError::UnexpectedShape)?;
+    let artifact_url = selected_url.ok_or(MetadataError::UnexpectedShape)?;
+    let artifact_signature = selected_signature.ok_or(MetadataError::UnexpectedShape)?;
     let candidate = validate_candidate_syntax(
         version,
         source_commit,
@@ -197,6 +221,8 @@ pub fn admit_untrusted_raw_json(
     Ok(ProvisionalUpdateMetadata {
         candidate,
         artifact_size_bytes,
+        artifact_url,
+        artifact_signature,
     })
 }
 
@@ -241,7 +267,9 @@ fn validate_signature(value: &str) -> Result<(), MetadataError> {
 fn validate_release_url(value: &str, version: &str) -> Result<(), MetadataError> {
     if value.is_empty()
         || value.len() > MAX_URL_BYTES
-        || value.bytes().any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+        || value
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
         || value.contains('?')
         || value.contains('#')
         || value.contains('\\')
