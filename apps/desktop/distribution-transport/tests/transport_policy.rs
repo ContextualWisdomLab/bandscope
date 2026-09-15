@@ -1,5 +1,5 @@
 use bandscope_distribution_download::DownloadAdmissionError;
-use bandscope_distribution_runtime::admit_untrusted_raw_json;
+use bandscope_distribution_runtime::{admit_untrusted_raw_json, MetadataError};
 use bandscope_distribution_transport::{
     ReleaseTransportPolicy, ResponseDecision, TransportDownloadError, TransportPolicyError,
 };
@@ -42,16 +42,13 @@ fn scratch_dir(label: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn malformed_tauri_signature_envelope_is_rejected_before_network_admission() {
-    let metadata = admit_untrusted_raw_json(
-        &updater_document_with_signature("not-base64!"),
-        "windows-x86_64",
-    )
-    .expect("metadata syntax alone remains provisional");
-
+fn malformed_tauri_signature_envelope_is_rejected_by_metadata_owner() {
     assert_eq!(
-        ReleaseTransportPolicy::from_provisional(&metadata),
-        Err(TransportPolicyError::InvalidArtifactSignatureEnvelope)
+        admit_untrusted_raw_json(
+            &updater_document_with_signature("not-base64!"),
+            "windows-x86_64",
+        ),
+        Err(MetadataError::InvalidSignature)
     );
 }
 
