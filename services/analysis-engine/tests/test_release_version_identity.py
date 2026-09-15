@@ -123,6 +123,9 @@ def test_release_identity_guard_rejects_wrong_tag(tmp_path: Path) -> None:
         "1.2.03",
         "1.2",
         "v1.2.3",
+        "18446744073709551616.0.0",
+        "0.18446744073709551616.0",
+        "0.0.18446744073709551616",
     ],
 )
 def test_release_identity_guard_rejects_noncanonical_stable_version(
