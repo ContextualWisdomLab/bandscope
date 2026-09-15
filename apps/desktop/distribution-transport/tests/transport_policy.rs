@@ -76,7 +76,7 @@ fn github_release_redirect_is_one_hop_and_streams_through_bounded_staging() {
 
     let directory = scratch_dir("redirect");
     let mut download = head
-        .start_staging(&directory, Some(4))
+        .start_staging(&directory, Some(4), None)
         .expect("start bounded staging");
     download.admit_chunk(b"da").expect("first chunk");
     download.admit_chunk(b"ta").expect("second chunk");
@@ -125,10 +125,51 @@ fn content_length_mismatch_fails_before_staging_file_creation() {
     };
     let directory = scratch_dir("length");
     assert_eq!(
-        head.start_staging(&directory, Some(3)).unwrap_err(),
+        head.start_staging(&directory, Some(3), None).unwrap_err(),
         TransportDownloadError::Download(DownloadAdmissionError::ContentLengthMismatch)
     );
     assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 0);
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
+fn encoded_response_body_is_rejected_before_staging_file_creation() {
+    let policy = policy();
+    let head = match policy
+        .admit_initial_response(200, INITIAL_URL, None)
+        .expect("direct response")
+    {
+        ResponseDecision::Download(head) => head,
+        ResponseDecision::FollowRedirect(_) => panic!("200 must be final"),
+    };
+    let directory = scratch_dir("content-encoding");
+    assert_eq!(
+        head.start_staging(&directory, Some(4), Some("gzip")).unwrap_err(),
+        TransportDownloadError::UnsupportedContentEncoding
+    );
+    assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 0);
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
+fn explicit_identity_content_encoding_remains_admitted() {
+    let policy = policy();
+    let head = match policy
+        .admit_initial_response(200, INITIAL_URL, None)
+        .expect("direct response")
+    {
+        ResponseDecision::Download(head) => head,
+        ResponseDecision::FollowRedirect(_) => panic!("200 must be final"),
+    };
+    let directory = scratch_dir("identity-encoding");
+    let mut download = head
+        .start_staging(&directory, Some(4), Some("identity"))
+        .expect("identity encoding preserves exact artifact bytes");
+    download.admit_chunk(b"data").expect("exact artifact chunk");
+    let sealed = download.finish().expect("exact response seals");
+    let path = sealed.path().to_path_buf();
+    drop(sealed);
+    assert!(!path.exists(), "unverified sealed bytes remain cleanup-on-drop");
     fs::remove_dir(directory).expect("remove staging directory");
 }
 
@@ -144,7 +185,7 @@ fn cancelled_transport_drops_partial_staging_bytes() {
     };
     let directory = scratch_dir("cancel");
     let mut download = head
-        .start_staging(&directory, None)
+        .start_staging(&directory, None, None)
         .expect("start bounded staging");
     download.admit_chunk(b"da").expect("partial chunk");
     assert_eq!(fs::read_dir(&directory).expect("read staging directory").count(), 1);
