@@ -32,26 +32,46 @@ def _is_affected_rustls(raw: str) -> bool:
     return version is not None and RUSTLS_AFFECTED_MIN <= version < RUSTLS_PATCHED_MIN
 
 
+def _dependency_package_name(dependency_name: str, declaration: Any) -> Any:
+    """Return the Cargo package selected by one dependency key or rename."""
+    if isinstance(declaration, dict) and "package" in declaration:
+        return declaration["package"]
+    return dependency_name
+
+
+def _reqwest_declarations_in_table(
+    dependencies: Any,
+    *,
+    location_prefix: str,
+) -> list[tuple[str, Any]]:
+    """Return reqwest package declarations from one normal dependency table."""
+    if not isinstance(dependencies, dict):
+        return []
+    return [
+        (f"{location_prefix}.{dependency_name}", declaration)
+        for dependency_name, declaration in dependencies.items()
+        if _dependency_package_name(dependency_name, declaration) == "reqwest"
+    ]
+
+
 def _direct_reqwest_declarations(manifest: dict[str, Any]) -> list[tuple[str, Any]]:
-    """Return runtime reqwest declarations from unconditional and target-scoped dependencies."""
-    declarations: list[tuple[str, Any]] = []
-    dependencies = manifest.get("dependencies", {})
-    if isinstance(dependencies, dict) and "reqwest" in dependencies:
-        declarations.append(("dependencies.reqwest", dependencies["reqwest"]))
+    """Return runtime reqwest packages from unconditional and target-scoped dependencies."""
+    declarations = _reqwest_declarations_in_table(
+        manifest.get("dependencies", {}),
+        location_prefix="dependencies",
+    )
 
     targets = manifest.get("target", {})
     if isinstance(targets, dict):
         for selector, target_table in targets.items():
             if not isinstance(target_table, dict):
                 continue
-            target_dependencies = target_table.get("dependencies", {})
-            if isinstance(target_dependencies, dict) and "reqwest" in target_dependencies:
-                declarations.append(
-                    (
-                        f"target.{selector}.dependencies.reqwest",
-                        target_dependencies["reqwest"],
-                    )
+            declarations.extend(
+                _reqwest_declarations_in_table(
+                    target_table.get("dependencies", {}),
+                    location_prefix=f"target.{selector}.dependencies",
                 )
+            )
     return declarations
 
 
