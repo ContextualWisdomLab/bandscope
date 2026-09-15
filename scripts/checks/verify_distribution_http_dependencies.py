@@ -39,10 +39,32 @@ def _dependency_package_name(dependency_name: str, declaration: Any) -> Any:
     return dependency_name
 
 
+def _workspace_dependencies(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Return workspace dependency declarations visible to the root package."""
+    workspace = manifest.get("workspace", {})
+    if not isinstance(workspace, dict):
+        return {}
+    dependencies = workspace.get("dependencies", {})
+    return dependencies if isinstance(dependencies, dict) else {}
+
+
+def _resolved_package_name(
+    dependency_name: str,
+    declaration: Any,
+    workspace_dependencies: dict[str, Any],
+) -> Any:
+    """Resolve package identity through Cargo workspace inheritance when present."""
+    if isinstance(declaration, dict) and declaration.get("workspace") is True:
+        inherited = workspace_dependencies.get(dependency_name)
+        return _dependency_package_name(dependency_name, inherited)
+    return _dependency_package_name(dependency_name, declaration)
+
+
 def _reqwest_declarations_in_table(
     dependencies: Any,
     *,
     location_prefix: str,
+    workspace_dependencies: dict[str, Any],
 ) -> list[tuple[str, Any]]:
     """Return reqwest package declarations from one normal dependency table."""
     if not isinstance(dependencies, dict):
@@ -50,15 +72,22 @@ def _reqwest_declarations_in_table(
     return [
         (f"{location_prefix}.{dependency_name}", declaration)
         for dependency_name, declaration in dependencies.items()
-        if _dependency_package_name(dependency_name, declaration) == "reqwest"
+        if _resolved_package_name(
+            dependency_name,
+            declaration,
+            workspace_dependencies,
+        )
+        == "reqwest"
     ]
 
 
 def _direct_reqwest_declarations(manifest: dict[str, Any]) -> list[tuple[str, Any]]:
     """Return runtime reqwest packages from unconditional and target-scoped dependencies."""
+    workspace_dependencies = _workspace_dependencies(manifest)
     declarations = _reqwest_declarations_in_table(
         manifest.get("dependencies", {}),
         location_prefix="dependencies",
+        workspace_dependencies=workspace_dependencies,
     )
 
     targets = manifest.get("target", {})
@@ -70,6 +99,7 @@ def _direct_reqwest_declarations(manifest: dict[str, Any]) -> list[tuple[str, An
                 _reqwest_declarations_in_table(
                     target_table.get("dependencies", {}),
                     location_prefix=f"target.{selector}.dependencies",
+                    workspace_dependencies=workspace_dependencies,
                 )
             )
     return declarations
@@ -83,6 +113,12 @@ def _validate_reqwest_declaration(location: str, reqwest: Any) -> list[str]:
         return [
             f"{prefix}: direct reqwest must use a table with "
             'default-features = false and features = ["rustls"]'
+        ]
+    if reqwest.get("workspace") is True:
+        return [
+            f"{prefix}: reqwest workspace inheritance is not admitted for the "
+            "Distribution transport; declare the package, default-features = false, "
+            'and features = ["rustls"] directly in this runtime dependency table'
         ]
 
     if reqwest.get("default-features") is not False:
