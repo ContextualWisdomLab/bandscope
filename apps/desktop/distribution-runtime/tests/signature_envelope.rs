@@ -1,4 +1,6 @@
-use bandscope_distribution_runtime::{admit_untrusted_raw_json, MetadataError};
+use bandscope_distribution_runtime::{
+    admit_untrusted_raw_json, MetadataError, MAX_SIGNATURE_BYTES,
+};
 
 const SOURCE_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const DIGEST: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -14,6 +16,41 @@ fn updater_document(nonselected_signature: &str) -> Vec<u8> {
 fn malformed_nonselected_signature_fails_at_metadata_owner() {
     assert_eq!(
         admit_untrusted_raw_json(&updater_document("not-base64!"), "windows-x86_64"),
+        Err(MetadataError::InvalidSignature)
+    );
+}
+
+#[test]
+fn canonical_padding_variants_are_admitted_for_nonselected_targets() {
+    for signature in ["c2ln", "c2k=", "c2lnMQ=="] {
+        assert!(
+            admit_untrusted_raw_json(&updater_document(signature), "windows-x86_64").is_ok(),
+            "canonical signature envelope should be admitted: {signature}"
+        );
+    }
+}
+
+#[test]
+fn malformed_padding_and_nonzero_pad_bits_fail_closed() {
+    for signature in ["c2ln=", "=2ln", "YR==", "YWJ="] {
+        assert_eq!(
+            admit_untrusted_raw_json(&updater_document(signature), "windows-x86_64"),
+            Err(MetadataError::InvalidSignature),
+            "noncanonical signature envelope must fail: {signature}"
+        );
+    }
+}
+
+#[test]
+fn empty_and_oversized_signature_envelopes_fail_closed() {
+    assert_eq!(
+        admit_untrusted_raw_json(&updater_document(""), "windows-x86_64"),
+        Err(MetadataError::InvalidSignature)
+    );
+
+    let oversized = "A".repeat(MAX_SIGNATURE_BYTES + 4);
+    assert_eq!(
+        admit_untrusted_raw_json(&updater_document(&oversized), "windows-x86_64"),
         Err(MetadataError::InvalidSignature)
     );
 }
