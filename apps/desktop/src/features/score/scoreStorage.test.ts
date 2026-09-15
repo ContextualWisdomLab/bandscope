@@ -33,3 +33,36 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 });
+
+describe("readScorePdf processing arrays", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (typeof window !== "undefined") {
+      const tauriWindow = window as TauriWindow;
+      delete tauriWindow.__TAURI_INTERNALS__;
+      delete tauriWindow.__TAURI_INVOKE__;
+    }
+  });
+
+  it("successfully reads an array of numbers and converts to Uint8Array", async () => {
+    vi.stubGlobal("window", {
+      __TAURI_INTERNALS__: {
+        invoke: async () => [65, 66, 67]
+      }
+    });
+
+    const result = await readScorePdf("p1", "s1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result).toEqual(new Uint8Array([65, 66, 67]));
+  });
+
+  it("throws INVALID_RESPONSE_MESSAGE when array contains non-numbers", async () => {
+    vi.stubGlobal("window", {
+      __TAURI_INTERNALS__: {
+        invoke: async () => [65, "66", 67]
+      }
+    });
+
+    await expect(readScorePdf("p1", "s1")).rejects.toThrow("Invalid score bridge response");
+  });
+});
