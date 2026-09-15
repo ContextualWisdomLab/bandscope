@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import subprocess
@@ -80,7 +81,9 @@ def _write_release_graph(
             updater_payload = f"updater-{platform}-{arch}".encode()
             (artifacts / updater_name).write_bytes(updater_payload)
         signature_name = f"{updater_name}.sig"
-        signature_text = f"signature-{platform}-{arch}"
+        signature_text = base64.b64encode(
+            f"signature-{platform}-{arch}".encode()
+        ).decode("ascii")
         signature_payload = signature_text.encode()
         (artifacts / signature_name).write_bytes(signature_payload)
         signatures[f"{platform}-{arch}"] = signature_text
@@ -191,6 +194,33 @@ def test_manifest_binds_exact_receipts_and_signature_contents(tmp_path: Path) ->
             "darwin-aarch64": updater_identities["macos-arm64"],
         },
     }
+
+
+def test_manifest_rejects_receipt_bound_non_base64_signature(tmp_path: Path) -> None:
+    """Reject a signature receipt whose bytes cannot satisfy Tauri's outer base64 envelope."""
+    source_commit = "9" * 40
+    _write_release_graph(tmp_path, source_commit=source_commit)
+    signature = (
+        tmp_path
+        / "artifacts"
+        / f"bandscope-windows-amd64-{source_commit[:12]}.exe.sig"
+    )
+    malformed = b"not-base64!"
+    signature.write_bytes(malformed)
+    receipt_path = (
+        tmp_path
+        / "artifacts"
+        / f"bandscope-windows-amd64-{source_commit[:12]}.release-receipt.json"
+    )
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["updaterArtifacts"][0]["signatureSizeBytes"] = len(malformed)
+    receipt["updaterArtifacts"][0]["signatureSha256"] = _digest(malformed)
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    completed = _run_builder(tmp_path, source_commit=source_commit)
+
+    assert completed.returncode != 0
+    assert "base64" in completed.stderr.lower()
 
 
 def test_manifest_check_rejects_post_generation_signature_drift(
