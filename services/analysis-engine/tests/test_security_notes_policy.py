@@ -86,6 +86,32 @@ def test_security_notes_section_uses_real_heading_after_fenced_example() -> None
     assert "fenced-only-token" not in section
 
 
+def test_security_notes_section_ignores_indented_code_headings() -> None:
+    """Four-space indented code cannot impersonate a governed Markdown heading."""
+    document = (
+        "# Example\n\n"
+        "    ## Security Notes\n\n"
+        "    Attack surface, trust boundary, mitigations, test points, realistic threats, "
+        "and remaining risk appear only in an indented code sample.\n\n"
+        "## Operations\n\n"
+        "No governed security section follows.\n"
+    )
+
+    assert security_notes_section(document) == ""
+
+
+def test_security_notes_section_accepts_three_space_atx_heading() -> None:
+    """Preserve CommonMark's allowance for up to three leading spaces on ATX headings."""
+    document = (
+        "# Example\n\n"
+        "   ## Security Notes\n\n"
+        "real-only-token\n\n"
+        "## Operations\n"
+    )
+
+    assert "real-only-token" in security_notes_section(document)
+
+
 def test_local_project_format_uses_required_security_notes_heading() -> None:
     """Keep the project-format security section under the repository-mandated heading."""
     project_format = (REPO_ROOT / "docs" / "engineering" / "local-project-format.md").read_text(
