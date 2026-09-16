@@ -194,6 +194,95 @@ class SecurityNotesPolicyTests(unittest.TestCase):
             ],
         )
 
+    def test_plan_security_notes_stop_at_next_peer_heading(self) -> None:
+        """Later peer sections cannot backfill missing Security Notes evidence."""
+        path = self.plan_dir / "example.md"
+        path.write_text(
+            "# Plan\n\n"
+            "## Security Notes\n\n"
+            "Attack surface and trust boundary are explicit.\n\n"
+            "## Operations\n\n"
+            "Mitigations, test points, realistic threats, and remaining risk are here.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self._violations(),
+            [
+                f"{path} missing subsection: mitigations",
+                f"{path} missing subsection: test points",
+                f"{path} missing subsection: realistic threats",
+                f"{path} missing subsection: remaining risk",
+            ],
+        )
+
+    def test_plan_heading_follows_commonmark_atx_boundaries(self) -> None:
+        """Preserve three-space ATX headings and whitespace-delimited closing hashes."""
+        path = self.plan_dir / "example.md"
+        path.write_text(
+            "# Plan\n\n"
+            "   ## Security Notes ###\n\n"
+            "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+            "and remaining risk are explicit.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(self._violations(), [])
+
+        path.write_text(
+            "# Plan\n\n"
+            "## Security Notes#\n\n"
+            "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+            "and remaining risk are under a different heading.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self._violations(),
+            [
+                f"{path} missing subsection: attack surface",
+                f"{path} missing subsection: trust boundary",
+                f"{path} missing subsection: mitigations",
+                f"{path} missing subsection: test points",
+                f"{path} missing subsection: realistic threats",
+                f"{path} missing subsection: remaining risk",
+            ],
+        )
+
+    def test_plan_raw_html_blocks_and_inline_comments_are_not_policy_evidence(self) -> None:
+        """Raw HTML and inline comments cannot impersonate headings or required prose."""
+        path = self.plan_dir / "example.md"
+        keyword_line = (
+            "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+            "and remaining risk appear only inside raw HTML."
+        )
+        raw_blocks = [
+            f"<script>\n## Security Notes\n{keyword_line}\n</script>",
+            f"<?policy\n## Security Notes\n{keyword_line}\n?>",
+            f"<!DOCTYPE policy\n## Security Notes\n{keyword_line}\n>",
+            f"<![CDATA[\n## Security Notes\n{keyword_line}\n]]>",
+            f"<div>\n## Security Notes\n{keyword_line}",
+            f"<security-example>\n## Security Notes\n{keyword_line}",
+        ]
+        for raw_block in raw_blocks:
+            with self.subTest(raw_block=raw_block.splitlines()[0]):
+                path.write_text(f"# Plan\n\n{raw_block}\n", encoding="utf-8")
+                self.assertTrue(self._violations())
+
+        path.write_text(
+            "# Plan\n\n"
+            "## Security Notes\n\n"
+            "Attack surface and trust boundary are explicit.\n"
+            "<!-- mitigations, test points, realistic threats, remaining risk -->\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self._violations(),
+            [
+                f"{path} missing subsection: mitigations",
+                f"{path} missing subsection: test points",
+                f"{path} missing subsection: realistic threats",
+                f"{path} missing subsection: remaining risk",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
