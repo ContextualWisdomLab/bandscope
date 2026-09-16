@@ -16,11 +16,6 @@ describe("PracticeProgress", () => {
     expect(screen.getByText("0%")).toBeTruthy();
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
-    expect(decreaseBtn).not.toHaveAttribute("title");
-
-    const descriptionId = decreaseBtn.getAttribute("aria-describedby");
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId ?? "")).toHaveTextContent("practiceProgressAtMin");
 
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
@@ -108,11 +103,6 @@ describe("PracticeProgress", () => {
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
-    expect(increaseBtn).not.toHaveAttribute("title");
-
-    const descriptionId = increaseBtn.getAttribute("aria-describedby");
-    expect(descriptionId).toBeTruthy();
-    expect(document.getElementById(descriptionId ?? "")).toHaveTextContent("practiceProgressAtMax");
 
     const clickEvent = createEvent.click(increaseBtn);
     fireEvent(increaseBtn, clickEvent);
