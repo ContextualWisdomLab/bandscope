@@ -157,7 +157,7 @@ def test_windows_cache_publication_uses_write_through_move(
     target = tmp_path / "analysis.json"
     calls: list[tuple[str, str, int]] = []
 
-    class MoveFileExW:
+    class MoveFileExWMock:
         argtypes: object = None
         restype: object = None
 
@@ -166,7 +166,7 @@ def test_windows_cache_publication_uses_write_through_move(
             return 1
 
     class Kernel32:
-        MoveFileExW = MoveFileExW()
+        MoveFileExW = MoveFileExWMock()
 
     monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel32(), raising=False)
     monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
@@ -183,7 +183,7 @@ def test_windows_cache_publication_propagates_move_failure(
     stage = tmp_path / ".cache.stage"
     target = tmp_path / "analysis.json"
 
-    class MoveFileExW:
+    class MoveFileExWMock:
         argtypes: object = None
         restype: object = None
 
@@ -191,7 +191,7 @@ def test_windows_cache_publication_propagates_move_failure(
             return 0
 
     class Kernel32:
-        MoveFileExW = MoveFileExW()
+        MoveFileExW = MoveFileExWMock()
 
     monkeypatch.setattr(ctypes, "WinDLL", lambda *_args, **_kwargs: Kernel32(), raising=False)
     monkeypatch.setattr(ctypes, "get_last_error", lambda: 5, raising=False)
