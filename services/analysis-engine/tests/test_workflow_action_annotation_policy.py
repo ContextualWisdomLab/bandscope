@@ -1,7 +1,5 @@
 """Regression tests for human-readable GitHub Action pin annotations."""
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 
