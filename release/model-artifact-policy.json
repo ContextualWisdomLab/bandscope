@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "releaseStatus": "blocked",
+  "blockedArtifact": {
+    "modelId": "demucs/htdemucs",
+    "checkpoint": "955717e8-8726e21a.th",
+    "reason": "commercial-rights-not-established",
+    "primaryEvidence": "https://github.com/facebookresearch/demucs/issues/327#issuecomment-1134828611"
+  },
+  "admittedArtifact": null
+}
