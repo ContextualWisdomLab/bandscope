@@ -40,17 +40,25 @@ Hosted exact-head checks remain authoritative. These source commits are not by t
 
 ## Security Notes
 
-### Untrusted input and trust boundary
+### Attack surface
 
-Cache bytes remain untrusted even under an app-owned cache root. Native Resource Admission owns source identity. Final-result cache publication owns only derived rehearsal-result bytes and must not infer source authority from filenames or paths.
+The final-result cache is a local derived-artifact boundary. Cache bytes, cache directory entries, staging files, and publication/recovery state can be corrupted, replaced, or interrupted independently of the admitted source audio.
 
-### Safe failure
+### Trust boundary
 
-Serialization, file sync, platform publication, or parent-directory sync failure does not return `stored`. The existing analysis result can still be returned to the current caller, but reuse is not acknowledged as durable. The change adds no network path and logs no raw audio or original source path.
+Native Resource Admission remains the sole source-identity authority. Project Persistence owns only the derived rehearsal-result bytes and their durable publication state; it must not infer source authority from filenames, pathnames, or cache location.
+
+### Mitigations
+
+Publication uses a unique writer-owned stage, flush plus file `fsync`, platform-specific atomic publication, POSIX parent-directory `fsync`, and Windows `MOVEFILE_WRITE_THROUGH`. Any serialization, sync, publication, or cleanup failure is fail-closed for cache reuse and never reports `stored`.
 
 ### Test points
 
 Tests cover file-sync-before-publication ordering, unique writer-owned staging cleanup, stage creation failure, parent-directory descriptor cleanup on both success and fsync failure, POSIX replace-before-parent-fsync ordering, Windows replace/write-through flags, unavailable Win32 bindings, Win32 move failure, platform dispatch, and API fail-closed status.
+
+### Realistic threats
+
+Realistic failures include process interruption during staging, power loss after byte write but before durable namespace publication, concurrent writers sharing a target, filesystem or recovery tooling leaving partial cache state, and local replacement of derived cache bytes. The boundary adds no network path and logs no raw audio or original source path.
 
 ### Remaining risk
 
