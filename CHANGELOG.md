@@ -16,7 +16,6 @@
 
 ### Fixed
 
-- Keep Slider keyboard focus paint on the Base UI thumb wrapper through the nested range input's `:focus-visible` state, and preserve Base UI's own absolute thumb-placement authority instead of adding a competing `relative` position token.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29

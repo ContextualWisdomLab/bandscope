@@ -18,23 +18,14 @@ The correction removes the redundant token and pins the actual dependency-backed
 
 This matters because rehearsal timeline/range controls are operated repeatedly under time pressure and must remain usable by pointer, touch, and keyboard users. WCAG 2.2 Success Criterion 2.5.8 sets a Level AA minimum target-size/spacing requirement of 24×24 CSS pixels, while Success Criterion 2.5.5 defines 44×44 CSS pixels as the enhanced Level AAA target-size benchmark. A slider is treated as one target for the 2.5.8 spatial-selection note, but that does not remove the need to verify the actual interactive geometry of the mounted product control.
 
-## Focus ownership correction
-
-The same review found a separate focus-ownership regression. Base UI changed Slider focus semantics in v1.0.0-beta.3: the nested `input type="range"`, not the Thumb wrapper `<div>`, receives focus. Upstream explicitly requires wrapper focus styling that previously used `.Thumb:focus-visible` to move to `.Thumb:has(:focus-visible)`. Current Slider documentation continues to describe `Slider.Thumb` as a wrapper `<div>` containing that range input.
-
-BandScope had later inverted that contract and replaced `has-[:focus-visible]:*` with direct wrapper `focus-visible:*`. The rendered range input still owned keyboard focus, so those wrapper selectors could not provide the intended focus ring. The current repair restores `has-[:focus-visible]` in both the static and state-callback `className` paths and pins the nested input anatomy in the composition regression.
-
-This is a dependency-backed source contract, not evidence that the final focus indicator is visually acceptable in every browser. Browser acceptance must still verify actual focus paint, forced-colors behavior, zoom/reflow, keyboard sequencing, and assistive-technology operation on the mounted rehearsal controls.
-
 ## Constraints
 
 - Keep Base UI's `Slider.Root`, `Control`, `Track`, `Indicator`, and `Thumb` semantics and state-callback `className` contract intact.
 - Do not override Base UI's value-dependent absolute Thumb positioning with an important or competing position utility.
-- Keep wrapper focus styling aligned with the nested range input that actually receives focus; do not replace `:has(:focus-visible)` with wrapper `:focus-visible` while this upstream anatomy remains in force.
 - Do not enlarge the visible thumb merely to make a test pass; visible geometry and interaction geometry are separate design decisions.
 - Do not claim pointer/touch success from jsdom, static class strings, or Storybook source alone.
 - Do not move actual-audio timeline/range authority into this primitive. Active Player and rehearsal semantics remain in their canonical owner.
-- Preserve RTL arrow behavior, vertical layout, disabled behavior, and accessible naming already covered by the primitive regression suite.
+- Preserve keyboard focus routing, RTL arrow behavior, vertical layout, disabled behavior, and accessible naming already covered by the primitive regression suite.
 
 ## Alternatives considered
 
@@ -45,10 +36,6 @@ Rejected. Exact Base UI 1.7.0 already positions the wrapper absolutely. The ordi
 ### Force `position: relative`
 
 Rejected. An important Tailwind position declaration could override Base UI's absolute placement and break thumb movement along the track. BandScope must not replace upstream placement authority merely to make the pseudo-element strategy look self-contained.
-
-### Style the Thumb wrapper with direct `:focus-visible`
-
-Rejected under the current Base UI contract. Keyboard focus lands on the nested range input, so direct wrapper focus state is not the focus state that needs painting. Upstream's documented migration is wrapper `:has(:focus-visible)`.
 
 ### Increase the rendered thumb to 44×44 CSS pixels
 
@@ -62,27 +49,23 @@ Rejected. The existing pseudo-element is structurally attached to the already-po
 
 - Historical RED `913d981bb7274b944d2161e9376e7c25c9b19c5` required a `relative` token. Exact dependency review later showed that premise was wrong; it is retained only as ancestry and is not counted as valid target-geometry evidence.
 - Historical production `401c68b2ba873801ff418627bd61295c57bbe6b6` added the redundant token. Its presence did not change Base UI's inline `position: absolute` runtime placement.
-- Corrective geometry RED `c2ba83274828e4e619add328862a1fb554c192b8` changes the regression to require the rendered wrapper's actual absolute position, preserve the pseudo-element tokens, and reject the redundant `relative` class.
-- Historical geometry production `0f530971d6f5b1611b5b5e80e483063d30c359fc` removed `relative`; a later descendant reintroduced it together with the incorrect focus-owner repair.
-- Focus RED `6c3ca6d40cc9d219b5d0b103d4e7f5f89edb237d` pins the nested range input and requires wrapper `has-[:focus-visible]` styling rather than direct wrapper `focus-visible` styling.
-- Focus repair `126671b2366f516675cc58dd9488cc8f84ec6a34` restores the upstream focus contract in both SliderThumb class paths.
-- Geometry regression repair `88041422f5ccc41022b36876dd5882f2d32f7841` restores the actual absolute-position contract and rejects the reintroduced `relative` token.
-- Production `480ba908acc70ab38d23f9dfef64c75759400305` removes that redundant token while retaining nested-input focus styling and the extended pseudo-element target.
+- Corrective RED `c2ba83274828e4e619add328862a1fb554c192b8` changes the regression to require the rendered wrapper's actual absolute position, preserve the pseudo-element tokens, and reject the redundant `relative` class.
+- Production `0f530971d6f5b1611b5b5e80e483063d30c359fc` removes `relative` from both the static and state-callback SliderThumb class paths while leaving Base UI placement and the pseudo-element envelope unchanged.
+- This document records the corrected causal model rather than rewriting or deleting the earlier ancestry.
 
-Hosted RED is not claimed for these source-level commits unless an exact workflow reaches the intended assertion before repair. Their source-level causality is deterministic against their respective parents.
+Hosted RED is not claimed unless an exact workflow for `c2ba8327…` reaches the intended assertion before cancellation. The source-level RED is deterministic against its parent because that parent explicitly contains the `relative` class that the corrective regression rejects.
 
 ## Verification and claim boundary
 
 The focused jsdom contract may prove only that:
 
-- the accessible slider is the nested `input type="range"` inside the Slider thumb wrapper;
-- the wrapper carries `has-[:focus-visible]` focus styling while the nested input owns keyboard focus;
+- the range input is wrapped by the Slider thumb element;
 - Base UI renders that wrapper with `position: absolute` under the exact installed dependency;
 - BandScope does not add the misleading `relative` token;
 - the pseudo-element retains absolute positioning and `-12px` inset tokens; and
-- existing RTL/vertical/disabled/accessibility regressions continue to compile and run when exact-head CI reaches them.
+- existing keyboard/RTL/vertical/disabled/accessibility regressions continue to compile and run when exact-head CI reaches them.
 
-Exact Base UI 1.7.0 source additionally shows that the wrapper's absolute position is derived from slider value/orientation, the thumb pointer handler is installed on the wrapper, and the nested visually hidden range input is sized to the wrapper. This source evidence supports the structural ownership boundary. It does not prove BandScope's effective browser target geometry or focus paint after Tailwind compilation, ancestor clipping, transforms, overlap, zoom, or input-device behavior.
+Exact Base UI 1.7.0 source additionally shows that the wrapper's absolute position is derived from slider value/orientation, the thumb pointer handler is installed on the wrapper, and the nested visually hidden range input is sized to the wrapper. This source evidence supports the structural ownership boundary. It does not prove BandScope's effective browser target geometry after Tailwind compilation, ancestor clipping, transforms, overlap, zoom, or input-device behavior.
 
 Commercial UI acceptance still requires real browser evidence for pointer and touch acquisition, drag initiation/continuation, multi-thumb overlap, adjacent-control interference, zoom/reflow, focus-visible paint, forced-colors behavior, and assistive-technology operation. Product-level actual-audio timeline/range semantics, persistence/reload, stale-media races, and locale rendering remain outside this primitive repair.
 
@@ -90,13 +73,9 @@ Commercial UI acceptance still requires real browser evidence for pointer and to
 
 A pseudo-element can still fail the intended buyer outcome if it is clipped by an ancestor, loses pointer hit testing, overlaps another thumb or control, or behaves differently across browser/zoom/input combinations. Range sliders are especially important because Base UI supports multiple thumbs and collision behavior; a 44×44 nominal envelope can overlap another thumb even when source structure is correct. The next UI evidence must therefore measure effective targets and drag selection in the mounted product rather than infer success from class tokens.
 
-If the nominal envelope cannot be demonstrated without overlap or clipping, the consumer layout or target strategy must change. Do not restore a redundant positioning class, restore direct wrapper `:focus-visible`, or weaken the acceptance criterion as a substitute for browser evidence.
+If the nominal envelope cannot be demonstrated without overlap or clipping, the consumer layout or target strategy must change. Do not restore a redundant positioning class or weaken the acceptance criterion as a substitute for browser evidence.
 
 ## References
-
-Base UI contributors. (2025, September 3). *Base UI v1.0.0-beta.3 release notes* [Software release notes]. https://base-ui.com/react/overview/releases/v1-0-0-beta-3
-
-Base UI contributors. (2026). *Slider component* [Documentation]. https://base-ui.com/react/components/slider
 
 Base UI contributors. (2026). *SliderThumb implementation, v1.7.0* [Source code]. GitHub. https://github.com/mui/base-ui/blob/v1.7.0/packages/react/src/slider/thumb/SliderThumb.tsx
 
