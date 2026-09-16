@@ -112,6 +112,30 @@ def test_security_notes_section_accepts_three_space_atx_heading() -> None:
     assert "real-only-token" in security_notes_section(document)
 
 
+def test_security_notes_heading_requires_space_before_closing_hashes() -> None:
+    """Do not erase a literal trailing hash that CommonMark treats as heading content."""
+    document = (
+        "# Example\n\n"
+        "## Security Notes#\n\n"
+        "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+        "and remaining risk appear under a different heading.\n"
+    )
+
+    assert security_notes_section(document) == ""
+
+
+def test_security_notes_heading_accepts_commonmark_closing_hashes() -> None:
+    """Accept an optional closing hash sequence when whitespace separates it from text."""
+    document = (
+        "# Example\n\n"
+        "## Security Notes ###\n\n"
+        "real-only-token\n\n"
+        "## Operations\n"
+    )
+
+    assert "real-only-token" in security_notes_section(document)
+
+
 def test_local_project_format_uses_required_security_notes_heading() -> None:
     """Keep the project-format security section under the repository-mandated heading."""
     project_format = (REPO_ROOT / "docs" / "engineering" / "local-project-format.md").read_text(
