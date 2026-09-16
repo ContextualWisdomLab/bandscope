@@ -61,7 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-
-## 2024-05-18 - Fast Chroma Extraction
-**Learning:** Using `librosa.feature.chroma_cqt` is significantly slower than `librosa.feature.chroma_stft` for extracting structural features from audio (e.g. ~4-5s vs ~0.5-1s for a 30s clip). For high-level tasks like structure segmentation where perfect harmonic accuracy isn't strictly necessary, STFT provides a major speedup without losing necessary shape information.
-**Action:** Always default to `chroma_stft` when you just need rough harmonic or structural similarities unless the specific task (like exact chord transcription) demands the precision of CQT.

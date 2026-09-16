@@ -65,7 +65,7 @@ def compute_novelty_curve(
     effective_hop_length = max(hop_length, math.ceil(audio.size / MAX_SSM_FRAMES))
 
     # Extract chroma features for structural comparison
-    chroma = librosa.feature.chroma_stft(y=audio, sr=sr, hop_length=effective_hop_length)
+    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=effective_hop_length)
 
     # Build self-similarity matrix from chroma
     ssm = librosa.segment.recurrence_matrix(
@@ -231,7 +231,7 @@ def _segment_repetition_groups(
     if n == 0:
         return []
     hop = max(512, math.ceil(audio.size / MAX_SSM_FRAMES))
-    chroma = librosa.feature.chroma_stft(y=audio, sr=sr, hop_length=hop)
+    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=hop)
     n_frames = chroma.shape[1]
     reps: list[NDArray[np.floating[Any]]] = []
     groups: list[int] = []

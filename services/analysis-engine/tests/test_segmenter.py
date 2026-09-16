@@ -67,8 +67,8 @@ def test_compute_novelty_curve_increases_hop_for_long_inputs() -> None:
 
     with (
         patch(
-            "bandscope_analysis.sections.segmenter.librosa.feature.chroma_stft", return_value=chroma
-        ) as chroma_stft,
+            "bandscope_analysis.sections.segmenter.librosa.feature.chroma_cqt", return_value=chroma
+        ) as chroma_cqt,
         patch(
             "bandscope_analysis.sections.segmenter.librosa.segment.recurrence_matrix",
             return_value=ssm,
@@ -80,7 +80,7 @@ def test_compute_novelty_curve_increases_hop_for_long_inputs() -> None:
     ):
         novelty, times = compute_novelty_curve(audio, 22050)
 
-    used_hop_length = chroma_stft.call_args.kwargs["hop_length"]
+    used_hop_length = chroma_cqt.call_args.kwargs["hop_length"]
     assert used_hop_length > 512
     assert frames_to_time.call_args.kwargs["hop_length"] == used_hop_length
     assert len(novelty) == len(times) == 8
