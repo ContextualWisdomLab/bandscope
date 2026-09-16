@@ -23,14 +23,19 @@ def test_upload_sarif_sha_annotations_are_complete_and_consistent() -> None:
         for line_number, line in enumerate(
             workflow_path.read_text(encoding="utf-8").splitlines(), start=1
         ):
-            if "github/codeql-action/upload-sarif@" not in line or line.lstrip().startswith("#"):
+            if (
+                "github/codeql-action/upload-sarif@" not in line
+                or line.lstrip().startswith("#")
+            ):
                 continue
             match = UPLOAD_SARIF_REFERENCE_RE.match(line)
             location = f"{workflow_path.relative_to(repo_root)}:{line_number}"
             if match is None:
                 incomplete.append(location)
                 continue
-            references.append((match.group("sha").lower(), match.group("version"), location))
+            references.append(
+                (match.group("sha").lower(), match.group("version"), location)
+            )
 
     assert not incomplete, (
         "upload-sarif pins must carry an adjacent semantic-version annotation: "
