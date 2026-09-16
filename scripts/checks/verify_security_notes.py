@@ -21,6 +21,8 @@ MARKDOWN_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)(.*?)\s*$")
 MARKDOWN_CLOSING_HASHES_RE = re.compile(r"[ \t]+#+[ \t]*$")
 HTML_LITERAL_OPEN_RE = re.compile(r"^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)", re.I)
 HTML_LITERAL_CLOSE_RE = re.compile(r"</(?:pre|script|style|textarea)>", re.I)
+HTML_COMMENT_OPEN_RE = re.compile(r"^ {0,3}<!--")
+HTML_COMMENT_CLOSE_RE = re.compile(r"-->")
 HTML_PROCESSING_OPEN_RE = re.compile(r"^ {0,3}<\?")
 HTML_PROCESSING_CLOSE_RE = re.compile(r"\?>")
 HTML_DECLARATION_OPEN_RE = re.compile(r"^ {0,3}<![A-Za-z]")
@@ -59,7 +61,7 @@ DOCTORING_SECURITY_NOTES_REQUIRED = frozenset(
 
 
 def _remove_html_comment_content(line: str, in_comment: bool) -> tuple[str, bool]:
-    """Remove hidden HTML-comment spans while preserving visible text on the line."""
+    """Remove inline HTML-comment spans while preserving visible text on the line."""
     visible_parts: list[str] = []
     cursor = 0
 
@@ -91,6 +93,8 @@ def _html_block_start(line: str) -> tuple[str, re.Pattern[str] | None] | None:
     """Return the conservative raw-HTML block termination mode for one line."""
     if HTML_LITERAL_OPEN_RE.match(line):
         return "pattern", HTML_LITERAL_CLOSE_RE
+    if HTML_COMMENT_OPEN_RE.match(line):
+        return "pattern", HTML_COMMENT_CLOSE_RE
     if HTML_PROCESSING_OPEN_RE.match(line):
         return "pattern", HTML_PROCESSING_CLOSE_RE
     if HTML_DECLARATION_OPEN_RE.match(line):
@@ -141,6 +145,20 @@ def markdown_policy_lines(content: str) -> list[str]:
             visible.append("")
             continue
 
+        if not in_html_comment:
+            html_start = _html_block_start(raw_line)
+            if html_start is not None:
+                html_mode, html_end_pattern = html_start
+                if (
+                    html_mode == "pattern"
+                    and html_end_pattern is not None
+                    and html_end_pattern.search(raw_line)
+                ):
+                    html_mode = ""
+                    html_end_pattern = None
+                visible.append("")
+                continue
+
         line, in_html_comment = _remove_html_comment_content(raw_line, in_html_comment)
         if in_html_comment and not line:
             visible.append("")
@@ -155,19 +173,6 @@ def markdown_policy_lines(content: str) -> list[str]:
             continue
 
         if line.startswith("\t") or line.startswith("    "):
-            visible.append("")
-            continue
-
-        html_start = _html_block_start(line)
-        if html_start is not None:
-            html_mode, html_end_pattern = html_start
-            if (
-                html_mode == "pattern"
-                and html_end_pattern is not None
-                and html_end_pattern.search(line)
-            ):
-                html_mode = ""
-                html_end_pattern = None
             visible.append("")
             continue
 
