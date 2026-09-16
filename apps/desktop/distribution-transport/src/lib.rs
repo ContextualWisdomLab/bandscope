@@ -325,6 +325,17 @@ pub struct TransportDownload {
 }
 
 impl TransportDownload {
+    /// Return the direct child path reserved for this in-flight response.
+    ///
+    /// This borrows the path already owned by `StagedArtifactFile`; it does not
+    /// reopen the artifact or expose the underlying file descriptor.
+    pub fn path(&self) -> &Path {
+        self.staged
+            .as_ref()
+            .expect("transport staging file remains present before finish")
+            .path()
+    }
+
     /// Admit one already-bounded network chunk into the staged artifact.
     pub fn admit_chunk(&mut self, chunk: &[u8]) -> Result<(), TransportDownloadError> {
         let admission = self
