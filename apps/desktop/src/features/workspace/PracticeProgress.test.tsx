@@ -16,6 +16,11 @@ describe("PracticeProgress", () => {
     expect(screen.getByText("0%")).toBeTruthy();
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
+    expect(decreaseBtn).not.toHaveAttribute("title");
+
+    const descriptionId = decreaseBtn.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")).toHaveTextContent("practiceProgressAtMin");
 
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
@@ -79,6 +84,23 @@ describe("PracticeProgress", () => {
     expect(handleChange).toHaveBeenCalledWith(75);
   });
 
+  it("gives every practice-progress pointer control a 44 CSS px target", () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={50} onChange={handleChange} />);
+
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+    const slider = screen.getByRole("slider");
+    const pointerTarget = slider.parentElement;
+
+    expect(decreaseBtn).toHaveClass("size-11");
+    expect(increaseBtn).toHaveClass("size-11");
+    expect(pointerTarget).not.toBeNull();
+    expect(pointerTarget).toHaveClass("h-11");
+    expect(pointerTarget?.firstElementChild).toHaveClass("h-3");
+    expect(slider).toHaveClass("inset-0", "h-full", "w-full");
+  });
+
   it("keeps focus on interactive controls instead of the progress region", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
@@ -103,6 +125,11 @@ describe("PracticeProgress", () => {
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
+    expect(increaseBtn).not.toHaveAttribute("title");
+
+    const descriptionId = increaseBtn.getAttribute("aria-describedby");
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId ?? "")).toHaveTextContent("practiceProgressAtMax");
 
     const clickEvent = createEvent.click(increaseBtn);
     fireEvent(increaseBtn, clickEvent);
