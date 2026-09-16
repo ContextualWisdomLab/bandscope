@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 SECURITY_NOTES_TEXT = "Security Notes"
-DOCTORING_SECURITY_NOTES_HEADING = "## Security Notes"
 DOCTORING_TRUST_BOUNDARY_HEADING = "### Trust boundary"
 PLAN_DIR = Path("docs/plans")
 DOCTORING_DIR = Path("docs/doctoring")
@@ -234,19 +233,28 @@ def doctoring_markdown_lines(content: str) -> list[str]:
 
 
 def doctoring_security_notes_section(content: str) -> str:
-    """Return only the body of an explicit level-two doctoring Security Notes heading."""
-    lines = doctoring_markdown_lines(content)
-    heading = DOCTORING_SECURITY_NOTES_HEADING.casefold()
-    for index, line in enumerate(lines):
-        if line.strip().casefold() != heading:
-            continue
-        section_lines: list[str] = []
-        for candidate in lines[index + 1 :]:
-            if candidate.strip().startswith("## "):
-                break
-            section_lines.append(candidate)
-        return "\n".join(section_lines)
-    return ""
+    """Return the body owned by an explicit level-two doctoring Security Notes heading."""
+    lines = markdown_policy_lines(content)
+    headings = _markdown_headings(content)
+    start_index: int | None = None
+    heading_position: int | None = None
+
+    for position, (index, level, heading_text) in enumerate(headings):
+        if level == 2 and heading_text.casefold() == SECURITY_NOTES_TEXT.casefold():
+            start_index = index
+            heading_position = position
+            break
+
+    if start_index is None or heading_position is None:
+        return ""
+
+    end_index = len(lines)
+    for index, level, _heading_text in headings[heading_position + 1 :]:
+        if level <= 2:
+            end_index = index
+            break
+
+    return "\n".join(lines[start_index + 1 : end_index])
 
 
 def doctoring_trust_boundary_statement(section: str) -> str:
