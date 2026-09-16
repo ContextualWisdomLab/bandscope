@@ -20,6 +20,14 @@ REQWEST_APPROVED_DECLARATION_KEYS = frozenset(
     {"version", "package", "default-features", "features"}
 )
 CRATES_IO_LOCK_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+LOCAL_DISTRIBUTION_LOCK_PACKAGES = frozenset(
+    {
+        "bandscope-distribution-core",
+        "bandscope-distribution-download",
+        "bandscope-distribution-runtime",
+        "bandscope-distribution-transport",
+    }
+)
 
 
 def _parsed_version(raw: str) -> tuple[tuple[int, int, int], bool] | None:
@@ -226,6 +234,41 @@ def _validate_crates_io_lock_source(
     )
 
 
+def _validate_lock_graph_sources(packages: Any) -> list[str]:
+    """Require every external package in the standalone HTTP graph to be crates.io-backed."""
+    if not isinstance(packages, list):
+        return [f"{DISTRIBUTION_TRANSPORT_LOCK}: package graph must be a TOML array"]
+
+    violations: list[str] = []
+    for package in packages:
+        if not isinstance(package, dict):
+            violations.append(
+                f"{DISTRIBUTION_TRANSPORT_LOCK}: package graph contains a non-table entry"
+            )
+            continue
+        package_name = package.get("name")
+        if not isinstance(package_name, str) or not package_name:
+            violations.append(
+                f"{DISTRIBUTION_TRANSPORT_LOCK}: package graph contains an invalid package name"
+            )
+            continue
+        if package_name in LOCAL_DISTRIBUTION_LOCK_PACKAGES:
+            source = package.get("source")
+            if source is not None:
+                violations.append(
+                    f"{DISTRIBUTION_TRANSPORT_LOCK}: local package {package_name} must remain "
+                    f"path-owned without a registry/git source; found {source!r}"
+                )
+            continue
+        source_violation = _validate_crates_io_lock_source(
+            package_name=package_name,
+            package=package,
+        )
+        if source_violation:
+            violations.append(source_violation)
+    return violations
+
+
 def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
     """Verify direct reqwest admission before the production Distribution client compiles."""
     manifest_path = repo_root / DISTRIBUTION_TRANSPORT_MANIFEST
@@ -248,8 +291,14 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
 
     lock = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     packages = lock.get("package", [])
+    violations.extend(_validate_lock_graph_sources(packages))
+    if not isinstance(packages, list):
+        return violations
+
     reqwest_packages = [
-        package for package in packages if package.get("name") == "reqwest"
+        package
+        for package in packages
+        if isinstance(package, dict) and package.get("name") == "reqwest"
     ]
     if not reqwest_packages:
         violations.append(
@@ -257,12 +306,6 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
             "committed lock graph"
         )
     for package in reqwest_packages:
-        source_violation = _validate_crates_io_lock_source(
-            package_name="reqwest",
-            package=package,
-        )
-        if source_violation:
-            violations.append(source_violation)
         version = str(package.get("version", ""))
         if _version_triplet(version) is None:
             violations.append(
@@ -276,7 +319,9 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
             )
 
     rustls_packages = [
-        package for package in packages if package.get("name") == "rustls"
+        package
+        for package in packages
+        if isinstance(package, dict) and package.get("name") == "rustls"
     ]
     if not rustls_packages:
         violations.append(
@@ -286,12 +331,6 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
         return violations
 
     for package in rustls_packages:
-        source_violation = _validate_crates_io_lock_source(
-            package_name="rustls",
-            package=package,
-        )
-        if source_violation:
-            violations.append(source_violation)
         version = str(package.get("version", ""))
         if _version_triplet(version) is None:
             violations.append(
