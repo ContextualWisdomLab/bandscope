@@ -410,8 +410,17 @@ jobs:
             bandscope-sbom.cdx.json
             supply-chain/supplemental-component-inventory.json
       - name: Validate release asset set
-        run: python3 scripts/release/select_release_assets.py --output release-assets.txt
-      - name: Create draft release with complete assets, then publish
+        run: python3 scripts/release/select_release_assets.py --output release-artifacts.txt
+      - name: Build receipt-bound updater manifest
+        run: |
+          python3 scripts/release/build_updater_manifest.py \
+            --git-sha "${{ github.sha }}" \
+            --repository "${{ github.repository }}" \
+            --server-url "${{ github.server_url }}" \
+            --output latest.json
+          cp release-artifacts.txt release-assets.txt
+          printf '%s\n' latest.json >> release-assets.txt
+      - name: Create draft release, re-verify hosted bytes, then publish
         env:
           GH_TOKEN: ${{ secrets.BANDSCOPE_RELEASE_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
@@ -425,7 +434,16 @@ jobs:
             echo "Release $RELEASE_TAG already exists; immutable release assets must be attached before publication."
             exit 1
           fi
-          python3 scripts/release/select_release_assets.py --input release-assets.txt
+          python3 scripts/release/select_release_assets.py --input release-artifacts.txt
+          python3 scripts/release/build_updater_manifest.py \
+            --git-sha "${{ github.sha }}" \
+            --repository "${{ github.repository }}" \
+            --server-url "${{ github.server_url }}" \
+            --output latest.json \
+            --check
+          cp release-artifacts.txt expected-release-assets.txt
+          printf '%s\n' latest.json >> expected-release-assets.txt
+          cmp -s expected-release-assets.txt release-assets.txt
           mapfile -t release_assets < release-assets.txt
           (( ${#release_assets[@]} > 0 ))
           gh release create "$RELEASE_TAG" \
@@ -435,4 +453,32 @@ jobs:
             --title "BandScope ${RELEASE_TAG#v}" \
             --verify-tag \
             --repo "${{ github.repository }}"
+
+          rm -rf draft-release-download
+          mkdir draft-release-download
+          gh release download "$RELEASE_TAG" \
+            --dir draft-release-download \
+            --repo "${{ github.repository }}"
+          python3 scripts/release/verify_hosted_release_assets.py \
+            --local-root . \
+            --hosted-root draft-release-download \
+            --asset-list release-assets.txt
+
           gh release edit "$RELEASE_TAG" --draft=false --repo "${{ github.repository }}"
+
+          rm -rf published-release-download
+          mkdir published-release-download
+          gh release download "$RELEASE_TAG" \
+            --dir published-release-download \
+            --repo "${{ github.repository }}"
+          python3 scripts/release/verify_hosted_release_assets.py \
+            --local-root . \
+            --hosted-root published-release-download \
+            --asset-list release-assets.txt
+
+          gh release verify "$RELEASE_TAG" --repo "${{ github.repository }}"
+          while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
+            gh release verify-asset "$RELEASE_TAG" "$asset" \
+              --repo "${{ github.repository }}"
+          done < release-assets.txt
