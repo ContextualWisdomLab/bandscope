@@ -38,6 +38,7 @@ This makes the committed lock graph the executable provenance boundary rather th
 
 - `340e7eb795570e244c89890102c88aa043550456` adds policy regressions for two substitutions hidden behind otherwise canonical reqwest/rustls entries: a git-sourced `aws-lc-rs` package and a source-less `rustls-webpki` package. The RED was committed before the checker change; it is not claimed as a separately hosted failing run.
 - `92162dad8965095d7ca9852c37f7448184fad3ca` adds whole-lock external-source admission and an explicit local Distribution package allow-list. It also keeps reqwest/rustls version/advisory checks scoped to table-shaped lock entries after graph provenance is validated.
+- `532411874679cd8a64bcb92e8dd7f325b28bff37` adds edge evidence that an ordinary crates.io transitive package remains admitted and that a package using a local BandScope Distribution name cannot gain a remote registry source merely through the name allow-list.
 
 ## Claim boundary and next action
 
