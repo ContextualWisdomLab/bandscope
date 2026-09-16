@@ -114,12 +114,12 @@ function SliderThumb({ className, ...props }: SliderPrimitive.Thumb.Props) {
         typeof className === "function"
           ? (state) =>
               cn(
-                "relative block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 data-disabled:pointer-events-none data-disabled:opacity-50",
+                "block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 data-disabled:pointer-events-none data-disabled:opacity-50",
                 "after:absolute after:inset-[-12px] after:content-['']",
                 className(state)
               )
           : cn(
-              "relative block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 data-disabled:pointer-events-none data-disabled:opacity-50",
+              "block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors has-[:focus-visible]:outline-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring has-[:focus-visible]:ring-offset-2 data-disabled:pointer-events-none data-disabled:opacity-50",
               "after:absolute after:inset-[-12px] after:content-['']",
               className
             )
