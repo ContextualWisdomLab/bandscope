@@ -159,7 +159,11 @@ def markdown_policy_lines(content: str) -> list[str]:
                 visible.append("")
                 continue
 
+        continuing_inline_comment = in_html_comment
         line, in_html_comment = _remove_html_comment_content(raw_line, in_html_comment)
+        if continuing_inline_comment:
+            visible.append("")
+            continue
         if in_html_comment and not line:
             visible.append("")
             continue
