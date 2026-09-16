@@ -128,6 +128,19 @@ class SecurityNotesPolicyTests(unittest.TestCase):
                 )
                 self.assertEqual(self._violations(), [str(path)])
 
+    def test_inline_multiline_comment_closing_line_cannot_promote_policy_heading(self) -> None:
+        """An inline comment continuation cannot turn its closing-line suffix into a heading."""
+        path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
+        path.write_text(
+            "# Tooltip evidence\n\n"
+            "Visible introduction <!--\n"
+            "-->## Security Notes\n\n"
+            "### Trust boundary\n\n"
+            "A documentation URL creates no runtime trust-boundary path.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(self._violations(), [str(path)])
+
     def test_doctoring_raw_html_blocks_cannot_satisfy_security_evidence(self) -> None:
         """CommonMark raw-HTML blocks must not impersonate doctoring policy evidence."""
         path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
