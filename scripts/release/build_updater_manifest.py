@@ -370,6 +370,7 @@ def _write_atomically(path: Path, payload: bytes) -> None:
         try:
             stage.unlink()
         except FileNotFoundError:
+            # A successful os.replace consumed the staged pathname.
             pass
 
 
