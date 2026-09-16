@@ -107,6 +107,28 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         )
         self.assertEqual(self._violations(), [str(path)])
 
+    def test_doctoring_raw_html_blocks_cannot_satisfy_security_evidence(self) -> None:
+        """CommonMark raw-HTML blocks must not impersonate doctoring policy evidence."""
+        path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
+        evidence = (
+            "## Security Notes\n\n"
+            "### Trust boundary\n\n"
+            "A documentation URL creates no runtime trust-boundary path."
+        )
+        raw_blocks = [
+            f"<script>\n{evidence}\n</script>",
+            f"<?policy\n{evidence}\n?>",
+            f"<!DOCTYPE policy\n{evidence}\n>",
+            f"<![CDATA[\n{evidence}\n]]>",
+            f"<div>\n{evidence}",
+            f"<security-example>\n{evidence}",
+        ]
+
+        for raw_block in raw_blocks:
+            with self.subTest(raw_block=raw_block.splitlines()[0]):
+                path.write_text(f"# Tooltip evidence\n\n{raw_block}\n", encoding="utf-8")
+                self.assertEqual(self._violations(), [str(path)])
+
     def test_unregistered_doctoring_reference_does_not_gain_boilerplate(self) -> None:
         """An ordinary research citation stays outside the opt-in doctoring policy."""
         path = self.doctoring_dir / "ordinary-reference.md"
