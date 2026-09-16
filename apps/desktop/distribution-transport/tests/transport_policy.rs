@@ -117,6 +117,41 @@ fn github_release_redirect_is_one_hop_and_streams_through_bounded_staging() {
 }
 
 #[test]
+fn sealed_transport_artifact_keeps_candidate_identity_with_descriptor_evidence() {
+    let policy = policy();
+    let head = match policy
+        .admit_initial_response(200, INITIAL_URL, None)
+        .expect("direct response")
+    {
+        ResponseDecision::Download(head) => head,
+        ResponseDecision::FollowRedirect(_) => panic!("200 must be final"),
+    };
+    let directory = scratch_dir("sealed-identity");
+    let mut download = head
+        .start_staging(&directory, Some(4), None)
+        .expect("start bounded staging");
+    download.admit_chunk(b"data").expect("exact artifact chunk");
+    let sealed = download.finish().expect("exact response seals");
+
+    assert_eq!(sealed.version_components(), (1, 2, 3));
+    assert_eq!(sealed.source_commit(), SOURCE_COMMIT);
+    assert_eq!(sealed.target(), "windows-x86_64");
+    assert_eq!(sealed.minimum_supported_version_components(), (0, 1, 3));
+    assert_eq!(sealed.effective_url(), INITIAL_URL);
+    assert_eq!(sealed.artifact_name(), "BandScope-windows-x86_64.zip");
+    assert_eq!(sealed.expected_size_bytes(), 4);
+    assert_eq!(sealed.expected_artifact_sha256(), DIGEST);
+    assert_eq!(sealed.artifact_signature(), "c2ln");
+    assert_eq!(sealed.bytes_written(), 4);
+
+    let path = sealed.path().to_path_buf();
+    drop(sealed);
+    assert_platform_drop_cleanup(&path);
+    remove_staging_lease(&directory);
+    fs::remove_dir(directory).expect("remove staging directory");
+}
+
+#[test]
 fn redirect_decision_cannot_cross_provisional_policy_identity() {
     let originating_policy = policy_with_signature("c2ln");
     let different_policy = policy_with_signature("c2lnMQ==");
