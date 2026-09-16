@@ -32,6 +32,8 @@ describe("Slider canonical composition", () => {
     const track = container.querySelector('[data-slot="slider-track"]')
     const start = screen.getByRole("slider", { name: "Loop start" })
     const end = screen.getByRole("slider", { name: "Loop end" })
+    const startThumb = start.parentElement
+    const endThumb = end.parentElement
 
     expect(control).toHaveClass("min-h-6")
     expect(track).toBeInTheDocument()
@@ -39,8 +41,29 @@ describe("Slider canonical composition", () => {
     expect(track).toContainElement(end)
     expect(track).not.toHaveClass("overflow-hidden")
     expect(start).toHaveAttribute("aria-describedby", "loop-range-help")
-    expect(start.parentElement).toHaveClass("after:inset-[-12px]")
-    expect(end.parentElement).toHaveClass("after:inset-[-12px]")
+    expect(startThumb).toHaveClass("relative")
+    expect(endThumb).toHaveClass("relative")
+    expect(startThumb).toHaveClass("after:inset-[-12px]")
+    expect(endThumb).toHaveClass("after:inset-[-12px]")
+  })
+
+  it("styles keyboard focus on the focusable thumb instead of looking for a focused descendant", () => {
+    render(
+      <Slider defaultValue={50}>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+            <SliderThumb aria-label="Playback position" />
+          </SliderTrack>
+        </SliderControl>
+      </Slider>
+    )
+
+    const thumb = screen.getByRole("slider", { name: "Playback position" }).parentElement
+
+    expect(thumb).toHaveClass("focus-visible:outline-none")
+    expect(thumb).toHaveClass("focus-visible:ring-2")
+    expect(thumb).not.toHaveClass("has-[:focus-visible]:ring-2")
   })
 
   it("preserves the same track-owned thumb anatomy and press width for a vertical control", () => {
