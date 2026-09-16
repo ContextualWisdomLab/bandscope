@@ -84,6 +84,19 @@ describe("PracticeProgress", () => {
     expect(handleChange).toHaveBeenCalledWith(75);
   });
 
+  it("keeps a practical pointer target around the visually thin slider track", () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={50} onChange={handleChange} />);
+
+    const slider = screen.getByRole("slider");
+    const pointerTarget = slider.parentElement;
+
+    expect(pointerTarget).not.toBeNull();
+    expect(pointerTarget).toHaveClass("h-8");
+    expect(pointerTarget?.firstElementChild).toHaveClass("h-3");
+    expect(slider).toHaveClass("inset-0", "h-full", "w-full");
+  });
+
   it("keeps focus on interactive controls instead of the progress region", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
