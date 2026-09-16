@@ -13,12 +13,12 @@ REQUIRED_SUBSECTIONS = [
     "realistic threats",
     "remaining risk",
 ]
-MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+MARKDOWN_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)(.*?)\s*$")
 MARKDOWN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
 def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
-    """Return ATX headings that are outside fenced code blocks."""
+    """Return ATX headings that are outside fenced and indented code blocks."""
     headings: list[tuple[int, int, str]] = []
     fence_character: str | None = None
     fence_length = 0
@@ -44,7 +44,7 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
             fence_length = len(marker)
             continue
 
-        heading_match = MARKDOWN_HEADING.match(line.strip())
+        heading_match = MARKDOWN_HEADING.match(line)
         if heading_match is None:
             continue
         heading_text = heading_match.group(2).rstrip("#").strip()
