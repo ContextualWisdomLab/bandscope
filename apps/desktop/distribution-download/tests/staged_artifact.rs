@@ -1,3 +1,5 @@
+//! Integration tests for staging admission, cleanup, and cross-process lease safety.
+
 use bandscope_distribution_download::{
     ArtifactDownloadAdmission, StagedArtifactFile, StagingArtifactError,
 };

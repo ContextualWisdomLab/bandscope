@@ -1,3 +1,5 @@
+//! Integration tests for descriptor-bound reads from sealed staging artifacts.
+
 use bandscope_distribution_download::{ArtifactDownloadAdmission, StagedArtifactFile};
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Read, Write};

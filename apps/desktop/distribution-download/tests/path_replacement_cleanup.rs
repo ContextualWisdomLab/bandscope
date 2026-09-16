@@ -1,3 +1,5 @@
+//! Integration tests for staging-path replacement and deferred cleanup safety.
+
 #![cfg(any(unix, windows))]
 
 use bandscope_distribution_download::{ArtifactDownloadAdmission, StagedArtifactFile};
