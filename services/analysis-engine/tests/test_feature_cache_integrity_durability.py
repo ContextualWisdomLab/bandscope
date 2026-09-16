@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from bandscope_analysis.api import (
     FEATURE_CACHE_SCHEMA_VERSION,
