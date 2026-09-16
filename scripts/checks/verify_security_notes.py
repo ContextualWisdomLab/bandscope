@@ -220,42 +220,8 @@ def security_notes_section(content: str) -> str:
 
 
 def doctoring_markdown_lines(content: str) -> list[str]:
-    """Return rendered doctoring lines with code and HTML comments removed."""
-    visible: list[str] = []
-    fence_character = ""
-    fence_length = 0
-    in_html_comment = False
-
-    for raw_line in content.splitlines():
-        if fence_character:
-            stripped = raw_line.lstrip(" ")
-            indent = len(raw_line) - len(stripped)
-            closing = stripped.strip()
-            if (
-                indent <= 3
-                and len(closing) >= fence_length
-                and set(closing) == {fence_character}
-            ):
-                fence_character = ""
-                fence_length = 0
-            continue
-
-        line, in_html_comment = _remove_html_comment_content(raw_line, in_html_comment)
-        if not line:
-            continue
-
-        fence_match = FENCE_OPEN_RE.match(line)
-        if fence_match:
-            marker = fence_match.group(1)
-            fence_character = marker[0]
-            fence_length = len(marker)
-            continue
-
-        if line.startswith("\t") or line.startswith("    "):
-            continue
-        visible.append(line)
-
-    return visible
+    """Return rendered doctoring lines using the shared Markdown admission boundary."""
+    return [line for line in markdown_policy_lines(content) if line]
 
 
 def doctoring_security_notes_section(content: str) -> str:
