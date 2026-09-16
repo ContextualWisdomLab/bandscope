@@ -65,7 +65,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
             onClick={handleDecrease}
             aria-disabled={atMinimum ? "true" : undefined}
             aria-describedby={atMinimum ? decreaseLimitDescriptionId : undefined}
-            className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            className="flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-label={decreaseActionLabel}
           >
             <Minus className="size-4" aria-hidden="true" />
@@ -80,7 +80,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           </span>
         ) : null}
 
-        <div className="relative h-8 flex-1">
+        <div className="relative h-11 flex-1">
           <div className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 overflow-hidden rounded-full bg-slate-900/50 shadow-inner">
             <div
               className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200 ease-out"
@@ -108,7 +108,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
             onClick={handleIncrease}
             aria-disabled={atMaximum ? "true" : undefined}
             aria-describedby={atMaximum ? increaseLimitDescriptionId : undefined}
-            className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            className="flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-label={increaseActionLabel}
           >
             <Plus className="size-4" aria-hidden="true" />
