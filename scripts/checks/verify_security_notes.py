@@ -15,14 +15,16 @@ REQUIRED_SUBSECTIONS = [
 ]
 MARKDOWN_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)(.*?)\s*$")
 MARKDOWN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+MARKDOWN_HTML_COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
 MARKDOWN_CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
 
 
 def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
-    """Return ATX headings that are outside fenced and indented code blocks."""
+    """Return ATX headings outside fenced/indented code and raw HTML comments."""
     headings: list[tuple[int, int, str]] = []
     fence_character: str | None = None
     fence_length = 0
+    in_html_comment = False
 
     for index, line in enumerate(content.splitlines()):
         fence_match = MARKDOWN_FENCE.match(line)
@@ -39,10 +41,19 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
                     fence_length = 0
             continue
 
+        if in_html_comment:
+            if "-->" in line:
+                in_html_comment = False
+            continue
+
         if fence_match is not None:
             marker = fence_match.group(1)
             fence_character = marker[0]
             fence_length = len(marker)
+            continue
+
+        if MARKDOWN_HTML_COMMENT_OPEN.match(line) is not None:
+            in_html_comment = "-->" not in line
             continue
 
         heading_match = MARKDOWN_HEADING.match(line)
