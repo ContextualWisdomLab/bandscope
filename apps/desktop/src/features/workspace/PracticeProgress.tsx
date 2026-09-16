@@ -80,11 +80,13 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           </span>
         ) : null}
 
-        <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-slate-900/50 shadow-inner">
-          <div
-            className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200 ease-out"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="relative h-8 flex-1">
+          <div className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 overflow-hidden rounded-full bg-slate-900/50 shadow-inner">
+            <div
+              className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
           <input
             id="practice-progress-slider"
             type="range"
