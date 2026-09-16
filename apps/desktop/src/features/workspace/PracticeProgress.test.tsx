@@ -84,15 +84,19 @@ describe("PracticeProgress", () => {
     expect(handleChange).toHaveBeenCalledWith(75);
   });
 
-  it("keeps a practical pointer target around the visually thin slider track", () => {
+  it("gives every practice-progress pointer control a 44 CSS px target", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
     const slider = screen.getByRole("slider");
     const pointerTarget = slider.parentElement;
 
+    expect(decreaseBtn).toHaveClass("size-11");
+    expect(increaseBtn).toHaveClass("size-11");
     expect(pointerTarget).not.toBeNull();
-    expect(pointerTarget).toHaveClass("h-8");
+    expect(pointerTarget).toHaveClass("h-11");
     expect(pointerTarget?.firstElementChild).toHaveClass("h-3");
     expect(slider).toHaveClass("inset-0", "h-full", "w-full");
   });
