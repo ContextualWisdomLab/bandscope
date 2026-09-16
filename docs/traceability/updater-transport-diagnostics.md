@@ -12,11 +12,14 @@ The same diagnostics surface also retained the provisional Tauri signature strin
 
 Fresh review found the same signature exposure one boundary earlier. `ProvisionalUpdateMetadata` still derived `Debug`, so formatting the strictly parsed but unauthenticated metadata copied the exact selected signature before `distribution-transport` had any opportunity to redact it. Fixing only transport types therefore left a direct 64 KiB remote-input log-amplification surface in the metadata-admission owner itself.
 
+The later sealed-evidence repair introduced another diagnostic surface. `SealedTransportArtifact` deliberately owns the full provisional candidate identity and artifact evidence together with the exact sealed descriptor. A derived debug representation would therefore risk copying the source commit, digest, updater signature, or opaque CDN query into ordinary logs at the point where the artifact is most likely to be inspected during verification failures. The sealed wrapper requires the same bounded diagnostic contract as its predecessor types.
+
 ## Constraints
 
 - Preserve the exact redirect URL internally and through `AdmittedRedirect::location()` because the production network adapter must request exactly the admitted value.
-- Preserve exact `AdmittedDownloadHead::effective_url()` for response binding. Redaction must affect diagnostics only, never transport equality or network behavior.
-- Preserve exact `artifact_signature()` in both provisional metadata and transport values for the later Tauri verification boundary; diagnostic redaction must not mutate or replace verification input.
+- Preserve exact `AdmittedDownloadHead::effective_url()` and `SealedTransportArtifact::effective_url()` for response/evidence binding. Redaction must affect diagnostics only, never transport equality or verification input.
+- Preserve exact `artifact_signature()` in provisional metadata, admitted heads, and sealed transport evidence for the later Tauri verification boundary; diagnostic redaction must not mutate or replace verification input.
+- Keep the full provisional source commit, target, versions and SHA-256 bound to `SealedTransportArtifact`, while omitting those high-cardinality/verification values from ordinary sealed debug output.
 - Do not guess the provider's query parameter names or attempt semantic parsing of opaque query data.
 - Do not add a URL or logging dependency for this narrow boundary.
 - Keep ordinary `Debug` usability for tests and diagnostics while preventing opaque query payloads or full provisional signatures from appearing in formatted values.
@@ -30,20 +33,23 @@ Fresh review found the same signature exposure one boundary earlier. `Provisiona
 - `1a4e8f541e3017f0e666935c3e003027b871d131` replaces policy derived debug with bounded custom formatting and redacts the signature field in both transport policy and download-head diagnostics. Signature validation, storage, equality and exact accessor behavior are unchanged.
 - `027ba1474281b0ed968f039eb20073f1b7b9b2e9` adds a runtime-boundary regression requiring `ProvisionalUpdateMetadata` diagnostics to exclude the exact remote signature while its verification accessor remains byte-for-byte unchanged. The predecessor derived `Debug` violates this contract.
 - `90855ccdb8ecb1a1166a6c2e614b6851ae26f662` replaces the provisional metadata derived `Debug` with bounded custom formatting. Candidate identity, declared size and canonical release URL remain diagnosable; only the full signature field becomes the fixed `<redacted-signature>` marker.
+- `dea8f7bd68470871701b5dc01d44875bc33c0909` extends the current diagnostics contract through `SealedTransportArtifact`: after a real bounded staging/seal transition, debug output must retain the redaction markers while excluding the provider query value, updater signature, source commit and SHA-256. Exact accessors and descriptor ownership remain unchanged.
 
 ## Selected design
 
 A private `RedactedUrl` formatter owns URL diagnostic rendering in `distribution-transport`. It does not allocate a second transport identity, modify stored state, normalize the URL, or feed back into policy decisions. URLs without a query render unchanged. URLs with a query retain the scheme/authority/path for operational diagnosis and render only a fixed redaction marker for the query component.
 
-The query redaction is intentionally applied to both `AdmittedRedirect` and `AdmittedDownloadHead`: the first holds the URL before the follow-up request, while the second retains the same effective URL after the admitted `200`. Fixing only one would leave the same opaque query reachable from the other diagnostic surface.
+The query redaction is intentionally applied to `AdmittedRedirect`, `AdmittedDownloadHead`, and `SealedTransportArtifact`: the first holds the URL before the follow-up request, the second retains the same effective URL after the admitted `200`, and the sealed wrapper carries that evidence beside the exact descriptor for later verification. Fixing only an earlier type would let the same opaque query reappear after the next state transition.
 
-Signature diagnostics use the same fixed `<redacted-signature>` marker in `ProvisionalUpdateMetadata`, `ReleaseTransportPolicy`, and `AdmittedDownloadHead`. The actual signature remains private state exposed through the exact verification accessor. This bounds normal debug output independently of the remote signature-size allowance and closes the earlier metadata-owner leak rather than relying on every downstream caller to remember not to format the provisional aggregate.
+Signature diagnostics use the same fixed `<redacted-signature>` marker in `ProvisionalUpdateMetadata`, `ReleaseTransportPolicy`, `AdmittedDownloadHead`, and `SealedTransportArtifact`. The actual signature remains private state exposed through the exact verification accessor. This bounds normal debug output independently of the remote signature-size allowance and closes the earlier metadata-owner leak rather than relying on every downstream caller to remember not to format the provisional aggregate.
+
+`SealedTransportArtifact` also omits source commit and SHA-256 from its custom debug representation. Both remain exact typed evidence through explicit accessors, but neither is necessary for a routine debug summary that already identifies the artifact name, redacted effective URL, expected size and actual sealed byte count. This keeps verification material available to the cryptographic owner without making it the default log payload.
 
 The canonical initial GitHub release URL remains visible in provisional/transport diagnostics because strict admission rejects query, fragment, whitespace, alternate authority and path-like asset syntax before the value exists in these types. That bounded URL is operationally useful for identifying the release target. The opaque CDN query remains redacted because its contents are not part of BandScope's release identity and need not be copied into diagnostic systems.
 
 ## Claim boundary and remaining work
 
-This repair prevents automatic Rust `Debug` output for provisional updater metadata, Distribution transport policy, redirect decisions, and final download heads from exposing full provisional signature text; transport types also omit CDN redirect query contents. It does not prove that callers never log the explicit `artifact_signature()`, `location()`, or `effective_url()` accessors. Those exact accessors remain necessary for verification/network boundaries and must be handled as transport/security data.
+This repair prevents automatic Rust `Debug` output for provisional updater metadata, Distribution transport policy, redirect decisions, final download heads, and sealed transport artifacts from exposing full provisional signature text; URL-bearing transport values also omit CDN redirect query contents, and sealed transport debug omits source commit and SHA-256. It does not prove that callers never log the explicit `artifact_signature()`, `source_commit()`, `expected_artifact_sha256()`, `location()`, or `effective_url()` accessors. Those exact accessors remain necessary for verification/network boundaries and must be handled as transport/security data.
 
 OWASP's Logging Cheat Sheet explicitly treats event data from other trust zones as untrusted and recommends excluding, masking, sanitizing, hashing, or encrypting data that should not be recorded directly. The fixed diagnostic markers implement that minimization at the type boundary rather than relying only on call-site discipline.
 
@@ -53,6 +59,6 @@ Remote metadata authentication, sealed-descriptor digest/signature verification,
 
 ## References
 
-Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform Resource Identifier (URI): Generic Syntax* (RFC 3986). RFC Editor. https://www.rfc-editor.org/rfc/rfc3986
+Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform Resource Identifier: Generic Syntax* (RFC 3986). RFC Editor. https://www.rfc-editor.org/rfc/rfc3986
 
 OWASP Foundation. (2026). *Logging Cheat Sheet*. OWASP Cheat Sheet Series. https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
