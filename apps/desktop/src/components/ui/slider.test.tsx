@@ -20,7 +20,6 @@ describe("Slider component", () => {
     )
     const thumb = screen.getByRole("slider", { name: "RTL Slider" })
     expect(thumb).toBeInTheDocument()
-    // Base-ui internally sets some properties for RTL, but we check if it renders without crashing
   })
 
   it("applies functional className correctly", () => {
@@ -31,17 +30,25 @@ describe("Slider component", () => {
         disabled
       />
     )
-    // The class is applied to the root which has role="group"
     const group = screen.getByRole("group", { name: "Class Slider" })
     expect(group).toHaveClass("is-disabled")
   })
 
-  it("can receive focus and show focus-visible classes", async () => {
+  it("can receive focus", async () => {
     render(<Slider aria-label="Focus Slider" defaultValue={50} />)
     const thumb = screen.getByRole("slider", { name: "Focus Slider" })
 
-    // Test the focus interaction using userEvent
     await userEvent.tab()
     expect(thumb).toHaveFocus()
+  })
+
+  it("anchors the expanded hit target to the thumb and styles thumb focus directly", () => {
+    render(<Slider aria-label="Interaction Slider" defaultValue={50} />)
+    const thumb = screen.getByRole("slider", { name: "Interaction Slider" })
+
+    expect(thumb).toHaveClass("relative")
+    expect(thumb).toHaveClass("focus-visible:outline-none")
+    expect(thumb).toHaveClass("focus-visible:ring-2")
+    expect(thumb).not.toHaveClass("has-[:focus-visible]:ring-2")
   })
 })
