@@ -10,8 +10,8 @@
 #![forbid(unsafe_code)]
 
 use bandscope_distribution_download::{
-    ArtifactDownloadAdmission, DownloadAdmissionError, SealedArtifactFile, StagedArtifactFile,
-    StagingArtifactError,
+    ArtifactDownloadAdmission, DownloadAdmissionError, SealedArtifactFile, SealedArtifactReader,
+    StagedArtifactFile, StagingArtifactError,
 };
 use bandscope_distribution_runtime::ProvisionalUpdateMetadata;
 use std::fmt;
@@ -107,6 +107,7 @@ impl AdmittedRedirect {
 pub struct AdmittedDownloadHead {
     effective_url: String,
     artifact_name: String,
+    policy_identity: ProvisionalPolicyIdentity,
     expected_size_bytes: u64,
     expected_artifact_sha256: String,
     artifact_signature: String,
@@ -153,13 +154,15 @@ impl AdmittedDownloadHead {
 
     /// Start one bounded staged body after response-head admission succeeds.
     ///
-    /// Content-encoding and content-length admission run before filesystem
-    /// mutation. Updater signatures and digests are defined over exact release
-    /// artifact bytes, so any response content coding other than the explicit
-    /// identity coding is rejected rather than relying on HTTP-client
-    /// decompression behavior. `None` means the response omitted the header.
+    /// The admitted response head is consumed so its candidate identity and
+    /// artifact evidence cannot be detached from the staging attempt. Content-
+    /// encoding and content-length admission run before filesystem mutation.
+    /// Updater signatures and digests are defined over exact release artifact
+    /// bytes, so any response content coding other than the explicit identity
+    /// coding is rejected rather than relying on HTTP-client decompression
+    /// behavior. `None` means the response omitted the header.
     pub fn start_staging(
-        &self,
+        self,
         staging_directory: &Path,
         response_content_length: Option<u64>,
         response_content_encoding: Option<&str>,
@@ -177,6 +180,7 @@ impl AdmittedDownloadHead {
         let staged = StagedArtifactFile::create(staging_directory, &self.artifact_name)
             .map_err(TransportDownloadError::Staging)?;
         Ok(TransportDownload {
+            head: Some(self),
             admission: Some(admission),
             staged: Some(staged),
         })
@@ -330,6 +334,7 @@ impl ReleaseTransportPolicy {
         AdmittedDownloadHead {
             effective_url: effective_url.to_owned(),
             artifact_name: self.artifact_name.clone(),
+            policy_identity: self.policy_identity.clone(),
             expected_size_bytes: self.expected_size_bytes,
             expected_artifact_sha256: self.expected_artifact_sha256.clone(),
             artifact_signature: self.artifact_signature.clone(),
@@ -337,9 +342,105 @@ impl ReleaseTransportPolicy {
     }
 }
 
+/// Synchronized but still-unverified artifact bound to its transport evidence.
+///
+/// This value owns the exact `SealedArtifactFile` descriptor together with the
+/// provisional release-candidate identity, final effective URL, expected size,
+/// digest, and updater signature that admitted its bytes. Keeping those values
+/// in one move-only object prevents later verification code from accidentally
+/// pairing a sealed descriptor with evidence copied from another candidate.
+/// This is evidence continuity only, not metadata authentication or verified-
+/// artifact promotion.
+pub struct SealedTransportArtifact {
+    head: AdmittedDownloadHead,
+    sealed: SealedArtifactFile,
+}
+
+impl fmt::Debug for SealedTransportArtifact {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SealedTransportArtifact")
+            .field("effective_url", &RedactedUrl(&self.head.effective_url))
+            .field("artifact_name", &self.head.artifact_name)
+            .field("expected_size_bytes", &self.head.expected_size_bytes)
+            .field("bytes_written", &self.sealed.bytes_written())
+            .field("artifact_signature", &REDACTED_SIGNATURE)
+            .finish()
+    }
+}
+
+impl SealedTransportArtifact {
+    /// Return the provisional release version bound to this exact descriptor.
+    pub const fn version_components(&self) -> (u64, u64, u64) {
+        self.head.policy_identity.version_components
+    }
+
+    /// Return the provisional source commit bound to this exact descriptor.
+    pub fn source_commit(&self) -> &str {
+        &self.head.policy_identity.source_commit
+    }
+
+    /// Return the provisional target bound to this exact descriptor.
+    pub fn target(&self) -> &str {
+        &self.head.policy_identity.target
+    }
+
+    /// Return the provisional minimum-supported version bound to this descriptor.
+    pub const fn minimum_supported_version_components(&self) -> (u64, u64, u64) {
+        self.head
+            .policy_identity
+            .minimum_supported_version_components
+    }
+
+    /// Return the exact final response URL that produced this descriptor.
+    pub fn effective_url(&self) -> &str {
+        &self.head.effective_url
+    }
+
+    /// Return the admitted app-owned artifact basename.
+    pub fn artifact_name(&self) -> &str {
+        &self.head.artifact_name
+    }
+
+    /// Return the provisional expected byte length bound to this descriptor.
+    pub const fn expected_size_bytes(&self) -> u64 {
+        self.head.expected_size_bytes
+    }
+
+    /// Return the provisional SHA-256 value bound to this descriptor.
+    pub fn expected_artifact_sha256(&self) -> &str {
+        &self.head.expected_artifact_sha256
+    }
+
+    /// Return the provisional updater signature bound to this descriptor.
+    pub fn artifact_signature(&self) -> &str {
+        &self.head.artifact_signature
+    }
+
+    /// Return the direct child path held by the sealed descriptor owner.
+    pub fn path(&self) -> &Path {
+        self.sealed.path()
+    }
+
+    /// Return the exact admitted byte count held by the sealed descriptor.
+    pub const fn bytes_written(&self) -> u64 {
+        self.sealed.bytes_written()
+    }
+
+    /// Borrow a positional read-only stream over the exact sealed descriptor.
+    ///
+    /// This delegates to `distribution-download` and never reopens the staging
+    /// pathname, preserving the descriptor identity required by later digest
+    /// and signature verification.
+    pub fn reader(&self) -> SealedArtifactReader<'_> {
+        self.sealed.reader()
+    }
+}
+
 /// One response body being admitted into an exclusive staging artifact.
 #[derive(Debug)]
 pub struct TransportDownload {
+    head: Option<AdmittedDownloadHead>,
     admission: Option<ArtifactDownloadAdmission>,
     staged: Option<StagedArtifactFile>,
 }
@@ -371,11 +472,13 @@ impl TransportDownload {
             .map_err(TransportDownloadError::Download)
     }
 
-    /// Finish an exact response and return the still-unverified sealed descriptor.
+    /// Finish an exact response and keep its identity with the sealed descriptor.
     ///
     /// Failure leaves the staging value owned by this consumed object, so its
-    /// existing drop cleanup removes partial or unverified bytes.
-    pub fn finish(mut self) -> Result<SealedArtifactFile, TransportDownloadError> {
+    /// existing drop cleanup removes partial or unverified bytes. Success still
+    /// does not promote trust: the returned value remains cleanup-on-drop until
+    /// later metadata, digest, and updater-signature verification succeeds.
+    pub fn finish(mut self) -> Result<SealedTransportArtifact, TransportDownloadError> {
         let admission = self
             .admission
             .take()
@@ -385,7 +488,14 @@ impl TransportDownload {
             .staged
             .take()
             .expect("transport staging file remains present before finish");
-        staged.seal(receipt).map_err(TransportDownloadError::Staging)
+        let sealed = staged
+            .seal(receipt)
+            .map_err(TransportDownloadError::Staging)?;
+        let head = self
+            .head
+            .take()
+            .expect("transport response identity remains present before finish");
+        Ok(SealedTransportArtifact { head, sealed })
     }
 }
 
