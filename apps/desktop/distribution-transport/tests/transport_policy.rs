@@ -4,6 +4,7 @@ use bandscope_distribution_transport::{
     ReleaseTransportPolicy, ResponseDecision, TransportDownloadError, TransportPolicyError,
 };
 use std::fs;
+use std::io::Read;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -143,6 +144,13 @@ fn sealed_transport_artifact_keeps_candidate_identity_with_descriptor_evidence()
     assert_eq!(sealed.expected_artifact_sha256(), DIGEST);
     assert_eq!(sealed.artifact_signature(), "c2ln");
     assert_eq!(sealed.bytes_written(), 4);
+
+    let mut reader = sealed.reader();
+    let mut exact_bytes = Vec::new();
+    reader
+        .read_to_end(&mut exact_bytes)
+        .expect("read exact sealed descriptor bytes");
+    assert_eq!(exact_bytes, b"data");
 
     let path = sealed.path().to_path_buf();
     drop(sealed);
