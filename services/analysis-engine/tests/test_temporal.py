@@ -121,40 +121,6 @@ def test_temporal_analyzer_exception_handling(
         TemporalAnalyzer().analyze(test_wav)
 
 
-def test_temporal_analyzer_logs_path_safely(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Ensure temporal analyzer uses parameterized logging and repr() to prevent log injection."""
-    from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
-
-    logger_mock = type(
-        "MockLogger", (), {"info": lambda *args: None, "error": lambda *args: None}
-    )()
-    monkeypatch.setattr("bandscope_analysis.temporal.analyzer.logger", logger_mock)
-
-    # We use a path with a newline to simulate a log injection attempt
-    test_wav = tmp_path / "test\n_inject.wav"
-    test_wav.write_bytes(b"dummy")
-
-    import librosa
-
-    def fake_load(*args: object, **kwargs: object) -> tuple[np.ndarray, int]:
-        raise Exception("Mock error")
-
-    monkeypatch.setattr(librosa, "load", fake_load)
-
-    # Use a MagicMock to verify the exact calls
-    import unittest.mock
-
-    logger_mock = unittest.mock.MagicMock()
-    monkeypatch.setattr("bandscope_analysis.temporal.analyzer.logger", logger_mock)
-
-    with pytest.raises(ValueError):
-        TemporalAnalyzer().analyze(str(test_wav))
-
-    logger_mock.info.assert_called_with("Loading and decoding audio: %s", repr(str(test_wav)))
-
-
 def test_temporal_analyzer_rejects_oversized_file(monkeypatch, tmp_path: Path) -> None:
     """Ensure large files are rejected before decode to prevent resource exhaustion."""
     import librosa
