@@ -171,6 +171,44 @@ def test_security_notes_section_uses_real_heading_after_html_comment() -> None:
     assert "comment-only-token" not in section
 
 
+def test_security_notes_section_ignores_commonmark_raw_html_blocks() -> None:
+    """Raw HTML blocks of every CommonMark class cannot impersonate Security Notes."""
+    keyword_line = (
+        "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+        "and remaining risk appear only inside raw HTML."
+    )
+    raw_blocks = [
+        f"<script>\n## Security Notes\n{keyword_line}\n</script>",
+        f"<?policy\n## Security Notes\n{keyword_line}\n?>",
+        f"<!DOCTYPE policy\n## Security Notes\n{keyword_line}\n>",
+        f"<![CDATA[\n## Security Notes\n{keyword_line}\n]]>",
+        f"<div>\n## Security Notes\n{keyword_line}",
+        f"<security-example>\n## Security Notes\n{keyword_line}",
+    ]
+
+    for raw_block in raw_blocks:
+        document = f"# Example\n\n{raw_block}\n\n## Operations\nNo governed security section follows.\n"
+        assert security_notes_section(document) == "", raw_block
+
+
+def test_security_notes_section_uses_real_heading_after_raw_html_block() -> None:
+    """Resume Markdown heading admission after a blank-terminated raw HTML block."""
+    document = (
+        "# Example\n\n"
+        "<div>\n"
+        "## Security Notes\n"
+        "html-only-token\n\n"
+        "## Security Notes\n\n"
+        "real-only-token\n\n"
+        "## Operations\n"
+    )
+
+    section = security_notes_section(document)
+
+    assert "real-only-token" in section
+    assert "html-only-token" not in section
+
+
 def test_local_project_format_uses_required_security_notes_heading() -> None:
     """Keep the project-format security section under the repository-mandated heading."""
     project_format = (REPO_ROOT / "docs" / "engineering" / "local-project-format.md").read_text(
