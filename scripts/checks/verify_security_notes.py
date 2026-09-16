@@ -15,6 +15,7 @@ REQUIRED_SUBSECTIONS = [
 ]
 MARKDOWN_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)(.*?)\s*$")
 MARKDOWN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+MARKDOWN_CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
 
 
 def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
@@ -47,7 +48,11 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
         heading_match = MARKDOWN_HEADING.match(line)
         if heading_match is None:
             continue
-        heading_text = heading_match.group(2).rstrip("#").strip()
+        heading_text = heading_match.group(2).strip(" \t")
+        if heading_text and set(heading_text) == {"#"}:
+            heading_text = ""
+        else:
+            heading_text = MARKDOWN_CLOSING_HASHES.sub("", heading_text).strip(" \t")
         headings.append((index, len(heading_match.group(1)), heading_text))
 
     return headings
