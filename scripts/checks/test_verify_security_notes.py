@@ -138,6 +138,62 @@ class SecurityNotesPolicyTests(unittest.TestCase):
             handle.write("### Remaining risk\nF\n")
         self.assertEqual(self._violations(), [])
 
+    def test_plan_example_blocks_cannot_supply_required_security_evidence(self) -> None:
+        """Required plan evidence must remain visible Markdown, not example or hidden content."""
+        path = self.plan_dir / "example.md"
+        path.write_text(
+            "# Plan\n\n"
+            "## Security Notes\n\n"
+            "Visible policy prose intentionally omits the six required terms.\n\n"
+            "```text\n"
+            "Attack surface\n"
+            "Trust boundary\n"
+            "```\n\n"
+            "    Mitigations\n"
+            "    Test points\n\n"
+            "<!--\n"
+            "Realistic threats\n"
+            "Remaining risk\n"
+            "-->\n",
+            encoding="utf-8",
+        )
+
+        self.assertEqual(
+            self._violations(),
+            [
+                f"{path} missing subsection: attack surface",
+                f"{path} missing subsection: trust boundary",
+                f"{path} missing subsection: mitigations",
+                f"{path} missing subsection: test points",
+                f"{path} missing subsection: realistic threats",
+                f"{path} missing subsection: remaining risk",
+            ],
+        )
+
+    def test_plan_hidden_security_heading_cannot_satisfy_policy(self) -> None:
+        """A Security Notes heading inside non-rendered content cannot admit plan evidence."""
+        path = self.plan_dir / "example.md"
+        path.write_text(
+            "# Plan\n\n"
+            "```markdown\n"
+            "## Security Notes\n"
+            "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+            "and remaining risk.\n"
+            "```\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self._violations(),
+            [
+                f"{path} missing subsection: attack surface",
+                f"{path} missing subsection: trust boundary",
+                f"{path} missing subsection: mitigations",
+                f"{path} missing subsection: test points",
+                f"{path} missing subsection: realistic threats",
+                f"{path} missing subsection: remaining risk",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
