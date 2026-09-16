@@ -48,7 +48,7 @@ def test_reqwest_prerelease_lock_is_not_treated_as_reviewed_stable_line(tmp_path
 
     violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
 
-    assert any("reviewed reqwest range" in violation for violation in violations)
+    assert any("reviewed stable reqwest range" in violation for violation in violations)
 
 
 @pytest.mark.parametrize("rustls_version", ["0.23.45-alpha.1", "0.23.45-rc.1"])
