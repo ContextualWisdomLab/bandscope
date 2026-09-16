@@ -136,6 +136,41 @@ def test_security_notes_heading_accepts_commonmark_closing_hashes() -> None:
     assert "real-only-token" in security_notes_section(document)
 
 
+def test_security_notes_section_ignores_html_comment_headings() -> None:
+    """A raw HTML comment cannot impersonate the governed Security Notes section."""
+    document = (
+        "# Example\n\n"
+        "<!--\n"
+        "## Security Notes\n\n"
+        "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+        "and remaining risk appear only inside a comment.\n"
+        "-->\n\n"
+        "## Operations\n\n"
+        "No governed security section follows.\n"
+    )
+
+    assert security_notes_section(document) == ""
+
+
+def test_security_notes_section_uses_real_heading_after_html_comment() -> None:
+    """Select the real section after an HTML comment contains a lookalike heading."""
+    document = (
+        "# Example\n\n"
+        "<!--\n"
+        "## Security Notes\n\n"
+        "comment-only-token\n"
+        "-->\n\n"
+        "## Security Notes\n\n"
+        "real-only-token\n\n"
+        "## Operations\n"
+    )
+
+    section = security_notes_section(document)
+
+    assert "real-only-token" in section
+    assert "comment-only-token" not in section
+
+
 def test_local_project_format_uses_required_security_notes_heading() -> None:
     """Keep the project-format security section under the repository-mandated heading."""
     project_format = (REPO_ROOT / "docs" / "engineering" / "local-project-format.md").read_text(
