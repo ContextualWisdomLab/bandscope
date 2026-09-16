@@ -47,7 +47,7 @@ describe("Slider canonical composition", () => {
     expect(endThumb).toHaveClass("after:inset-[-12px]")
   })
 
-  it("styles keyboard focus on the focusable thumb instead of looking for a focused descendant", () => {
+  it("styles keyboard focus from Base UI's nested range input", () => {
     render(
       <Slider defaultValue={50}>
         <SliderControl>
@@ -59,11 +59,13 @@ describe("Slider canonical composition", () => {
       </Slider>
     )
 
-    const thumb = screen.getByRole("slider", { name: "Playback position" }).parentElement
+    const input = screen.getByRole("slider", { name: "Playback position" })
+    const thumb = input.parentElement
 
-    expect(thumb).toHaveClass("focus-visible:outline-none")
-    expect(thumb).toHaveClass("focus-visible:ring-2")
-    expect(thumb).not.toHaveClass("has-[:focus-visible]:ring-2")
+    expect(input).toHaveAttribute("type", "range")
+    expect(thumb).toHaveClass("has-[:focus-visible]:outline-none")
+    expect(thumb).toHaveClass("has-[:focus-visible]:ring-2")
+    expect(thumb).not.toHaveClass("focus-visible:ring-2")
   })
 
   it("preserves the same track-owned thumb anatomy and press width for a vertical control", () => {
