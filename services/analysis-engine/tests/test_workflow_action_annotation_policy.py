@@ -16,10 +16,13 @@ def test_upload_sarif_sha_annotations_are_complete_and_consistent() -> None:
     """Keep upload-sarif SHA pins and their review annotations in one identity."""
     repo_root = Path(__file__).resolve().parents[3]
     workflow_dir = repo_root / ".github" / "workflows"
+    workflow_paths = sorted(
+        set(workflow_dir.glob("*.yml")) | set(workflow_dir.glob("*.yaml"))
+    )
     references: list[tuple[str, str, str]] = []
     incomplete: list[str] = []
 
-    for workflow_path in sorted(workflow_dir.glob("*.yml")):
+    for workflow_path in workflow_paths:
         for line_number, line in enumerate(
             workflow_path.read_text(encoding="utf-8").splitlines(), start=1
         ):
