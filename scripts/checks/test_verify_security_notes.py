@@ -70,6 +70,23 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         )
         self.assertEqual(self._violations(), [])
 
+    def test_higher_level_heading_cannot_backfill_doctoring_security_notes(self) -> None:
+        """A later level-one section cannot lend Trust boundary evidence to Security Notes."""
+        path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
+        path.write_text(
+            "# Tooltip evidence\n\n"
+            "## Security Notes\n\n"
+            "No substantive boundary statement is present here.\n\n"
+            "# Appendix\n\n"
+            "### Trust boundary\n\n"
+            "A documentation URL creates no runtime trust-boundary path.\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            self._violations(),
+            [f"{path} missing Security Notes trust-boundary statement"],
+        )
+
     def test_doctoring_code_blocks_cannot_satisfy_security_evidence(self) -> None:
         """Fenced and indented code must not impersonate governed Markdown evidence."""
         path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
