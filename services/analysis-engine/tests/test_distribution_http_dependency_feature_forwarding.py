@@ -69,3 +69,28 @@ def test_renamed_reqwest_feature_forwarding_is_also_rejected(tmp_path: Path) -> 
         "distribution_http/brotli" in violation and "feature" in violation
         for violation in violations
     )
+
+
+def test_weak_dependency_feature_forwarding_is_rejected(tmp_path: Path) -> None:
+    """Reject Cargo's dependency?/feature form as another feature-activation path."""
+    _write_fixture(
+        tmp_path,
+        dependency_name="distribution_http",
+        package_field='package = "reqwest", ',
+        feature="zstd",
+    )
+    manifest = tmp_path / "apps/desktop/distribution-transport/Cargo.toml"
+    manifest.write_text(
+        manifest.read_text(encoding="utf-8").replace(
+            "distribution_http/zstd",
+            "distribution_http?/zstd",
+        ),
+        encoding="utf-8",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any(
+        "distribution_http?/zstd" in violation and "feature" in violation
+        for violation in violations
+    )
