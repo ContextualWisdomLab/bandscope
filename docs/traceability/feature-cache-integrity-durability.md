@@ -82,14 +82,29 @@ Hosted exact-head checks remain authoritative. These commits are source evidence
 
 ## Security Notes
 
-- Cache JSON and NPZ files are treated as untrusted local bytes. A well-formed archive is not trusted merely because it is inside an app-owned cache directory.
-- The source audio is not copied into metadata and full source paths are not added to the feature manifest.
-- A malformed or partial native admitted-audio evidence pair fails closed rather than silently falling back to pathname identity.
-- Missing or malformed MIR-generation evidence also disables reuse. Package metadata lookup does not import torch/Demucs merely to decide cache equivalence.
-- JSON duplicate keys, oversized manifests, oversized encoded archives, unexpected ZIP members, oversized declared arrays, malformed role metadata, object arrays, non-floating stems, non-finite stems, integrity mismatches, and generation mismatches are cache misses.
-- NPZ loading keeps `allow_pickle=False` and occurs only after the exact archive digest and bounded NPY header declarations agree with the manifest and resource policy.
-- Publication failure is a cache miss. It does not block the successful analysis result and does not promote partially published cache state to authority.
-- The schema-v2 integrity repair intentionally invalidated pre-v2 feature manifests; the later MIR-generation envelope invalidates prior cache identities without pretending that source SHA-256 proves model equivalence.
+### Attack surface
+
+The reusable feature cache admits locally replaceable JSON and ZIP/NPY bytes and also consumes version/model-generation metadata that decides whether expensive MIR work may be skipped. Local corruption, stale recovery residue, or deliberate replacement can therefore target parsing/allocation cost, cache identity, or derived-audio reuse without modifying the original admitted audio.
+
+### Trust boundary
+
+Native Resource Admission remains the sole authority for source byte count and SHA-256. Signal/MIR Analysis owns the separation/model generation. Project Persistence owns only durable publication, bounded admission, exact derived-byte integrity, and reuse policy. Neither the NPZ digest nor `mirGeneration` is source authenticity or scientific-accuracy authority.
+
+### Mitigations
+
+Manifest and NPZ admission is bounded and regular-file-only, rejects duplicate JSON keys, limits archive/stem cardinality and declared bytes, preflights NPY headers before NumPy allocation, keeps `allow_pickle=False`, validates finite floating-point stems, and binds archive digest/load to one opened descriptor. Publication is arrays-first/manifest-last through the existing durable publication owner. Reuse fails closed when native source evidence, exact derived-byte integrity, or MIR generation evidence is missing or mismatched.
+
+### Test points
+
+Regression coverage includes native source binding, exact NPZ-byte binding, publication order/failure, duplicate-key rejection, manifest/archive byte ceilings, exact ZIP member sets, oversized NPY shape declarations before allocation, malformed role metadata, canonical MIR generation composition, malformed/missing checkpoint identity, missing package metadata, and final-result propagation of the same generation identity.
+
+### Realistic threats
+
+Realistic threats include local replacement of cache artifacts, partial cache recovery after a crash or downgrade, archive/header values crafted to trigger excessive work, stale stems surviving a code/model/runtime change, and path replacement between validation steps. Same-descriptor admission, resource ceilings, generation binding, and fail-closed recomputation address these cases without trusting cache location or filenames.
+
+### Remaining risk
+
+The current generation identity prevents reuse across the declared BandScope separation generation, canonical checkpoint filename/signature/checksum prefix, installed Demucs/torch versions, target sample rate, overlap, or device. It is not full checkpoint release provenance and does not prove MIR accuracy. Full checkpoint digest/signature/acquisition provenance/rights, packaged SBOM linkage, rights-cleared real decoded audio metrics, and destructive packaged Windows/macOS crash/power-loss/disk-full evidence remain release/scientific acceptance work.
 
 ## Remaining scientific/release boundary
 
