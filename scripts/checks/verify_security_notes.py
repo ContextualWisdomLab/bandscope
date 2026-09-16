@@ -19,9 +19,13 @@ MARKDOWN_CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
 HTML_LITERAL_OPEN = re.compile(r"^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)", re.I)
 HTML_LITERAL_CLOSE = re.compile(r"</(?:pre|script|style|textarea)>", re.I)
 HTML_COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
+HTML_COMMENT_CLOSE = re.compile(r"-->")
 HTML_PROCESSING_OPEN = re.compile(r"^ {0,3}<\?")
+HTML_PROCESSING_CLOSE = re.compile(r"\?>")
 HTML_DECLARATION_OPEN = re.compile(r"^ {0,3}<![A-Za-z]")
+HTML_DECLARATION_CLOSE = re.compile(r">")
 HTML_CDATA_OPEN = re.compile(r"^ {0,3}<!\[CDATA\[")
+HTML_CDATA_CLOSE = re.compile(r"\]\]>")
 HTML_BLOCK_TAG_NAMES = (
     "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|"
     "details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|"
@@ -32,7 +36,10 @@ HTML_BLOCK_TAG_NAMES = (
 HTML_BLOCK_TAG_OPEN = re.compile(
     rf"^ {{0,3}}</?(?:{HTML_BLOCK_TAG_NAMES})(?:[ \t]|/?>|$)", re.I
 )
-HTML_ATTRIBUTE = r"[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:[^\"'=<>` \t]+|'[^']*'|\"[^\"]*\"))?"
+HTML_ATTRIBUTE = (
+    r"[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*"
+    r"(?:[^\"'=<>` \t]+|'[^']*'|\"[^\"]*\"))?"
+)
 HTML_OPEN_TAG = re.compile(
     rf"^ {{0,3}}<[A-Za-z][A-Za-z0-9-]*(?:[ \t]+{HTML_ATTRIBUTE})*[ \t]*/?>[ \t]*$"
 )
@@ -44,13 +51,13 @@ def _html_block_start(line: str) -> tuple[str, re.Pattern[str] | None] | None:
     if HTML_LITERAL_OPEN.match(line):
         return "pattern", HTML_LITERAL_CLOSE
     if HTML_COMMENT_OPEN.match(line):
-        return "pattern", re.compile(r"-->")
+        return "pattern", HTML_COMMENT_CLOSE
     if HTML_PROCESSING_OPEN.match(line):
-        return "pattern", re.compile(r"\?>")
+        return "pattern", HTML_PROCESSING_CLOSE
     if HTML_DECLARATION_OPEN.match(line):
-        return "pattern", re.compile(r">")
+        return "pattern", HTML_DECLARATION_CLOSE
     if HTML_CDATA_OPEN.match(line):
-        return "pattern", re.compile(r"\]\]>")
+        return "pattern", HTML_CDATA_CLOSE
     if HTML_BLOCK_TAG_OPEN.match(line):
         return "blank", None
     if HTML_OPEN_TAG.match(line) or HTML_CLOSE_TAG.match(line):
