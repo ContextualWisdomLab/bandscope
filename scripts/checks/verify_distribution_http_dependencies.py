@@ -22,14 +22,21 @@ REQWEST_APPROVED_DECLARATION_KEYS = frozenset(
 CRATES_IO_LOCK_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
 
-def _version_triplet(raw: str) -> tuple[int, int, int] | None:
-    """Return the numeric core used by owner version and advisory ranges."""
-    core = raw.split("+", 1)[0].split("-", 1)[0]
+def _parsed_version(raw: str) -> tuple[tuple[int, int, int], bool] | None:
+    """Return numeric SemVer core plus whether a pre-release identifier is present."""
+    without_build = raw.split("+", 1)[0]
+    core, separator, _prerelease = without_build.partition("-")
     parts = core.split(".")
     if len(parts) != 3 or any(not part.isdigit() for part in parts):
         return None
     major, minor, patch = (int(part) for part in parts)
-    return major, minor, patch
+    return (major, minor, patch), bool(separator)
+
+
+def _version_triplet(raw: str) -> tuple[int, int, int] | None:
+    """Return the numeric core used by owner version and advisory ranges."""
+    parsed = _parsed_version(raw)
+    return None if parsed is None else parsed[0]
 
 
 def _is_bounded_three_component_requirement(raw: str) -> bool:
@@ -42,18 +49,30 @@ def _is_bounded_three_component_requirement(raw: str) -> bool:
 
 
 def _is_reviewed_reqwest_version(raw: str) -> bool:
-    """Return whether reqwest stays inside the currently reviewed 0.13 release line."""
-    version = _version_triplet(raw)
+    """Return whether reqwest stays inside the reviewed stable 0.13 release line."""
+    parsed = _parsed_version(raw)
+    if parsed is None:
+        return False
+    version, has_prerelease = parsed
     return (
-        version is not None
+        not has_prerelease
         and REQWEST_REVIEWED_MIN <= version < REQWEST_REVIEWED_UPPER
     )
 
 
 def _is_affected_rustls(raw: str) -> bool:
-    """Return whether a rustls version is inside RUSTSEC-2026-0285's affected range."""
-    version = _version_triplet(raw)
-    return version is not None and RUSTLS_AFFECTED_MIN <= version < RUSTLS_PATCHED_MIN
+    """Return whether a rustls SemVer is inside RUSTSEC-2026-0285's affected range."""
+    parsed = _parsed_version(raw)
+    if parsed is None:
+        return False
+    version, has_prerelease = parsed
+    at_or_after_affected_min = version > RUSTLS_AFFECTED_MIN or (
+        version == RUSTLS_AFFECTED_MIN and not has_prerelease
+    )
+    before_patched_stable = version < RUSTLS_PATCHED_MIN or (
+        version == RUSTLS_PATCHED_MIN and has_prerelease
+    )
+    return at_or_after_affected_min and before_patched_stable
 
 
 def _dependency_package_name(dependency_name: str, declaration: Any) -> Any:
@@ -252,8 +271,8 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
         elif not _is_reviewed_reqwest_version(version):
             violations.append(
                 f"{DISTRIBUTION_TRANSPORT_LOCK}: resolved reqwest {version} is outside "
-                "the reviewed reqwest range >=0.13.5,<0.14.0; refresh only within the "
-                "reviewed line or record a new Distribution owner decision"
+                "the reviewed stable reqwest range >=0.13.5,<0.14.0; refresh only "
+                "within the reviewed stable line or record a new Distribution owner decision"
             )
 
     rustls_packages = [
@@ -281,8 +300,8 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
         elif _is_affected_rustls(version):
             violations.append(
                 f"{DISTRIBUTION_TRANSPORT_LOCK}: rustls {version} is affected by "
-                f"{RUSTLS_ENCRYPTION_LEVEL_ADVISORY}; use rustls >=0.23.45 or an "
-                "unaffected line"
+                f"{RUSTLS_ENCRYPTION_LEVEL_ADVISORY}; use the stable patched boundary "
+                "rustls >=0.23.45 or another unaffected line"
             )
     return violations
 
