@@ -11,6 +11,8 @@ POLICY = load_module(
     "verify_distribution_http_dependencies_source",
 )
 
+CRATES_IO_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+
 
 def _write_source_fixture(
     root: Path,
@@ -34,7 +36,7 @@ def _write_source_fixture(
         '[[package]]\nname = "reqwest"\nversion = "0.13.5"\n'
         f"{source_line}"
         '\n[[package]]\nname = "rustls"\nversion = "0.23.45"\n'
-        'source = "registry+https://github.com/rust-lang/crates.io-index"\n',
+        f'source = "{CRATES_IO_SOURCE}"\n',
         encoding="utf-8",
     )
 
@@ -72,13 +74,13 @@ def test_rustls_noncanonical_lock_source_is_rejected(tmp_path: Path) -> None:
     _write_source_fixture(
         tmp_path,
         dependency_fields='version = "0.13.5"',
-        reqwest_source="registry+https://github.com/rust-lang/crates.io-index",
+        reqwest_source=CRATES_IO_SOURCE,
     )
     lock = tmp_path / "apps/desktop/distribution-transport/Cargo.lock"
     lock.write_text(
         lock.read_text(encoding="utf-8").replace(
             'name = "rustls"\nversion = "0.23.45"\n'
-            'source = "registry+https://github.com/rust-lang/crates.io-index"',
+            f'source = "{CRATES_IO_SOURCE}"',
             'name = "rustls"\nversion = "0.23.45"\n'
             'source = "git+https://example.invalid/rustls#deadbeef"',
         ),
@@ -105,7 +107,7 @@ def test_transitive_noncanonical_lock_sources_are_rejected(tmp_path: Path) -> No
         _write_source_fixture(
             fixture,
             dependency_fields='version = "0.13.5"',
-            reqwest_source="registry+https://github.com/rust-lang/crates.io-index",
+            reqwest_source=CRATES_IO_SOURCE,
         )
         lock = fixture / "apps/desktop/distribution-transport/Cargo.lock"
         lock.write_text(
@@ -121,3 +123,44 @@ def test_transitive_noncanonical_lock_sources_are_rejected(tmp_path: Path) -> No
             package_name in violation and "source" in violation
             for violation in violations
         ), fixture_name
+
+
+def test_canonical_crates_io_transitive_package_is_admitted(tmp_path: Path) -> None:
+    """Keep ordinary crates.io transitive packages admissible under full-graph checking."""
+    _write_source_fixture(
+        tmp_path,
+        dependency_fields='version = "0.13.5"',
+        reqwest_source=CRATES_IO_SOURCE,
+    )
+    lock = tmp_path / "apps/desktop/distribution-transport/Cargo.lock"
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + '\n[[package]]\nname = "rustls-webpki"\nversion = "0.103.8"\n'
+        + f'source = "{CRATES_IO_SOURCE}"\n',
+        encoding="utf-8",
+    )
+
+    assert POLICY.verify_distribution_http_dependency_admission(tmp_path) == []
+
+
+def test_local_distribution_package_cannot_gain_remote_source(tmp_path: Path) -> None:
+    """Keep the explicit local-package allow-list path-owned rather than name-trusted."""
+    _write_source_fixture(
+        tmp_path,
+        dependency_fields='version = "0.13.5"',
+        reqwest_source=CRATES_IO_SOURCE,
+    )
+    lock = tmp_path / "apps/desktop/distribution-transport/Cargo.lock"
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + '\n[[package]]\nname = "bandscope-distribution-core"\nversion = "0.1.0"\n'
+        + f'source = "{CRATES_IO_SOURCE}"\n',
+        encoding="utf-8",
+    )
+
+    violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
+
+    assert any(
+        "bandscope-distribution-core" in violation and "path-owned" in violation
+        for violation in violations
+    )
