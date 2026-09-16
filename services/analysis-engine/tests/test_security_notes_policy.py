@@ -51,6 +51,41 @@ def test_security_notes_section_stops_when_parent_section_resumes() -> None:
     assert "remaining risk" not in section
 
 
+def test_security_notes_section_ignores_fenced_code_headings() -> None:
+    """A fenced example cannot impersonate the governed Security Notes section."""
+    document = (
+        "# Example\n\n"
+        "```markdown\n"
+        "## Security Notes\n\n"
+        "Attack surface, trust boundary, mitigations, test points, realistic threats, "
+        "and remaining risk appear only in this example.\n"
+        "```\n\n"
+        "## Operations\n\n"
+        "No governed security section follows.\n"
+    )
+
+    assert security_notes_section(document) == ""
+
+
+def test_security_notes_section_uses_real_heading_after_fenced_example() -> None:
+    """Select the real section when a fenced example contains a lookalike heading first."""
+    document = (
+        "# Example\n\n"
+        "~~~markdown\n"
+        "## Security Notes\n\n"
+        "fenced-only-token\n"
+        "~~~\n\n"
+        "## Security Notes\n\n"
+        "real-only-token\n\n"
+        "## Operations\n"
+    )
+
+    section = security_notes_section(document)
+
+    assert "real-only-token" in section
+    assert "fenced-only-token" not in section
+
+
 def test_local_project_format_uses_required_security_notes_heading() -> None:
     """Keep the project-format security section under the repository-mandated heading."""
     project_format = (REPO_ROOT / "docs" / "engineering" / "local-project-format.md").read_text(
