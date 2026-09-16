@@ -15,6 +15,7 @@ REQUIRED_SUBSECTIONS = [
 ]
 MARKDOWN_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)(.*?)\s*$")
 MARKDOWN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+MARKDOWN_INDENTED_CODE = re.compile(r"^(?: {4}|\t)")
 MARKDOWN_CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
 HTML_LITERAL_OPEN = re.compile(r"^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)", re.I)
 HTML_LITERAL_CLOSE = re.compile(r"</(?:pre|script|style|textarea)>", re.I)
@@ -65,15 +66,15 @@ def _html_block_start(line: str) -> tuple[str, re.Pattern[str] | None] | None:
     return None
 
 
-def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
-    """Return ATX headings outside fenced/indented code and raw HTML blocks."""
-    headings: list[tuple[int, int, str]] = []
+def _markdown_policy_lines(content: str) -> list[str]:
+    """Return source lines admissible as rendered Markdown policy evidence."""
+    admitted_lines: list[str] = []
     fence_character: str | None = None
     fence_length = 0
     html_mode: str | None = None
     html_end_pattern: re.Pattern[str] | None = None
 
-    for index, line in enumerate(content.splitlines()):
+    for line in content.splitlines():
         fence_match = MARKDOWN_FENCE.match(line)
         if fence_character is not None:
             if fence_match is not None:
@@ -86,22 +87,30 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
                 ):
                     fence_character = None
                     fence_length = 0
+            admitted_lines.append("")
             continue
 
         if html_mode == "pattern":
             if html_end_pattern is not None and html_end_pattern.search(line):
                 html_mode = None
                 html_end_pattern = None
+            admitted_lines.append("")
             continue
         if html_mode == "blank":
             if not line.strip():
                 html_mode = None
+            admitted_lines.append("")
             continue
 
         if fence_match is not None:
             marker = fence_match.group(1)
             fence_character = marker[0]
             fence_length = len(marker)
+            admitted_lines.append("")
+            continue
+
+        if MARKDOWN_INDENTED_CODE.match(line):
+            admitted_lines.append("")
             continue
 
         html_start = _html_block_start(line)
@@ -114,8 +123,18 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
             ):
                 html_mode = None
                 html_end_pattern = None
+            admitted_lines.append("")
             continue
 
+        admitted_lines.append(line)
+
+    return admitted_lines
+
+
+def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
+    """Return ATX headings admitted as rendered Markdown policy evidence."""
+    headings: list[tuple[int, int, str]] = []
+    for index, line in enumerate(_markdown_policy_lines(content)):
         heading_match = MARKDOWN_HEADING.match(line)
         if heading_match is None:
             continue
@@ -130,8 +149,8 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
 
 
 def security_notes_section(content: str) -> str:
-    """Extract only the lowercased Security Notes section from a governed document."""
-    lines = content.splitlines()
+    """Extract lowercased rendered Markdown evidence from the Security Notes section."""
+    lines = _markdown_policy_lines(content)
     headings = _markdown_headings(content)
     start_index: int | None = None
     heading_level: int | None = None
