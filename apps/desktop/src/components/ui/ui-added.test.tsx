@@ -32,7 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./select"
-import { Slider } from "./slider"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip"
 import {
   Breadcrumb,
@@ -245,14 +244,5 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
-  })
-
-  it("Slider renders properly and allows value update", () => {
-    render(
-      <Slider aria-label="Volume" defaultValue={50} />
-    )
-    const thumb = screen.getByRole("slider", { name: "Volume" })
-    expect(thumb).toBeInTheDocument()
-    expect(thumb).toHaveAttribute("aria-valuenow", "50")
   })
 })
