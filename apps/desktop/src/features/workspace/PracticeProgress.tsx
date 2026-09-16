@@ -40,6 +40,11 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
     }
   }, [onChange]);
 
+  const decreaseActionLabel = t("decreasePracticeProgressLabel");
+  const increaseActionLabel = t("increasePracticeProgressLabel");
+  const minimumReason = t("practiceProgressAtMin");
+  const maximumReason = t("practiceProgressAtMax");
+
   return (
     <div
       className="mt-4 rounded-xl border border-indigo-300/20 bg-indigo-300/[0.08] p-4 focus-within:ring-2 focus-within:ring-indigo-300"
@@ -61,17 +66,17 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
             aria-disabled={atMinimum ? "true" : undefined}
             aria-describedby={atMinimum ? decreaseLimitDescriptionId : undefined}
             className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-label={t("decreasePracticeProgressLabel")}
+            aria-label={decreaseActionLabel}
           >
             <Minus className="size-4" aria-hidden="true" />
           </TooltipTrigger>
           <TooltipContent>
-            {t(atMinimum ? "practiceProgressAtMin" : "decreasePracticeProgressLabel")}
+            {atMinimum ? `${decreaseActionLabel}: ${minimumReason}` : decreaseActionLabel}
           </TooltipContent>
         </Tooltip>
         {atMinimum ? (
           <span id={decreaseLimitDescriptionId} className="sr-only">
-            {t("practiceProgressAtMin")}
+            {minimumReason}
           </span>
         ) : null}
 
@@ -102,17 +107,17 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
             aria-disabled={atMaximum ? "true" : undefined}
             aria-describedby={atMaximum ? increaseLimitDescriptionId : undefined}
             className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-label={t("increasePracticeProgressLabel")}
+            aria-label={increaseActionLabel}
           >
             <Plus className="size-4" aria-hidden="true" />
           </TooltipTrigger>
           <TooltipContent>
-            {t(atMaximum ? "practiceProgressAtMax" : "increasePracticeProgressLabel")}
+            {atMaximum ? `${increaseActionLabel}: ${maximumReason}` : increaseActionLabel}
           </TooltipContent>
         </Tooltip>
         {atMaximum ? (
           <span id={increaseLimitDescriptionId} className="sr-only">
-            {t("practiceProgressAtMax")}
+            {maximumReason}
           </span>
         ) : null}
       </div>
