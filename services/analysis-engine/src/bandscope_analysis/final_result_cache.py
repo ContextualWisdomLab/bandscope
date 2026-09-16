@@ -105,7 +105,7 @@ def _sync_parent_directory(directory: Path) -> None:
 def _replace_windows_write_through(stage: Path, target: Path) -> None:
     """Replace a Windows cache entry with write-through rename semantics."""
     import ctypes
-    from ctypes import wintypes
+    import ctypes.wintypes
 
     win_dll = getattr(ctypes, "WinDLL", None)
     get_last_error = getattr(ctypes, "get_last_error", None)
@@ -114,8 +114,12 @@ def _replace_windows_write_through(stage: Path, target: Path) -> None:
 
     kernel32 = win_dll("kernel32", use_last_error=True)
     move_file_ex = kernel32.MoveFileExW
-    move_file_ex.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD]
-    move_file_ex.restype = wintypes.BOOL
+    move_file_ex.argtypes = [
+        ctypes.wintypes.LPCWSTR,
+        ctypes.wintypes.LPCWSTR,
+        ctypes.wintypes.DWORD,
+    ]
+    move_file_ex.restype = ctypes.wintypes.BOOL
     flags = _WINDOWS_MOVEFILE_REPLACE_EXISTING | _WINDOWS_MOVEFILE_WRITE_THROUGH
     if not move_file_ex(str(stage), str(target), flags):
         error_code = int(get_last_error())
