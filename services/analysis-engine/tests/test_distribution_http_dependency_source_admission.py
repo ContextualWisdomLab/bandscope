@@ -88,3 +88,36 @@ def test_rustls_noncanonical_lock_source_is_rejected(tmp_path: Path) -> None:
     violations = POLICY.verify_distribution_http_dependency_admission(tmp_path)
 
     assert any("rustls source" in violation for violation in violations)
+
+
+def test_transitive_noncanonical_lock_sources_are_rejected(tmp_path: Path) -> None:
+    """Reject transitive git/path substitution behind canonical reqwest and rustls."""
+    cases = (
+        (
+            "git-provider",
+            "aws-lc-rs",
+            'source = "git+https://example.invalid/aws-lc-rs#deadbeef"\n',
+        ),
+        ("path-webpki", "rustls-webpki", ""),
+    )
+    for fixture_name, package_name, source_line in cases:
+        fixture = tmp_path / fixture_name
+        _write_source_fixture(
+            fixture,
+            dependency_fields='version = "0.13.5"',
+            reqwest_source="registry+https://github.com/rust-lang/crates.io-index",
+        )
+        lock = fixture / "apps/desktop/distribution-transport/Cargo.lock"
+        lock.write_text(
+            lock.read_text(encoding="utf-8")
+            + f'\n[[package]]\nname = "{package_name}"\nversion = "1.0.0"\n'
+            + source_line,
+            encoding="utf-8",
+        )
+
+        violations = POLICY.verify_distribution_http_dependency_admission(fixture)
+
+        assert any(
+            package_name in violation and "source" in violation
+            for violation in violations
+        ), fixture_name
