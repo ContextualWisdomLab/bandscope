@@ -68,8 +68,6 @@
   "scoreViewerFailedTitle": "Could not display the score",
   "scoreViewerRetry": "Retry",
   "scoreViewerPrevPage": "Previous page",
-  "scoreViewerPrevPageDisabledHint": "Already at the first page",
-  "scoreViewerNextPageDisabledHint": "Already at the last page",
   "scoreViewerNextPage": "Next page",
   "scoreViewerPageIndicator": "Page {current} of {total}",
   "scoreViewerZoomIn": "Zoom in",
