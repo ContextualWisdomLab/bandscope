@@ -14,31 +14,66 @@ REQUIRED_SUBSECTIONS = [
     "remaining risk",
 ]
 MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+MARKDOWN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
+    """Return ATX headings that are outside fenced code blocks."""
+    headings: list[tuple[int, int, str]] = []
+    fence_character: str | None = None
+    fence_length = 0
+
+    for index, line in enumerate(content.splitlines()):
+        fence_match = MARKDOWN_FENCE.match(line)
+        if fence_character is not None:
+            if fence_match is not None:
+                marker = fence_match.group(1)
+                trailer = fence_match.group(2)
+                if (
+                    marker[0] == fence_character
+                    and len(marker) >= fence_length
+                    and not trailer.strip()
+                ):
+                    fence_character = None
+                    fence_length = 0
+            continue
+
+        if fence_match is not None:
+            marker = fence_match.group(1)
+            fence_character = marker[0]
+            fence_length = len(marker)
+            continue
+
+        heading_match = MARKDOWN_HEADING.match(line.strip())
+        if heading_match is None:
+            continue
+        heading_text = heading_match.group(2).rstrip("#").strip()
+        headings.append((index, len(heading_match.group(1)), heading_text))
+
+    return headings
 
 
 def security_notes_section(content: str) -> str:
     """Extract only the lowercased Security Notes section from a governed document."""
     lines = content.splitlines()
+    headings = _markdown_headings(content)
     start_index: int | None = None
     heading_level: int | None = None
+    heading_position: int | None = None
 
-    for index, line in enumerate(lines):
-        match = MARKDOWN_HEADING.match(line.strip())
-        if match is None:
-            continue
-        heading_text = match.group(2).rstrip("#").strip()
+    for position, (index, level, heading_text) in enumerate(headings):
         if heading_text.casefold() == SECURITY_NOTES_TEXT.casefold():
             start_index = index
-            heading_level = len(match.group(1))
+            heading_level = level
+            heading_position = position
             break
 
-    if start_index is None or heading_level is None:
+    if start_index is None or heading_level is None or heading_position is None:
         return ""
 
     end_index = len(lines)
-    for index in range(start_index + 1, len(lines)):
-        match = MARKDOWN_HEADING.match(lines[index].strip())
-        if match is not None and len(match.group(1)) <= heading_level:
+    for index, level, _heading_text in headings[heading_position + 1 :]:
+        if level <= heading_level:
             end_index = index
             break
 
