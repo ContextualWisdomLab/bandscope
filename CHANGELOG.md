@@ -11,11 +11,13 @@
 
 ### Changed
 
+- Upgrade Base UI to 1.8.0 while preserving BandScope's canonical Slider composition, named-thumb accessibility, nested-input focus styling, and dependency-owned absolute thumb placement.
 - Consolidated Bandit, dependency audits, supplemental secret checks, and Trivy into one trusted-branch security backstop, delegated CodeQL to GitHub default setup, and removed duplicate local PR security and release-preflight runs.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
 
+- Keep Slider keyboard focus paint on the Base UI thumb wrapper through the nested range input's `:focus-visible` state, and preserve Base UI's own absolute thumb-placement authority instead of adding a competing `relative` position token.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 
 ## [0.1.3] - 2026-04-29
