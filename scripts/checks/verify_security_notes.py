@@ -15,16 +15,56 @@ REQUIRED_SUBSECTIONS = [
 ]
 MARKDOWN_HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+|$)(.*?)\s*$")
 MARKDOWN_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-MARKDOWN_HTML_COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
 MARKDOWN_CLOSING_HASHES = re.compile(r"[ \t]+#+[ \t]*$")
+HTML_LITERAL_OPEN = re.compile(r"^ {0,3}<(?:pre|script|style|textarea)(?:[ \t>]|$)", re.I)
+HTML_LITERAL_CLOSE = re.compile(r"</(?:pre|script|style|textarea)>", re.I)
+HTML_COMMENT_OPEN = re.compile(r"^ {0,3}<!--")
+HTML_PROCESSING_OPEN = re.compile(r"^ {0,3}<\?")
+HTML_DECLARATION_OPEN = re.compile(r"^ {0,3}<![A-Za-z]")
+HTML_CDATA_OPEN = re.compile(r"^ {0,3}<!\[CDATA\[")
+HTML_BLOCK_TAG_NAMES = (
+    "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|"
+    "details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|"
+    "h1|h2|h3|h4|h5|h6|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|"
+    "noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|"
+    "thead|title|tr|track|ul"
+)
+HTML_BLOCK_TAG_OPEN = re.compile(
+    rf"^ {{0,3}}</?(?:{HTML_BLOCK_TAG_NAMES})(?:[ \t]|/?>|$)", re.I
+)
+HTML_ATTRIBUTE = r"[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*=[ \t]*(?:[^\"'=<>` \t]+|'[^']*'|\"[^\"]*\"))?"
+HTML_OPEN_TAG = re.compile(
+    rf"^ {{0,3}}<[A-Za-z][A-Za-z0-9-]*(?:[ \t]+{HTML_ATTRIBUTE})*[ \t]*/?>[ \t]*$"
+)
+HTML_CLOSE_TAG = re.compile(r"^ {0,3}</[A-Za-z][A-Za-z0-9-]*[ \t]*>[ \t]*$")
+
+
+def _html_block_start(line: str) -> tuple[str, re.Pattern[str] | None] | None:
+    """Return a conservative CommonMark raw-HTML block termination mode for this line."""
+    if HTML_LITERAL_OPEN.match(line):
+        return "pattern", HTML_LITERAL_CLOSE
+    if HTML_COMMENT_OPEN.match(line):
+        return "pattern", re.compile(r"-->")
+    if HTML_PROCESSING_OPEN.match(line):
+        return "pattern", re.compile(r"\?>")
+    if HTML_DECLARATION_OPEN.match(line):
+        return "pattern", re.compile(r">")
+    if HTML_CDATA_OPEN.match(line):
+        return "pattern", re.compile(r"\]\]>")
+    if HTML_BLOCK_TAG_OPEN.match(line):
+        return "blank", None
+    if HTML_OPEN_TAG.match(line) or HTML_CLOSE_TAG.match(line):
+        return "blank", None
+    return None
 
 
 def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
-    """Return ATX headings outside fenced/indented code and raw HTML comments."""
+    """Return ATX headings outside fenced/indented code and raw HTML blocks."""
     headings: list[tuple[int, int, str]] = []
     fence_character: str | None = None
     fence_length = 0
-    in_html_comment = False
+    html_mode: str | None = None
+    html_end_pattern: re.Pattern[str] | None = None
 
     for index, line in enumerate(content.splitlines()):
         fence_match = MARKDOWN_FENCE.match(line)
@@ -41,9 +81,14 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
                     fence_length = 0
             continue
 
-        if in_html_comment:
-            if "-->" in line:
-                in_html_comment = False
+        if html_mode == "pattern":
+            if html_end_pattern is not None and html_end_pattern.search(line):
+                html_mode = None
+                html_end_pattern = None
+            continue
+        if html_mode == "blank":
+            if not line.strip():
+                html_mode = None
             continue
 
         if fence_match is not None:
@@ -52,8 +97,16 @@ def _markdown_headings(content: str) -> list[tuple[int, int, str]]:
             fence_length = len(marker)
             continue
 
-        if MARKDOWN_HTML_COMMENT_OPEN.match(line) is not None:
-            in_html_comment = "-->" not in line
+        html_start = _html_block_start(line)
+        if html_start is not None:
+            html_mode, html_end_pattern = html_start
+            if (
+                html_mode == "pattern"
+                and html_end_pattern is not None
+                and html_end_pattern.search(line)
+            ):
+                html_mode = None
+                html_end_pattern = None
             continue
 
         heading_match = MARKDOWN_HEADING.match(line)
