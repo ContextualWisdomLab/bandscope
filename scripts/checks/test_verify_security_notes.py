@@ -107,6 +107,27 @@ class SecurityNotesPolicyTests(unittest.TestCase):
         )
         self.assertEqual(self._violations(), [str(path)])
 
+    def test_html_comment_block_terminator_cannot_expose_policy_heading(self) -> None:
+        """Trailing text on an HTML-comment block line must remain raw HTML, not policy."""
+        path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
+        valid_tail = (
+            "## Security Notes\n\n"
+            "### Trust boundary\n\n"
+            "A documentation URL creates no runtime trust-boundary path.\n"
+        )
+        comment_forms = [
+            f"<!-- -->{valid_tail}",
+            f"<!--\n-->{valid_tail}",
+        ]
+
+        for comment_form in comment_forms:
+            with self.subTest(comment_form=comment_form.splitlines()[0]):
+                path.write_text(
+                    f"# Tooltip evidence\n\n{comment_form}",
+                    encoding="utf-8",
+                )
+                self.assertEqual(self._violations(), [str(path)])
+
     def test_doctoring_raw_html_blocks_cannot_satisfy_security_evidence(self) -> None:
         """CommonMark raw-HTML blocks must not impersonate doctoring policy evidence."""
         path = self.doctoring_dir / "sidebar-disabled-tooltips.md"
