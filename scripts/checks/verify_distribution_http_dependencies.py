@@ -156,6 +156,63 @@ def _direct_reqwest_declarations(manifest: dict[str, Any]) -> list[tuple[str, An
     return declarations
 
 
+def _direct_reqwest_dependency_names(manifest: dict[str, Any]) -> frozenset[str]:
+    """Return Cargo dependency keys that resolve to the reqwest package."""
+    workspace_dependencies = _workspace_dependencies(manifest)
+    names: set[str] = set()
+
+    def collect(dependencies: Any) -> None:
+        if not isinstance(dependencies, dict):
+            return
+        for dependency_name, declaration in dependencies.items():
+            if (
+                _resolved_package_name(
+                    dependency_name,
+                    declaration,
+                    workspace_dependencies,
+                )
+                == "reqwest"
+            ):
+                names.add(dependency_name)
+
+    collect(manifest.get("dependencies", {}))
+    targets = manifest.get("target", {})
+    if isinstance(targets, dict):
+        for target_table in targets.values():
+            if isinstance(target_table, dict):
+                collect(target_table.get("dependencies", {}))
+    return frozenset(names)
+
+
+def _validate_reqwest_feature_forwarding(manifest: dict[str, Any]) -> list[str]:
+    """Reject root features that can add reqwest features outside its declaration."""
+    dependency_names = _direct_reqwest_dependency_names(manifest)
+    if not dependency_names:
+        return []
+    features = manifest.get("features", {})
+    if not isinstance(features, dict):
+        return []
+
+    violations: list[str] = []
+    for feature_name, members in features.items():
+        if not isinstance(members, list):
+            continue
+        for member in members:
+            if not isinstance(member, str):
+                continue
+            for dependency_name in dependency_names:
+                direct_prefix = f"{dependency_name}/"
+                weak_prefix = f"{dependency_name}?/"
+                if member.startswith(direct_prefix) or member.startswith(weak_prefix):
+                    violations.append(
+                        f"{DISTRIBUTION_TRANSPORT_MANIFEST} [features.{feature_name}]: "
+                        f"reqwest feature forwarding {member!r} is not admitted; select "
+                        "the complete approved reqwest feature set only in the direct "
+                        "runtime dependency declaration"
+                    )
+    return violations
+
+
 def _validate_reqwest_declaration(location: str, reqwest: Any) -> list[str]:
     """Validate one direct runtime reqwest declaration against owner policy."""
     prefix = f"{DISTRIBUTION_TRANSPORT_MANIFEST} [{location}]"
@@ -281,6 +338,7 @@ def verify_distribution_http_dependency_admission(repo_root: Path) -> list[str]:
     violations: list[str] = []
     for location, reqwest in declarations:
         violations.extend(_validate_reqwest_declaration(location, reqwest))
+    violations.extend(_validate_reqwest_feature_forwarding(manifest))
 
     if not lock_path.exists():
         violations.append(
