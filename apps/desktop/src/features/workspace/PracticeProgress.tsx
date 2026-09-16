@@ -1,7 +1,7 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useId } from "react";
 import { Minus, Plus } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 /** Documented. */
 interface PracticeProgressProps {
@@ -12,6 +12,10 @@ interface PracticeProgressProps {
 /** Documented. */
 function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressProps) {
   const t = createTranslator(detectPreferredLocale());
+  const decreaseLimitDescriptionId = useId();
+  const increaseLimitDescriptionId = useId();
+  const atMinimum = progress <= 0;
+  const atMaximum = progress >= 100;
 
   const handleDecrease = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (progress <= 0) {
@@ -54,14 +58,22 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           <TooltipTrigger
             type="button"
             onClick={handleDecrease}
-            aria-disabled={progress <= 0 ? "true" : undefined}
+            aria-disabled={atMinimum ? "true" : undefined}
+            aria-describedby={atMinimum ? decreaseLimitDescriptionId : undefined}
             className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-label={t("decreasePracticeProgressLabel")}
           >
             <Minus className="size-4" aria-hidden="true" />
           </TooltipTrigger>
-          <TooltipContent>{t("decreasePracticeProgressLabel")}</TooltipContent>
+          <TooltipContent>
+            {t(atMinimum ? "practiceProgressAtMin" : "decreasePracticeProgressLabel")}
+          </TooltipContent>
         </Tooltip>
+        {atMinimum ? (
+          <span id={decreaseLimitDescriptionId} className="sr-only">
+            {t("practiceProgressAtMin")}
+          </span>
+        ) : null}
 
         <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-slate-900/50 shadow-inner">
           <div
@@ -87,14 +99,22 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           <TooltipTrigger
             type="button"
             onClick={handleIncrease}
-            aria-disabled={progress >= 100 ? "true" : undefined}
+            aria-disabled={atMaximum ? "true" : undefined}
+            aria-describedby={atMaximum ? increaseLimitDescriptionId : undefined}
             className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-label={t("increasePracticeProgressLabel")}
           >
             <Plus className="size-4" aria-hidden="true" />
           </TooltipTrigger>
-          <TooltipContent>{t("increasePracticeProgressLabel")}</TooltipContent>
+          <TooltipContent>
+            {t(atMaximum ? "practiceProgressAtMax" : "increasePracticeProgressLabel")}
+          </TooltipContent>
         </Tooltip>
+        {atMaximum ? (
+          <span id={increaseLimitDescriptionId} className="sr-only">
+            {t("practiceProgressAtMax")}
+          </span>
+        ) : null}
       </div>
     </div>
   );
