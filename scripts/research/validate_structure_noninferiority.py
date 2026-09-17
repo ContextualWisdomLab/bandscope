@@ -680,6 +680,26 @@ def evaluate_result(
     failed_tracks = _validate_failed_tracks(result, track_ids)
     _validate_track_measurements(result, track_ids, set(failed_tracks))
 
+    if failed_tracks:
+        for field in (
+            "aggregate",
+            "paired_delta_ci95",
+            "p95_latency_ratio_ci95",
+        ):
+            if result.get(field) is not None:
+                raise ValueError(
+                    f"result.{field} must be null when result.failed_tracks is non-empty"
+                )
+        return {
+            "passed": False,
+            "failed_requirements": [
+                "failed tracks are not permitted without a preregistered exclusion "
+                "policy: " + ", ".join(failed_tracks)
+            ],
+            "registration_sha256": registration_digest(registration),
+            "failed_tracks": failed_tracks,
+        }
+
     aggregate = _mapping(result.get("aggregate"), "result.aggregate")
     _require_exact_fields(aggregate, _AGGREGATE_FIELDS, "result.aggregate")
     baseline = _validate_measurement_side(
@@ -736,11 +756,6 @@ def evaluate_result(
 
     metrics = _mapping(registration["metrics"], "metrics")
     failed_requirements: list[str] = []
-    if failed_tracks:
-        failed_requirements.append(
-            "failed tracks are not permitted without a preregistered exclusion policy: "
-            + ", ".join(failed_tracks)
-        )
     for metric_name in _QUALITY_METRICS:
         config = _mapping(metrics[metric_name], f"metrics.{metric_name}")
         margin = _finite_number(
