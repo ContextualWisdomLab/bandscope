@@ -23,7 +23,7 @@ A registration is valid only when it records all of the following before the res
 - the complete metric implementation contract and noninferiority/speed thresholds;
 - the paired-uncertainty procedure identity, confidence level, resample count, and random seed.
 
-The schema-v1 registration envelope is closed-world at the top level. Extra fields are not treated as harmless annotations: an unregistered field changes what reviewers may infer was preregistered, so it fails admission instead of silently entering the evidence artifact.
+Schema v1 is closed-world not only at the registration top level but also for the hypothesis object, every registered metric configuration, every corpus-track object, and the runtime object. Extra fields are not treated as harmless annotations: an unregistered pilot-selection flag, metric weight, corpus-selection marker, or cache/runtime hint changes what reviewers may infer was preregistered, so it fails admission instead of silently entering the evidence artifact.
 
 The validator requires a 95% confidence level because the current result schema is explicitly `ci95`; it does not prescribe which scientifically defensible paired procedure must produce that interval. The procedure identifier, resample count, and seed are part of the preregistration digest so they cannot be changed after results are seen. `paired-track-bootstrap-v1` and the numeric values used in unit tests are policy fixtures only, not an approved BandScope production analysis plan.
 
@@ -107,7 +107,7 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 - Evidence JSON is limited to 2 MiB, must be a regular file read through one open descriptor, must decode as UTF-8, and rejects duplicate keys plus non-standard `NaN`/`Infinity` constants.
 - `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute, relative, drive-relative, and `file:` forms are rejected; an explicit non-file URI scheme is required so transient workstation paths cannot become provenance authority or leak into review artifacts.
 - Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt; duplicate audio SHA-256 values under different track IDs are rejected so one recording cannot be silently counted multiple times.
-- Invalid/non-finite measurements, corpus drift, duplicate audio content identity, uncertainty-plan drift, registration drift, missing per-track evidence, unregistered registration/result/track/aggregate/measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
+- Invalid/non-finite measurements, corpus drift, duplicate audio content identity, uncertainty-plan drift, registration drift, missing per-track evidence, unregistered registration/hypothesis/metric/corpus/runtime/result/track/aggregate/measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
 - The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, independence beyond exact-byte uniqueness, aggregate derivation, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
 
 ## References
