@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Validate preregistered structure-feature noninferiority evidence.
 
-This module deliberately does not compute MIR metrics. It binds a reviewed
-registration to result receipts produced by the recognized evaluation pipeline,
-then evaluates the preregistered confidence-interval decision rules. That keeps
-metric implementation authority with MIREX/mir_eval-compatible tooling while
-preventing thresholds, corpus identity, or runtime identity from drifting after
-results are observed.
+This module does not compute MIR metrics. It binds a reviewed registration to
+result receipts produced by the recognized evaluation pipeline, then evaluates
+the preregistered confidence-interval decision rules. Metric implementation
+authority remains with MIREX/mir_eval-compatible tooling while thresholds,
+corpus identity, and runtime identity are protected from post-result drift.
 """
 
 from __future__ import annotations
@@ -43,7 +42,15 @@ _QUALITY_METRICS: dict[str, dict[str, float | str]] = {
     },
 }
 _LATENCY_METRIC = "p95_latency_ratio"
-_REPORT_METRICS = (
+_REPORT_SCORE_METRICS = (
+    "boundary_precision_0_5",
+    "boundary_recall_0_5",
+    "boundary_precision_3_0",
+    "boundary_recall_3_0",
+)
+_REPORT_NONNEGATIVE_METRICS = (
+    "reference_to_estimate_median_deviation_seconds",
+    "estimate_to_reference_median_deviation_seconds",
     "p50_latency_seconds",
     "p95_latency_seconds",
     "peak_rss_mib",
@@ -51,21 +58,21 @@ _REPORT_METRICS = (
 
 
 def _mapping(value: object, field: str) -> Mapping[str, Any]:
-    """Return ``value`` as a mapping or raise a field-specific validation error."""
+    """Return ``value`` as a mapping or raise a field-specific error."""
     if not isinstance(value, Mapping):
         raise ValueError(f"{field} must be an object")
     return value
 
 
 def _sequence(value: object, field: str) -> Sequence[Any]:
-    """Return a non-string sequence or raise a field-specific validation error."""
+    """Return a non-string sequence or raise a field-specific error."""
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
         raise ValueError(f"{field} must be an array")
     return value
 
 
 def _nonempty_text(value: object, field: str) -> str:
-    """Return stripped non-empty text for a required textual field."""
+    """Return stripped non-empty text for a required field."""
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{field} must be non-empty text")
     return value.strip()
@@ -114,7 +121,9 @@ def _reject_local_path(value: object, field: str) -> str:
         or _WINDOWS_ABSOLUTE_RE.match(text) is not None
         or lowered.startswith("file:")
     ):
-        raise ValueError(f"{field} must be a provenance URI, not a local filesystem path")
+        raise ValueError(
+            f"{field} must be a provenance URI, not a local filesystem path"
+        )
     return text
 
 
@@ -154,9 +163,16 @@ def _validate_metrics(metrics_value: object) -> None:
                 config.get(config_name),
                 f"metrics.{metric_name}.{config_name}",
             )
-            if not math.isclose(actual_value, float(expected_value), rel_tol=0.0, abs_tol=1e-12):
+            expected_number = float(expected_value)
+            if not math.isclose(
+                actual_value,
+                expected_number,
+                rel_tol=0.0,
+                abs_tol=1e-12,
+            ):
                 raise ValueError(
-                    f"metrics.{metric_name}.{config_name} must equal {expected_value}"
+                    f"metrics.{metric_name}.{config_name} must equal "
+                    f"{expected_value}"
                 )
         margin = _finite_number(
             config.get("noninferiority_margin"),
@@ -174,16 +190,18 @@ def _validate_metrics(metrics_value: object) -> None:
     )
     if not 0.0 < maximum_ratio < 1.0:
         raise ValueError(
-            "metrics.p95_latency_ratio.maximum_candidate_ratio must be greater than 0 "
-            "and less than 1"
+            "metrics.p95_latency_ratio.maximum_candidate_ratio must be greater "
+            "than 0 and less than 1"
         )
 
 
 def _validate_corpus(corpus_value: object) -> list[str]:
-    """Validate rights-cleared real-audio identities and return ordered track IDs."""
+    """Validate rights-cleared real-audio identities and return ordered IDs."""
     corpus = _sequence(corpus_value, "corpus")
     if len(corpus) < 2:
-        raise ValueError("corpus must contain at least two rights-cleared real-audio tracks")
+        raise ValueError(
+            "corpus must contain at least two rights-cleared real-audio tracks"
+        )
 
     seen: set[str] = set()
     track_ids: list[str] = []
@@ -205,35 +223,51 @@ def _validate_corpus(corpus_value: object) -> list[str]:
 
 
 def _validate_runtime(runtime_value: object) -> None:
-    """Validate exact runtime identity needed to reproduce paired measurements."""
+    """Validate exact runtime identity for reproducible paired measurements."""
     runtime = _mapping(runtime_value, "runtime")
     _commit(runtime.get("source_commit"), "runtime.source_commit")
     _sha256(runtime.get("uv_lock_sha256"), "runtime.uv_lock_sha256")
-    for field in ("python_version", "librosa_version", "numpy_version", "host_profile"):
+    for field in (
+        "python_version",
+        "librosa_version",
+        "numpy_version",
+        "host_profile",
+    ):
         _nonempty_text(runtime.get(field), f"runtime.{field}")
 
-    sample_rate = _finite_number(runtime.get("sample_rate_hz"), "runtime.sample_rate_hz")
+    sample_rate = _finite_number(
+        runtime.get("sample_rate_hz"),
+        "runtime.sample_rate_hz",
+    )
     if not 1.0 <= sample_rate <= 384000.0 or not sample_rate.is_integer():
         raise ValueError("runtime.sample_rate_hz must be an integer in 1..384000")
     channels = runtime.get("channels")
     if isinstance(channels, bool) or channels != 1:
-        raise ValueError("runtime.channels must equal 1 for the registered segmentation input")
+        raise ValueError(
+            "runtime.channels must equal 1 for the registered segmentation input"
+        )
 
 
 def validate_registration(registration_value: object) -> None:
     """Validate a frozen STFT-vs-CQT structure experiment registration.
 
-    The validator intentionally requires content hashes, rights evidence, exact
-    runtime identity, recognized metric implementations, and explicit margins.
-    It does not decide what the margins should be; that scientific/product
-    choice must be reviewed before any corpus result is inspected.
+    This function requires content hashes, rights evidence, exact runtime
+    identity, recognized metric implementations, and explicit margins. It does
+    not decide what those margins should be; that scientific/product choice must
+    be reviewed before any corpus result is inspected.
     """
     registration = _mapping(registration_value, "registration")
-    _validate_schema_version(registration.get("schema_version"), "schema_version")
+    _validate_schema_version(
+        registration.get("schema_version"),
+        "schema_version",
+    )
     _nonempty_text(registration.get("experiment_id"), "experiment_id")
 
     hypothesis = _mapping(registration.get("hypothesis"), "hypothesis")
-    baseline = _nonempty_text(hypothesis.get("baseline_feature"), "hypothesis.baseline_feature")
+    baseline = _nonempty_text(
+        hypothesis.get("baseline_feature"),
+        "hypothesis.baseline_feature",
+    )
     candidate = _nonempty_text(
         hypothesis.get("candidate_feature"),
         "hypothesis.candidate_feature",
@@ -273,19 +307,32 @@ def _confidence_interval(value: object, field: str) -> tuple[float, float]:
     return lower, upper
 
 
-def _validate_aggregate_side(side_value: object, field: str) -> dict[str, float]:
-    """Validate one aggregate baseline/candidate result side."""
+def _validate_measurement_side(
+    side_value: object,
+    field: str,
+) -> dict[str, float]:
+    """Validate one per-track or aggregate baseline/candidate measurement."""
     side = _mapping(side_value, field)
     normalized: dict[str, float] = {}
     for metric_name in _QUALITY_METRICS:
-        normalized[metric_name] = _score(side.get(metric_name), f"{field}.{metric_name}")
-    for metric_name in _REPORT_METRICS:
+        normalized[metric_name] = _score(
+            side.get(metric_name),
+            f"{field}.{metric_name}",
+        )
+    for metric_name in _REPORT_SCORE_METRICS:
+        normalized[metric_name] = _score(
+            side.get(metric_name),
+            f"{field}.{metric_name}",
+        )
+    for metric_name in _REPORT_NONNEGATIVE_METRICS:
         value = _finite_number(side.get(metric_name), f"{field}.{metric_name}")
         if value < 0.0:
             raise ValueError(f"{field}.{metric_name} must be non-negative")
         normalized[metric_name] = value
     if normalized["p95_latency_seconds"] < normalized["p50_latency_seconds"]:
-        raise ValueError(f"{field}.p95_latency_seconds must be >= p50_latency_seconds")
+        raise ValueError(
+            f"{field}.p95_latency_seconds must be >= p50_latency_seconds"
+        )
     return normalized
 
 
@@ -293,48 +340,95 @@ def _validate_result_identity(
     registration: Mapping[str, Any],
     result: Mapping[str, Any],
 ) -> list[str]:
-    """Bind a result receipt to the frozen registration and exact corpus order."""
-    _validate_schema_version(result.get("schema_version"), "result.schema_version")
-    experiment_id = _nonempty_text(result.get("experiment_id"), "result.experiment_id")
+    """Bind a result receipt to the frozen registration and corpus order."""
+    _validate_schema_version(
+        result.get("schema_version"),
+        "result.schema_version",
+    )
+    experiment_id = _nonempty_text(
+        result.get("experiment_id"),
+        "result.experiment_id",
+    )
     if experiment_id != registration["experiment_id"]:
         raise ValueError("result.experiment_id does not match registration")
 
     expected_digest = registration_digest(registration)
-    actual_digest = _sha256(result.get("registration_sha256"), "result.registration_sha256")
+    actual_digest = _sha256(
+        result.get("registration_sha256"),
+        "result.registration_sha256",
+    )
     if actual_digest != expected_digest:
-        raise ValueError("result.registration_sha256 does not match the frozen registration")
+        raise ValueError(
+            "result.registration_sha256 does not match the frozen registration"
+        )
 
     expected_track_ids = _validate_corpus(registration["corpus"])
-    actual_track_values = _sequence(result.get("corpus_track_ids"), "result.corpus_track_ids")
+    actual_values = _sequence(
+        result.get("corpus_track_ids"),
+        "result.corpus_track_ids",
+    )
     actual_track_ids = [
         _nonempty_text(value, f"result.corpus_track_ids[{index}]")
-        for index, value in enumerate(actual_track_values)
+        for index, value in enumerate(actual_values)
     ]
     if actual_track_ids != expected_track_ids:
-        raise ValueError("result.corpus_track_ids must exactly match registration corpus order")
+        raise ValueError(
+            "result.corpus_track_ids must exactly match registration corpus order"
+        )
     return expected_track_ids
+
+
+def _validate_track_measurements(
+    result: Mapping[str, Any],
+    expected_track_ids: list[str],
+) -> None:
+    """Require one complete baseline/candidate receipt for every corpus track."""
+    tracks = _sequence(result.get("tracks"), "result.tracks")
+    if len(tracks) != len(expected_track_ids):
+        raise ValueError("result.tracks must contain exactly one receipt per corpus track")
+
+    actual_track_ids: list[str] = []
+    for index, raw_track in enumerate(tracks):
+        field = f"result.tracks[{index}]"
+        track = _mapping(raw_track, field)
+        track_id = _nonempty_text(track.get("track_id"), f"{field}.track_id")
+        actual_track_ids.append(track_id)
+        _validate_measurement_side(track.get("baseline"), f"{field}.baseline")
+        _validate_measurement_side(track.get("candidate"), f"{field}.candidate")
+    if actual_track_ids != expected_track_ids:
+        raise ValueError("result.tracks must preserve the registered corpus order")
 
 
 def evaluate_result(
     registration_value: object,
     result_value: object,
 ) -> dict[str, object]:
-    """Validate a result receipt and evaluate preregistered CI-based decisions."""
+    """Validate a result receipt and evaluate preregistered CI decisions."""
     validate_registration(registration_value)
     registration = _mapping(registration_value, "registration")
     result = _mapping(result_value, "result")
     track_ids = _validate_result_identity(registration, result)
+    _validate_track_measurements(result, track_ids)
 
     aggregate = _mapping(result.get("aggregate"), "result.aggregate")
-    baseline = _validate_aggregate_side(aggregate.get("baseline"), "result.aggregate.baseline")
-    candidate = _validate_aggregate_side(
+    baseline = _validate_measurement_side(
+        aggregate.get("baseline"),
+        "result.aggregate.baseline",
+    )
+    candidate = _validate_measurement_side(
         aggregate.get("candidate"),
         "result.aggregate.candidate",
     )
 
-    raw_intervals = _mapping(result.get("paired_delta_ci95"), "result.paired_delta_ci95")
+    raw_intervals = _mapping(
+        result.get("paired_delta_ci95"),
+        "result.paired_delta_ci95",
+    )
     if set(raw_intervals) != set(_QUALITY_METRICS):
-        raise ValueError("result.paired_delta_ci95 must contain exactly the registered quality metrics")
+        raise ValueError(
+            "result.paired_delta_ci95 must contain exactly the registered "
+            "quality metrics"
+        )
 
     intervals: dict[str, tuple[float, float]] = {}
     for metric_name in _QUALITY_METRICS:
@@ -345,7 +439,8 @@ def evaluate_result(
         point_delta = candidate[metric_name] - baseline[metric_name]
         if not interval[0] <= point_delta <= interval[1]:
             raise ValueError(
-                f"result.paired_delta_ci95.{metric_name} must contain the aggregate point delta"
+                f"result.paired_delta_ci95.{metric_name} must contain the "
+                "aggregate point delta"
             )
         intervals[metric_name] = interval
 
@@ -354,41 +449,56 @@ def evaluate_result(
         "result.p95_latency_ratio_ci95",
     )
     if latency_interval[0] <= 0.0:
-        raise ValueError("result.p95_latency_ratio_ci95 bounds must be greater than 0")
+        raise ValueError(
+            "result.p95_latency_ratio_ci95 bounds must be greater than 0"
+        )
     baseline_p95 = baseline["p95_latency_seconds"]
     if baseline_p95 <= 0.0:
-        raise ValueError("result.aggregate.baseline.p95_latency_seconds must be greater than 0")
+        raise ValueError(
+            "result.aggregate.baseline.p95_latency_seconds must be greater than 0"
+        )
     latency_ratio = candidate["p95_latency_seconds"] / baseline_p95
     if not latency_interval[0] <= latency_ratio <= latency_interval[1]:
-        raise ValueError("result.p95_latency_ratio_ci95 must contain the aggregate p95 ratio")
+        raise ValueError(
+            "result.p95_latency_ratio_ci95 must contain the aggregate p95 ratio"
+        )
 
-    failed_tracks_raw = _sequence(result.get("failed_tracks"), "result.failed_tracks")
+    failed_values = _sequence(
+        result.get("failed_tracks"),
+        "result.failed_tracks",
+    )
     failed_tracks = [
         _nonempty_text(value, f"result.failed_tracks[{index}]")
-        for index, value in enumerate(failed_tracks_raw)
+        for index, value in enumerate(failed_values)
     ]
     if len(set(failed_tracks)) != len(failed_tracks):
         raise ValueError("result.failed_tracks must not contain duplicates")
     unknown_failed = sorted(set(failed_tracks) - set(track_ids))
     if unknown_failed:
-        raise ValueError(f"result.failed_tracks contains unknown track_id: {unknown_failed[0]}")
+        raise ValueError(
+            f"result.failed_tracks contains unknown track_id: {unknown_failed[0]}"
+        )
     _nonempty_text(result.get("claim_boundary"), "result.claim_boundary")
 
     metrics = _mapping(registration["metrics"], "metrics")
     failed_requirements: list[str] = []
     for metric_name in _QUALITY_METRICS:
-        metric_config = _mapping(metrics[metric_name], f"metrics.{metric_name}")
+        config = _mapping(metrics[metric_name], f"metrics.{metric_name}")
         margin = _finite_number(
-            metric_config.get("noninferiority_margin"),
+            config.get("noninferiority_margin"),
             f"metrics.{metric_name}.noninferiority_margin",
         )
         lower = intervals[metric_name][0]
         if lower < -margin:
             failed_requirements.append(
-                f"{metric_name} paired CI lower bound {lower:.6f} is below -{margin:.6f}"
+                f"{metric_name} paired CI lower bound {lower:.6f} "
+                f"is below -{margin:.6f}"
             )
 
-    latency_config = _mapping(metrics[_LATENCY_METRIC], f"metrics.{_LATENCY_METRIC}")
+    latency_config = _mapping(
+        metrics[_LATENCY_METRIC],
+        f"metrics.{_LATENCY_METRIC}",
+    )
     maximum_ratio = _finite_number(
         latency_config.get("maximum_candidate_ratio"),
         f"metrics.{_LATENCY_METRIC}.maximum_candidate_ratio",
@@ -415,7 +525,7 @@ def _load_json(path: Path) -> object:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Validate a registration and optionally evaluate one bound result receipt."""
+    """Validate a registration and optionally evaluate one bound result."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("registration", type=Path)
     parser.add_argument("result", type=Path, nargs="?")
