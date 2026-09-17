@@ -147,7 +147,10 @@ def test_admission_rejects_decoder_without_verifiable_pcm(
         )
 
 
-@pytest.mark.parametrize("non_finite_sample", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize(
+    "non_finite_sample",
+    [float("nan"), float("inf"), float("-inf")],
+)
 def test_admission_rejects_non_finite_pcm_before_measurement(
     tmp_path: Path,
     non_finite_sample: float,
