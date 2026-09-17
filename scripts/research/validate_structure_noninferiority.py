@@ -410,6 +410,19 @@ def _validate_measurement_side(
 ) -> dict[str, float]:
     """Validate one per-track or aggregate baseline/candidate measurement."""
     side = _mapping(side_value, field)
+    expected_fields = (
+        set(_QUALITY_METRICS)
+        | set(_REPORT_SCORE_METRICS)
+        | set(_REPORT_NONNEGATIVE_METRICS)
+    )
+    actual_fields = set(side)
+    missing_fields = sorted(expected_fields - actual_fields)
+    extra_fields = sorted(actual_fields - expected_fields)
+    if missing_fields:
+        raise ValueError(f"{field} missing required field: {missing_fields[0]}")
+    if extra_fields:
+        raise ValueError(f"{field} contains unregistered field: {extra_fields[0]}")
+
     normalized: dict[str, float] = {}
     for metric_name in _QUALITY_METRICS:
         normalized[metric_name] = _score(
