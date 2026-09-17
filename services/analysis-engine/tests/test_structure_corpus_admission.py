@@ -136,6 +136,7 @@ def _manifest(
 
 
 def test_admission_hashes_actual_files_and_emits_no_local_paths(tmp_path: Path) -> None:
+    """Receipt binds actual corpus bytes without persisting workstation paths."""
     admission = _admission()
     audio_paths, annotation_paths = _files(tmp_path)
     registration = _registration(
@@ -170,6 +171,7 @@ def test_admission_hashes_actual_files_and_emits_no_local_paths(tmp_path: Path) 
 
 
 def test_admission_rejects_byte_drift_before_decode(tmp_path: Path) -> None:
+    """Changed registered audio must fail before any decoder executes."""
     admission = _admission()
     audio_paths, annotation_paths = _files(tmp_path)
     registration = _registration(
@@ -189,6 +191,7 @@ def test_admission_rejects_byte_drift_before_decode(tmp_path: Path) -> None:
 
 
 def test_admission_rejects_runtime_drift(tmp_path: Path) -> None:
+    """Runtime drift must fail before corpus measurement begins."""
     admission = _admission()
     audio_paths, annotation_paths = _files(tmp_path)
     registration = _registration(
@@ -209,6 +212,7 @@ def test_admission_rejects_runtime_drift(tmp_path: Path) -> None:
 
 
 def test_admission_rejects_symlinked_corpus_material(tmp_path: Path) -> None:
+    """Corpus material must not cross the admission boundary through a symlink."""
     admission = _admission()
     audio_paths, annotation_paths = _files(tmp_path)
     registration = _registration(
@@ -229,6 +233,7 @@ def test_admission_rejects_symlinked_corpus_material(tmp_path: Path) -> None:
 
 
 def test_manifest_loader_rejects_duplicate_keys_and_nonstandard_numbers(tmp_path: Path) -> None:
+    """Manifest JSON must reject ambiguous keys and non-finite numeric constants."""
     admission = _admission()
     duplicate = tmp_path / "duplicate.json"
     duplicate.write_text('{"schema_version":1,"schema_version":1}', encoding="utf-8")
