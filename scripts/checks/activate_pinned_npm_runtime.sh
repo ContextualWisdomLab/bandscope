@@ -30,7 +30,7 @@ while true; do
 
   printf '%s\n' "$acquisition_output" >&2
   case "$acquisition_output" in
-    *"Signature does not match"*|*"Cannot find matching keyid"*|*"not signed by any trusted keys"*|*"integrity checksum"*|*"Integrity check failed"*|*"integrity check failed"*)
+    *"Signature does not match"*|*"Cannot find matching keyid"*|*"No compatible signature found"*|*"not signed by any trusted keys"*|*"integrity checksum"*|*"Integrity check failed"*|*"integrity check failed"*)
       echo "Corepack reported a non-transient package-manager provenance failure; refusing to retry or weaken verification." >&2
       exit 1
       ;;
