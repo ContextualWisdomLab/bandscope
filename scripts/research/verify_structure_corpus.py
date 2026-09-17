@@ -9,9 +9,10 @@ registered librosa normalization contract, and emits a path-free receipt with a
 SHA-256 identity of the exact mono float32 PCM presented to later analysis.
 
 An in-process track consumer may receive that exact normalized PCM together
-with the immutable admitted annotation snapshot. This is the handoff boundary
-for a later MIR experiment runner: the runner must not reopen workstation source
-paths after admission merely because the durable receipt contains only digests.
+with the admitted annotation snapshot. This is the handoff boundary for a later
+MIR experiment runner: the runner must not reopen workstation source paths after
+admission merely because the durable receipt contains only digests. Any
+consumer-side mutation of the admitted annotation snapshot invalidates the run.
 
 The tool does not calculate MIR metrics, choose thresholds, or make a
 noninferiority decision. Synthetic audio is suitable for unit tests only;
@@ -263,10 +264,10 @@ def verify_corpus(
 
     When ``track_consumer`` is supplied, it runs only after both registered
     content identities are verified. It receives the exact canonical PCM used
-    for ``decoded_pcm_sha256`` plus a borrowed immutable-source annotation
-    snapshot. The callback must finish before this function returns; the
-    annotation handle is closed immediately afterward and is never persisted in
-    the receipt.
+    for ``decoded_pcm_sha256`` plus a borrowed annotation snapshot. The callback
+    must finish before this function returns; mutation of that snapshot is
+    detected and invalidates admission, and the handle is closed immediately
+    afterward rather than persisted in the receipt.
     """
     validator = _load_validator()
     validator.validate_registration(registration)
@@ -351,6 +352,14 @@ def verify_corpus(
                     annotation_snapshot,
                     target_sample_rate_hz,
                 )
+                annotation_snapshot.flush()
+                if (
+                    _sha256_file_descriptor(annotation_snapshot.fileno())
+                    != annotation_sha256
+                ):
+                    raise ValueError(
+                        f"{field} consumer mutated admitted annotation snapshot"
+                    )
         finally:
             annotation_snapshot.close()
 
