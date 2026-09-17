@@ -13,6 +13,7 @@ _EXPECTED_NPM_VERSION = "10.9.9"
 _EXPECTED_NODE_VERSION = "22.22.3"
 _MINIMUM_NPM_TAR_VERSION = "7.5.19"
 _NPM_RUNTIME_CHECK = "node scripts/checks/verify_npm_runtime.mjs"
+_NPM_ACTIVATION_COMMAND = "bash scripts/checks/activate_pinned_npm_runtime.sh"
 
 
 def _root_manifest() -> dict[str, object]:
@@ -86,8 +87,30 @@ def _assert_no_mutable_npm_commands(steps: list[dict[str, object]]) -> None:
 
 
 def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, object]]) -> None:
-    """Require Corepack npm activation and runtime audit before the first npm dependency read."""
+    """Require reviewed npm activation and audit before the first npm dependency read."""
     run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
+    consumption_index = next(
+        (
+            index
+            for index, command in enumerate(run_steps)
+            if re.search(r"(?:^|\n)\s*npm ci(?:\s|$)", command)
+        ),
+        None,
+    )
+    assert consumption_index is not None
+
+    helper_index = next(
+        (
+            index
+            for index, command in enumerate(run_steps)
+            if command.strip() == _NPM_ACTIVATION_COMMAND
+        ),
+        None,
+    )
+    if helper_index is not None:
+        assert helper_index < consumption_index
+        return
+
     activation_index = next(
         (index for index, command in enumerate(run_steps) if "corepack enable npm" in command),
         None,
@@ -100,18 +123,8 @@ def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, ob
         ),
         None,
     )
-    consumption_index = next(
-        (
-            index
-            for index, command in enumerate(run_steps)
-            if re.search(r"(?:^|\n)\s*npm ci(?:\s|$)", command)
-        ),
-        None,
-    )
-
     assert activation_index is not None
     assert audit_index is not None
-    assert consumption_index is not None
     assert activation_index <= audit_index < consumption_index
 
 
