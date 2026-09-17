@@ -375,6 +375,7 @@ def verify_corpus(
 
 
 def main() -> int:
+    """Run corpus admission and write one path-free verification receipt."""
     parser = argparse.ArgumentParser(
         description="Admit local real-audio files for a frozen structure experiment"
     )
