@@ -105,6 +105,7 @@ _RESULT_FIELDS = {
     "claim_boundary",
 }
 _TRACK_RECEIPT_FIELDS = {"track_id", "baseline", "candidate"}
+_FAILED_TRACK_RECEIPT_FIELDS = {"track_id"}
 _AGGREGATE_FIELDS = {"baseline", "candidate"}
 
 
@@ -616,11 +617,35 @@ def _validate_result_identity(
     return expected_track_ids
 
 
+def _validate_failed_tracks(
+    result: Mapping[str, Any],
+    expected_track_ids: list[str],
+) -> list[str]:
+    """Validate explicit measurement failures against the registered corpus."""
+    failed_values = _sequence(
+        result.get("failed_tracks"),
+        "result.failed_tracks",
+    )
+    failed_tracks = [
+        _nonempty_text(value, f"result.failed_tracks[{index}]")
+        for index, value in enumerate(failed_values)
+    ]
+    if len(set(failed_tracks)) != len(failed_tracks):
+        raise ValueError("result.failed_tracks must not contain duplicates")
+    unknown_failed = sorted(set(failed_tracks) - set(expected_track_ids))
+    if unknown_failed:
+        raise ValueError(
+            f"result.failed_tracks contains unknown track_id: {unknown_failed[0]}"
+        )
+    return failed_tracks
+
+
 def _validate_track_measurements(
     result: Mapping[str, Any],
     expected_track_ids: list[str],
+    failed_track_ids: set[str],
 ) -> None:
-    """Require one complete baseline/candidate receipt for every corpus track."""
+    """Require one explicit success-or-failure receipt for every corpus track."""
     tracks = _sequence(result.get("tracks"), "result.tracks")
     if len(tracks) != len(expected_track_ids):
         raise ValueError(
@@ -631,9 +656,12 @@ def _validate_track_measurements(
     for index, raw_track in enumerate(tracks):
         field = f"result.tracks[{index}]"
         track = _mapping(raw_track, field)
-        _require_exact_fields(track, _TRACK_RECEIPT_FIELDS, field)
         track_id = _nonempty_text(track.get("track_id"), f"{field}.track_id")
         actual_track_ids.append(track_id)
+        if track_id in failed_track_ids:
+            _require_exact_fields(track, _FAILED_TRACK_RECEIPT_FIELDS, field)
+            continue
+        _require_exact_fields(track, _TRACK_RECEIPT_FIELDS, field)
         _validate_measurement_side(track.get("baseline"), f"{field}.baseline")
         _validate_measurement_side(track.get("candidate"), f"{field}.candidate")
     if actual_track_ids != expected_track_ids:
@@ -649,7 +677,8 @@ def evaluate_result(
     registration = _mapping(registration_value, "registration")
     result = _mapping(result_value, "result")
     track_ids = _validate_result_identity(registration, result)
-    _validate_track_measurements(result, track_ids)
+    failed_tracks = _validate_failed_tracks(result, track_ids)
+    _validate_track_measurements(result, track_ids, set(failed_tracks))
 
     aggregate = _mapping(result.get("aggregate"), "result.aggregate")
     _require_exact_fields(aggregate, _AGGREGATE_FIELDS, "result.aggregate")
@@ -703,22 +732,6 @@ def evaluate_result(
     if not latency_interval[0] <= latency_ratio <= latency_interval[1]:
         raise ValueError(
             "result.p95_latency_ratio_ci95 must contain the aggregate p95 ratio"
-        )
-
-    failed_values = _sequence(
-        result.get("failed_tracks"),
-        "result.failed_tracks",
-    )
-    failed_tracks = [
-        _nonempty_text(value, f"result.failed_tracks[{index}]")
-        for index, value in enumerate(failed_values)
-    ]
-    if len(set(failed_tracks)) != len(failed_tracks):
-        raise ValueError("result.failed_tracks must not contain duplicates")
-    unknown_failed = sorted(set(failed_tracks) - set(track_ids))
-    if unknown_failed:
-        raise ValueError(
-            f"result.failed_tracks contains unknown track_id: {unknown_failed[0]}"
         )
 
     metrics = _mapping(registration["metrics"], "metrics")
