@@ -239,3 +239,55 @@ def test_manifest_loader_rejects_duplicate_keys_and_nonstandard_numbers(tmp_path
     nonstandard.write_text('{"schema_version":NaN}', encoding="utf-8")
     with pytest.raises(ValueError, match="non-standard JSON number"):
         admission._load_json(nonstandard)
+
+
+def test_admission_hands_exact_pcm_and_annotation_snapshot_to_consumer(tmp_path: Path) -> None:
+    """A runner must consume the admitted signal and annotation, not reopen source paths."""
+    admission = _admission()
+    audio_paths, annotation_paths = _files(tmp_path)
+    original_annotations = [path.read_bytes() for path in annotation_paths]
+    registration = _registration(
+        [_digest(path) for path in audio_paths],
+        [_digest(path) for path in annotation_paths],
+    )
+    manifest = _manifest(admission, registration, audio_paths, annotation_paths)
+    pcm_payloads = [memoryview(b"\x00\x00\x00\x00"), memoryview(b"\x00\x00\x80?")]
+    decoded_index = 0
+    consumed: list[tuple[str, bytes, bytes, int]] = []
+
+    def fake_decoder(fd: int, sample_rate_hz: int) -> tuple[str, int, memoryview]:
+        nonlocal decoded_index
+        assert sample_rate_hz == 44100
+        assert os.read(fd, 1)
+        pcm = pcm_payloads[decoded_index]
+        decoded_index += 1
+        return hashlib.sha256(pcm).hexdigest(), 1, pcm
+
+    def consume_track(
+        track_id: str,
+        pcm: memoryview,
+        annotation_snapshot: object,
+        sample_rate_hz: int,
+    ) -> None:
+        index = int(track_id[-1]) - 1
+        annotation_paths[index].write_bytes(b"mutated-after-admission")
+        annotation_snapshot.seek(0)
+        consumed.append(
+            (track_id, bytes(pcm), annotation_snapshot.read(), sample_rate_hz)
+        )
+
+    receipt = admission.verify_corpus(
+        registration,
+        manifest,
+        runtime_identity=_runtime(),
+        decoder=fake_decoder,
+        track_consumer=consume_track,
+    )
+
+    assert consumed == [
+        ("track-001", bytes(pcm_payloads[0]), original_annotations[0], 44100),
+        ("track-002", bytes(pcm_payloads[1]), original_annotations[1], 44100),
+    ]
+    assert [
+        track["decoded_pcm_sha256"] for track in receipt["tracks"]
+    ] == [hashlib.sha256(payload).hexdigest() for payload in pcm_payloads]
