@@ -33,7 +33,7 @@ packages = ["src/bandscope_analysis"]
 testpaths = ["tests"]
 pythonpath = ["src"]
 filterwarnings = [
-    "ignore::DeprecationWarning",
+    "error::DeprecationWarning",
 ]
 
 [tool.coverage.run]
