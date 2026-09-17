@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -20,10 +19,6 @@ logger = logging.getLogger(__name__)
 TARGET_SR = 44100
 MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024  # 100 MiB
 MAX_ANALYSIS_DURATION_SECONDS = 15 * 60  # 15 minutes
-KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
-    (DeprecationWarning, r".*pkg_resources is deprecated.*", r".*librosa.*"),
-    (FutureWarning, r".*Numba.*", r".*numba.*"),
-)
 # ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
 BEATS_PER_BAR = 4
 
@@ -84,23 +79,14 @@ class TemporalAnalyzer:
                         f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
                     )
 
-                with warnings.catch_warnings():
-                    # Keep the loader's known third-party churn quiet without hiding
-                    # unrelated decoder warnings that tests and callers should see.
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    # Load audio, converting to mono and standardizing sample rate
-                    y, sr = librosa.load(
-                        fileobj,
-                        sr=TARGET_SR,
-                        mono=True,
-                        duration=MAX_ANALYSIS_DURATION_SECONDS,
-                    )
+                # Load audio, converting to mono and standardizing sample rate.
+                # Warnings remain visible so test/CI policy can root-cause them.
+                y, sr = librosa.load(
+                    fileobj,
+                    sr=TARGET_SR,
+                    mono=True,
+                    duration=MAX_ANALYSIS_DURATION_SECONDS,
+                )
 
             # Ensure it's a 1D float array for librosa
             if not isinstance(y, np.ndarray):
