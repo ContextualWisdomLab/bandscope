@@ -26,7 +26,8 @@ SCHEMA_VERSION = 1
 MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-fA-F]{40}$")
-_WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+_URI_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 _QUALITY_METRICS: dict[str, dict[str, float | str]] = {
     "boundary_f_0_5": {
@@ -134,13 +135,16 @@ def _commit(value: object, field: str) -> str:
 
 
 def _reject_local_path(value: object, field: str) -> str:
-    """Reject local filesystem authorities from corpus provenance receipts."""
+    """Require an explicit non-file URI for corpus provenance receipts."""
     text = _nonempty_text(value, field)
     lowered = text.casefold()
+    scheme = _URI_SCHEME_RE.match(text)
     if (
         text.startswith(("/", "\\\\"))
-        or _WINDOWS_ABSOLUTE_RE.match(text) is not None
+        or _WINDOWS_DRIVE_RE.match(text) is not None
         or lowered.startswith("file:")
+        or scheme is None
+        or scheme.end() == len(text)
     ):
         raise ValueError(
             f"{field} must be a provenance URI, not a local filesystem path"
