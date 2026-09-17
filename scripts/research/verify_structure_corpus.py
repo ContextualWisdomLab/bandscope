@@ -214,6 +214,8 @@ def _bind_decoded_pcm(
     decoded_pcm: memoryview,
 ) -> tuple[str, int, memoryview]:
     """Bind receipt identity to an immutable copy of the exact PCM handoff."""
+    import numpy as np
+
     pcm_bytes = bytes(decoded_pcm)
     pcm_view = memoryview(pcm_bytes)
     actual_digest = hashlib.sha256(pcm_view).hexdigest()
@@ -226,6 +228,9 @@ def _bind_decoded_pcm(
         raise ValueError("decoded frame count must be an integer") from exc
     if frame_count < 1 or len(pcm_view) != frame_count * 4:
         raise ValueError("decoded frame count does not match mono float32 PCM bytes")
+    samples = np.frombuffer(pcm_bytes, dtype="<f4")
+    if not bool(np.isfinite(samples).all()):
+        raise ValueError("decoded PCM must contain only finite float32 samples")
     return actual_digest, frame_count, pcm_view
 
 
