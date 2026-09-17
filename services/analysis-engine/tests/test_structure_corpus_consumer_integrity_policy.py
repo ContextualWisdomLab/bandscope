@@ -124,3 +124,23 @@ def test_admission_rejects_decoder_digest_that_does_not_match_handoff_pcm(
                 "consumer must not run when decoder identity is inconsistent"
             ),
         )
+
+
+def test_admission_rejects_decoder_without_verifiable_pcm(
+    tmp_path: Path,
+) -> None:
+    """A receipt must not trust a decoder-claimed digest without the decoded PCM bytes."""
+    admission, registration, manifest = _registered_inputs(tmp_path)
+
+    def digest_only_decoder(fd: int, sample_rate_hz: int) -> tuple[str, int]:
+        assert sample_rate_hz == 44100
+        assert os.read(fd, 1)
+        return hashlib.sha256(b"unexposed-pcm").hexdigest(), 1
+
+    with pytest.raises(ValueError, match="decoder must expose admitted PCM"):
+        admission.verify_corpus(
+            registration,
+            manifest,
+            runtime_identity=_runtime(),
+            decoder=digest_only_decoder,
+        )
