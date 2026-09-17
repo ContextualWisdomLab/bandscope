@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import struct
 from pathlib import Path
 
 import pytest
@@ -143,4 +144,30 @@ def test_admission_rejects_decoder_without_verifiable_pcm(
             manifest,
             runtime_identity=_runtime(),
             decoder=digest_only_decoder,
+        )
+
+
+@pytest.mark.parametrize("non_finite_sample", [float("nan"), float("inf"), float("-inf")])
+def test_admission_rejects_non_finite_pcm_before_measurement(
+    tmp_path: Path,
+    non_finite_sample: float,
+) -> None:
+    """NaN or infinite decoded samples must never enter MIR measurement."""
+    admission, registration, manifest = _registered_inputs(tmp_path)
+    pcm = memoryview(struct.pack("<f", non_finite_sample))
+
+    def non_finite_decoder(fd: int, sample_rate_hz: int) -> tuple[str, int, memoryview]:
+        assert sample_rate_hz == 44100
+        assert os.read(fd, 1)
+        return hashlib.sha256(pcm).hexdigest(), 1, pcm
+
+    with pytest.raises(ValueError, match="finite float32"):
+        admission.verify_corpus(
+            registration,
+            manifest,
+            runtime_identity=_runtime(),
+            decoder=non_finite_decoder,
+            track_consumer=lambda *_args: pytest.fail(
+                "consumer must not run with non-finite PCM"
+            ),
         )
