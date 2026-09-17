@@ -146,12 +146,13 @@ def test_admission_hashes_actual_files_and_emits_no_local_paths(tmp_path: Path) 
     manifest = _manifest(admission, registration, audio_paths, annotation_paths)
     decoded_digests: list[str] = []
 
-    def fake_decoder(fd: int, sample_rate_hz: int) -> tuple[str, int]:
+    def fake_decoder(fd: int, sample_rate_hz: int) -> tuple[str, int, memoryview]:
         assert sample_rate_hz == 44100
         assert os.read(fd, 1)
-        digest = hashlib.sha256(f"decoded-{len(decoded_digests)}".encode()).hexdigest()
+        pcm = memoryview(bytes([len(decoded_digests), 0, 0, 0]))
+        digest = hashlib.sha256(pcm).hexdigest()
         decoded_digests.append(digest)
-        return digest, 44100
+        return digest, 1, pcm
 
     receipt = admission.verify_corpus(
         registration,
