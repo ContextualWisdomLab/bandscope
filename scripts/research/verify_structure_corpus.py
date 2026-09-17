@@ -12,7 +12,7 @@ An in-process track consumer may receive that exact normalized PCM together
 with an immutable read-only view of the admitted annotation bytes. This is the
 handoff boundary for a later MIR experiment runner: the runner must not reopen
 workstation source paths after admission merely because the durable receipt
-contains only digests, and it must not be able to mutate annotation evidence
+contains only digests, and it must not be able to mutate measurement inputs
 before calculating metrics.
 
 The tool does not calculate MIR metrics, choose thresholds, or make a
@@ -135,18 +135,6 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return _mapping(value, "manifest JSON")
 
 
-def _sha256_file_descriptor(fd: int) -> str:
-    digest = hashlib.sha256()
-    os.lseek(fd, 0, os.SEEK_SET)
-    while True:
-        chunk = os.read(fd, 1024 * 1024)
-        if not chunk:
-            break
-        digest.update(chunk)
-    os.lseek(fd, 0, os.SEEK_SET)
-    return digest.hexdigest()
-
-
 def _snapshot_and_hash(fd: int) -> tuple[BinaryIO, str]:
     """Copy one opened source into a process-owned snapshot while hashing it."""
     digest = hashlib.sha256()
@@ -218,6 +206,27 @@ def _decode_pcm_identity(fd: int, target_sample_rate_hz: int) -> tuple[str, int,
     canonical.setflags(write=False)
     pcm = memoryview(canonical).cast("B")
     return hashlib.sha256(pcm).hexdigest(), int(canonical.size), pcm
+
+
+def _bind_decoded_pcm(
+    decoded_pcm_sha256: object,
+    decoded_frames: object,
+    decoded_pcm: memoryview,
+) -> tuple[str, int, memoryview]:
+    """Bind receipt identity to an immutable copy of the exact PCM handoff."""
+    pcm_bytes = bytes(decoded_pcm)
+    pcm_view = memoryview(pcm_bytes)
+    actual_digest = hashlib.sha256(pcm_view).hexdigest()
+    claimed_digest = _text(decoded_pcm_sha256, "decoder.decoded_pcm_sha256").lower()
+    if actual_digest != claimed_digest:
+        raise ValueError("decoded PCM SHA-256 does not match decoder handoff bytes")
+    try:
+        frame_count = int(decoded_frames)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("decoded frame count must be an integer") from exc
+    if frame_count < 1 or len(pcm_view) != frame_count * 4:
+        raise ValueError("decoded frame count does not match mono float32 PCM bytes")
+    return actual_digest, frame_count, pcm_view
 
 
 def _current_runtime_identity(repo_root: Path) -> dict[str, object]:
@@ -301,10 +310,10 @@ def verify_corpus(
     """Verify local files and return a path-free decoded-corpus receipt.
 
     When ``track_consumer`` is supplied, it runs only after both registered
-    content identities are verified. It receives the exact canonical PCM used
-    for ``decoded_pcm_sha256`` plus a read-only memory view over immutable
-    annotation bytes. The callback must finish before this function returns;
-    neither measurement input can be changed through the consumer boundary.
+    content identities are verified. It receives an immutable bytes-backed copy
+    of the exact canonical PCM whose digest/frame count enter the receipt plus a
+    read-only view over immutable annotation bytes. Neither measurement input can
+    be changed through the consumer boundary.
     """
     validator = _load_validator()
     validator.validate_registration(registration)
@@ -360,6 +369,12 @@ def verify_corpus(
                 decoded = decoder(snapshot.fileno(), target_sample_rate_hz)
                 decoded_pcm_sha256, decoded_frames = decoded[:2]
                 decoded_pcm = decoded[2] if len(decoded) == 3 else None
+                if decoded_pcm is not None:
+                    decoded_pcm_sha256, decoded_frames, decoded_pcm = _bind_decoded_pcm(
+                        decoded_pcm_sha256,
+                        decoded_frames,
+                        decoded_pcm,
+                    )
             finally:
                 snapshot.close()
         finally:
