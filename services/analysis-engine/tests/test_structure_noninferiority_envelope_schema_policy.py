@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from test_structure_noninferiority_policy import _registration, _result, _validator
+from test_structure_noninferiority_policy import (
+    _corpus,
+    _metrics,
+    _registration,
+    _result,
+    _validator,
+)
 
 
 def test_registration_rejects_unregistered_top_level_field() -> None:
@@ -15,6 +21,37 @@ def test_registration_rejects_unregistered_top_level_field() -> None:
 
     with pytest.raises(ValueError, match="registration contains unregistered field"):
         validator.validate_registration(registration)
+
+
+def test_registration_rejects_unregistered_nested_contract_fields() -> None:
+    """Hypothesis, metric, corpus, and runtime objects are closed schema objects."""
+    validator = _validator()
+
+    hypothesis_drift = _registration()
+    hypothesis = hypothesis_drift["hypothesis"]
+    assert isinstance(hypothesis, dict)
+    hypothesis["pilot_selected"] = True
+    with pytest.raises(ValueError, match="hypothesis contains unregistered field"):
+        validator.validate_registration(hypothesis_drift)
+
+    metric_drift = _registration()
+    metric = _metrics(metric_drift)["boundary_f_0_5"]
+    assert isinstance(metric, dict)
+    metric["post_hoc_weight"] = 2.0
+    with pytest.raises(ValueError, match="metrics.boundary_f_0_5 contains unregistered field"):
+        validator.validate_registration(metric_drift)
+
+    corpus_drift = _registration()
+    _corpus(corpus_drift)[0]["selected_for_primary_analysis"] = True
+    with pytest.raises(ValueError, match="corpus\[0\] contains unregistered field"):
+        validator.validate_registration(corpus_drift)
+
+    runtime_drift = _registration()
+    runtime = runtime_drift["runtime"]
+    assert isinstance(runtime, dict)
+    runtime["cache_state"] = "warm"
+    with pytest.raises(ValueError, match="runtime contains unregistered field"):
+        validator.validate_registration(runtime_drift)
 
 
 def test_result_rejects_unregistered_top_level_field() -> None:
