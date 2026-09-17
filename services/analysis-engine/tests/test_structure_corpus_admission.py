@@ -247,7 +247,7 @@ def test_manifest_loader_rejects_duplicate_keys_and_nonstandard_numbers(tmp_path
 
 
 def test_admission_hands_exact_pcm_and_annotation_snapshot_to_consumer(tmp_path: Path) -> None:
-    """A runner must consume the admitted signal and annotation, not reopen source paths."""
+    """A runner must consume admitted signal/annotation bytes, not reopen source paths."""
     admission = _admission()
     audio_paths, annotation_paths = _files(tmp_path)
     original_annotations = [path.read_bytes() for path in annotation_paths]
@@ -271,14 +271,14 @@ def test_admission_hands_exact_pcm_and_annotation_snapshot_to_consumer(tmp_path:
     def consume_track(
         track_id: str,
         pcm: memoryview,
-        annotation_snapshot: object,
+        annotation_bytes: memoryview,
         sample_rate_hz: int,
     ) -> None:
         index = int(track_id[-1]) - 1
         annotation_paths[index].write_bytes(b"mutated-after-admission")
-        annotation_snapshot.seek(0)
+        assert annotation_bytes.readonly
         consumed.append(
-            (track_id, bytes(pcm), annotation_snapshot.read(), sample_rate_hz)
+            (track_id, bytes(pcm), bytes(annotation_bytes), sample_rate_hz)
         )
 
     receipt = admission.verify_corpus(
