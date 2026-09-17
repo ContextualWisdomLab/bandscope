@@ -71,7 +71,9 @@ The repository does not currently contain approved numeric margins or an approve
 
 A result receipt must contain the exact registration digest, exact uncertainty plan, exact corpus order, one complete baseline/candidate measurement pair per registered track, aggregate measurements, paired 95% intervals for every gated quality metric, a paired p95-latency-ratio interval, failed-track IDs, and a claim boundary.
 
-The receipt is rejected when a track is omitted/reordered, the uncertainty plan differs, a required metric is absent, a boundary/repetition P/R/F triplet is internally inconsistent, a value is non-finite, a confidence interval does not contain its aggregate point estimate, or the registration hash differs. A structurally valid receipt with one or more known failed tracks is retained for diagnosis but evaluates to `passed=false` under schema v1. A passing receipt therefore means the preregistered decision rule passed for the complete registered corpus, uncertainty procedure, and runtime. It does not generalize automatically to other genres, codecs, sample rates, machines, annotation regimes, or statistical procedures.
+Each per-track and aggregate baseline/candidate measurement is a closed-world receipt: it must contain exactly the registered quality fields plus the reporting-only precision/recall, boundary-deviation, latency, and peak-RSS fields. Missing fields and additional post-hoc measurement fields both fail admission. This prevents a result producer from attaching an unreviewed score after candidate results are visible and presenting it as part of the admitted scientific receipt.
+
+The receipt is rejected when a track is omitted/reordered, the uncertainty plan differs, a required metric is absent, an unregistered measurement field is added, a boundary/repetition P/R/F triplet is internally inconsistent, a value is non-finite, a confidence interval does not contain its aggregate point estimate, or the registration hash differs. A structurally valid receipt with one or more known failed tracks is retained for diagnosis but evaluates to `passed=false` under schema v1. A passing receipt therefore means the preregistered decision rule passed for the complete registered corpus, uncertainty procedure, and runtime. It does not generalize automatically to other genres, codecs, sample rates, machines, annotation regimes, or statistical procedures.
 
 ## Machine-readable evidence admission
 
@@ -95,7 +97,7 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 - Evidence JSON is limited to 2 MiB, must be a regular file read through one open descriptor, must decode as UTF-8, and rejects duplicate keys plus non-standard `NaN`/`Infinity` constants.
 - `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute, relative, drive-relative, and `file:` forms are rejected; an explicit non-file URI scheme is required so transient workstation paths cannot become provenance authority or leak into review artifacts.
 - Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt.
-- Invalid/non-finite measurements, corpus drift, uncertainty-plan drift, registration drift, missing per-track evidence, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
+- Invalid/non-finite measurements, corpus drift, uncertainty-plan drift, registration drift, missing per-track evidence, unregistered measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
 - The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
 
 ## References
