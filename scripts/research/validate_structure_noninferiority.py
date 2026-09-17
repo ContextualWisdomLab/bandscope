@@ -617,6 +617,11 @@ def evaluate_result(
 
     metrics = _mapping(registration["metrics"], "metrics")
     failed_requirements: list[str] = []
+    if failed_tracks:
+        failed_requirements.append(
+            "failed tracks are not permitted without a preregistered exclusion policy: "
+            + ", ".join(failed_tracks)
+        )
     for metric_name in _QUALITY_METRICS:
         config = _mapping(metrics[metric_name], f"metrics.{metric_name}")
         margin = _finite_number(
