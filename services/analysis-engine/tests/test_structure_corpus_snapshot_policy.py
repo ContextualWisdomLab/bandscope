@@ -24,14 +24,12 @@ def test_admitted_audio_snapshot_is_immutable_against_source_mutation(tmp_path: 
     original = b"registered-audio-bytes"
     source.write_bytes(original)
     fd = admission._open_regular_file(source, "audio_path")
+    snapshot, digest = admission._snapshot_and_hash(fd)
+    os.close(fd)
     try:
-        snapshot, digest = admission._snapshot_and_hash(fd)
-        try:
-            source.write_bytes(b"mutated-after-admission")
-            snapshot.seek(0)
-            assert snapshot.read() == original
-            assert digest == hashlib.sha256(original).hexdigest()
-        finally:
-            snapshot.close()
+        source.write_bytes(b"mutated-after-admission")
+        snapshot.seek(0)
+        assert snapshot.read() == original
+        assert digest == hashlib.sha256(original).hexdigest()
     finally:
-        os.close(fd)
+        snapshot.close()
