@@ -38,6 +38,7 @@ _RUNTIME_IDENTITY_FIELDS = (
     "librosa_version",
     "numpy_version",
 )
+_HEX_RUNTIME_IDENTITY_FIELDS = {"source_commit", "uv_lock_sha256"}
 
 
 def _load_validator() -> ModuleType:
@@ -205,6 +206,9 @@ def _validate_runtime_identity(
     for field in _RUNTIME_IDENTITY_FIELDS:
         actual = _text(runtime_identity.get(field), f"runtime_identity.{field}")
         expected = _text(runtime.get(field), f"registration.runtime.{field}")
+        if field in _HEX_RUNTIME_IDENTITY_FIELDS:
+            actual = actual.lower()
+            expected = expected.lower()
         if actual != expected:
             raise ValueError(
                 f"runtime identity mismatch for {field}: expected {expected}, got {actual}"
