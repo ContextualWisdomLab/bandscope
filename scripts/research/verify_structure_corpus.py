@@ -301,10 +301,7 @@ def verify_corpus(
     manifest: Mapping[str, Any],
     *,
     runtime_identity: Mapping[str, object],
-    decoder: Callable[
-        [int, int],
-        tuple[str, int] | tuple[str, int, memoryview],
-    ] = _decode_pcm_identity,
+    decoder: Callable[[int, int], tuple[str, int, memoryview]] = _decode_pcm_identity,
     track_consumer: Callable[[str, memoryview, memoryview, int], None] | None = None,
 ) -> dict[str, object]:
     """Verify local files and return a path-free decoded-corpus receipt.
@@ -367,14 +364,17 @@ def verify_corpus(
                 if audio_sha256 != expected_audio:
                     raise ValueError(f"{field}.audio_path SHA-256 does not match registration")
                 decoded = decoder(snapshot.fileno(), target_sample_rate_hz)
-                decoded_pcm_sha256, decoded_frames = decoded[:2]
-                decoded_pcm = decoded[2] if len(decoded) == 3 else None
-                if decoded_pcm is not None:
-                    decoded_pcm_sha256, decoded_frames, decoded_pcm = _bind_decoded_pcm(
-                        decoded_pcm_sha256,
-                        decoded_frames,
-                        decoded_pcm,
-                    )
+                try:
+                    decoded_pcm_sha256, decoded_frames, decoded_pcm = decoded
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        "decoder must expose admitted PCM with digest and frame count"
+                    ) from exc
+                decoded_pcm_sha256, decoded_frames, decoded_pcm = _bind_decoded_pcm(
+                    decoded_pcm_sha256,
+                    decoded_frames,
+                    decoded_pcm,
+                )
             finally:
                 snapshot.close()
         finally:
@@ -393,10 +393,6 @@ def verify_corpus(
                 raise ValueError(f"{field}.annotation_path SHA-256 does not match registration")
 
             if track_consumer is not None:
-                if decoded_pcm is None:
-                    raise ValueError(
-                        "decoder must expose admitted PCM when track_consumer is configured"
-                    )
                 annotation_snapshot.seek(0)
                 annotation_bytes = annotation_snapshot.read()
                 annotation_view = memoryview(annotation_bytes)
