@@ -37,13 +37,15 @@ def _is_blanket_audioread_warning_filter(call: ast.Call) -> bool:
 
 
 def test_pytest_fails_on_unowned_deprecation_warnings() -> None:
-    """Require pytest to turn an unowned deprecation into a test failure."""
+    """Require pytest to turn unowned deprecation/future warnings into failures."""
     pyproject_path = _ANALYSIS_ROOT / "pyproject.toml"
     config = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
     filters = config["tool"]["pytest"]["ini_options"].get("filterwarnings", [])
 
     assert "error::DeprecationWarning" in filters
     assert "ignore::DeprecationWarning" not in filters
+    assert "error::FutureWarning" in filters
+    assert "ignore::FutureWarning" not in filters
 
 
 def test_audio_loaders_do_not_blanket_hide_audioread_warnings() -> None:
