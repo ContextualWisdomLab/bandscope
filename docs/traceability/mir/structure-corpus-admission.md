@@ -15,13 +15,17 @@ A digest-only receipt is also not a measurement handoff. Earlier admission code 
 
 ## Decision
 
-`scripts/research/verify_structure_corpus.py` resolves a local manifest only at execution time. The manifest itself is admitted as bounded UTF-8 JSON from one already-open regular-file descriptor: size metadata comes from `fstat`, JSON bytes are read from that same descriptor with a 2 MiB cap, and pathname-level stat/read reopening is not used after resolution. For every registered track it:
+`scripts/research/verify_structure_corpus.py` resolves a local manifest only at execution time. The manifest itself is admitted as bounded UTF-8 JSON from one already-open regular-file descriptor: size metadata comes from `fstat`, JSON bytes are read from that same descriptor with a 2 MiB cap, and pathname-level stat/read reopening is not used after resolution.
+
+Runtime source identity is admissible only from a clean Git worktree. `git rev-parse HEAD` alone is insufficient because tracked, staged, or untracked non-ignored files can alter the code or imports used by a scientific run without changing `HEAD`. Admission therefore rejects any non-empty `git status --porcelain=v1 --untracked-files=all --ignore-submodules=none` before binding the registered source commit and `uv.lock` identity. Local corpus/manifest/output material must live outside the repository or be intentionally ignored if it is not source evidence.
+
+For every registered track the admission tool:
 
 - requires the manifest order and track IDs to exactly match the preregistered corpus;
 - opens audio and annotation inputs as regular files without following symlinks where the platform provides `O_NOFOLLOW`;
 - copies the opened audio stream into a process-owned temporary snapshot while computing the SHA-256, then compares that digest with the preregistration before decoding;
 - snapshots and hashes annotation bytes from the opened annotation descriptor and compares them with the registered annotation identity;
-- requires the current source commit, `uv.lock`, Python, librosa, and NumPy identities to match the registered runtime;
+- requires the clean current source commit, `uv.lock`, Python, librosa, and NumPy identities to match the registered runtime;
 - treats Git commit and SHA-256 values as case-insensitive hexadecimal identities and emits them lowercase, matching the validator contract, while Python/librosa/NumPy version strings remain exact;
 - decodes the immutable admitted audio snapshot through `librosa.load(..., sr=<registered>, mono=True)`, converts it to canonical little-endian float32, marks that NumPy array read-only, and computes the PCM SHA-256 over the same byte view;
 - optionally invokes an in-process `track_consumer` only after both registered audio and annotation identities have passed. The callback receives that exact canonical PCM byte view, the process-owned annotation snapshot, track ID, and sample rate. It receives no workstation path. Because the temporary annotation handle is writable internally, admission re-hashes it after the callback and rejects the run if the consumer changed any admitted annotation byte;
@@ -43,6 +47,8 @@ That handoff still exposed the process-owned annotation snapshot as a writable `
 
 The manifest loader had a separate pathname TOCTOU: it called `Path.stat()` for the 2 MiB admission decision and then reopened the path with `Path.read_text()`. A rename or replacement between those calls could make the bounded metadata and parsed bytes refer to different files. RED `106d4e37e98a76f48f73db1ba1854209de873040` requires both size and JSON bytes to come from one already-open descriptor without pathname stat/read reopening. GREEN `ad5daf36a51b3db859ec25475b883c101a89a28e` now uses the regular-file admission helper, `fstat`, and a bounded descriptor read, with a second byte-count guard for concurrent growth.
 
+Source identity then exposed a different reproducibility gap. `git rev-parse HEAD` can report the registered commit while the worktree contains modified or additional executable source. RED `986170737dc3b1a11a04abf47b90a868e93362e7` creates an isolated Git repository, modifies a tracked analysis file after commit, and requires runtime admission to reject it. GREEN `4e8f3fa277a411a45f012daa5083f9ea5193cd17` requires a clean porcelain status before the source commit can enter the receipt.
+
 Earlier RED `f3abb6489836fd775cf67ae48cdc2c320f64a518` -> GREEN `174c6d33b44ef8e20e7e923ad638d7489442a460` aligned runtime identity with the evidence validator by comparing Git commit and SHA-256 fields as case-insensitive hexadecimal identities while keeping version strings exact.
 
 ## Constraints and rejected alternatives
@@ -50,6 +56,8 @@ Earlier RED `f3abb6489836fd775cf67ae48cdc2c320f64a518` -> GREEN `174c6d33b44ef8e
 Dereferencing `source_uri` was rejected. Provenance URI is evidence metadata and may identify licensed material that cannot be fetched by CI. Network retrieval would also turn a local-first experiment into a mutable external dependency.
 
 Checking manifest size by pathname and then reopening the pathname for JSON was rejected. Size admission and parsed bytes must describe the same opened regular file. The loader therefore resolves once, uses descriptor metadata, and reads at most the configured limit plus one byte from that descriptor.
+
+Treating `HEAD` as sufficient source evidence while allowing a dirty worktree was rejected. The registered commit must describe the source actually executed. Uncommitted tracked changes, staged changes, and untracked non-ignored files therefore fail admission rather than being silently attributed to the registered commit.
 
 Hashing an opened source descriptor and then decoding that still-live source descriptor was rejected. A pathname cannot be swapped once the descriptor is open, but another writer can still change the underlying regular-file bytes between the hash and decode. Admission therefore snapshots the source bytes while hashing and decodes only that process-owned snapshot.
 
@@ -69,7 +77,7 @@ MIREX 2025 Music Structure Analysis evaluates mono 44.1 kHz WAV input and uses f
 
 ## Test boundary
 
-Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise bounded single-descriptor manifest loading, hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, case-insensitive Git/SHA-256 identity, source mutation after snapshot admission, exact PCM/annotation consumer handoff, and consumer-side annotation mutation detection. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
+Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise bounded single-descriptor manifest loading, clean-source identity, hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, case-insensitive Git/SHA-256 identity, source mutation after snapshot admission, exact PCM/annotation consumer handoff, and consumer-side annotation mutation detection. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
 
 The handoff regression deliberately mutates the original annotation file after its process-owned snapshot has been created and requires the consumer to observe the admitted bytes, not the mutated path content. It also requires the consumer's PCM bytes to hash to the digest emitted in the receipt. A separate hostile-case regression writes directly through the borrowed annotation snapshot and requires admission to fail instead of emitting a receipt for post-hash annotation bytes.
 
@@ -77,9 +85,10 @@ The handoff regression deliberately mutates the original annotation file after i
 
 A reviewed rights-cleared real corpus and independent annotation manifest are still required. Before candidate results are inspected, the actual aggregation, paired uncertainty, margins, latency threshold, dependence assumptions, claim boundary, and any failure/exclusion rule must be approved.
 
-The next runner must execute through the in-process admitted-track consumer boundary, interpret the admitted annotation snapshot without mutating it, run CQT and STFT on the exact same read-only PCM, calculate the recognized MIREX/mir_eval track metrics and latency/memory measurements, and derive aggregate/CI evidence from the preregistered procedure rather than accepting caller-authored summaries. The standalone receipt is evidence for that run, not a license to reopen media after admission.
+The next runner must execute from the exact clean registered source/lock identity through the in-process admitted-track consumer boundary, interpret the admitted annotation snapshot without mutating it, run CQT and STFT on the exact same read-only PCM, calculate the recognized MIREX/mir_eval track metrics and latency/memory measurements, and derive aggregate/CI evidence from the preregistered procedure rather than accepting caller-authored summaries. The standalone receipt is evidence for that run, not a license to reopen media after admission.
 
 ## References
 
+- MITRE. (2026). *CWE-367: Time-of-check Time-of-use (TOCTOU) Race Condition*. https://cwe.mitre.org/data/definitions/367.html
 - MIREX. (2025). *Music Structure Analysis*. International Music Information Retrieval Systems Evaluation Laboratory. https://music-ir.org/mirex/wiki/2025%3AMusic_Structure_Analysis
 - McFee, B., et al. (2025). *librosa 0.11.0 documentation: Core IO and DSP*. https://librosa.org/doc/0.11.0/core.html
