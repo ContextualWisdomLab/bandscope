@@ -25,7 +25,7 @@ A registration is valid only when it records all of the following before the res
 
 The validator requires a 95% confidence level because the current result schema is explicitly `ci95`; it does not prescribe which scientifically defensible paired procedure must produce that interval. The procedure identifier, resample count, and seed are part of the preregistration digest so they cannot be changed after results are seen. `paired-track-bootstrap-v1` and the numeric values used in unit tests are policy fixtures only, not an approved BandScope production analysis plan.
 
-The validator rejects local filesystem paths as provenance authorities. A benchmark may remain private when licensing requires that, but the receipt must identify the licensed material without leaking the local path that happened to hold it.
+The validator requires `source_uri` to be an explicit non-`file:` URI. Absolute, relative, drive-relative, and `file:` filesystem forms are rejected as provenance authorities. A benchmark may remain private when licensing requires that, but the receipt must identify the licensed material without leaking the workstation path that happened to hold it.
 
 The current minimum of two tracks is only a technical guard against treating one timing sample as a corpus. It is **not** a scientific sample-size claim. Corpus breadth, genre/instrumentation coverage, annotation quality, and a defensible power/uncertainty plan remain part of the experiment review before a production switch can be accepted.
 
@@ -73,7 +73,7 @@ The receipt is rejected when a track is omitted/reordered, the uncertainty plan 
 
 Registration and result JSON are evidence, not trusted configuration. CLI admission is bounded to 2 MiB per file, reads from one already-open regular-file descriptor, requires UTF-8 and standards-compliant finite JSON values, and rejects duplicate object keys instead of accepting last-key-wins semantics. These controls prevent ambiguous evidence identities and bound memory use before scientific validation begins.
 
-The JSON `source_uri` value remains provenance metadata only; it is never dereferenced by this validator. Audio and annotation bytes are not opened by the evidence validator and are bound to the registration through SHA-256 identities supplied by the experiment process.
+The JSON `source_uri` value remains provenance metadata only; it is never dereferenced by this validator. It must use an explicit non-file URI scheme; absolute, relative, drive-relative, and `file:` filesystem forms are rejected. Audio and annotation bytes are not opened by the evidence validator and are bound to the registration through SHA-256 identities supplied by the experiment process.
 
 ## Reproducibility sequence
 
@@ -89,7 +89,7 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 
 - Audio and annotation files are untrusted inputs to the future experiment runner. This validator reads bounded JSON evidence only and does not open audio, execute subprocesses, make network requests, or follow paths from the registration.
 - Evidence JSON is limited to 2 MiB, must be a regular file read through one open descriptor, must decode as UTF-8, and rejects duplicate keys plus non-standard `NaN`/`Infinity` constants.
-- `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute paths and `file:` URIs are rejected to avoid turning transient workstation paths into provenance authority or leaking them into review artifacts.
+- `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute, relative, drive-relative, and `file:` forms are rejected; an explicit non-file URI scheme is required so transient workstation paths cannot become provenance authority or leak into review artifacts.
 - Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt.
 - Invalid/non-finite measurements, corpus drift, uncertainty-plan drift, registration drift, missing per-track evidence, inconsistent P/R/F triplets, and post-hoc metric additions fail closed.
 - The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
