@@ -23,7 +23,6 @@ import contextlib
 import logging
 import os
 import sys
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -32,7 +31,6 @@ import librosa
 import numpy as np
 
 from bandscope_analysis.temporal.analyzer import (
-    KNOWN_LIBROSA_NUMBA_WARNING_FILTERS,
     MAX_ANALYSIS_DURATION_SECONDS,
     MAX_AUDIO_FILE_BYTES,
     TARGET_SR,
@@ -200,20 +198,12 @@ class AudioStemSeparator:
                         f"{file_size} bytes (max {self.config.max_file_bytes} bytes)"
                     )
 
-                with warnings.catch_warnings():
-                    for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
-                        warnings.filterwarnings(
-                            "ignore",
-                            category=category,
-                            message=message,
-                            module=module,
-                        )
-                    y, sr = librosa.load(
-                        fileobj,
-                        sr=self.config.target_sample_rate,
-                        mono=True,
-                        duration=self.config.max_duration_seconds,
-                    )
+                y, sr = librosa.load(
+                    fileobj,
+                    sr=self.config.target_sample_rate,
+                    mono=True,
+                    duration=self.config.max_duration_seconds,
+                )
         except ValueError:
             raise
         except Exception as error:
