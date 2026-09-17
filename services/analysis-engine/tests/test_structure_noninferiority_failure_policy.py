@@ -1,38 +1,28 @@
 """Regression tests for failed-track scientific acceptance policy."""
 
+import pytest
+
 from test_structure_noninferiority_policy import _registration, _result, _validator
 
 
-def test_failed_track_cannot_pass_without_preregistered_exclusion_policy() -> None:
-    """A favorable aggregate cannot turn an unregistered track failure into PASS."""
-    validator = _validator()
-    registration = _registration()
-    digest = validator.registration_digest(registration)
-    result = _result(registration, digest)
-    result["failed_tracks"] = ["licensed-track-002"]
-
-    decision = validator.evaluate_result(registration, result)
-
-    assert decision["passed"] is False
-    assert decision["failed_requirements"] == [
-        "failed tracks are not permitted without a preregistered exclusion policy: "
-        "licensed-track-002"
-    ]
-
-
-def test_failed_track_can_be_retained_without_fabricated_measurements() -> None:
-    """A real measurement failure must be diagnosable without invented MIR scores."""
-    validator = _validator()
-    registration = _registration()
-    digest = validator.registration_digest(registration)
-    result = _result(registration, digest)
-    result["failed_tracks"] = ["licensed-track-002"]
+def _remove_failed_measurements(result: dict[str, object]) -> None:
+    """Model a real track whose MIR measurement could not be produced."""
     tracks = result["tracks"]
     assert isinstance(tracks, list)
     failed_track = tracks[1]
     assert isinstance(failed_track, dict)
     del failed_track["baseline"]
     del failed_track["candidate"]
+
+
+def test_failed_track_cannot_pass_without_preregistered_exclusion_policy() -> None:
+    """A failed track stays diagnostic evidence and cannot become a complete-case PASS."""
+    validator = _validator()
+    registration = _registration()
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+    result["failed_tracks"] = ["licensed-track-002"]
+    _remove_failed_measurements(result)
 
     decision = validator.evaluate_result(registration, result)
 
@@ -42,3 +32,15 @@ def test_failed_track_can_be_retained_without_fabricated_measurements() -> None:
         "failed tracks are not permitted without a preregistered exclusion policy: "
         "licensed-track-002"
     ]
+
+
+def test_missing_measurements_require_explicit_failed_track() -> None:
+    """Omitted metrics must fail closed unless the same track is declared failed."""
+    validator = _validator()
+    registration = _registration()
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+    _remove_failed_measurements(result)
+
+    with pytest.raises(ValueError, match="baseline"):
+        validator.evaluate_result(registration, result)
