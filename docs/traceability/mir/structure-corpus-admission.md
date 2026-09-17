@@ -15,7 +15,7 @@ A digest-only receipt is also not a measurement handoff. Earlier admission code 
 
 ## Decision
 
-`scripts/research/verify_structure_corpus.py` resolves a local manifest only at execution time. For every registered track it:
+`scripts/research/verify_structure_corpus.py` resolves a local manifest only at execution time. The manifest itself is admitted as bounded UTF-8 JSON from one already-open regular-file descriptor: size metadata comes from `fstat`, JSON bytes are read from that same descriptor with a 2 MiB cap, and pathname-level stat/read reopening is not used after resolution. For every registered track it:
 
 - requires the manifest order and track IDs to exactly match the preregistered corpus;
 - opens audio and annotation inputs as regular files without following symlinks where the platform provides `O_NOFOLLOW`;
@@ -41,11 +41,15 @@ A second gap remained: the verified normalized PCM was destroyed before any scie
 
 That handoff still exposed the process-owned annotation snapshot as a writable `BinaryIO`. The source path could no longer drift, but the runner itself could mutate the hashed snapshot and then compute MIR metrics from bytes that no longer matched `annotation_sha256`. RED `1e5aa12bd4965cfc709e35a626fa5727397c9a6d` requires such a mutation to invalidate admission. GREEN `61a74d6753f58069f4ff91c910dd237bd21c98fc` flushes and re-hashes the annotation snapshot after the consumer returns, failing closed before a receipt is emitted when the admitted bytes changed.
 
+The manifest loader had a separate pathname TOCTOU: it called `Path.stat()` for the 2 MiB admission decision and then reopened the path with `Path.read_text()`. A rename or replacement between those calls could make the bounded metadata and parsed bytes refer to different files. RED `106d4e37e98a76f48f73db1ba1854209de873040` requires both size and JSON bytes to come from one already-open descriptor without pathname stat/read reopening. GREEN `ad5daf36a51b3db859ec25475b883c101a89a28e` now uses the regular-file admission helper, `fstat`, and a bounded descriptor read, with a second byte-count guard for concurrent growth.
+
 Earlier RED `f3abb6489836fd775cf67ae48cdc2c320f64a518` -> GREEN `174c6d33b44ef8e20e7e923ad638d7489442a460` aligned runtime identity with the evidence validator by comparing Git commit and SHA-256 fields as case-insensitive hexadecimal identities while keeping version strings exact.
 
 ## Constraints and rejected alternatives
 
 Dereferencing `source_uri` was rejected. Provenance URI is evidence metadata and may identify licensed material that cannot be fetched by CI. Network retrieval would also turn a local-first experiment into a mutable external dependency.
+
+Checking manifest size by pathname and then reopening the pathname for JSON was rejected. Size admission and parsed bytes must describe the same opened regular file. The loader therefore resolves once, uses descriptor metadata, and reads at most the configured limit plus one byte from that descriptor.
 
 Hashing an opened source descriptor and then decoding that still-live source descriptor was rejected. A pathname cannot be swapped once the descriptor is open, but another writer can still change the underlying regular-file bytes between the hash and decode. Admission therefore snapshots the source bytes while hashing and decodes only that process-owned snapshot.
 
@@ -65,7 +69,7 @@ MIREX 2025 Music Structure Analysis evaluates mono 44.1 kHz WAV input and uses f
 
 ## Test boundary
 
-Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, case-insensitive Git/SHA-256 identity, source mutation after snapshot admission, exact PCM/annotation consumer handoff, and consumer-side annotation mutation detection. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
+Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise bounded single-descriptor manifest loading, hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, case-insensitive Git/SHA-256 identity, source mutation after snapshot admission, exact PCM/annotation consumer handoff, and consumer-side annotation mutation detection. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
 
 The handoff regression deliberately mutates the original annotation file after its process-owned snapshot has been created and requires the consumer to observe the admitted bytes, not the mutated path content. It also requires the consumer's PCM bytes to hash to the digest emitted in the receipt. A separate hostile-case regression writes directly through the borrowed annotation snapshot and requires admission to fail instead of emitting a receipt for post-hash annotation bytes.
 
