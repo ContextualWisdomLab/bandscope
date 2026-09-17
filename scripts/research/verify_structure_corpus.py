@@ -222,10 +222,9 @@ def _bind_decoded_pcm(
     claimed_digest = _text(decoded_pcm_sha256, "decoder.decoded_pcm_sha256").lower()
     if actual_digest != claimed_digest:
         raise ValueError("decoded PCM SHA-256 does not match decoder handoff bytes")
-    try:
-        frame_count = int(decoded_frames)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("decoded frame count must be an integer") from exc
+    if isinstance(decoded_frames, bool) or not isinstance(decoded_frames, int):
+        raise ValueError("decoded frame count must be an integer")
+    frame_count = decoded_frames
     if frame_count < 1 or len(pcm_view) != frame_count * 4:
         raise ValueError("decoded frame count does not match mono float32 PCM bytes")
     samples = np.frombuffer(pcm_bytes, dtype="<f4")
