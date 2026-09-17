@@ -9,10 +9,11 @@ registered librosa normalization contract, and emits a path-free receipt with a
 SHA-256 identity of the exact mono float32 PCM presented to later analysis.
 
 An in-process track consumer may receive that exact normalized PCM together
-with the admitted annotation snapshot. This is the handoff boundary for a later
-MIR experiment runner: the runner must not reopen workstation source paths after
-admission merely because the durable receipt contains only digests. Any
-consumer-side mutation of the admitted annotation snapshot invalidates the run.
+with an immutable read-only view of the admitted annotation bytes. This is the
+handoff boundary for a later MIR experiment runner: the runner must not reopen
+workstation source paths after admission merely because the durable receipt
+contains only digests, and it must not be able to mutate annotation evidence
+before calculating metrics.
 
 The tool does not calculate MIR metrics, choose thresholds, or make a
 noninferiority decision. Synthetic audio is suitable for unit tests only;
@@ -295,16 +296,15 @@ def verify_corpus(
         [int, int],
         tuple[str, int] | tuple[str, int, memoryview],
     ] = _decode_pcm_identity,
-    track_consumer: Callable[[str, memoryview, BinaryIO, int], None] | None = None,
+    track_consumer: Callable[[str, memoryview, memoryview, int], None] | None = None,
 ) -> dict[str, object]:
     """Verify local files and return a path-free decoded-corpus receipt.
 
     When ``track_consumer`` is supplied, it runs only after both registered
     content identities are verified. It receives the exact canonical PCM used
-    for ``decoded_pcm_sha256`` plus a borrowed annotation snapshot. The callback
-    must finish before this function returns; mutation of that snapshot is
-    detected and invalidates admission, and the handle is closed immediately
-    afterward rather than persisted in the receipt.
+    for ``decoded_pcm_sha256`` plus a read-only memory view over immutable
+    annotation bytes. The callback must finish before this function returns;
+    neither measurement input can be changed through the consumer boundary.
     """
     validator = _load_validator()
     validator.validate_registration(registration)
@@ -383,20 +383,16 @@ def verify_corpus(
                         "decoder must expose admitted PCM when track_consumer is configured"
                     )
                 annotation_snapshot.seek(0)
+                annotation_bytes = annotation_snapshot.read()
+                annotation_view = memoryview(annotation_bytes)
+                if not annotation_view.readonly:
+                    raise RuntimeError("annotation handoff must be intrinsically read-only")
                 track_consumer(
                     track_id,
                     decoded_pcm,
-                    annotation_snapshot,
+                    annotation_view,
                     target_sample_rate_hz,
                 )
-                annotation_snapshot.flush()
-                if (
-                    _sha256_file_descriptor(annotation_snapshot.fileno())
-                    != annotation_sha256
-                ):
-                    raise ValueError(
-                        f"{field} consumer mutated admitted annotation snapshot"
-                    )
         finally:
             annotation_snapshot.close()
 
