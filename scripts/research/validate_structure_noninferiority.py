@@ -5,7 +5,8 @@ This module does not compute MIR metrics. It binds a reviewed registration to
 result receipts produced by the recognized evaluation pipeline, then evaluates
 the preregistered confidence-interval decision rules. Metric implementation
 authority remains with MIREX/mir_eval-compatible tooling while thresholds,
-corpus identity, and runtime identity are protected from post-result drift.
+corpus identity, uncertainty procedure, and runtime identity are protected from
+post-result drift.
 """
 
 from __future__ import annotations
@@ -14,12 +15,15 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import re
+import stat
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
+MAX_EVIDENCE_BYTES = 2 * 1024 * 1024
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _COMMIT_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 _WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
@@ -47,6 +51,8 @@ _REPORT_SCORE_METRICS = (
     "boundary_recall_0_5",
     "boundary_precision_3_0",
     "boundary_recall_3_0",
+    "repetition_pairwise_precision",
+    "repetition_pairwise_recall",
 )
 _REPORT_NONNEGATIVE_METRICS = (
     "reference_to_estimate_median_deviation_seconds",
@@ -86,6 +92,21 @@ def _finite_number(value: object, field: str) -> float:
     if not math.isfinite(number):
         raise ValueError(f"{field} must be finite")
     return number
+
+
+def _bounded_integer(
+    value: object,
+    field: str,
+    *,
+    minimum: int,
+    maximum: int,
+) -> int:
+    """Return a bounded integer while rejecting bools and fractional values."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field} must be an integer")
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{field} must be in {minimum}..{maximum}")
+    return value
 
 
 def _score(value: object, field: str) -> float:
@@ -195,6 +216,56 @@ def _validate_metrics(metrics_value: object) -> None:
         )
 
 
+def _validate_uncertainty(uncertainty_value: object, field: str) -> dict[str, object]:
+    """Validate and normalize the preregistered paired-uncertainty procedure."""
+    uncertainty = _mapping(uncertainty_value, field)
+    required = {
+        "procedure_id",
+        "confidence_level",
+        "resamples",
+        "random_seed",
+    }
+    missing = sorted(required - set(uncertainty))
+    extra = sorted(set(uncertainty) - required)
+    if missing:
+        raise ValueError(f"{field} missing required field: {missing[0]}")
+    if extra:
+        raise ValueError(f"{field} contains unregistered field: {extra[0]}")
+
+    procedure_id = _nonempty_text(
+        uncertainty.get("procedure_id"),
+        f"{field}.procedure_id",
+    )
+    if len(procedure_id) > 128:
+        raise ValueError(f"{field}.procedure_id must be at most 128 characters")
+
+    confidence_level = _finite_number(
+        uncertainty.get("confidence_level"),
+        f"{field}.confidence_level",
+    )
+    if not math.isclose(confidence_level, 0.95, rel_tol=0.0, abs_tol=1e-12):
+        raise ValueError(f"{field}.confidence_level must equal 0.95")
+
+    resamples = _bounded_integer(
+        uncertainty.get("resamples"),
+        f"{field}.resamples",
+        minimum=1000,
+        maximum=10_000_000,
+    )
+    random_seed = _bounded_integer(
+        uncertainty.get("random_seed"),
+        f"{field}.random_seed",
+        minimum=0,
+        maximum=(2**32) - 1,
+    )
+    return {
+        "procedure_id": procedure_id,
+        "confidence_level": confidence_level,
+        "resamples": resamples,
+        "random_seed": random_seed,
+    }
+
+
 def _validate_corpus(corpus_value: object) -> list[str]:
     """Validate rights-cleared real-audio identities and return ordered IDs."""
     corpus = _sequence(corpus_value, "corpus")
@@ -252,9 +323,9 @@ def validate_registration(registration_value: object) -> None:
     """Validate a frozen STFT-vs-CQT structure experiment registration.
 
     This function requires content hashes, rights evidence, exact runtime
-    identity, recognized metric implementations, and explicit margins. It does
-    not decide what those margins should be; that scientific/product choice must
-    be reviewed before any corpus result is inspected.
+    identity, recognized metric implementations, explicit margins, and a paired
+    uncertainty procedure. Scientific/product choices must be reviewed before
+    any corpus result is inspected.
     """
     registration = _mapping(registration_value, "registration")
     _validate_schema_version(
@@ -278,6 +349,7 @@ def validate_registration(registration_value: object) -> None:
         raise ValueError("hypothesis.candidate_feature must equal chroma_stft")
 
     _validate_metrics(registration.get("metrics"))
+    _validate_uncertainty(registration.get("uncertainty"), "uncertainty")
     _validate_corpus(registration.get("corpus"))
     _validate_runtime(registration.get("runtime"))
 
@@ -307,6 +379,27 @@ def _confidence_interval(value: object, field: str) -> tuple[float, float]:
     return lower, upper
 
 
+def _validate_f_triplet(
+    normalized: Mapping[str, float],
+    *,
+    precision_name: str,
+    recall_name: str,
+    f_name: str,
+    field: str,
+) -> None:
+    """Require reported F to equal the harmonic mean of precision and recall."""
+    precision = normalized[precision_name]
+    recall = normalized[recall_name]
+    denominator = precision + recall
+    expected = 0.0 if denominator == 0.0 else (2.0 * precision * recall) / denominator
+    actual = normalized[f_name]
+    if not math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-12):
+        raise ValueError(
+            f"{field}.{f_name} must equal the harmonic mean of "
+            f"{precision_name} and {recall_name}"
+        )
+
+
 def _validate_measurement_side(
     side_value: object,
     field: str,
@@ -329,6 +422,29 @@ def _validate_measurement_side(
         if value < 0.0:
             raise ValueError(f"{field}.{metric_name} must be non-negative")
         normalized[metric_name] = value
+
+    _validate_f_triplet(
+        normalized,
+        precision_name="boundary_precision_0_5",
+        recall_name="boundary_recall_0_5",
+        f_name="boundary_f_0_5",
+        field=field,
+    )
+    _validate_f_triplet(
+        normalized,
+        precision_name="boundary_precision_3_0",
+        recall_name="boundary_recall_3_0",
+        f_name="boundary_f_3_0",
+        field=field,
+    )
+    _validate_f_triplet(
+        normalized,
+        precision_name="repetition_pairwise_precision",
+        recall_name="repetition_pairwise_recall",
+        f_name="repetition_pairwise_f",
+        field=field,
+    )
+
     if normalized["p95_latency_seconds"] < normalized["p50_latency_seconds"]:
         raise ValueError(
             f"{field}.p95_latency_seconds must be >= p50_latency_seconds"
@@ -362,6 +478,19 @@ def _validate_result_identity(
             "result.registration_sha256 does not match the frozen registration"
         )
 
+    registered_uncertainty = _validate_uncertainty(
+        registration.get("uncertainty"),
+        "uncertainty",
+    )
+    result_uncertainty = _validate_uncertainty(
+        result.get("uncertainty"),
+        "result.uncertainty",
+    )
+    if result_uncertainty != registered_uncertainty:
+        raise ValueError(
+            "result.uncertainty must exactly match the preregistered uncertainty plan"
+        )
+
     expected_track_ids = _validate_corpus(registration["corpus"])
     actual_values = _sequence(
         result.get("corpus_track_ids"),
@@ -385,7 +514,9 @@ def _validate_track_measurements(
     """Require one complete baseline/candidate receipt for every corpus track."""
     tracks = _sequence(result.get("tracks"), "result.tracks")
     if len(tracks) != len(expected_track_ids):
-        raise ValueError("result.tracks must contain exactly one receipt per corpus track")
+        raise ValueError(
+            "result.tracks must contain exactly one receipt per corpus track"
+        )
 
     actual_track_ids: list[str] = []
     for index, raw_track in enumerate(tracks):
@@ -518,10 +649,49 @@ def evaluate_result(
     }
 
 
+def _reject_duplicate_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Reject duplicate JSON object keys instead of accepting last-key-wins."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    """Reject non-standard JSON NaN/Infinity constants at the parser boundary."""
+    raise ValueError(f"invalid JSON constant: {value}")
+
+
 def _load_json(path: Path) -> object:
-    """Load one UTF-8 JSON evidence file."""
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    """Load one bounded regular UTF-8 JSON evidence file from one descriptor."""
+    with path.open("rb") as handle:
+        descriptor_stat = os.fstat(handle.fileno())
+        if not stat.S_ISREG(descriptor_stat.st_mode):
+            raise ValueError(f"evidence path is not a regular file: {path.name}")
+        if descriptor_stat.st_size > MAX_EVIDENCE_BYTES:
+            raise ValueError(
+                f"evidence file exceeds {MAX_EVIDENCE_BYTES} bytes: {path.name}"
+            )
+        payload = handle.read(MAX_EVIDENCE_BYTES + 1)
+
+    if len(payload) > MAX_EVIDENCE_BYTES:
+        raise ValueError(
+            f"evidence file exceeds {MAX_EVIDENCE_BYTES} bytes: {path.name}"
+        )
+    try:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"evidence file is not valid UTF-8: {path.name}") from exc
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_object_pairs,
+            parse_constant=_reject_json_constant,
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"evidence file is not valid JSON: {path.name}") from exc
 
 
 def main(argv: Sequence[str] | None = None) -> int:
