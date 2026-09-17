@@ -52,9 +52,20 @@ The dedicated minimum-runtime workflow must:
 
 The ordering is security-significant: setup-node must not invoke npm cache discovery through the Node-bundled npm before the reviewed project npm runtime is authoritative.
 
+## Hosted build acquisition resilience
+
+Exact npm provenance and network resilience are separate concerns. Node `22.22.3` supplies npm `10.9.8`, so a hosted build must acquire the repository-pinned npm `10.9.9` before `npm ci`; falling back to the Node-bundled npm would violate the reviewed runtime and `tar` security floor.
+
+A macOS Intel `build-baseline` run on PR #1232 exposed the acquisition boundary: Corepack attempted to download `npm-10.9.9.tgz` from the public npm registry and the HTTPS read timed out before any repository dependency consumption or product build began. Re-running the whole job would hide the architectural weakness and waste all preceding setup work.
+
+The canonical #896 owner therefore centralizes native-build activation in `scripts/checks/activate_pinned_npm_runtime.sh`. The helper reads the exact `packageManager` spec from `package.json`, rejects anything other than an exact npm semantic version, and performs at most three `corepack install --global` attempts for that same spec with bounded 5-second then 10-second backoff. After acquisition it enables the npm shim and executes the existing runtime audit. Exhausting the attempts fails closed; there is no `10.9.8`, `latest`, `stable`, or system-npm fallback.
+
+This retry boundary covers only acquisition of the already-reviewed package-manager artifact. It does not retry `npm ci`, mutable resolution, tests, builds, uploads, or arbitrary failed commands, and it does not convert a reproducible integrity/version failure into success.
+
 ## Security and operational boundary
 
 - Every primary CI job that consumes npm dependencies activates the project-pinned npm runtime and runs `check:npm-runtime` before its first `npm ci`.
+- Native build-baseline jobs acquire that exact runtime through the bounded helper; transient registry reads may retry, but runtime identity and the bundled `tar` floor never relax.
 - The runtime check fails closed unless npm is exactly `10.9.9` and its own bundled `tar` is at least `7.5.19`.
 - CI lock validation and the exact-minimum lane must not run mutable npm resolution.
 - Dependency PRs change manifest intent and the complete lock artifact produced by npm `10.9.9`; unexplained lock churn is rejected rather than hand-edited.
@@ -65,7 +76,9 @@ The ordering is security-significant: setup-node must not invoke npm cache disco
 
 ## Verification
 
-`services/analysis-engine/tests/test_npm_toolchain_contract.py` verifies the npm generator metadata, Node/npm identity in primary CI, Corepack/runtime-audit ordering, credential-free checkouts, immutable lock validation, lockfile version 3, SRI evidence, and generator-sensitive esbuild peer metadata.
+`services/analysis-engine/tests/test_npm_toolchain_contract.py` verifies the npm generator metadata, Node/npm identity in primary CI, Corepack/runtime-audit ordering, credential-free checkouts, immutable lock validation, lockfile version 3, SRI evidence, and generator-sensitive esbuild peer metadata. It accepts either the explicit activation/audit sequence or the canonical activation helper before dependency consumption, while preserving the same runtime provenance requirement.
+
+`services/analysis-engine/tests/test_npm_runtime_activation_resilience.py` specifically verifies that all four native build-baseline lanes use the canonical helper immediately before `npm ci`, that inline unbounded Corepack activation is absent there, and that the helper has a three-attempt bounded acquisition loop with no npm `10.9.8` or failure-masking fallback.
 
 `services/analysis-engine/tests/test_node_runtime_contract.py` separately verifies the `>=22.22.2 <23` interval, explicit rejection of Node `22.22.1`, jsdom 30 manifest/lock alignment, the exact-minimum workflow, npm runtime verification before dependency reads, the full compatibility acceptance surface, and removal of the superseded Node floor from canonical runtime/build documentation.
 
@@ -76,6 +89,8 @@ The PDF.js and Undici baseline remains covered separately by `test_high_security
 Passing frozen validation proves only that the committed manifest and lock can be consumed together by the reviewed toolchain and that the package-manager extraction runtime satisfies the pinned security floor. It does not prove that resolving mutable dependency ranges later will reproduce byte-identical lock metadata.
 
 Likewise, the exact-minimum lane proves only BandScope's selected Node 22 lower boundary. It does not broaden support to other Node major lines because upstream jsdom supports them.
+
+Bounded Corepack acquisition proves neither registry availability nor arbitrary network recovery. It only prevents a short-lived fetch interruption from forcing an immediate whole-job failure while preserving exact npm identity; three failed acquisition attempts still stop the job.
 
 For the active compatibility branch, local generation and frozen-consumption evidence does not substitute for required exact-head CI, security, supply-chain, coverage, build, release, and independent-review gates on an unchanged head.
 
@@ -90,6 +105,8 @@ When an update produces unexpected lock churn or npm runtime provenance fails:
 5. if rollback is necessary, restore the prior manifest and complete lock together and rerun the entire exact-head gate.
 
 For an exact-minimum runtime failure, preserve setup-node details, bundled npm identity, first npm invocation, Corepack activation, and exact workflow job log. Do not weaken `devEngines`; repair ordering so the reviewed npm runtime is authoritative before dependency consumption.
+
+For a transient Corepack registry read failure in native builds, preserve the job log and the exact pinned package-manager spec. The bounded helper may retry only that acquisition. If all attempts fail, keep the gate failed and investigate registry/network health; do not fall back to the Node-bundled npm or manufacture a no-op commit to obtain a fresh run.
 
 ## References
 
