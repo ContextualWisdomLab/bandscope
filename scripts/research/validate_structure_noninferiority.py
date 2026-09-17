@@ -278,17 +278,21 @@ def _validate_corpus(corpus_value: object) -> list[str]:
             "corpus must contain at least two rights-cleared real-audio tracks"
         )
 
-    seen: set[str] = set()
+    seen_track_ids: set[str] = set()
+    seen_audio_sha256: set[str] = set()
     track_ids: list[str] = []
     for index, raw_track in enumerate(corpus):
         field = f"corpus[{index}]"
         track = _mapping(raw_track, field)
         track_id = _nonempty_text(track.get("track_id"), f"{field}.track_id")
-        if track_id in seen:
+        if track_id in seen_track_ids:
             raise ValueError(f"duplicate track_id: {track_id}")
-        seen.add(track_id)
+        seen_track_ids.add(track_id)
         track_ids.append(track_id)
-        _sha256(track.get("audio_sha256"), f"{field}.audio_sha256")
+        audio_sha256 = _sha256(track.get("audio_sha256"), f"{field}.audio_sha256")
+        if audio_sha256 in seen_audio_sha256:
+            raise ValueError(f"duplicate audio_sha256: {audio_sha256}")
+        seen_audio_sha256.add(audio_sha256)
         _sha256(track.get("annotation_sha256"), f"{field}.annotation_sha256")
         _nonempty_text(track.get("rights_basis"), f"{field}.rights_basis")
         if track.get("rights_cleared") is not True:
