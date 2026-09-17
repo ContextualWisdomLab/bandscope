@@ -118,7 +118,7 @@ def test_feature_cache_rejects_swapped_arrays_even_when_npz_shape_is_valid(tmp_p
 
 
 def test_feature_cache_rejects_native_source_identity_change(tmp_path: Path) -> None:
-    """Source replacement invalidates derived stems even when path and encoded size are unchanged."""
+    """Invalidate derived stems when source bytes change despite a stable path and size."""
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
 
@@ -141,7 +141,7 @@ def test_feature_cache_rejects_native_source_identity_change(tmp_path: Path) -> 
 
 
 def test_feature_cache_publishes_durable_arrays_before_manifest(tmp_path: Path) -> None:
-    """The manifest becomes authoritative only after the exact array payload is durably published."""
+    """Publish the manifest only after the exact array payload is durably available."""
     metadata_path = tmp_path / "features.json"
     arrays_path = tmp_path / "features.npz"
     events: list[str] = []

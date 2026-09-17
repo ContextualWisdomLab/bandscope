@@ -65,7 +65,11 @@ def test_store_durable_cache_propagates_stage_creation_failure(
     def fail_named_temporary_file(**_kwargs: object) -> Any:
         raise OSError("stage creation failed")
 
-    monkeypatch.setattr(final_result_cache.tempfile, "NamedTemporaryFile", fail_named_temporary_file)
+    monkeypatch.setattr(
+        final_result_cache.tempfile,
+        "NamedTemporaryFile",
+        fail_named_temporary_file,
+    )
 
     with pytest.raises(OSError, match="stage creation failed"):
         final_result_cache.store_durable_cache_payload(target, {"schemaVersion": 1})

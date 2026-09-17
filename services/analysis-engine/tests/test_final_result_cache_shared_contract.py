@@ -66,7 +66,9 @@ def _attach_valid_collaboration(song):
     }
 
 
-def test_cache_rejects_section_and_export_enums_outside_shared_contract(tmp_path, monkeypatch) -> None:
+def test_cache_rejects_section_and_export_enums_outside_shared_contract(
+    tmp_path, monkeypatch
+) -> None:
     """Do not admit persisted enum values that the shared UI contract cannot consume."""
     song = build_demo_rehearsal_song()
 

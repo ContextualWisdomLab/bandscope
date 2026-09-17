@@ -51,7 +51,7 @@ def test_cache_identity_binds_current_mir_generation(monkeypatch: pytest.MonkeyP
 def test_cache_identity_fails_closed_when_mir_generation_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Missing model/runtime generation evidence must disable reuse instead of guessing equivalence."""
+    """Disable cache reuse when model/runtime generation evidence is unavailable."""
     _install_native_source_evidence(monkeypatch)
     monkeypatch.setattr(
         final_result_cache,
