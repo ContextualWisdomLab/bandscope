@@ -62,6 +62,30 @@ _REPORT_NONNEGATIVE_METRICS = (
     "p95_latency_seconds",
     "peak_rss_mib",
 )
+_REGISTRATION_FIELDS = {
+    "schema_version",
+    "experiment_id",
+    "hypothesis",
+    "metrics",
+    "uncertainty",
+    "corpus",
+    "runtime",
+}
+_RESULT_FIELDS = {
+    "schema_version",
+    "experiment_id",
+    "registration_sha256",
+    "uncertainty",
+    "corpus_track_ids",
+    "tracks",
+    "aggregate",
+    "paired_delta_ci95",
+    "p95_latency_ratio_ci95",
+    "failed_tracks",
+    "claim_boundary",
+}
+_TRACK_RECEIPT_FIELDS = {"track_id", "baseline", "candidate"}
+_AGGREGATE_FIELDS = {"baseline", "candidate"}
 
 
 def _mapping(value: object, field: str) -> Mapping[str, Any]:
@@ -69,6 +93,21 @@ def _mapping(value: object, field: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{field} must be an object")
     return value
+
+
+def _require_exact_fields(
+    value: Mapping[str, Any],
+    expected: set[str],
+    field: str,
+) -> None:
+    """Require an evidence object to use exactly its schema-v1 field set."""
+    actual = set(value)
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    if missing:
+        raise ValueError(f"{field} missing required field: {missing[0]}")
+    if extra:
+        raise ValueError(f"{field} contains unregistered field: {extra[0]}")
 
 
 def _sequence(value: object, field: str) -> Sequence[Any]:
@@ -336,6 +375,7 @@ def validate_registration(registration_value: object) -> None:
     any corpus result is inspected.
     """
     registration = _mapping(registration_value, "registration")
+    _require_exact_fields(registration, _REGISTRATION_FIELDS, "registration")
     _validate_schema_version(
         registration.get("schema_version"),
         "schema_version",
@@ -478,6 +518,7 @@ def _validate_result_identity(
     result: Mapping[str, Any],
 ) -> list[str]:
     """Bind a result receipt to the frozen registration and corpus order."""
+    _require_exact_fields(result, _RESULT_FIELDS, "result")
     _validate_schema_version(
         result.get("schema_version"),
         "result.schema_version",
@@ -543,6 +584,7 @@ def _validate_track_measurements(
     for index, raw_track in enumerate(tracks):
         field = f"result.tracks[{index}]"
         track = _mapping(raw_track, field)
+        _require_exact_fields(track, _TRACK_RECEIPT_FIELDS, field)
         track_id = _nonempty_text(track.get("track_id"), f"{field}.track_id")
         actual_track_ids.append(track_id)
         _validate_measurement_side(track.get("baseline"), f"{field}.baseline")
@@ -563,6 +605,7 @@ def evaluate_result(
     _validate_track_measurements(result, track_ids)
 
     aggregate = _mapping(result.get("aggregate"), "result.aggregate")
+    _require_exact_fields(aggregate, _AGGREGATE_FIELDS, "result.aggregate")
     baseline = _validate_measurement_side(
         aggregate.get("baseline"),
         "result.aggregate.baseline",
