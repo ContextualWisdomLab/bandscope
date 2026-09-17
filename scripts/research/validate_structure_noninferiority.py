@@ -71,6 +71,25 @@ _REGISTRATION_FIELDS = {
     "corpus",
     "runtime",
 }
+_HYPOTHESIS_FIELDS = {"baseline_feature", "candidate_feature"}
+_CORPUS_TRACK_FIELDS = {
+    "track_id",
+    "audio_sha256",
+    "annotation_sha256",
+    "rights_basis",
+    "rights_cleared",
+    "source_uri",
+}
+_RUNTIME_FIELDS = {
+    "source_commit",
+    "uv_lock_sha256",
+    "python_version",
+    "librosa_version",
+    "numpy_version",
+    "sample_rate_hz",
+    "channels",
+    "host_profile",
+}
 _RESULT_FIELDS = {
     "schema_version",
     "experiment_id",
@@ -211,6 +230,11 @@ def _validate_metrics(metrics_value: object) -> None:
 
     for metric_name, expected_config in _QUALITY_METRICS.items():
         config = _mapping(metrics[metric_name], f"metrics.{metric_name}")
+        _require_exact_fields(
+            config,
+            set(expected_config) | {"noninferiority_margin"},
+            f"metrics.{metric_name}",
+        )
         implementation = _nonempty_text(
             config.get("implementation"),
             f"metrics.{metric_name}.implementation",
@@ -248,6 +272,11 @@ def _validate_metrics(metrics_value: object) -> None:
             )
 
     latency = _mapping(metrics[_LATENCY_METRIC], f"metrics.{_LATENCY_METRIC}")
+    _require_exact_fields(
+        latency,
+        {"maximum_candidate_ratio"},
+        f"metrics.{_LATENCY_METRIC}",
+    )
     maximum_ratio = _finite_number(
         latency.get("maximum_candidate_ratio"),
         f"metrics.{_LATENCY_METRIC}.maximum_candidate_ratio",
@@ -323,6 +352,7 @@ def _validate_corpus(corpus_value: object) -> list[str]:
     for index, raw_track in enumerate(corpus):
         field = f"corpus[{index}]"
         track = _mapping(raw_track, field)
+        _require_exact_fields(track, _CORPUS_TRACK_FIELDS, field)
         track_id = _nonempty_text(track.get("track_id"), f"{field}.track_id")
         if track_id in seen_track_ids:
             raise ValueError(f"duplicate track_id: {track_id}")
@@ -343,6 +373,7 @@ def _validate_corpus(corpus_value: object) -> list[str]:
 def _validate_runtime(runtime_value: object) -> None:
     """Validate exact runtime identity for reproducible paired measurements."""
     runtime = _mapping(runtime_value, "runtime")
+    _require_exact_fields(runtime, _RUNTIME_FIELDS, "runtime")
     _commit(runtime.get("source_commit"), "runtime.source_commit")
     _sha256(runtime.get("uv_lock_sha256"), "runtime.uv_lock_sha256")
     for field in (
@@ -383,6 +414,7 @@ def validate_registration(registration_value: object) -> None:
     _nonempty_text(registration.get("experiment_id"), "experiment_id")
 
     hypothesis = _mapping(registration.get("hypothesis"), "hypothesis")
+    _require_exact_fields(hypothesis, _HYPOTHESIS_FIELDS, "hypothesis")
     baseline = _nonempty_text(
         hypothesis.get("baseline_feature"),
         "hypothesis.baseline_feature",
