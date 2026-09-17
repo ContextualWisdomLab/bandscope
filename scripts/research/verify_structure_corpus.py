@@ -101,22 +101,37 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _load_json(path: Path) -> Mapping[str, Any]:
+    """Load one bounded manifest from the same opened regular-file descriptor."""
+    fd = _open_regular_file(path, "manifest JSON")
     try:
-        size = path.stat().st_size
-    except OSError as exc:
-        raise ValueError("manifest JSON could not be stat'ed") from exc
-    if size > MAX_MANIFEST_BYTES:
+        metadata = os.fstat(fd)
+        if metadata.st_size > MAX_MANIFEST_BYTES:
+            raise ValueError(f"manifest JSON exceeds {MAX_MANIFEST_BYTES} bytes")
+        os.lseek(fd, 0, os.SEEK_SET)
+        chunks: list[bytes] = []
+        remaining = MAX_MANIFEST_BYTES + 1
+        while remaining > 0:
+            chunk = os.read(fd, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        payload = b"".join(chunks)
+    finally:
+        os.close(fd)
+
+    if len(payload) > MAX_MANIFEST_BYTES:
         raise ValueError(f"manifest JSON exceeds {MAX_MANIFEST_BYTES} bytes")
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
+        text = payload.decode("utf-8")
+    except UnicodeDecodeError as exc:
         raise ValueError("manifest JSON must be readable UTF-8") from exc
     value = json.loads(
         text,
         object_pairs_hook=_unique_object,
         parse_constant=_reject_constant,
     )
-    return _mapping(value, str(path))
+    return _mapping(value, "manifest JSON")
 
 
 def _sha256_file_descriptor(fd: int) -> str:
