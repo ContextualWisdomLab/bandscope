@@ -10,7 +10,9 @@ The first repair removed those deprecation suppressions but left module-wide `Fu
 
 A second policy gap remained after those source filters were removed: pytest failed closed on `DeprecationWarning`, but not on `FutureWarning`. Python distinguishes the two by intended audience, not by whether the warning can precede a breaking API change. Leaving `FutureWarning` at default handling would therefore let an end-user-facing compatibility warning appear in CI without making the warning audit gate fail.
 
-The analysis lock resolves `audioread==3.1.0`. Upstream's 3.1.0 history records Python 3.12/3.13 support and replacement of the deprecated `aifc` and `sunau` standard-library modules. librosa 0.11.0 separately documents audioread support itself as deprecated and planned for removal in librosa 1.0. A module-wide ignore therefore has no defensible removal condition: it can outlive the warning that originally motivated it and hide a different warning later.
+The three audio loaders also retained message/module-scoped librosa/Numba ignores. Those exceptions still converted dependency warnings into silence before pytest could observe them, while the branch had no exact-head warning inventory proving that either exception was currently necessary. Keeping a suppression first and asking CI to inventory warnings later is circular: the gate cannot report a warning that production code has already discarded.
+
+The analysis lock resolves `audioread==3.1.0`. Upstream's 3.1.0 history records Python 3.12/3.13 support and replacement of the deprecated `aifc` and `sunau` standard-library modules. librosa 0.11.0 separately documents audioread support itself as deprecated and planned for removal in librosa 1.0. A warning ignore without current execution evidence can outlive the warning that originally motivated it and hide a different warning later.
 
 References:
 
@@ -22,8 +24,8 @@ References:
 
 - Do not change audio decode parameters, supported formats, dependencies, lockfiles, or MIR behavior merely to make warning output quiet.
 - Do not turn a warning failure into success by restoring a global ignore, broad module ignore, test exclusion, `noqa`, or gate change.
-- Third-party warnings may be suppressed only when the exact category/message/module and upstream cause are known and there is a concrete removal condition.
-- A Draft branch is not protected product truth. Fresh exact-head tests and cross-platform CI must expose any warning hidden by the previous policy.
+- A temporary third-party warning suppression requires an observed exact-head warning plus exact category/message/module, upstream cause, and a concrete removal condition. It must not be pre-installed before that evidence exists.
+- A Draft branch is not protected product truth. Fresh exact-head tests and cross-platform CI must expose warnings hidden by the previous policy.
 
 ## Alternatives considered
 
@@ -37,11 +39,15 @@ Rejected for CI. Python's warnings filter can ignore or only display categories 
 
 ### Keep broad `^audioread` warning filters around decode
 
-Rejected. A category + module filter cannot distinguish one historical compatibility warning from a future unrelated warning in the same package. This applies to both `DeprecationWarning` and `FutureWarning`. If a temporary third-party exception is required, it must also bind the exact message and carry upstream/removal evidence.
+Rejected. A category + module filter cannot distinguish one historical compatibility warning from a future unrelated warning in the same package. This applies to both `DeprecationWarning` and `FutureWarning`.
 
-### Fail tests on deprecation/future warnings and remove the broad runtime filters
+### Keep the existing librosa/Numba warning exceptions until CI proves they are stale
 
-Selected. Unowned `DeprecationWarning` and `FutureWarning` instances become test failures. Known third-party exceptions, if still needed after execution, must be narrower than the removed rules and carry upstream/removal evidence.
+Rejected. Runtime suppression prevents CI from observing the very warning needed to justify, repair, or remove the exception. Without current exact-head evidence, a pre-existing ignore has no testable necessity or removal trigger.
+
+### Fail tests on compatibility warnings and expose loader warnings to the gate
+
+Selected. Unowned `DeprecationWarning` and `FutureWarning` instances become test failures, and the three production audio loaders no longer discard warnings before pytest can classify them. If exact-head execution later proves that an upstream-only warning cannot yet be repaired, a narrow temporary exception can be reintroduced only with the observed warning identity, upstream evidence, regression coverage, and removal condition.
 
 ## Implementation evidence
 
@@ -54,6 +60,9 @@ Selected. Unowned `DeprecationWarning` and `FutureWarning` instances become test
 - `e5197fb25bbb2c5f9ae412e24a14d69f3071753f` and `072ebf5714489d0f840d02a12e0344d37dfe35f4`: remove the remaining blanket audioread `FutureWarning` suppressions from Temporal Analysis and Separation. Transcription had no remaining `FutureWarning` suppression.
 - `10b5d28ced09c64f148e3b98b7d924357bc20cd4`: policy RED requiring pytest to fail on unowned `FutureWarning` and forbidding a global future-warning ignore.
 - `21bbeedcf913d2bbf46ba6ac9a4d5797469ce565`: add `error::FutureWarning` beside the existing deprecation error policy without changing dependencies or decode behavior.
+- `fa7adf40294f25325b60cb5abb7cd8f073cb070b`: source-policy RED requiring the three production audio loaders not to install runtime `ignore` filters before warning evidence exists.
+- `505d3e14b4559949b6c9cef97bb5b472ea298ae0`: remove Temporal Analysis' remaining librosa/Numba runtime suppression and its warning plumbing.
+- `3d94c2f5c5d57d91ded1bba211429e2af71b1537`: remove Separation's remaining librosa/Numba runtime suppression and inherited warning-filter dependency on Temporal Analysis.
 
 These commits prove the policy/source change only. They do not prove that the complete analysis suite is warning-clean; that requires terminal exact-head execution after this document is committed.
 
@@ -61,14 +70,14 @@ These commits prove the policy/source change only. They do not prove that the co
 
 A previously non-fatal dependency `FutureWarning` or hidden `DeprecationWarning` may now fail CI. That is an intended diagnostic outcome, not a compatibility claim. The causal response is to inspect the originating package/module/call path, migrate BandScope-owned use, upgrade or change a dependency call path where compatible, or document an exact temporary third-party exception with a removal condition.
 
-The change does not itself remove librosa's deprecated audioread fallback. Format-support changes require separate buyer-facing evidence because forcing a new decoder path can alter which real audio files BandScope accepts.
+Removing the loader suppressions does not change sample rate, mono conversion, duration limits, supported formats, or the librosa call path. It only restores warning observability. The change does not itself remove librosa's deprecated audioread fallback; format-support changes require separate buyer-facing evidence because forcing a new decoder path can alter which real audio files BandScope accepts.
 
 ## Follow-up
 
-1. Run the full analysis suite with the fail-on-deprecation/future-warning policy.
+1. Run the full analysis suite with the fail-on-deprecation/future-warning policy and no loader-side ignores.
 2. Record every distinct warning by category, message, originating module/package, and call path.
 3. Repair owned deprecated calls and rerun the focused/full suites.
-4. Audit the remaining message/module-scoped librosa/Numba compatibility filters against the observed warning inventory and retain one only with an upstream cause and concrete removal condition.
+4. For an upstream-only warning that cannot yet be repaired, add no suppression until its exact identity, upstream cause, regression coverage, and removal condition are documented.
 5. Keep the PR Draft until exact-head repository/central gates and an independent non-author review are complete.
 
 ## Security Notes
@@ -79,7 +88,7 @@ Dependency/runtime warning output is diagnostic input to the analysis acceptance
 
 ### Mitigations
 
-The pytest policy fails on both `DeprecationWarning` and `FutureWarning`, and the source-policy regression rejects module-wide audioread ignores for those categories when no exact message is supplied. Any future exception must be narrower and evidence-backed rather than restoring a removed blanket rule.
+The pytest policy fails on both `DeprecationWarning` and `FutureWarning`, and the source-policy regression prevents the three production audio loaders from discarding runtime warnings before the gate observes them. Any future exception requires evidence rather than inheriting a legacy ignore.
 
 ### Remaining risk
 
