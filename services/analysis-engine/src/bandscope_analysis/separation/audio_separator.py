@@ -201,9 +201,6 @@ class AudioStemSeparator:
                     )
 
                 with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
                     warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
                     for category, message, module in KNOWN_LIBROSA_NUMBA_WARNING_FILTERS:
                         warnings.filterwarnings(
