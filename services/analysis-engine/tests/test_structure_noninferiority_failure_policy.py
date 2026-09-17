@@ -16,7 +16,7 @@ def _remove_failed_measurements(result: dict[str, object]) -> None:
 
 
 def test_failed_track_cannot_pass_without_preregistered_exclusion_policy() -> None:
-    """A failed track stays diagnostic evidence and cannot become a complete-case PASS."""
+    """A failed track remains diagnostic evidence and cannot PASS."""
     validator = _validator()
     registration = _registration()
     digest = validator.registration_digest(registration)
