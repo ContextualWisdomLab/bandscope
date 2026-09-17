@@ -44,3 +44,15 @@ def test_missing_measurements_require_explicit_failed_track() -> None:
 
     with pytest.raises(ValueError, match="baseline"):
         validator.evaluate_result(registration, result)
+
+
+def test_failed_track_cannot_carry_fabricated_measurements() -> None:
+    """A failed receipt must not retain values that imply successful measurement."""
+    validator = _validator()
+    registration = _registration()
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+    result["failed_tracks"] = ["licensed-track-002"]
+
+    with pytest.raises(ValueError, match="unregistered field: baseline"):
+        validator.evaluate_result(registration, result)
