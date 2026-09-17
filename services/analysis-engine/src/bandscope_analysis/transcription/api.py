@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import warnings
 from dataclasses import dataclass
 
 import librosa
@@ -42,14 +41,12 @@ def transcribe_bass_stem(stem_data: bytes) -> list[NoteEvent]:
     if len(stem_data) > MAX_STEM_BYTES:
         raise ValueError("Stem data is too large for transcription.")
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning, module=r"^audioread")
-        y, sr = librosa.load(
-            io.BytesIO(stem_data),
-            sr=TARGET_SR,
-            mono=True,
-            duration=MAX_TRANSCRIPTION_DURATION_SECONDS,
-        )
+    y, sr = librosa.load(
+        io.BytesIO(stem_data),
+        sr=TARGET_SR,
+        mono=True,
+        duration=MAX_TRANSCRIPTION_DURATION_SECONDS,
+    )
 
     y_array = np.asarray(y, dtype=np.float32)
     if y_array.size == 0 or float(np.max(np.abs(y_array))) < MIN_SIGNAL_PEAK:
