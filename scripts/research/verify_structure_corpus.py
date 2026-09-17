@@ -233,6 +233,28 @@ def _current_runtime_identity(repo_root: Path) -> dict[str, object]:
     )
     if completed.returncode != 0:
         raise RuntimeError("git rev-parse HEAD failed")
+
+    status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        ],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if status.returncode != 0:
+        raise RuntimeError("git status --porcelain failed")
+    if status.stdout.strip():
+        raise RuntimeError(
+            "git working tree must be clean for registered source identity"
+        )
+
     lock_path = repo_root / "uv.lock"
     with lock_path.open("rb") as lock_file:
         lock_digest = hashlib.file_digest(lock_file, "sha256").hexdigest()
