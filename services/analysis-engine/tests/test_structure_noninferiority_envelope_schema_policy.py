@@ -94,3 +94,21 @@ def test_aggregate_receipt_rejects_unregistered_control_field() -> None:
 
     with pytest.raises(ValueError, match="result.aggregate contains unregistered field"):
         validator.evaluate_result(registration, result)
+
+
+def test_result_claim_boundary_cannot_expand_beyond_preregistration() -> None:
+    """Post-result prose cannot widen the scientific claim after evidence is visible."""
+    validator = _validator()
+    registration = _registration()
+    registration["claim_boundary"] = (
+        "Applies only to the registered rights-cleared corpus and exact runtime identity."
+    )
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+    result["claim_boundary"] = "Applies to all music, codecs, machines, and genres."
+
+    with pytest.raises(
+        ValueError,
+        match="result.claim_boundary must exactly match the preregistered claim boundary",
+    ):
+        validator.evaluate_result(registration, result)
