@@ -23,6 +23,7 @@ This is an atomic-publication boundary, not a claim that every supported filesys
 
 - RED `394e161b601e61eab11acd319b6196499e251f24`: a failed final replacement must preserve the existing complete receipt, remove the abandoned temporary file, and an output symlink must not allow receipt bytes to overwrite its target.
 - GREEN `7941fd6e1d0f40e3fa8d119e1a9c37b6c4a54811`: `_write_receipt_atomic` writes and syncs a same-directory temporary file, then publishes with `os.replace`; `main()` no longer writes directly through `Path.write_text`.
+- Gate follow-up `b48340b0f1819083670c2f01f04138099cf70aed`: restores the source file's final newline after the contents-API replacement so repository style/lint semantics remain unchanged; there is no behavioral delta.
 
 ## Security Notes
 
