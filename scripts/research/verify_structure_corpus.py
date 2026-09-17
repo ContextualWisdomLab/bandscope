@@ -431,8 +431,33 @@ def verify_corpus(
     }
 
 
+def _write_receipt_atomic(path: Path, receipt: Mapping[str, object]) -> None:
+    """Publish one complete receipt without following or truncating the target path."""
+    payload = (
+        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb", closefd=True) as temporary_file:
+            temporary_file.write(payload)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(temporary_path, path)
+    except Exception:
+        try:
+            temporary_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def main() -> int:
-    """Run corpus admission and write one path-free verification receipt."""
+    """Run corpus admission and atomically publish one path-free receipt."""
     parser = argparse.ArgumentParser(
         description="Admit local real-audio files for a frozen structure experiment"
     )
@@ -450,10 +475,7 @@ def main() -> int:
         manifest,
         runtime_identity=_current_runtime_identity(repo_root),
     )
-    args.output.write_text(
-        json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
-        encoding="utf-8",
-    )
+    _write_receipt_atomic(args.output, receipt)
     return 0
 
 
