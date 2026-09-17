@@ -174,3 +174,29 @@ def test_admission_rejects_non_finite_pcm_before_measurement(
                 "consumer must not run with non-finite PCM"
             ),
         )
+
+
+@pytest.mark.parametrize("invalid_frame_count", [True, "1", 1.0])
+def test_admission_rejects_non_integer_decoder_frame_count(
+    tmp_path: Path,
+    invalid_frame_count: object,
+) -> None:
+    """Decoder frame evidence must already be an integer, not a coercible value."""
+    admission, registration, manifest = _registered_inputs(tmp_path)
+    pcm = memoryview(b"\x00\x00\x00\x00")
+
+    def malformed_decoder(fd: int, sample_rate_hz: int) -> tuple[str, object, memoryview]:
+        assert sample_rate_hz == 44100
+        assert os.read(fd, 1)
+        return hashlib.sha256(pcm).hexdigest(), invalid_frame_count, pcm
+
+    with pytest.raises(ValueError, match="decoded frame count must be an integer"):
+        admission.verify_corpus(
+            registration,
+            manifest,
+            runtime_identity=_runtime(),
+            decoder=malformed_decoder,
+            track_consumer=lambda *_args: pytest.fail(
+                "consumer must not run with coerced frame-count evidence"
+            ),
+        )
