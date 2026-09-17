@@ -85,9 +85,6 @@ class TemporalAnalyzer:
                     )
 
                 with warnings.catch_warnings():
-                    warnings.filterwarnings(
-                        "ignore", category=DeprecationWarning, module=r"^audioread"
-                    )
                     warnings.filterwarnings("ignore", category=FutureWarning, module=r"^audioread")
 
                     # Keep the loader's known third-party churn quiet without hiding
