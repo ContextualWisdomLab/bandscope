@@ -19,6 +19,7 @@ The experiment therefore needs a local-only admission step before any CQT/STFT m
 - opens audio and annotation inputs as regular files without following symlinks where the platform provides `O_NOFOLLOW`;
 - computes SHA-256 from the opened descriptors and compares those digests with the preregistration before decoding;
 - requires the current source commit, `uv.lock`, Python, librosa, and NumPy identities to match the registered runtime;
+- treats Git commit and SHA-256 values as case-insensitive hexadecimal identities and emits them lowercase, matching the validator contract, while Python/librosa/NumPy version strings remain exact;
 - decodes the already-admitted audio descriptor through `librosa.load(..., sr=<registered>, mono=True)` and computes a canonical little-endian float32 PCM SHA-256;
 - emits only registration identity, runtime identity, content digests, decoded PCM digest/frame count, sample rate, channel count, and track ID. Local audio/annotation paths are never copied into the receipt.
 
@@ -42,7 +43,7 @@ MIREX 2025 Music Structure Analysis evaluates mono 44.1 kHz WAV input and uses f
 
 ## Test boundary
 
-Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, and non-standard JSON numbers. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
+Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, and the validator-compatible case-insensitive identity of Git/SHA-256 hexadecimal fields. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
 
 ## Remaining scientific work
 
