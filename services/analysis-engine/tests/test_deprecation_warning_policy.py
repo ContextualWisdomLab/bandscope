@@ -14,8 +14,8 @@ _AUDIO_LOADER_PATHS = (
 )
 
 
-def _is_blanket_audioread_deprecation_filter(call: ast.Call) -> bool:
-    """Return whether one call hides every audioread ``DeprecationWarning``."""
+def _is_blanket_audioread_warning_filter(call: ast.Call) -> bool:
+    """Return whether one call hides a whole audioread warning category."""
     if not isinstance(call.func, ast.Attribute) or call.func.attr != "filterwarnings":
         return False
     if not call.args or not isinstance(call.args[0], ast.Constant):
@@ -26,11 +26,13 @@ def _is_blanket_audioread_deprecation_filter(call: ast.Call) -> bool:
     keywords = {keyword.arg: keyword.value for keyword in call.keywords if keyword.arg}
     category = keywords.get("category")
     module = keywords.get("module")
+    message = keywords.get("message")
     return (
         isinstance(category, ast.Name)
-        and category.id == "DeprecationWarning"
+        and category.id in {"DeprecationWarning", "FutureWarning"}
         and isinstance(module, ast.Constant)
         and module.value == "^audioread"
+        and message is None
     )
 
 
@@ -44,13 +46,13 @@ def test_pytest_fails_on_unowned_deprecation_warnings() -> None:
     assert "ignore::DeprecationWarning" not in filters
 
 
-def test_audio_loaders_do_not_blanket_hide_audioread_deprecations() -> None:
-    """Keep audio loaders from suppressing every audioread deprecation at runtime."""
+def test_audio_loaders_do_not_blanket_hide_audioread_warnings() -> None:
+    """Keep audio loaders from hiding whole audioread warning categories."""
     offenders: list[str] = []
     for path in _AUDIO_LOADER_PATHS:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         if any(
-            _is_blanket_audioread_deprecation_filter(node)
+            _is_blanket_audioread_warning_filter(node)
             for node in ast.walk(tree)
             if isinstance(node, ast.Call)
         ):
