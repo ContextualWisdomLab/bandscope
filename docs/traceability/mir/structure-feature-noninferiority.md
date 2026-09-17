@@ -18,7 +18,7 @@ This keeps a performance result from silently changing the corpus, thresholds, f
 A registration is valid only when it records all of the following before the result is evaluated:
 
 - baseline `chroma_cqt` and candidate `chroma_stft`;
-- a rights-cleared real-audio corpus with stable track IDs, audio SHA-256, annotation SHA-256, rights basis, and provenance URI;
+- a rights-cleared real-audio corpus with stable track IDs, content-unique audio SHA-256 identities, annotation SHA-256, rights basis, and provenance URI;
 - exact source commit and `uv.lock` identity plus Python, librosa, NumPy, sample rate, channel count, and host profile;
 - the complete metric implementation contract and noninferiority/speed thresholds;
 - the paired-uncertainty procedure identity, confidence level, resample count, and random seed.
@@ -27,7 +27,9 @@ The validator requires a 95% confidence level because the current result schema 
 
 The validator requires `source_uri` to be an explicit non-`file:` URI. Absolute, relative, drive-relative, and `file:` filesystem forms are rejected as provenance authorities. A benchmark may remain private when licensing requires that, but the receipt must identify the licensed material without leaking the workstation path that happened to hold it.
 
-The current minimum of two tracks is only a technical guard against treating one timing sample as a corpus. It is **not** a scientific sample-size claim. Corpus breadth, genre/instrumentation coverage, annotation quality, and a defensible power/uncertainty plan remain part of the experiment review before a production switch can be accepted.
+Track IDs are labels, not independent scientific units by themselves. Schema v1 rejects duplicate `audio_sha256` values across distinct track IDs so the same audio bytes cannot be counted repeatedly as apparent corpus breadth or independent paired observations. A scientifically justified repeated-item or clustered design would require an explicit preregistered dependence model and a schema revision rather than aliasing one recording under several IDs.
+
+The current minimum of two tracks is only a technical guard against treating one timing sample as a corpus. It is **not** a scientific sample-size claim. Corpus breadth, genre/instrumentation coverage, annotation quality, independence/dependence structure, and a defensible power/uncertainty plan remain part of the experiment review before a production switch can be accepted.
 
 Schema v1 does not contain a preregistered dropout, exclusion, or missing-track policy. Therefore every registered track must complete both baseline and candidate measurement for an acceptance PASS. A result may record failed track IDs for diagnosis, but any non-empty `failed_tracks` list makes the acceptance decision fail. A future tolerance for failed or excluded tracks requires a reviewed preregistration rule and schema revision rather than post-result omission.
 
@@ -79,11 +81,11 @@ The receipt is rejected when a track is omitted/reordered, the uncertainty plan 
 
 Registration and result JSON are evidence, not trusted configuration. CLI admission is bounded to 2 MiB per file, reads from one already-open regular-file descriptor, requires UTF-8 and standards-compliant finite JSON values, and rejects duplicate object keys instead of accepting last-key-wins semantics. These controls prevent ambiguous evidence identities and bound memory use before scientific validation begins.
 
-The JSON `source_uri` value remains provenance metadata only; it is never dereferenced by this validator. It must use an explicit non-file URI scheme; absolute, relative, drive-relative, and `file:` filesystem forms are rejected. Audio and annotation bytes are not opened by the evidence validator and are bound to the registration through SHA-256 identities supplied by the experiment process.
+The JSON `source_uri` value remains provenance metadata only; it is never dereferenced by this validator. It must use an explicit non-file URI scheme; absolute, relative, drive-relative, and `file:` filesystem forms are rejected. Audio and annotation bytes are not opened by the evidence validator and are bound to the registration through SHA-256 identities supplied by the experiment process. Audio content identity must also be unique within schema-v1 corpus membership; a second track ID carrying the same `audio_sha256` fails admission.
 
 ## Reproducibility sequence
 
-1. Review the rights basis, corpus composition, feature hypothesis, metric contract, host profile, numeric margins, and paired-uncertainty procedure **before** running the candidate. Freeze the procedure identifier, confidence level, resample count, and random seed in the registration. If any failure/exclusion tolerance is scientifically required, define and version that policy before measurement rather than adding it after failures are observed.
+1. Review the rights basis, corpus composition, distinct audio-content identities, feature hypothesis, metric contract, host profile, numeric margins, and paired-uncertainty procedure **before** running the candidate. Freeze the procedure identifier, confidence level, resample count, and random seed in the registration. If repeated recordings, clustering, or any failure/exclusion tolerance is scientifically required, define and version that dependence/exclusion policy before measurement rather than aliasing or omitting observations after results are visible.
 2. Serialize the registration and run `python scripts/research/validate_structure_noninferiority.py <registration.json>` to obtain its canonical SHA-256.
 3. Run baseline and candidate on the same decoded track identities and host profile. Record per-track recognized MIR metrics, p50/p95 latency, peak RSS, failures, and paired uncertainty using exactly the preregistered procedure.
 4. Put the registration digest and the identical uncertainty-plan fields in the result receipt, then run `python scripts/research/validate_structure_noninferiority.py <registration.json> <result.json>`. Under schema v1, any recorded failed track keeps the diagnostic receipt valid but makes acceptance fail closed.
@@ -96,9 +98,9 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 - Audio and annotation files are untrusted inputs to the future experiment runner. This validator reads bounded JSON evidence only and does not open audio, execute subprocesses, make network requests, or follow paths from the registration.
 - Evidence JSON is limited to 2 MiB, must be a regular file read through one open descriptor, must decode as UTF-8, and rejects duplicate keys plus non-standard `NaN`/`Infinity` constants.
 - `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute, relative, drive-relative, and `file:` forms are rejected; an explicit non-file URI scheme is required so transient workstation paths cannot become provenance authority or leak into review artifacts.
-- Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt.
-- Invalid/non-finite measurements, corpus drift, uncertainty-plan drift, registration drift, missing per-track evidence, unregistered measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
-- The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
+- Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt; duplicate audio SHA-256 values under different track IDs are rejected so one recording cannot be silently counted multiple times.
+- Invalid/non-finite measurements, corpus drift, duplicate audio content identity, uncertainty-plan drift, registration drift, missing per-track evidence, unregistered measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
+- The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, independence beyond exact-byte uniqueness, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
 
 ## References
 
