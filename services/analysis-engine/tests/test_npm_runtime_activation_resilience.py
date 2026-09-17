@@ -37,7 +37,7 @@ def _fake_command_environment(
     tmp_path: Path,
     *,
     acquisition_failures: int,
-) -> tuple[dict[str, str], Path, Path, Path]:
+) -> tuple[dict[str, str], Path, Path, Path, Path]:
     """Return a PATH-isolated command harness and its evidence files."""
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -89,7 +89,7 @@ exit 64
     environment["BANDSCOPE_TEST_COREPACK_ENABLE_LOG"] = str(corepack_enable_log)
     environment["BANDSCOPE_TEST_SLEEP_LOG"] = str(sleep_log)
     environment["BANDSCOPE_TEST_NPM_LOG"] = str(npm_log)
-    return environment, corepack_count, sleep_log, npm_log
+    return environment, corepack_count, sleep_log, npm_log, corepack_enable_log
 
 
 def _run_activation_helper(tmp_path: Path, *, acquisition_failures: int) -> tuple[
@@ -97,11 +97,14 @@ def _run_activation_helper(tmp_path: Path, *, acquisition_failures: int) -> tupl
     Path,
     Path,
     Path,
+    Path,
 ]:
     """Execute the real helper against deterministic fake external commands."""
-    environment, corepack_count, sleep_log, npm_log = _fake_command_environment(
-        tmp_path,
-        acquisition_failures=acquisition_failures,
+    environment, corepack_count, sleep_log, npm_log, corepack_enable_log = (
+        _fake_command_environment(
+            tmp_path,
+            acquisition_failures=acquisition_failures,
+        )
     )
     completed = subprocess.run(
         ["bash", str(_ACTIVATION_HELPER)],
@@ -111,7 +114,7 @@ def _run_activation_helper(tmp_path: Path, *, acquisition_failures: int) -> tupl
         capture_output=True,
         check=False,
     )
-    return completed, corepack_count, sleep_log, npm_log
+    return completed, corepack_count, sleep_log, npm_log, corepack_enable_log
 
 
 def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_reads() -> None:
@@ -134,7 +137,9 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
 
         npm_consumers += 1
         activation_indexes = [
-            index for index, command in enumerate(run_steps) if command.strip() == _ACTIVATION_COMMAND
+            index
+            for index, command in enumerate(run_steps)
+            if command.strip() == _ACTIVATION_COMMAND
         ]
         assert activation_indexes == [dependency_index - 1], f"{job_name} activation ownership"
         assert all("corepack enable npm" not in command for command in run_steps), (
@@ -158,12 +163,15 @@ def test_pinned_npm_activation_helper_retries_acquisition_but_never_falls_back()
     assert "npm@10.9.8" not in source
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows build lanes")
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="shell helper is exercised by hosted Windows build lanes",
+)
 def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures(
     tmp_path: Path,
 ) -> None:
     """Retry only exact-runtime acquisition, then audit the acquired npm before success."""
-    completed, corepack_count, sleep_log, npm_log = _run_activation_helper(
+    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
         tmp_path,
         acquisition_failures=2,
     )
@@ -172,15 +180,19 @@ def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures
     assert corepack_count.read_text(encoding="utf-8") == "3"
     assert sleep_log.read_text(encoding="utf-8").splitlines() == ["5", "10"]
     assert npm_log.read_text(encoding="utf-8").splitlines() == ["run check:npm-runtime"]
+    assert corepack_enable_log.read_text(encoding="utf-8").splitlines() == ["enable npm"]
     assert "retrying exact npm@10.9.9" in completed.stderr
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows build lanes")
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="shell helper is exercised by hosted Windows build lanes",
+)
 def test_pinned_npm_activation_fails_closed_after_bounded_acquisition_exhaustion(
     tmp_path: Path,
 ) -> None:
     """Stop after three failed acquisitions without enabling or invoking fallback npm."""
-    completed, corepack_count, sleep_log, npm_log = _run_activation_helper(
+    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
         tmp_path,
         acquisition_failures=99,
     )
@@ -189,5 +201,6 @@ def test_pinned_npm_activation_fails_closed_after_bounded_acquisition_exhaustion
     assert corepack_count.read_text(encoding="utf-8") == "3"
     assert sleep_log.read_text(encoding="utf-8").splitlines() == ["5", "10"]
     assert not npm_log.exists()
+    assert not corepack_enable_log.exists()
     assert "after 3 attempts" in completed.stderr
     assert "refusing an unpinned npm fallback" in completed.stderr
