@@ -29,6 +29,8 @@ The validator requires `source_uri` to be an explicit non-`file:` URI. Absolute,
 
 The current minimum of two tracks is only a technical guard against treating one timing sample as a corpus. It is **not** a scientific sample-size claim. Corpus breadth, genre/instrumentation coverage, annotation quality, and a defensible power/uncertainty plan remain part of the experiment review before a production switch can be accepted.
 
+Schema v1 does not contain a preregistered dropout, exclusion, or missing-track policy. Therefore every registered track must complete both baseline and candidate measurement for an acceptance PASS. A result may record failed track IDs for diagnosis, but any non-empty `failed_tracks` list makes the acceptance decision fail. A future tolerance for failed or excluded tracks requires a reviewed preregistration rule and schema revision rather than post-result omission.
+
 ## Metrics
 
 BandScope uses MIREX 2025 Music Structure Analysis as the functional-structure reference point. The registered quality gate requires:
@@ -61,13 +63,15 @@ For p95 latency, let `r = candidate_p95 / baseline_p95`. The result passes the s
 
 The result receipt must repeat the preregistered uncertainty plan exactly. The validator also requires the aggregate point delta/ratio to lie inside the supplied interval. Favorable point estimates therefore cannot hide an uncertainty interval that crosses a preregistered boundary, and the uncertainty method cannot be swapped after the result is known.
 
+Because schema v1 has no preregistered exclusion policy, a non-empty `failed_tracks` list is an additional failed requirement even when every reported quality and latency interval is favorable. Failed tracks remain visible in the result receipt for diagnosis; they cannot be silently converted into a complete-case PASS after results are known.
+
 The repository does not currently contain approved numeric margins or an approved production corpus/uncertainty procedure. Unit-test values are synthetic policy fixtures only and must never be cited as production acceptance thresholds or scientific design decisions.
 
 ## Result receipt
 
 A result receipt must contain the exact registration digest, exact uncertainty plan, exact corpus order, one complete baseline/candidate measurement pair per registered track, aggregate measurements, paired 95% intervals for every gated quality metric, a paired p95-latency-ratio interval, failed-track IDs, and a claim boundary.
 
-The receipt is rejected when a track is omitted/reordered, the uncertainty plan differs, a required metric is absent, a boundary/repetition P/R/F triplet is internally inconsistent, a value is non-finite, a confidence interval does not contain its aggregate point estimate, or the registration hash differs. A passing receipt means only that the preregistered decision rule passed for the registered corpus, uncertainty procedure, and runtime. It does not generalize automatically to other genres, codecs, sample rates, machines, annotation regimes, or statistical procedures.
+The receipt is rejected when a track is omitted/reordered, the uncertainty plan differs, a required metric is absent, a boundary/repetition P/R/F triplet is internally inconsistent, a value is non-finite, a confidence interval does not contain its aggregate point estimate, or the registration hash differs. A structurally valid receipt with one or more known failed tracks is retained for diagnosis but evaluates to `passed=false` under schema v1. A passing receipt therefore means the preregistered decision rule passed for the complete registered corpus, uncertainty procedure, and runtime. It does not generalize automatically to other genres, codecs, sample rates, machines, annotation regimes, or statistical procedures.
 
 ## Machine-readable evidence admission
 
@@ -77,10 +81,10 @@ The JSON `source_uri` value remains provenance metadata only; it is never derefe
 
 ## Reproducibility sequence
 
-1. Review the rights basis, corpus composition, feature hypothesis, metric contract, host profile, numeric margins, and paired-uncertainty procedure **before** running the candidate. Freeze the procedure identifier, confidence level, resample count, and random seed in the registration.
+1. Review the rights basis, corpus composition, feature hypothesis, metric contract, host profile, numeric margins, and paired-uncertainty procedure **before** running the candidate. Freeze the procedure identifier, confidence level, resample count, and random seed in the registration. If any failure/exclusion tolerance is scientifically required, define and version that policy before measurement rather than adding it after failures are observed.
 2. Serialize the registration and run `python scripts/research/validate_structure_noninferiority.py <registration.json>` to obtain its canonical SHA-256.
 3. Run baseline and candidate on the same decoded track identities and host profile. Record per-track recognized MIR metrics, p50/p95 latency, peak RSS, failures, and paired uncertainty using exactly the preregistered procedure.
-4. Put the registration digest and the identical uncertainty-plan fields in the result receipt, then run `python scripts/research/validate_structure_noninferiority.py <registration.json> <result.json>`.
+4. Put the registration digest and the identical uncertainty-plan fields in the result receipt, then run `python scripts/research/validate_structure_noninferiority.py <registration.json> <result.json>`. Under schema v1, any recorded failed track keeps the diagnostic receipt valid but makes acceptance fail closed.
 5. Preserve the registration, result receipt, corpus/annotation hashes, exact source commit, lock hash, and measurement procedure together. A production feature switch requires this evidence plus normal code review and protected-head checks.
 
 No step authorizes committing licensed audio to Git. Rights-cleared means BandScope has the necessary evaluation right; redistribution is a separate permission.
@@ -91,7 +95,7 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 - Evidence JSON is limited to 2 MiB, must be a regular file read through one open descriptor, must decode as UTF-8, and rejects duplicate keys plus non-standard `NaN`/`Infinity` constants.
 - `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute, relative, drive-relative, and `file:` forms are rejected; an explicit non-file URI scheme is required so transient workstation paths cannot become provenance authority or leak into review artifacts.
 - Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt.
-- Invalid/non-finite measurements, corpus drift, uncertainty-plan drift, registration drift, missing per-track evidence, inconsistent P/R/F triplets, and post-hoc metric additions fail closed.
+- Invalid/non-finite measurements, corpus drift, uncertainty-plan drift, registration drift, missing per-track evidence, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
 - The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
 
 ## References
