@@ -43,3 +43,17 @@ def test_track_receipt_rejects_unregistered_control_field() -> None:
 
     with pytest.raises(ValueError, match="result.tracks\[0\] contains unregistered field"):
         validator.evaluate_result(registration, result)
+
+
+def test_aggregate_receipt_rejects_unregistered_control_field() -> None:
+    """Aggregate control metadata cannot bypass the closed result schema."""
+    validator = _validator()
+    registration = _registration()
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+    aggregate = result["aggregate"]
+    assert isinstance(aggregate, dict)
+    aggregate["selected_tracks"] = ["licensed-track-001"]
+
+    with pytest.raises(ValueError, match="result.aggregate contains unregistered field"):
+        validator.evaluate_result(registration, result)
