@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -363,3 +364,20 @@ def test_result_is_bound_to_registration_corpus_and_finite_measurements() -> Non
     candidate["p95_latency_seconds"] = math.inf
     with pytest.raises(ValueError, match="finite"):
         validator.evaluate_result(registration, nonfinite)
+
+
+def test_machine_readable_evidence_is_bounded_and_duplicate_rejecting(
+    tmp_path: Path,
+) -> None:
+    """Evidence files reject ambiguous objects and unbounded JSON before evaluation."""
+    validator = _validator()
+    duplicate = tmp_path / "duplicate.json"
+    duplicate.write_text('{"schema_version": 1, "schema_version": 1}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate JSON key: schema_version"):
+        validator._load_json(duplicate)
+
+    oversized = tmp_path / "oversized.json"
+    oversized.write_bytes(b" " * (validator.MAX_EVIDENCE_BYTES + 1))
+    with pytest.raises(ValueError, match="exceeds"):
+        validator._load_json(oversized)
