@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
-from typing import BinaryIO
 
 import pytest
 
@@ -19,10 +18,10 @@ from test_structure_corpus_admission import (
 )
 
 
-def test_consumer_cannot_mutate_admitted_annotation_without_detection(
+def test_consumer_receives_intrinsically_read_only_annotation_bytes(
     tmp_path: Path,
 ) -> None:
-    """Receipt admission must fail if a consumer mutates the hashed annotation snapshot."""
+    """A consumer must not be able to mutate annotation evidence then restore it."""
     admission = _admission()
     audio_paths, annotation_paths = _files(tmp_path)
     registration = _registration(
@@ -31,28 +30,35 @@ def test_consumer_cannot_mutate_admitted_annotation_without_detection(
     )
     manifest = _manifest(admission, registration, audio_paths, annotation_paths)
     pcm = memoryview(b"\x00\x00\x00\x00")
+    consumed_annotations: list[bytes] = []
 
     def fake_decoder(fd: int, sample_rate_hz: int) -> tuple[str, int, memoryview]:
         assert sample_rate_hz == 44100
         assert os.read(fd, 1)
         return hashlib.sha256(pcm).hexdigest(), 1, pcm
 
-    def mutating_consumer(
+    def restoring_attack_consumer(
         _track_id: str,
         _pcm: memoryview,
-        annotation_snapshot: BinaryIO,
+        annotation_bytes: memoryview,
         _sample_rate_hz: int,
     ) -> None:
-        annotation_snapshot.seek(0)
-        annotation_snapshot.write(b"tampered-after-admission")
-        annotation_snapshot.truncate()
-        annotation_snapshot.flush()
+        assert annotation_bytes.readonly
+        original = bytes(annotation_bytes)
+        with pytest.raises(TypeError):
+            annotation_bytes[0] = (annotation_bytes[0] + 1) % 256
+        assert bytes(annotation_bytes) == original
+        consumed_annotations.append(original)
 
-    with pytest.raises(ValueError, match="consumer mutated admitted annotation"):
-        admission.verify_corpus(
-            registration,
-            manifest,
-            runtime_identity=_runtime(),
-            decoder=fake_decoder,
-            track_consumer=mutating_consumer,
-        )
+    receipt = admission.verify_corpus(
+        registration,
+        manifest,
+        runtime_identity=_runtime(),
+        decoder=fake_decoder,
+        track_consumer=restoring_attack_consumer,
+    )
+
+    assert consumed_annotations == [path.read_bytes() for path in annotation_paths]
+    assert [track["annotation_sha256"] for track in receipt["tracks"]] == [
+        _digest(path) for path in annotation_paths
+    ]
