@@ -70,6 +70,7 @@ _REGISTRATION_FIELDS = {
     "uncertainty",
     "corpus",
     "runtime",
+    "claim_boundary",
 }
 _HYPOTHESIS_FIELDS = {"baseline_feature", "candidate_feature"}
 _CORPUS_TRACK_FIELDS = {
@@ -432,6 +433,7 @@ def validate_registration(registration_value: object) -> None:
     _validate_uncertainty(registration.get("uncertainty"), "uncertainty")
     _validate_corpus(registration.get("corpus"))
     _validate_runtime(registration.get("runtime"))
+    _nonempty_text(registration.get("claim_boundary"), "claim_boundary")
 
 
 def registration_digest(registration_value: object) -> str:
@@ -598,6 +600,19 @@ def _validate_result_identity(
         raise ValueError(
             "result.corpus_track_ids must exactly match registration corpus order"
         )
+
+    registered_claim_boundary = _nonempty_text(
+        registration.get("claim_boundary"),
+        "claim_boundary",
+    )
+    result_claim_boundary = _nonempty_text(
+        result.get("claim_boundary"),
+        "result.claim_boundary",
+    )
+    if result_claim_boundary != registered_claim_boundary:
+        raise ValueError(
+            "result.claim_boundary must exactly match the preregistered claim boundary"
+        )
     return expected_track_ids
 
 
@@ -705,7 +720,6 @@ def evaluate_result(
         raise ValueError(
             f"result.failed_tracks contains unknown track_id: {unknown_failed[0]}"
         )
-    _nonempty_text(result.get("claim_boundary"), "result.claim_boundary")
 
     metrics = _mapping(registration["metrics"], "metrics")
     failed_requirements: list[str] = []
