@@ -8,9 +8,15 @@ opened descriptors, decodes each immutable audio snapshot through the
 registered librosa normalization contract, and emits a path-free receipt with a
 SHA-256 identity of the exact mono float32 PCM presented to later analysis.
 
-It does not calculate MIR metrics, choose thresholds, or make a noninferiority
-decision. Synthetic audio is suitable for unit tests only; production receipts
-require the rights-cleared real-audio corpus named by the preregistration.
+An in-process track consumer may receive that exact normalized PCM together
+with the immutable admitted annotation snapshot. This is the handoff boundary
+for a later MIR experiment runner: the runner must not reopen workstation source
+paths after admission merely because the durable receipt contains only digests.
+
+The tool does not calculate MIR metrics, choose thresholds, or make a
+noninferiority decision. Synthetic audio is suitable for unit tests only;
+production receipts require the rights-cleared real-audio corpus named by the
+preregistration.
 """
 
 from __future__ import annotations
@@ -167,8 +173,8 @@ def _open_regular_file(path: Path, field: str) -> int:
         raise
 
 
-def _decode_pcm_identity(fd: int, target_sample_rate_hz: int) -> tuple[str, int]:
-    """Decode from the admitted snapshot and hash canonical mono float32 PCM."""
+def _decode_pcm_identity(fd: int, target_sample_rate_hz: int) -> tuple[str, int, memoryview]:
+    """Decode the admitted snapshot and expose canonical read-only mono float32 PCM."""
     import librosa
     import numpy as np
 
@@ -192,7 +198,9 @@ def _decode_pcm_identity(fd: int, target_sample_rate_hz: int) -> tuple[str, int]
     canonical = np.asarray(samples, dtype="<f4", order="C")
     if canonical.ndim != 1 or canonical.size == 0:
         raise ValueError("decoded audio must be non-empty mono PCM")
-    return hashlib.sha256(canonical.tobytes(order="C")).hexdigest(), int(canonical.size)
+    canonical.setflags(write=False)
+    pcm = memoryview(canonical).cast("B")
+    return hashlib.sha256(pcm).hexdigest(), int(canonical.size), pcm
 
 
 def _current_runtime_identity(repo_root: Path) -> dict[str, object]:
@@ -245,9 +253,21 @@ def verify_corpus(
     manifest: Mapping[str, Any],
     *,
     runtime_identity: Mapping[str, object],
-    decoder: Callable[[int, int], tuple[str, int]] = _decode_pcm_identity,
+    decoder: Callable[
+        [int, int],
+        tuple[str, int] | tuple[str, int, memoryview],
+    ] = _decode_pcm_identity,
+    track_consumer: Callable[[str, memoryview, BinaryIO, int], None] | None = None,
 ) -> dict[str, object]:
-    """Verify local files and return a path-free decoded-corpus receipt."""
+    """Verify local files and return a path-free decoded-corpus receipt.
+
+    When ``track_consumer`` is supplied, it runs only after both registered
+    content identities are verified. It receives the exact canonical PCM used
+    for ``decoded_pcm_sha256`` plus a borrowed immutable-source annotation
+    snapshot. The callback must finish before this function returns; the
+    annotation handle is closed immediately afterward and is never persisted in
+    the receipt.
+    """
     validator = _load_validator()
     validator.validate_registration(registration)
     registration_sha256 = validator.registration_digest(registration)
@@ -299,9 +319,9 @@ def verify_corpus(
                 ).lower()
                 if audio_sha256 != expected_audio:
                     raise ValueError(f"{field}.audio_path SHA-256 does not match registration")
-                decoded_pcm_sha256, decoded_frames = decoder(
-                    snapshot.fileno(), target_sample_rate_hz
-                )
+                decoded = decoder(snapshot.fileno(), target_sample_rate_hz)
+                decoded_pcm_sha256, decoded_frames = decoded[:2]
+                decoded_pcm = decoded[2] if len(decoded) == 3 else None
             finally:
                 snapshot.close()
         finally:
@@ -309,14 +329,30 @@ def verify_corpus(
 
         annotation_fd = _open_regular_file(annotation_path, f"{field}.annotation_path")
         try:
-            annotation_sha256 = _sha256_file_descriptor(annotation_fd)
+            annotation_snapshot, annotation_sha256 = _snapshot_and_hash(annotation_fd)
         finally:
             os.close(annotation_fd)
-        expected_annotation = _text(
-            registered.get("annotation_sha256"), "registered.annotation_sha256"
-        ).lower()
-        if annotation_sha256 != expected_annotation:
-            raise ValueError(f"{field}.annotation_path SHA-256 does not match registration")
+        try:
+            expected_annotation = _text(
+                registered.get("annotation_sha256"), "registered.annotation_sha256"
+            ).lower()
+            if annotation_sha256 != expected_annotation:
+                raise ValueError(f"{field}.annotation_path SHA-256 does not match registration")
+
+            if track_consumer is not None:
+                if decoded_pcm is None:
+                    raise ValueError(
+                        "decoder must expose admitted PCM when track_consumer is configured"
+                    )
+                annotation_snapshot.seek(0)
+                track_consumer(
+                    track_id,
+                    decoded_pcm,
+                    annotation_snapshot,
+                    target_sample_rate_hz,
+                )
+        finally:
+            annotation_snapshot.close()
 
         receipt_tracks.append(
             {
