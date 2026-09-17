@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "./select"
 import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip"
+import { Slider } from "./slider"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -244,5 +245,11 @@ describe("added ui primitives (runtime render)", () => {
     expect(typeof toast).toBe("function")
     toast("분석 준비 완료")
     expect(await screen.findByText("분석 준비 완료")).toBeTruthy()
+  })
+
+  it("Slider renders properly", () => {
+    const { container } = render(<Slider defaultValue={[50]} />)
+    const root = container.querySelector('[role="group"]')
+    expect(root).toBeTruthy()
   })
 })
