@@ -812,11 +812,25 @@ def _reject_json_constant(value: str) -> None:
 
 
 def _load_json(path: Path) -> object:
-    """Load one bounded regular UTF-8 JSON evidence file from one descriptor."""
-    with path.open("rb") as handle:
+    """Load one bounded regular non-link UTF-8 JSON file from one descriptor."""
+    flags = os.O_RDONLY
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(path, flags)
+    except OSError as exc:
+        raise ValueError(
+            f"evidence path could not be opened as a regular non-link file: {path.name}"
+        ) from exc
+
+    with os.fdopen(fd, "rb", closefd=True) as handle:
         descriptor_stat = os.fstat(handle.fileno())
         if not stat.S_ISREG(descriptor_stat.st_mode):
             raise ValueError(f"evidence path is not a regular file: {path.name}")
+        if not hasattr(os, "O_NOFOLLOW") and path.is_symlink():
+            raise ValueError(f"evidence path must not be a symbolic link: {path.name}")
         if descriptor_stat.st_size > MAX_EVIDENCE_BYTES:
             raise ValueError(
                 f"evidence file exceeds {MAX_EVIDENCE_BYTES} bytes: {path.name}"
