@@ -29,6 +29,8 @@ The validator requires `source_uri` to be an explicit non-`file:` URI. Absolute,
 
 Track IDs are labels, not independent scientific units by themselves. Schema v1 rejects duplicate `audio_sha256` values across distinct track IDs so the same audio bytes cannot be counted repeatedly as apparent corpus breadth or independent paired observations. A scientifically justified repeated-item or clustered design would require an explicit preregistered dependence model and a schema revision rather than aliasing one recording under several IDs.
 
+This guard is also consistent with recent MIR dataset-quality work. Choi et al. (2025) show that duplicated music items can make evaluation unreliable through leakage and motivate explicit de-duplication in a large music benchmark. Their study is on symbolic MIDI and therefore does **not** establish BandScope's audio-structure independence assumptions; it supports the narrower engineering rule that duplicate content identity must not silently masquerade as distinct evaluation evidence.
+
 The current minimum of two tracks is only a technical guard against treating one timing sample as a corpus. It is **not** a scientific sample-size claim. Corpus breadth, genre/instrumentation coverage, annotation quality, independence/dependence structure, and a defensible power/uncertainty plan remain part of the experiment review before a production switch can be accepted.
 
 Schema v1 does not contain a preregistered dropout, exclusion, or missing-track policy. Therefore every registered track must complete both baseline and candidate measurement for an acceptance PASS. A result may record failed track IDs for diagnosis, but any non-empty `failed_tracks` list makes the acceptance decision fail. A future tolerance for failed or excluded tracks requires a reviewed preregistration rule and schema revision rather than post-result omission.
@@ -105,6 +107,8 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 ## References
 
 Buisson, M., McFee, B., Essid, S., & Crayencour, H. C. (2024). Self-supervised learning of multi-level audio representations for music segmentation. *IEEE/ACM Transactions on Audio, Speech, and Language Processing, 32*, 2141–2152. https://doi.org/10.1109/TASLP.2024.3379894
+
+Choi, E., Kim, H., Ryu, J., Nam, J., & Jeong, D. (2025). *On the de-duplication of the Lakh MIDI dataset* [Conference paper]. International Society for Music Information Retrieval Conference. https://doi.org/10.5281/zenodo.17811316
 
 Kim, T., & Nam, J. (2023). All-in-one metrical and functional structure analysis with neighborhood attentions on demixed audio. In *2023 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)* (pp. 1–5). IEEE. https://doi.org/10.1109/WASPAA58266.2023.10248148
 
