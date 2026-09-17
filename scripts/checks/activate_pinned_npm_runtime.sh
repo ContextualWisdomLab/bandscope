@@ -19,7 +19,23 @@ NODE
 }
 
 attempt=1
-while ! corepack install --global "$package_manager_spec"; do
+while true; do
+  acquisition_output=""
+  if acquisition_output="$(corepack install --global "$package_manager_spec" 2>&1)"; then
+    if [[ -n "$acquisition_output" ]]; then
+      printf '%s\n' "$acquisition_output" >&2
+    fi
+    break
+  fi
+
+  printf '%s\n' "$acquisition_output" >&2
+  case "$acquisition_output" in
+    *"Signature does not match"*|*"Cannot find matching keyid"*|*"not signed by any trusted keys"*|*"integrity checksum"*|*"Integrity check failed"*|*"integrity check failed"*)
+      echo "Corepack reported a non-transient package-manager provenance failure; refusing to retry or weaken verification." >&2
+      exit 1
+      ;;
+  esac
+
   if (( attempt >= MAX_ATTEMPTS )); then
     echo "Failed to acquire $package_manager_spec after $MAX_ATTEMPTS attempts; refusing an unpinned npm fallback." >&2
     exit 1
