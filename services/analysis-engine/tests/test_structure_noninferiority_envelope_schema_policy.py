@@ -112,3 +112,17 @@ def test_result_claim_boundary_cannot_expand_beyond_preregistration() -> None:
         match="result.claim_boundary must exactly match the preregistered claim boundary",
     ):
         validator.evaluate_result(registration, result)
+
+
+def test_result_experiment_id_matches_normalized_preregistration_identity() -> None:
+    """Whitespace in a valid registration ID must not make its result impossible."""
+    validator = _validator()
+    registration = _registration()
+    registration["experiment_id"] = "  structure-chroma-stft-vs-cqt-v1  "
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+
+    decision = validator.evaluate_result(registration, result)
+
+    assert decision["passed"] is True
+    assert decision["registration_sha256"] == digest
