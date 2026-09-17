@@ -17,10 +17,11 @@ The experiment therefore needs a local-only admission step before any CQT/STFT m
 
 - requires the manifest order and track IDs to exactly match the preregistered corpus;
 - opens audio and annotation inputs as regular files without following symlinks where the platform provides `O_NOFOLLOW`;
-- computes SHA-256 from the opened descriptors and compares those digests with the preregistration before decoding;
+- copies the opened audio stream into a process-owned temporary snapshot while computing the SHA-256, then compares that digest with the preregistration before decoding;
+- hashes annotation bytes from the opened annotation descriptor and compares them with the registered annotation identity;
 - requires the current source commit, `uv.lock`, Python, librosa, and NumPy identities to match the registered runtime;
 - treats Git commit and SHA-256 values as case-insensitive hexadecimal identities and emits them lowercase, matching the validator contract, while Python/librosa/NumPy version strings remain exact;
-- decodes the already-admitted audio descriptor through `librosa.load(..., sr=<registered>, mono=True)` and computes a canonical little-endian float32 PCM SHA-256;
+- decodes the immutable admitted audio snapshot through `librosa.load(..., sr=<registered>, mono=True)` and computes a canonical little-endian float32 PCM SHA-256;
 - emits only registration identity, runtime identity, content digests, decoded PCM digest/frame count, sample rate, channel count, and track ID. Local audio/annotation paths are never copied into the receipt.
 
 The tool does not calculate MIR metrics, aggregate tracks, estimate uncertainty, or make a noninferiority decision. Those remain separate scientific steps. A passing corpus-admission receipt is therefore necessary evidence for a run, not sufficient evidence for a production representation change.
@@ -29,7 +30,7 @@ The tool does not calculate MIR metrics, aggregate tracks, estimate uncertainty,
 
 Dereferencing `source_uri` was rejected. Provenance URI is evidence metadata and may identify licensed material that cannot be fetched by CI. Network retrieval would also turn a local-first experiment into a mutable external dependency.
 
-Hashing by pathname and then reopening for decode was rejected because the pathname can change between the two operations. Admission hashes the opened descriptor, rewinds that descriptor, duplicates it, and decodes the same opened file identity.
+Hashing an opened source descriptor and then decoding that still-live source descriptor was rejected after hostile review. A pathname cannot be swapped once the descriptor is open, but another writer can still change the underlying regular-file bytes between the hash and decode. Admission therefore snapshots the source bytes while hashing and decodes only that process-owned snapshot. Source mutation after snapshot creation cannot change the admitted decoder input.
 
 Persisting workstation paths in the receipt was rejected because they are neither stable provenance nor purpose-bound evidence and can expose local usernames, mounts, or project layout.
 
@@ -43,7 +44,7 @@ MIREX 2025 Music Structure Analysis evaluates mono 44.1 kHz WAV input and uses f
 
 ## Test boundary
 
-Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, and the validator-compatible case-insensitive identity of Git/SHA-256 hexadecimal fields. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
+Unit tests use tiny synthetic byte fixtures and an injected decoder to exercise hash drift, runtime drift, symlink rejection, path non-disclosure, duplicate JSON keys, non-standard JSON numbers, case-insensitive Git/SHA-256 identity, and source mutation after snapshot admission. These fixtures are not production scientific evidence and do not satisfy #1225's rights-cleared real-music corpus requirement.
 
 ## Remaining scientific work
 
