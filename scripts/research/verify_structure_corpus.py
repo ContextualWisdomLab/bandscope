@@ -2,8 +2,9 @@
 """Admit local real-audio corpus material for a frozen BandScope MIR experiment.
 
 The preregistration stores provenance and content digests, never workstation
-paths. This tool resolves a local-only manifest, hashes audio and annotation
-bytes from opened regular-file descriptors, decodes each audio item through the
+paths. This tool resolves a local-only manifest, snapshots and hashes audio
+bytes from opened regular-file descriptors, hashes annotation bytes from their
+opened descriptors, decodes each immutable audio snapshot through the
 registered librosa normalization contract, and emits a path-free receipt with a
 SHA-256 identity of the exact mono float32 PCM presented to later analysis.
 
@@ -22,10 +23,11 @@ import os
 import platform
 import stat
 import subprocess
+import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, BinaryIO
 
 MANIFEST_SCHEMA_VERSION = 1
 MAX_MANIFEST_BYTES = 2 * 1024 * 1024
@@ -122,6 +124,27 @@ def _sha256_file_descriptor(fd: int) -> str:
     return digest.hexdigest()
 
 
+def _snapshot_and_hash(fd: int) -> tuple[BinaryIO, str]:
+    """Copy one opened source into a process-owned snapshot while hashing it."""
+    digest = hashlib.sha256()
+    snapshot = tempfile.TemporaryFile(mode="w+b")
+    try:
+        os.lseek(fd, 0, os.SEEK_SET)
+        while True:
+            chunk = os.read(fd, 1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            snapshot.write(chunk)
+        snapshot.flush()
+        snapshot.seek(0)
+        os.lseek(fd, 0, os.SEEK_SET)
+        return snapshot, digest.hexdigest()
+    except Exception:
+        snapshot.close()
+        raise
+
+
 def _open_regular_file(path: Path, field: str) -> int:
     flags = os.O_RDONLY
     if hasattr(os, "O_BINARY"):
@@ -145,7 +168,7 @@ def _open_regular_file(path: Path, field: str) -> int:
 
 
 def _decode_pcm_identity(fd: int, target_sample_rate_hz: int) -> tuple[str, int]:
-    """Decode from the admitted descriptor and hash canonical mono float32 PCM."""
+    """Decode from the admitted snapshot and hash canonical mono float32 PCM."""
     import librosa
     import numpy as np
 
@@ -269,13 +292,18 @@ def verify_corpus(
         annotation_path = Path(_text(track.get("annotation_path"), f"{field}.annotation_path"))
         audio_fd = _open_regular_file(audio_path, f"{field}.audio_path")
         try:
-            audio_sha256 = _sha256_file_descriptor(audio_fd)
-            expected_audio = _text(
-                registered.get("audio_sha256"), "registered.audio_sha256"
-            ).lower()
-            if audio_sha256 != expected_audio:
-                raise ValueError(f"{field}.audio_path SHA-256 does not match registration")
-            decoded_pcm_sha256, decoded_frames = decoder(audio_fd, target_sample_rate_hz)
+            snapshot, audio_sha256 = _snapshot_and_hash(audio_fd)
+            try:
+                expected_audio = _text(
+                    registered.get("audio_sha256"), "registered.audio_sha256"
+                ).lower()
+                if audio_sha256 != expected_audio:
+                    raise ValueError(f"{field}.audio_path SHA-256 does not match registration")
+                decoded_pcm_sha256, decoded_frames = decoder(
+                    snapshot.fileno(), target_sample_rate_hz
+                )
+            finally:
+                snapshot.close()
         finally:
             os.close(audio_fd)
 
