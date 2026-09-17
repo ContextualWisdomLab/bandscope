@@ -86,6 +86,9 @@ def _registration() -> dict[str, object]:
             "channels": 1,
             "host_profile": "registered-cpu-host-v1",
         },
+        "claim_boundary": (
+            "Applies only to the registered rights-cleared corpus and exact runtime identity."
+        ),
     }
 
 
@@ -146,6 +149,8 @@ def _result(registration: dict[str, object], registration_sha256: str) -> dict[s
         p95_latency_seconds=4.2,
         peak_rss_mib=590.0,
     )
+    claim_boundary = registration["claim_boundary"]
+    assert isinstance(claim_boundary, str)
     return {
         "schema_version": 1,
         "experiment_id": "structure-chroma-stft-vs-cqt-v1",
@@ -176,9 +181,7 @@ def _result(registration: dict[str, object], registration_sha256: str) -> dict[s
         },
         "p95_latency_ratio_ci95": [0.66, 0.76],
         "failed_tracks": [],
-        "claim_boundary": (
-            "Applies only to the registered rights-cleared corpus and exact runtime identity."
-        ),
+        "claim_boundary": claim_boundary,
     }
 
 
