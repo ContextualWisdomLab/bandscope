@@ -558,11 +558,15 @@ def _validate_result_identity(
         result.get("schema_version"),
         "result.schema_version",
     )
+    registered_experiment_id = _nonempty_text(
+        registration.get("experiment_id"),
+        "experiment_id",
+    )
     experiment_id = _nonempty_text(
         result.get("experiment_id"),
         "result.experiment_id",
     )
-    if experiment_id != registration["experiment_id"]:
+    if experiment_id != registered_experiment_id:
         raise ValueError("result.experiment_id does not match registration")
 
     expected_digest = registration_digest(registration)
