@@ -30,8 +30,10 @@ while true; do
 
   printf '%s\n' "$acquisition_output" >&2
   case "$acquisition_output" in
-    *"Signature does not match"*|*"Cannot find matching keyid"*|*"No compatible signature found"*|*"not signed by any trusted keys"*|*"integrity checksum"*|*"Integrity check failed"*|*"integrity check failed"*)
-      echo "Corepack reported a non-transient package-manager provenance failure; refusing to retry or weaken verification." >&2
+    *"ETIMEDOUT"*)
+      ;;
+    *)
+      echo "Corepack acquisition failure is not classified as transient; refusing to retry or weaken verification." >&2
       exit 1
       ;;
   esac
@@ -42,7 +44,7 @@ while true; do
   fi
 
   sleep_seconds=$((attempt * 5))
-  echo "Corepack acquisition attempt $attempt failed; retrying exact $package_manager_spec in ${sleep_seconds}s." >&2
+  echo "Corepack acquisition attempt $attempt failed with an admitted transient timeout; retrying exact $package_manager_spec in ${sleep_seconds}s." >&2
   sleep "$sleep_seconds"
   attempt=$((attempt + 1))
 done
