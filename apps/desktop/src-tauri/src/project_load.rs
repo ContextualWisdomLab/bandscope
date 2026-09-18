@@ -30,7 +30,8 @@ fn preserve_project_data_permissions(target: &Path, stage: &Path) -> Result<(), 
         .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
     let stage_file = project_persistence::open_project_file(stage)
         .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
-    let data_permissions = std::fs::Permissions::from_mode(target_metadata.permissions().mode() & 0o666);
+    let data_permissions =
+        std::fs::Permissions::from_mode(target_metadata.permissions().mode() & 0o666);
     stage_file
         .set_permissions(data_permissions)
         .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
