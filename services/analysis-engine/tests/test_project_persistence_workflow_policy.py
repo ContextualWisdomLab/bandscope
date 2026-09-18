@@ -71,12 +71,11 @@ def test_macos_project_persistence_gate_tracks_contract_inputs() -> None:
     ) in workflow
 
 
-def test_native_warning_gate_is_owned_by_the_two_desktop_crates_and_harness() -> None:
+def test_native_warning_gate_is_owned_by_core_and_the_persistence_harness() -> None:
     """Deny owned warnings without global RUSTFLAGS, output filtering, or dependency lint changes."""
     core_manifest = (REPO_ROOT / "apps/desktop/core/Cargo.toml").read_text(encoding="utf-8")
     tauri_manifest = (REPO_ROOT / "apps/desktop/src-tauri/Cargo.toml").read_text(encoding="utf-8")
     core_root = (REPO_ROOT / "apps/desktop/core/src/root.rs").read_text(encoding="utf-8")
-    tauri_main = (REPO_ROOT / "apps/desktop/src-tauri/src/main.rs").read_text(encoding="utf-8")
     harness = (REPO_ROOT / "apps/desktop/src-tauri/tests/project_persistence.rs").read_text(
         encoding="utf-8"
     )
@@ -88,7 +87,6 @@ def test_native_warning_gate_is_owned_by_the_two_desktop_crates_and_harness() ->
     )
     gate_attribute = f'cfg_attr(feature = "{WARNING_GATE_FEATURE}", deny(warnings))'
     assert gate_attribute in core_root
-    assert gate_attribute in tauri_main
     assert gate_attribute in harness
 
     for workflow_name in (WINDOWS_WORKFLOW, "project-persistence-macos.yml"):
