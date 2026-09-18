@@ -88,6 +88,20 @@ def _base_validator() -> ModuleType:
     return module
 
 
+def _aggregation() -> ModuleType:
+    """Load the canonical macro-track/bootstrap implementation on demand."""
+    path = Path(__file__).with_name("aggregate_structure_noninferiority.py")
+    spec = importlib.util.spec_from_file_location(
+        "bandscope_structure_noninferiority_aggregation_for_validation",
+        path,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load structure noninferiority aggregation")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 _BASE = _base_validator()
 SCHEMA_VERSION = _BASE.SCHEMA_VERSION
 MAX_EVIDENCE_BYTES = _BASE.MAX_EVIDENCE_BYTES
@@ -224,6 +238,26 @@ def _project_percentile_intervals_for_base(
     return projected
 
 
+def _require_canonical_aggregate(result_value: Mapping[str, Any]) -> None:
+    """Bind a successful stored aggregate to the canonical registered-track reducer."""
+    failed_tracks = result_value.get("failed_tracks")
+    if failed_tracks:
+        return
+
+    aggregation = _aggregation()
+    _, baseline_sides, candidate_sides = aggregation._normalize_tracks(
+        result_value.get("tracks")
+    )
+    expected_aggregate = {
+        "baseline": aggregation._aggregate_side(baseline_sides),
+        "candidate": aggregation._aggregate_side(candidate_sides),
+    }
+    if result_value.get("aggregate") != expected_aggregate:
+        raise ValueError(
+            "result.aggregate does not match canonical macro-track-v1 recomputation"
+        )
+
+
 def evaluate_result(
     registration_value: object,
     result_value: object,
@@ -251,6 +285,8 @@ def evaluate_result(
             projected_result
         )
         decision = _BASE.evaluate_result(registration_value, percentile_projection)
+
+    _require_canonical_aggregate(projected_result)
     decision["registration_sha256"] = expected_digest
     return decision
 
