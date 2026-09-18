@@ -52,6 +52,10 @@ _EVALUATOR = _load_sibling(
     "evaluate_structure_functional_accuracy.py",
     "_bandscope_structure_functional_accuracy",
 )
+_LANES = _load_sibling(
+    "measure_structure_feature_lanes.py",
+    "_bandscope_structure_feature_lanes",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +125,14 @@ class PairedFunctionalAccuracyTrackConsumer:
         self._candidate_segmenter = candidate_segmenter
         self._evidence: list[PairedFunctionalAccuracyEvidence] = []
         self._measured_track_ids: set[str] = set()
+
+    @classmethod
+    def for_registered_cqt_stft_hypothesis(cls) -> PairedFunctionalAccuracyTrackConsumer:
+        """Bind the canonical #1225 baseline/candidate feature identities."""
+        return cls(
+            baseline_segmenter=_LANES.repository_structure_segmenter("cqt"),
+            candidate_segmenter=_LANES.repository_structure_segmenter("stft"),
+        )
 
     @property
     def evidence(self) -> tuple[PairedFunctionalAccuracyEvidence, ...]:
