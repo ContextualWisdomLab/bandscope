@@ -11,9 +11,11 @@ The structure noninferiority registration originally named functional-label accu
 
 At `ismir-mirex/mirex-evaluation@b9fa0b0b32e2145af31f35830f78fc9d09a4301b`, `music_structure_analysis/eval_script.py::calculate_accuracy` uses a default `frame_hop` of 0.2 seconds. It creates frame times with `np.arange(0, gt_duration, frame_hop)`, advances a segment while `t >= segment_end`, and counts all reference-grid frames in the denominator. Therefore the former 100 ms registration did not reproduce the current official evaluator and left the exact time-grid authority implicit.
 
+Even after the evaluator and annotation parser were pinned, a second reproducibility gap remained: the ACC adapter was not connected to the corpus-admission callback. A later experiment runner could therefore have reopened local audio or annotation paths, decoded again, or supplied different PCM to the baseline and candidate lanes while still producing syntactically valid metric receipts.
+
 ## Decision
 
-Schema v1 now requires the `functional_label_accuracy` registration to contain, in addition to its noninferiority margin:
+Schema v1 requires the `functional_label_accuracy` registration to contain, in addition to its noninferiority margin:
 
 - `implementation = ismir-mirex/mirex-evaluation@b9fa0b0b32e2145af31f35830f78fc9d09a4301b:music_structure_analysis.eval_script.calculate_accuracy`;
 - `frame_size_seconds = 0.2`;
@@ -30,15 +32,15 @@ Schema v1 now requires the `functional_label_accuracy` registration to contain, 
 - every reference-grid frame contributes to the denominator;
 - a frame contributes to the numerator only when the reference and prediction labels match and the reference label is not `other`.
 
-This closes the previously open frame-grid decision. The 200 ms value is not inferred from the prose examples on the MIREX wiki; it is bound to the executable standardized-evaluation source and its exact commit.
+This closes the frame-grid decision. The 200 ms value is not inferred from prose examples on the MIREX wiki; it is bound to the executable standardized-evaluation source and its exact commit.
 
 ## Annotation and label-mapping boundary
 
-`annotation_contract_version = 1.0` remains implemented by `scripts/research/parse_structure_functional_annotations.py`. It consumes the already-admitted read-only annotation snapshot and parses BandScope-local UTF-8 `start<TAB>end<TAB>label` rows into exact rational boundaries. This local TSV is not the MIREX submission transport syntax.
+`annotation_contract_version = 1.0` is implemented by `scripts/research/parse_structure_functional_annotations.py`. It consumes the already-admitted read-only annotation snapshot and parses BandScope-local UTF-8 `start<TAB>end<TAB>label` rows into exact rational boundaries. This local TSV is not the MIREX submission transport syntax.
 
 The normalized segmentation must start at 0.0, preserve source order, contain strictly positive segments with no gaps or overlaps, and end exactly at `decoded_frames / sample_rate_hz`. The parser never reopens a corpus path or repairs malformed evidence.
 
-`label_mapping_contract_version = 1.0` remains a fail-closed identity mapping at the acceptance boundary. The admitted normalized annotation bytes must already contain one of:
+`label_mapping_contract_version = 1.0` is a fail-closed identity mapping at the acceptance boundary. The admitted normalized annotation bytes must already contain one of:
 
 `intro`, `verse`, `chorus`, `bridge`, `inst`, `outro`, `silence`.
 
@@ -50,9 +52,27 @@ The MIREX task page also continues to expose a vocabulary inconsistency: descrip
 
 ## Executable evaluator adapter
 
-`scripts/research/evaluate_structure_functional_accuracy.py` now owns the repository-side adapter for the preregistered normalized seven-label subset. It does not read files, map source labels, or duplicate the parser's `FunctionalSegment` value object. It accepts the parser-owned structural contract, validates continuous full-duration normalized segmentations, uses NumPy's 200 ms `arange` grid and the pinned evaluator's `t >= segment_end` pointer semantics, and returns track-level ACC plus frame counts and frame times.
+`scripts/research/evaluate_structure_functional_accuracy.py` owns the repository-side adapter for the preregistered normalized seven-label subset. It does not read files, map source labels, or duplicate the parser's `FunctionalSegment` value object. It accepts the parser-owned structural contract, validates continuous full-duration normalized segmentations, uses NumPy's 200 ms `arange` grid and the pinned evaluator's `t >= segment_end` pointer semantics, and returns track-level ACC plus frame counts and frame times.
 
 The adapter deliberately rejects `other` at its input boundary because `other` is not part of the preregistered normalized corpus vocabulary. This is not a claim that the official evaluator lacks `other`; it means upstream raw-label mapping must be completed before preregistration so the acceptance run cannot change labels after results are visible.
+
+## Exact admitted-track paired consumer
+
+`scripts/research/evaluate_admitted_structure_track.py` now implements the functional-ACC consumer for `verify_structure_corpus.py`'s in-process `track_consumer` boundary. It receives only the already-verified track ID, immutable canonical PCM memoryview, immutable annotation snapshot, and registered sample rate. It does not receive or reopen workstation paths.
+
+For each admitted track it:
+
+- requires the PCM and annotation handoffs to be read-only contiguous memoryviews;
+- derives `decoded_frames` from the canonical mono-float32 byte length and the exact duration as `decoded_frames / sample_rate_hz`;
+- parses the reference segmentation from the admitted annotation bytes with the v1 parser;
+- invokes the preregistered baseline and candidate segmentation lanes on the **same PCM memoryview object**, sample rate, and exact duration;
+- evaluates both outputs with the pinned 200 ms functional-ACC adapter;
+- records path-free evidence containing the track ID, PCM SHA-256, annotation SHA-256, frame/sample-rate identity, and baseline/candidate ACC frame counts;
+- rejects duplicate measurement of the same track ID rather than letting one registered item inflate paired evidence.
+
+The segmentation callbacks intentionally do not receive `track_id`. The measurement boundary therefore does not offer a built-in track-specific dispatch key that could select a different algorithm after corpus identity is known. This does not prove that arbitrary caller code is scientifically valid; the eventual baseline and candidate segmenter implementations still have to be pinned by the preregistration and reviewed before real-audio execution.
+
+This consumer is research measurement infrastructure, not a production feature switch. It does not select the corpus, choose noninferiority margins, implement aggregation or uncertainty, alter `sections/segmenter.py`, or count synthetic fixtures as scientific acceptance.
 
 ## RED → GREEN lineage
 
@@ -64,7 +84,9 @@ GREEN `0f1e3e732154ff0ea94beb5a60e5702ed46c2453` changed the closed-world valida
 
 Evaluator RED `5cffef1a5db37b700ee7a27012c0f8324855665f` added executable parity cases for the pinned upstream identity, exact-boundary advancement, exclusion of a frame at exact track duration, inclusion of a trailing partial span when its grid point is below duration, and fail-closed normalized labels. GREEN `e72b29565a6d906a9955907656cbae97cffa471a` implemented the adapter. Consolidation `c84c0acdf25159f9aa066e21f9420d9fdf72c50a` / `fe3ed61a3b1926af6b39b6302d6f857979f9bccc` removed a duplicate segment value object so the evaluator consumes the parser-owned segment contract instead.
 
-The earlier immutable parser lineage remains valid: parser RED `cc4a166cc9e1496cd562f7d79b9ffa30f6ca19c2` → GREEN `0ee4a6aed49c8f001da451ca63c5f20e52832f5c`, with authority correction `52b6c7362baa00151f908a24cadbb1efeddd2101` separating the BandScope TSV representation from the MIREX submission format.
+The immutable parser lineage remains parser RED `cc4a166cc9e1496cd562f7d79b9ffa30f6ca19c2` → GREEN `0ee4a6aed49c8f001da451ca63c5f20e52832f5c`, with authority correction `52b6c7362baa00151f908a24cadbb1efeddd2101` separating the BandScope TSV representation from the MIREX submission format.
+
+Admitted-track integration RED `b42297e2300d3f9b085206ccfc796fd8bb7713b6` requires both measurement lanes to receive the exact same read-only PCM handoff, binds evidence to PCM/annotation hashes, rejects malformed or mutable PCM before either segmenter executes, and rejects duplicate track measurement. GREEN `a3bfbe2b4e76b62ba3446241bdfb467841bdaa93` implements that paired consumer without changing production segmentation.
 
 ## Constraints and rejected alternatives
 
@@ -78,13 +100,28 @@ Automatically normalizing labels during the acceptance run was rejected. Mapping
 
 Parsing annotations inside resource admission was rejected. Resource admission owns byte identity and immutable handoff; Signal-MIR owns scientific interpretation and measurement.
 
+Reopening or re-decoding the corpus separately for CQT and STFT was rejected. Paired measurement must consume the same immutable admitted PCM identity; otherwise a feature comparison can be confounded by decode or local-file drift.
+
+Copying the PCM into independent baseline/candidate input buffers at this boundary was rejected. Both lanes now receive the same read-only memoryview object, making input identity explicit while preventing mutation through the consumer API.
+
+Computing an aggregate or confidence interval in the admitted-track consumer was rejected. Aggregation and paired uncertainty remain unapproved scientific decisions and must be preregistered before candidate results are visible.
+
+## Security Notes
+
+- The consumer adds no filesystem, subprocess, network, model-download, or generic execution capability.
+- PCM and annotation material are accepted only as immutable in-process views from resource admission; malformed shape or mutability fails before either measurement lane executes.
+- Durable functional evidence contains content digests and measurement values, not workstation paths or raw licensed audio.
+- The injected segmentation callables remain a code-review boundary. Real-audio execution must use preregistered repository-owned implementations; arbitrary runtime plugin loading is not introduced here.
+
 ## Claim boundary and next work
 
-This contract now freezes the ACC evaluator identity, 200 ms grid, boundary-point behavior, final-partial-frame behavior, annotation interpretation, label-mapping boundary, and a repository-owned adapter for the preregistered normalized subset. It does not yet wire that adapter into the admitted-track consumer and paired CQT/STFT experiment, approve the corpus or noninferiority margins, derive aggregate/paired uncertainty, or justify a production CQT → STFT switch.
+This contract now freezes the ACC evaluator identity, 200 ms grid, boundary-point behavior, final-partial-frame behavior, annotation interpretation, label-mapping boundary, repository-owned adapter, and the exact admitted-track paired functional-ACC handoff. It still does not implement the actual paired CQT/STFT segmentation lanes, the remaining recognized boundary/repetition metrics, approved aggregation/paired uncertainty, corpus/margin approval, or a production CQT → STFT switch.
 
-The next scientific slice is to integrate the parser and ACC adapter into the exact admitted PCM/annotation consumer alongside the remaining recognized structure metrics, then implement the reviewed aggregation/paired-uncertainty procedure. Production acceptance still requires rights-cleared real decoded audio, independently reviewed normalized annotations, paired CQT/STFT execution on the same admitted signal/runtime identity, and current-head release evidence.
+The next causal scientific slice is to implement repository-owned baseline/candidate structure-measurement lanes over this same admitted PCM boundary and add the recognized boundary/deviation/repetition metrics without changing production behavior. Aggregation and paired uncertainty must then be reviewed and preregistered before any rights-cleared real-corpus candidate result is inspected.
 
-Synthetic annotation fixtures remain unit evidence only and are not counted as production scientific acceptance.
+Production acceptance still requires rights-cleared real decoded audio, independently reviewed normalized annotations, paired CQT/STFT execution on the same admitted signal/runtime identity, recognized track-level metrics, approved aggregate/CI evidence, current-head protected checks, and independent review.
+
+Synthetic fixtures exercise only the measurement contract and are not production scientific acceptance.
 
 ## References
 
