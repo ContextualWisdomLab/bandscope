@@ -125,12 +125,26 @@ pub struct ProjectMigrationReceipt {
 /// value is returned. The raw input is intentionally not retained here.
 #[derive(Clone, Debug)]
 pub struct PreparedProjectMigration {
-    /// Current typed project document produced from the admitted input.
-    pub document: ProjectDocumentPayload,
-    /// Canonical current-version project bytes ready for staged publication.
-    pub canonical_content: String,
-    /// Content-addressed source/target migration evidence.
-    pub receipt: ProjectMigrationReceipt,
+    document: ProjectDocumentPayload,
+    canonical_content: String,
+    receipt: ProjectMigrationReceipt,
+}
+
+impl PreparedProjectMigration {
+    /// Return the current typed document admitted by the migration boundary.
+    pub fn document(&self) -> &ProjectDocumentPayload {
+        &self.document
+    }
+
+    /// Return the exact validated current-version bytes that may be staged.
+    pub fn canonical_content(&self) -> &str {
+        &self.canonical_content
+    }
+
+    /// Return the content-addressed evidence bound to this validated candidate.
+    pub fn receipt(&self) -> &ProjectMigrationReceipt {
+        &self.receipt
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
