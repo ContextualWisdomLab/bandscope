@@ -195,6 +195,30 @@ fn synced_source_publication_moves_the_owned_stage_only_after_durable_no_replace
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
+fn synced_source_publication_public_owner_publishes_a_durable_stage() {
+    let root = test_dir("synced-source-public-owner");
+    let stage = root.join(".source-public-owner.stage");
+    let target = root.join("source.wav");
+    let content = b"RIFF-public-owner-source";
+    fs::write(&stage, content).expect("source stage should be written");
+    fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&stage)
+        .expect("source stage should reopen with write authority for durable flush")
+        .sync_all()
+        .expect("source stage bytes should be durable before publication");
+
+    project_persistence::publish_synced_file_noreplace(&stage, &target)
+        .expect("the production no-replace owner should publish the durable source stage");
+
+    assert_eq!(fs::read(&target).expect("published source should be readable"), content);
+    assert!(!stage.exists(), "successful publication consumes the owned stage name");
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
 fn synced_source_publication_preserves_a_competing_destination() {
     let root = test_dir("synced-source-conflict");
     let stage = root.join(".source-candidate.stage");
