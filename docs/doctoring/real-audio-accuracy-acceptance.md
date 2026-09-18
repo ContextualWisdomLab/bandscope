@@ -2,7 +2,7 @@
 
 Status: Partial implementation on active branch
 Tracks: GitHub issue #770
-Last updated: 2026-08-09
+Last updated: 2026-09-18
 
 ## Purpose and claim boundary
 
@@ -42,8 +42,6 @@ substitute for tier 1 or proof that tier 2 redistribution rights exist.
 | Rehearsal cues | Entry/dropout/stop/pickup event P/R and timing error | Event tolerance must reflect rehearsal use, not be widened after failure. | Planned |
 | Role overlap | Activity interval IoU or registered equivalent | Aggregate overlap must not hide severe role-specific misses. | Planned |
 | Confidence | Reliability/calibration curve and Brier-style score where probabilistic | Confidence text without probabilistic semantics is not scored as calibrated. | Planned |
-
-
 
 ## Metric authority (rehearsal claim rules)
 
@@ -107,6 +105,37 @@ Automated known-stem evidence retention remains disabled until ADR-0003's store,
 deletion-verification, and incident-owner controls are accepted. A passing run is scoped to its exact
 release candidate and OS/architecture; it cannot authorize a claim on a different artifact.
 
+## Separation process and test-boundary traceability
+
+A hosted macOS analysis-engine run on 2026-09-18 exposed two different concerns that must remain
+separate.
+
+First, `test_cli_main_temporal_analyzer_mock_success` was nominally a regression for the temporary CLI
+`TemporalAnalyzer` probe, but after that probe returned it fell through to the real
+`cli.run_analysis_job` path and launched production stem separation. The child reached Demucs and
+`torch.hub` model-resolution work before a fatal abort on the macOS system-proxy path. That was a
+test-boundary defect: a focused temporal-probe test was accidentally performing model/network-capable
+source separation.
+
+Commit `b2da2b4d7c52af396c472b6210a1128647518624` injects `cli.run_analysis_job` only in that focused
+test, verifies the local-audio handoff, and separately proves that the fake temporal analyzer consumed
+the selected file. This prevents the unit/regression test from exercising a different bounded
+context. It does not replace the dedicated known-stem production-path sentinel or issue #770's
+rights-cleared real-audio acceptance with mocks.
+
+Second, production `api._multiprocessing_context()` still explicitly selects `fork` whenever the
+platform reports it available. Python's multiprocessing documentation states that macOS has defaulted
+to `spawn` since Python 3.8 and that `fork` should be considered unsafe there because macOS system
+libraries may start threads. Current PyTorch multiprocessing guidance likewise describes poison-fork
+failure modes and recommends `spawn` or `forkserver` when runtime state is not fork-safe. The hosted
+abort is therefore sufficient to keep the current BandScope policy open as a production finding, but
+it does not prove that `fork` alone caused that particular abort.
+
+The production start-method contract must not be changed without a focused RED that covers supported
+platform selection and preserves timeout, terminate/join/kill cleanup, packaged Windows/macOS
+behavior, and real-audio reproducibility. A clean test-process fix is not evidence that the runtime
+process policy is safe, and a start-method change is not evidence of source-separation accuracy.
+
 ## Current source-separation slice
 
 The active branch:
@@ -135,6 +164,10 @@ not the current head; live success therefore remains absent.
 
 ## References
 
+- Python Software Foundation. (2026). *multiprocessing — Process-based parallelism*. Python 3.14.7
+  documentation. https://docs.python.org/3/library/multiprocessing.html
+- PyTorch Contributors. (2026). *Multiprocessing best practices*. PyTorch documentation.
+  https://docs.pytorch.org/docs/stable/notes/multiprocessing.html
 - Le Roux, J., Wisdom, S., Erdogan, H., & Hershey, J. R. (2019). SDR—Half-baked or well
   done? In *ICASSP 2019* (pp. 626–630). IEEE.
   https://doi.org/10.1109/ICASSP.2019.8683855
