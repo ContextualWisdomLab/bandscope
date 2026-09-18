@@ -33,6 +33,13 @@ fn golden_v2_fixture_preserves_the_selected_playback_source() {
             .expect("migrated output digest should be reproducible")
     );
 
+    let (_, current_receipt) = project_document_with_migration_receipt(&serialized)
+        .expect("canonical migrated output should be admitted idempotently");
+    assert_eq!(current_receipt.source_format_version, Some(3));
+    assert!(!current_receipt.migrated);
+    assert_eq!(current_receipt.input_sha256, receipt.output_sha256);
+    assert_eq!(current_receipt.output_sha256, receipt.output_sha256);
+
     let value: Value = serde_json::from_str(&serialized)
         .expect("the serialized v2 fixture should remain valid JSON");
     assert_eq!(
