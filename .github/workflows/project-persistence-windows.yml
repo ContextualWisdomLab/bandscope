@@ -16,9 +16,12 @@ on:
       - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/Cargo.lock"
       - "apps/desktop/src-tauri/src/main.rs"
+      - "apps/desktop/src-tauri/src/project_load.rs"
       - "apps/desktop/src-tauri/src/project_persistence.rs"
+      - "apps/desktop/src-tauri/src/project_root.rs"
       - "apps/desktop/src-tauri/tests/project_persistence*.rs"
       - ".github/workflows/project-persistence-windows.yml"
+      - "services/analysis-engine/tests/test_project_persistence_workflow_policy.py"
   push:
     branches:
       - develop
@@ -34,9 +37,12 @@ on:
       - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/Cargo.lock"
       - "apps/desktop/src-tauri/src/main.rs"
+      - "apps/desktop/src-tauri/src/project_load.rs"
       - "apps/desktop/src-tauri/src/project_persistence.rs"
+      - "apps/desktop/src-tauri/src/project_root.rs"
       - "apps/desktop/src-tauri/tests/project_persistence*.rs"
       - ".github/workflows/project-persistence-windows.yml"
+      - "services/analysis-engine/tests/test_project_persistence_workflow_policy.py"
 
 permissions:
   contents: read
