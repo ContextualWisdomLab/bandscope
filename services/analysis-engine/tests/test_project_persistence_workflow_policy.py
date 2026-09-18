@@ -21,6 +21,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/src-tauri/src/project_persistence.rs"',
     '"apps/desktop/src-tauri/src/project_root.rs"',
     '"apps/desktop/src-tauri/tests/project_persistence*.rs"',
+    '"apps/desktop/src-tauri/tests/project_persistence*.case"',
     '"docs/traceability/project-persistence-native-ci.md"',
     '"services/analysis-engine/tests/test_project_persistence_workflow_policy.py"',
 )
