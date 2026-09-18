@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-"""Validate the exact research metric contract layered on structure preregistration.
+"""Bind exact structure-metric semantics into the scientific registration digest.
 
-This module closes the scientific adapter identity that the base noninferiority
-registration did not yet bind: the content-addressed mir_eval research lock,
-all explicit detection/pairwise arguments, and report-only deviation semantics.
-It does not execute MIR metrics or inspect corpus outcomes.
+The base registration schema owns corpus, experiment runtime, margins, and
+paired-decision fields. This façade adds the repository-owned metric contract to
+the canonical digest without making callers repeat immutable adapter constants
+inside every registration JSON. No MIR metric or corpus outcome is computed
+here.
 """
 
 from __future__ import annotations
 
+import argparse
+import copy
 import hashlib
 import importlib.util
 import json
-import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-STRUCTURE_METRIC_RUNTIME_LOCK_SHA256 = (
-    "16fd203e9c987064afc667282e001b755838ff0b484235c6932f557d2ae389f8"
-)
-QUALITY_METRIC_CONTRACT: dict[str, dict[str, object]] = {
+STRUCTURE_METRIC_CONTRACT = {
+    "runtime_lock_sha256": (
+        "16fd203e9c987064afc667282e001b755838ff0b484235c6932f557d2ae389f8"
+    ),
     "boundary_f_0_5": {
         "implementation": "mir_eval.segment.detection",
         "window_seconds": 0.5,
@@ -34,29 +36,21 @@ QUALITY_METRIC_CONTRACT: dict[str, dict[str, object]] = {
         "beta": 1.0,
         "trim": True,
     },
+    "boundary_deviation": {
+        "implementation": "mir_eval.segment.deviation",
+        "trim": True,
+    },
     "repetition_pairwise_f": {
         "implementation": "mir_eval.segment.pairwise",
         "frame_size_seconds": 0.1,
         "beta": 1.0,
     },
 }
-REPORT_METRIC_CONTRACT: dict[str, dict[str, object]] = {
-    "boundary_deviation": {
-        "implementation": "mir_eval.segment.deviation",
-        "trim": True,
-    }
-}
-_EXTENSION_FIELDS = {"metric_runtime", "report_metrics"}
-_BASE_METRIC_EXTRA_FIELDS = {
-    "boundary_f_0_5": {"beta", "trim"},
-    "boundary_f_3_0": {"beta", "trim"},
-    "repetition_pairwise_f": {"beta"},
-}
 
 
 def _base_validator() -> ModuleType:
-    """Load the existing closed base-registration validator from this directory."""
-    path = Path(__file__).with_name("validate_structure_noninferiority.py")
+    """Load the unchanged base decision-policy implementation."""
+    path = Path(__file__).with_name("validate_structure_noninferiority_base.py")
     spec = importlib.util.spec_from_file_location(
         "bandscope_structure_noninferiority_base",
         path,
@@ -68,108 +62,83 @@ def _base_validator() -> ModuleType:
     return module
 
 
-def _mapping(value: object, field: str) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping):
-        raise ValueError(f"{field} must be an object")
-    return value
-
-
-def _require_exact_fields(
-    value: Mapping[str, Any],
-    expected: set[str],
-    field: str,
-) -> None:
-    actual = set(value)
-    missing = sorted(expected - actual)
-    extra = sorted(actual - expected)
-    if missing:
-        raise ValueError(f"{field} missing required field: {missing[0]}")
-    if extra:
-        raise ValueError(f"{field} contains unregistered field: {extra[0]}")
-
-
-def _require_expected(value: object, expected: object, field: str) -> None:
-    """Require an exact reviewed scalar without bool/number coercion."""
-    if isinstance(expected, bool):
-        if value is not expected:
-            raise ValueError(f"{field} must equal {expected}")
-        return
-    if isinstance(expected, str):
-        if value != expected:
-            raise ValueError(f"{field} must equal {expected}")
-        return
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"{field} must be a finite number")
-    actual = float(value)
-    expected_number = float(expected)
-    if not math.isfinite(actual) or not math.isclose(
-        actual,
-        expected_number,
-        rel_tol=0.0,
-        abs_tol=1e-12,
-    ):
-        raise ValueError(f"{field} must equal {expected}")
-
-
-def _base_registration(registration: Mapping[str, Any]) -> dict[str, object]:
-    """Project the extended registration onto the already-reviewed base schema."""
-    base = {key: value for key, value in registration.items() if key not in _EXTENSION_FIELDS}
-    metrics_value = base.get("metrics")
-    if not isinstance(metrics_value, Mapping):
-        return base
-    metrics: dict[str, object] = {}
-    for metric_name, config_value in metrics_value.items():
-        if not isinstance(config_value, Mapping):
-            metrics[metric_name] = config_value
-            continue
-        extras = _BASE_METRIC_EXTRA_FIELDS.get(metric_name, set())
-        metrics[metric_name] = {
-            key: value for key, value in config_value.items() if key not in extras
-        }
-    base["metrics"] = metrics
-    return base
+_BASE = _base_validator()
+SCHEMA_VERSION = _BASE.SCHEMA_VERSION
+MAX_EVIDENCE_BYTES = _BASE.MAX_EVIDENCE_BYTES
 
 
 def validate_registration(registration_value: object) -> None:
-    """Validate the base registration plus exact result-affecting metric semantics."""
-    registration = _mapping(registration_value, "registration")
-    expected_top_level = set(_base_registration(registration)) | _EXTENSION_FIELDS
-    _require_exact_fields(registration, expected_top_level, "registration")
+    """Validate the closed base registration consumed by the metric-aware digest."""
+    _BASE.validate_registration(registration_value)
 
-    metric_runtime = _mapping(registration.get("metric_runtime"), "metric_runtime")
-    _require_exact_fields(metric_runtime, {"lock_sha256"}, "metric_runtime")
-    if metric_runtime.get("lock_sha256") != STRUCTURE_METRIC_RUNTIME_LOCK_SHA256:
-        raise ValueError(
-            "metric_runtime.lock_sha256 must equal the reviewed structure metric lock"
-        )
 
-    report_metrics = _mapping(registration.get("report_metrics"), "report_metrics")
-    _require_exact_fields(report_metrics, set(REPORT_METRIC_CONTRACT), "report_metrics")
-    for metric_name, expected_config in REPORT_METRIC_CONTRACT.items():
-        config = _mapping(report_metrics.get(metric_name), f"report_metrics.{metric_name}")
-        _require_exact_fields(config, set(expected_config), f"report_metrics.{metric_name}")
-        for field, expected in expected_config.items():
-            _require_expected(config.get(field), expected, f"report_metrics.{metric_name}.{field}")
-
-    metrics = _mapping(registration.get("metrics"), "metrics")
-    for metric_name, expected_config in QUALITY_METRIC_CONTRACT.items():
-        config = _mapping(metrics.get(metric_name), f"metrics.{metric_name}")
-        for field, expected in expected_config.items():
-            if field not in config:
-                raise ValueError(f"metrics.{metric_name} missing required field: {field}")
-            _require_expected(config.get(field), expected, f"metrics.{metric_name}.{field}")
-
-    _base_validator().validate_registration(_base_registration(registration))
+def _digest_payload(registration_value: object) -> dict[str, object]:
+    """Return the complete closed object whose bytes define scientific identity."""
+    validate_registration(registration_value)
+    return {
+        "registration": registration_value,
+        "structure_metric_contract": STRUCTURE_METRIC_CONTRACT,
+    }
 
 
 def registration_digest(registration_value: object) -> str:
-    """Return the canonical SHA-256 of the complete metric-aware preregistration."""
-    validate_registration(registration_value)
+    """Return SHA-256 over registration data plus exact metric/runtime semantics."""
     canonical = json.dumps(
-        registration_value,
+        _digest_payload(registration_value),
         allow_nan=False,
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
+
+
+def evaluate_result(
+    registration_value: object,
+    result_value: object,
+) -> dict[str, object]:
+    """Evaluate a receipt only when it binds the metric-aware registration digest."""
+    validate_registration(registration_value)
+    if not isinstance(result_value, Mapping):
+        raise ValueError("result must be an object")
+    expected_digest = registration_digest(registration_value)
+    if result_value.get("registration_sha256") != expected_digest:
+        raise ValueError(
+            "result.registration_sha256 does not match the frozen metric-aware registration"
+        )
+
+    projected_result = copy.deepcopy(dict(result_value))
+    projected_result["registration_sha256"] = _BASE.registration_digest(
+        registration_value
+    )
+    decision = _BASE.evaluate_result(registration_value, projected_result)
+    decision["registration_sha256"] = expected_digest
+    return decision
+
+
+def __getattr__(name: str) -> Any:
+    """Delegate unchanged schema helpers to the base policy implementation."""
+    return getattr(_BASE, name)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Validate a registration and optionally evaluate one bound result."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("registration", type=Path)
+    parser.add_argument("result", type=Path, nargs="?")
+    args = parser.parse_args(argv)
+
+    registration = _BASE._load_json(args.registration)
+    digest = registration_digest(registration)
+    if args.result is None:
+        print(json.dumps({"registration_sha256": digest}, sort_keys=True))
+        return 0
+
+    result = _BASE._load_json(args.result)
+    decision = evaluate_result(registration, result)
+    print(json.dumps(decision, sort_keys=True))
+    return 0 if decision["passed"] is True else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
