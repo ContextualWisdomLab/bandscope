@@ -1,16 +1,18 @@
 use std::io::Cursor;
 
 use bandscope_desktop_core::{
-    project_content_for_document, project_document_with_migration_receipt, sha256_hex_reader,
-    SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
+    prepare_project_migration, sha256_hex_reader, SelectedPlaybackSourcePayload,
+    CURRENT_PROJECT_FORMAT_VERSION,
 };
 use serde_json::{json, Value};
 
 #[test]
 fn golden_v2_fixture_preserves_the_selected_playback_source() {
     let content = include_str!("../testdata/project-v2.json");
-    let (document, receipt) = project_document_with_migration_receipt(content)
-        .expect("the checked-in v2 fixture should load with migration evidence");
+    let prepared = prepare_project_migration(content)
+        .expect("the checked-in v2 fixture should prepare a validated migration copy");
+    let document = &prepared.document;
+    let receipt = &prepared.receipt;
 
     assert_eq!(
         document.preferences.selected_playback_source,
@@ -25,22 +27,21 @@ fn golden_v2_fixture_preserves_the_selected_playback_source() {
             .expect("fixture input digest should be reproducible")
     );
 
-    let serialized = project_content_for_document(&document)
-        .expect("the checked-in v2 fixture should serialize");
     assert_eq!(
         receipt.output_sha256,
-        sha256_hex_reader(Cursor::new(serialized.as_bytes()))
+        sha256_hex_reader(Cursor::new(prepared.canonical_content.as_bytes()))
             .expect("migrated output digest should be reproducible")
     );
 
-    let (_, current_receipt) = project_document_with_migration_receipt(&serialized)
-        .expect("canonical migrated output should be admitted idempotently");
-    assert_eq!(current_receipt.source_format_version, Some(3));
-    assert!(!current_receipt.migrated);
-    assert_eq!(current_receipt.input_sha256, receipt.output_sha256);
-    assert_eq!(current_receipt.output_sha256, receipt.output_sha256);
+    let current = prepare_project_migration(&prepared.canonical_content)
+        .expect("canonical migrated output should reopen through the current parser");
+    assert_eq!(current.receipt.source_format_version, Some(3));
+    assert!(!current.receipt.migrated);
+    assert_eq!(current.receipt.input_sha256, receipt.output_sha256);
+    assert_eq!(current.receipt.output_sha256, receipt.output_sha256);
+    assert_eq!(current.canonical_content, prepared.canonical_content);
 
-    let value: Value = serde_json::from_str(&serialized)
+    let value: Value = serde_json::from_str(&prepared.canonical_content)
         .expect("the serialized v2 fixture should remain valid JSON");
     assert_eq!(
         value["projectFormatVersion"],
