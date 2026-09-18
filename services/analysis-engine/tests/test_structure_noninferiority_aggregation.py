@@ -7,11 +7,20 @@ from types import ModuleType
 import pytest
 from conftest import load_module
 
+from test_structure_noninferiority_policy import _registration, _result
+
 
 def _aggregation() -> ModuleType:
     return load_module(
         "scripts/research/aggregate_structure_noninferiority.py",
         "aggregate_structure_noninferiority",
+    )
+
+
+def _validator() -> ModuleType:
+    return load_module(
+        "scripts/research/validate_structure_noninferiority.py",
+        "validate_structure_noninferiority_for_bootstrap",
     )
 
 
@@ -181,6 +190,22 @@ def test_paired_bootstrap_is_deterministic_and_resamples_track_pairs() -> None:
     }
     assert len(first["p95_latency_ratio_ci95"]) == 2
     assert first["p95_latency_ratio_ci95"][0] > 0.0
+
+
+def test_percentile_interval_is_not_required_to_contain_original_point_estimate() -> None:
+    """Percentile bootstrap intervals may be asymmetric around the observed statistic."""
+    validator = _validator()
+    registration = _registration()
+    digest = validator.registration_digest(registration)
+    result = _result(registration, digest)
+    intervals = result["paired_delta_ci95"]
+    assert isinstance(intervals, dict)
+    intervals["boundary_f_0_5"] = [0.001, 0.010]
+    result["p95_latency_ratio_ci95"] = [0.60, 0.65]
+
+    decision = validator.evaluate_result(registration, result)
+
+    assert decision["passed"] is True
 
 
 def test_aggregation_fails_closed_on_duplicate_tracks_or_unsupported_uncertainty() -> None:
