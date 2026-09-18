@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "persistence_warning_gate", deny(warnings))]
+
 //! Single-compile native integration harness for Project Persistence.
 //!
 //! The production persistence owner is included exactly once so integration cases can exercise its
