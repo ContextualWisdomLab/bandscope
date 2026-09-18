@@ -13,7 +13,9 @@ import pytest
 from conftest import load_module
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-_RUNTIME_LOCK = _REPOSITORY_ROOT / "services/analysis-engine/requirements-structure-metrics.lock"
+_RUNTIME_LOCK = (
+    _REPOSITORY_ROOT / "services/analysis-engine/requirements-structure-metrics.lock"
+)
 
 
 def _consumer_module() -> ModuleType:
@@ -52,7 +54,7 @@ def _metric_result(seed: float) -> SimpleNamespace:
 def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Canonical CQT/STFT evidence must share PCM, annotation, and metric runtime identity."""
+    """Canonical CQT/STFT evidence share PCM, annotation, and metric runtime."""
     module = _consumer_module()
     requested_features: list[str] = []
     metric_calls: list[tuple[object, object]] = []
@@ -71,19 +73,32 @@ def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
 
         return segmenter
 
-    def metric_evaluator(reference_segments: object, estimated_segments: object) -> SimpleNamespace:
+    def metric_evaluator(
+        reference_segments: object,
+        estimated_segments: object,
+    ) -> SimpleNamespace:
         metric_calls.append((reference_segments, estimated_segments))
         return _metric_result(0.70 if len(metric_calls) == 1 else 0.68)
 
-    monkeypatch.setattr(module._LANES, "repository_structure_segmenter", repository_segmenter)
+    monkeypatch.setattr(
+        module._LANES,
+        "repository_structure_segmenter",
+        repository_segmenter,
+    )
     monkeypatch.setattr(
         module._SEGMENTATION_EVALUATOR,
         "calculate_structure_segmentation_metrics",
         metric_evaluator,
     )
-    monkeypatch.setattr(module._RUNTIME_VERIFIER, "_installed_mir_eval_version", lambda: "0.8.2")
+    monkeypatch.setattr(
+        module._RUNTIME_VERIFIER,
+        "_installed_mir_eval_version",
+        lambda: "0.8.2",
+    )
 
-    consumer = module.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+    consumer = (
+        module.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+    )
     pcm = memoryview(struct.pack("<8f", *([0.0] * 8)))
     annotation = memoryview(b"0.0\t0.4\tverse\n0.4\t0.8\tchorus\n")
     consumer("track-01", pcm, annotation, 10)
@@ -92,7 +107,10 @@ def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
     assert len(metric_calls) == 2
     assert metric_calls[0][0] is metric_calls[1][0]
     evidence = consumer.evidence[0]
-    assert evidence.metric_runtime_lock_sha256 == hashlib.sha256(_RUNTIME_LOCK.read_bytes()).hexdigest()
+    expected_lock_sha256 = hashlib.sha256(_RUNTIME_LOCK.read_bytes()).hexdigest()
+    assert evidence.metric_runtime_lock_sha256 == expected_lock_sha256
+    assert evidence.baseline_segmentation_metrics is not None
+    assert evidence.candidate_segmentation_metrics is not None
     assert evidence.baseline_segmentation_metrics.boundary_f_0_5 == pytest.approx(0.70)
     assert evidence.candidate_segmentation_metrics.boundary_f_0_5 == pytest.approx(0.68)
     assert evidence.baseline_segmentation_metrics.repetition_pairwise_f == pytest.approx(0.72)
@@ -102,7 +120,7 @@ def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
 def test_registered_consumer_fails_before_metric_execution_on_runtime_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A drifted installed mir_eval must stop scientific metrics before any score is emitted."""
+    """A drifted installed mir_eval stops scientific metrics before score emission."""
     module = _consumer_module()
     calls: list[str] = []
 
@@ -113,8 +131,16 @@ def test_registered_consumer_fails_before_metric_execution_on_runtime_drift(
     ) -> tuple[SimpleNamespace, ...]:
         return _segments(("0", "0.4", "verse"))
 
-    monkeypatch.setattr(module._LANES, "repository_structure_segmenter", lambda _feature: segmenter)
-    monkeypatch.setattr(module._RUNTIME_VERIFIER, "_installed_mir_eval_version", lambda: "0.8.1")
+    monkeypatch.setattr(
+        module._LANES,
+        "repository_structure_segmenter",
+        lambda _feature: segmenter,
+    )
+    monkeypatch.setattr(
+        module._RUNTIME_VERIFIER,
+        "_installed_mir_eval_version",
+        lambda: "0.8.1",
+    )
 
     def must_not_run(*_args: object) -> object:
         calls.append("metric")
@@ -125,7 +151,9 @@ def test_registered_consumer_fails_before_metric_execution_on_runtime_drift(
         "calculate_structure_segmentation_metrics",
         must_not_run,
     )
-    consumer = module.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+    consumer = (
+        module.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+    )
     pcm = memoryview(struct.pack("<4f", *([0.0] * 4)))
     annotation = memoryview(b"0.0\t0.4\tverse\n")
 
