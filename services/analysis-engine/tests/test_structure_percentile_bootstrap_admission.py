@@ -9,6 +9,7 @@ from test_structure_noninferiority_policy import _registration, _result
 
 
 def _validator() -> ModuleType:
+    """Load the metric-aware noninferiority validator under a unique module name."""
     return load_module(
         "scripts/research/validate_structure_noninferiority.py",
         "validate_structure_noninferiority_percentile_admission",
