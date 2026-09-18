@@ -43,6 +43,7 @@ mod project_root;
 mod atomic_publication;
 #[path = "project_persistence_linked_ancestor.case"]
 mod linked_ancestor;
+#[cfg(target_os = "macos")]
 #[path = "project_persistence_macos_root_alias.case"]
 mod macos_root_alias;
 #[path = "project_persistence_migration_content_cas.case"]
