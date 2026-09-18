@@ -48,6 +48,12 @@ This separation is deliberate. The pinned upstream evaluator is authoritative fo
 
 The MIREX task page also continues to expose a vocabulary inconsistency: descriptive prose includes `other`, while the operational seven-label output list includes `silence`. The local v1 annotation contract therefore does not guess between them at run time. A different mapping policy requires a new mapping-contract version and preregistration digest.
 
+## Executable evaluator adapter
+
+`scripts/research/evaluate_structure_functional_accuracy.py` now owns the repository-side adapter for the preregistered normalized seven-label subset. It does not read files, map source labels, or duplicate the parser's `FunctionalSegment` value object. It accepts the parser-owned structural contract, validates continuous full-duration normalized segmentations, uses NumPy's 200 ms `arange` grid and the pinned evaluator's `t >= segment_end` pointer semantics, and returns track-level ACC plus frame counts and frame times.
+
+The adapter deliberately rejects `other` at its input boundary because `other` is not part of the preregistered normalized corpus vocabulary. This is not a claim that the official evaluator lacks `other`; it means upstream raw-label mapping must be completed before preregistration so the acceptance run cannot change labels after results are visible.
+
 ## RED → GREEN lineage
 
 The predecessor branch froze 100 ms but left the official implementation identity and frame-grid behavior unresolved. Fresh inspection of the current standardized evaluator at `b9fa0b0b32e2145af31f35830f78fc9d09a4301b` showed that its MIREX 2025 reproduction uses a 200 ms hop with explicit `np.arange` and segment-boundary behavior.
@@ -55,6 +61,8 @@ The predecessor branch froze 100 ms but left the official implementation identit
 RED `6c20500bf31be88cd145f30fe7355a915066bdfc` changed the focused policy test to require the exact upstream commit/function identity, `frame_size_seconds = 0.2`, and `frame_grid_contract_version = 1.0`; the predecessor validator rejected that registration and still accepted the stale generic 100 ms contract.
 
 GREEN `0f1e3e732154ff0ea94beb5a60e5702ed46c2453` changed the closed-world validator contract to the pinned official evaluator and 200 ms grid. Fixture alignment `86e6be0b41547ecd14b4f837ff6c88cf8f770b0b` and `02c73b1fff55def189bed8fe2d34d4b5ee83cb0a` moved the shared evidence and corpus-admission registrations onto the same contract instead of leaving successful tests on the stale 100 ms shape.
+
+Evaluator RED `5cffef1a5db37b700ee7a27012c0f8324855665f` added executable parity cases for the pinned upstream identity, exact-boundary advancement, exclusion of a frame at exact track duration, inclusion of a trailing partial span when its grid point is below duration, and fail-closed normalized labels. GREEN `e72b29565a6d906a9955907656cbae97cffa471a` implemented the adapter. Consolidation `c84c0acdf25159f9aa066e21f9420d9fdf72c50a` / `fe3ed61a3b1926af6b39b6302d6f857979f9bccc` removed a duplicate segment value object so the evaluator consumes the parser-owned segment contract instead.
 
 The earlier immutable parser lineage remains valid: parser RED `cc4a166cc9e1496cd562f7d79b9ffa30f6ca19c2` → GREEN `0ee4a6aed49c8f001da451ca63c5f20e52832f5c`, with authority correction `52b6c7362baa00151f908a24cadbb1efeddd2101` separating the BandScope TSV representation from the MIREX submission format.
 
@@ -72,9 +80,9 @@ Parsing annotations inside resource admission was rejected. Resource admission o
 
 ## Claim boundary and next work
 
-This contract now freezes the ACC evaluator identity, 200 ms grid, boundary-point behavior, final-partial-frame behavior, annotation interpretation, and label-mapping boundary. It does not yet implement the BandScope runner that must demonstrate parity with the pinned evaluator on admitted normalized annotations, approve the corpus or noninferiority margins, derive aggregate/paired uncertainty, or justify a production CQT → STFT switch.
+This contract now freezes the ACC evaluator identity, 200 ms grid, boundary-point behavior, final-partial-frame behavior, annotation interpretation, label-mapping boundary, and a repository-owned adapter for the preregistered normalized subset. It does not yet wire that adapter into the admitted-track consumer and paired CQT/STFT experiment, approve the corpus or noninferiority margins, derive aggregate/paired uncertainty, or justify a production CQT → STFT switch.
 
-The next scientific slice is an executable parity-tested ACC runner that consumes the exact admitted PCM/annotation snapshots and reproduces the pinned evaluator semantics without reopening workstation paths or performing post-preregistration label mapping. Production acceptance still requires rights-cleared real decoded audio, independently reviewed normalized annotations, preregistered aggregation and paired uncertainty, paired CQT/STFT execution on the same admitted signal/runtime identity, and current-head release evidence.
+The next scientific slice is to integrate the parser and ACC adapter into the exact admitted PCM/annotation consumer alongside the remaining recognized structure metrics, then implement the reviewed aggregation/paired-uncertainty procedure. Production acceptance still requires rights-cleared real decoded audio, independently reviewed normalized annotations, paired CQT/STFT execution on the same admitted signal/runtime identity, and current-head release evidence.
 
 Synthetic annotation fixtures remain unit evidence only and are not counted as production scientific acceptance.
 
