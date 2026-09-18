@@ -62,6 +62,7 @@ if [[ "$1" == "install" ]]; then
   count=$((count + 1))
   printf '%s' "$count" > "$BANDSCOPE_TEST_COREPACK_COUNT"
   if (( count <= BANDSCOPE_TEST_ACQUISITION_FAILURES )); then
+    echo 'request to registry.npmjs.org failed, reason: connect ETIMEDOUT' >&2
     exit 1
   fi
   exit 0
@@ -150,11 +151,13 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
 
 
 def test_pinned_npm_activation_helper_retries_acquisition_but_never_falls_back() -> None:
-    """Keep transient registry recovery bounded while exact npm provenance remains fail closed."""
+    """Keep admitted timeout recovery bounded while exact npm provenance remains fail closed."""
     source = _ACTIVATION_HELPER.read_text(encoding="utf-8")
 
     assert 'MAX_ATTEMPTS="3"' in source
     assert 'corepack install --global "$package_manager_spec"' in source
+    assert '"ETIMEDOUT"' in source
+    assert "not classified as transient" in source
     assert "corepack enable npm" in source
     assert "npm run check:npm-runtime" in source
     assert "sleep_seconds=$((attempt * 5))" in source
@@ -170,7 +173,7 @@ def test_pinned_npm_activation_helper_retries_acquisition_but_never_falls_back()
 def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures(
     tmp_path: Path,
 ) -> None:
-    """Retry only exact-runtime acquisition, then audit the acquired npm before success."""
+    """Retry admitted ETIMEDOUT acquisition, then audit the acquired npm before success."""
     completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
         tmp_path,
         acquisition_failures=2,
@@ -181,6 +184,7 @@ def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures
     assert sleep_log.read_text(encoding="utf-8").splitlines() == ["5", "10"]
     assert npm_log.read_text(encoding="utf-8").splitlines() == ["run check:npm-runtime"]
     assert corepack_enable_log.read_text(encoding="utf-8").splitlines() == ["enable npm"]
+    assert "ETIMEDOUT" in completed.stderr
     assert "retrying exact npm@10.9.9" in completed.stderr
 
 
@@ -188,10 +192,10 @@ def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures
     os.name == "nt",
     reason="shell helper is exercised by hosted Windows build lanes",
 )
-def test_pinned_npm_activation_fails_closed_after_bounded_acquisition_exhaustion(
+def test_pinned_npm_activation_fails_closed_after_bounded_timeout_exhaustion(
     tmp_path: Path,
 ) -> None:
-    """Stop after three failed acquisitions without enabling or invoking fallback npm."""
+    """Stop after three admitted timeout failures without enabling or invoking fallback npm."""
     completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
         tmp_path,
         acquisition_failures=99,
@@ -202,5 +206,6 @@ def test_pinned_npm_activation_fails_closed_after_bounded_acquisition_exhaustion
     assert sleep_log.read_text(encoding="utf-8").splitlines() == ["5", "10"]
     assert not npm_log.exists()
     assert not corepack_enable_log.exists()
+    assert "ETIMEDOUT" in completed.stderr
     assert "after 3 attempts" in completed.stderr
     assert "refusing an unpinned npm fallback" in completed.stderr
