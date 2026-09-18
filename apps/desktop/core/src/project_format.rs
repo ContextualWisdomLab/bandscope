@@ -6,7 +6,7 @@
 //! song parser remains the migration authority for historical inputs; this
 //! module owns the current envelope presented to external crate consumers.
 
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 
 use crate::{
     audio_resource::MAX_LOCAL_AUDIO_FILE_BYTES,
@@ -115,6 +115,26 @@ pub struct ProjectMigrationReceipt {
     pub output_sha256: String,
     /// Whether the admitted input required a historical-format migration.
     pub migrated: bool,
+}
+
+impl ProjectMigrationReceipt {
+    /// Verify that an already-authorized reader still contains the exact admitted input bytes.
+    ///
+    /// Project Persistence uses this as the content side of migration compare-and-swap. The caller
+    /// owns filesystem authority and must provide the displaced predecessor object rather than
+    /// reopening a pathname. This method only applies the canonical SHA-256 contract and never opens
+    /// a path, logs content, or treats content identity as authenticity.
+    pub fn verify_input_reader(&self, reader: impl Read) -> Result<(), String> {
+        if !sha256_hex_is_canonical(&self.input_sha256) {
+            return Err("Could not validate project migration predecessor".to_string());
+        }
+        let observed_sha256 = sha256_hex_reader(reader)
+            .map_err(|_| "Could not validate project migration predecessor".to_string())?;
+        if observed_sha256 != self.input_sha256 {
+            return Err("Could not validate project migration predecessor".to_string());
+        }
+        Ok(())
+    }
 }
 
 /// Fully validated in-memory candidate for a historical project migration.
