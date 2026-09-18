@@ -63,10 +63,10 @@ def _installed_mir_eval_version() -> str:
         raise RuntimeError(f"structure metrics require mir_eval {MIR_EVAL_VERSION}") from exc
 
 
-def verify_structure_metric_runtime_lock(
+def load_structure_metric_runtime_lock_identity(
     lock_path: Path,
 ) -> StructureMetricRuntimeIdentity:
-    """Validate the reviewed wheel lock and installed mir_eval distribution."""
+    """Validate the immutable lock artifact without consulting the local environment."""
     raw = lock_path.read_bytes()
     if len(raw) > MAX_LOCK_BYTES:
         raise ValueError(f"structure metric runtime lock exceeds {MAX_LOCK_BYTES} bytes")
@@ -80,13 +80,6 @@ def verify_structure_metric_runtime_lock(
     if text != EXPECTED_LOCK_TEXT:
         raise ValueError("structure metric runtime lock differs from the reviewed exact contract")
 
-    observed_version = _installed_mir_eval_version()
-    if observed_version != MIR_EVAL_VERSION:
-        raise RuntimeError(
-            f"structure metrics require mir_eval {MIR_EVAL_VERSION}; "
-            f"observed {observed_version}"
-        )
-
     return StructureMetricRuntimeIdentity(
         version=MIR_EVAL_VERSION,
         wheel_sha256=MIR_EVAL_WHEEL_SHA256,
@@ -94,3 +87,17 @@ def verify_structure_metric_runtime_lock(
         pypi_transparency_entry=MIR_EVAL_PYPI_TRANSPARENCY_ENTRY,
         lock_sha256=hashlib.sha256(raw).hexdigest(),
     )
+
+
+def verify_structure_metric_runtime_lock(
+    lock_path: Path,
+) -> StructureMetricRuntimeIdentity:
+    """Validate the reviewed lock artifact and the installed mir_eval distribution."""
+    identity = load_structure_metric_runtime_lock_identity(lock_path)
+    observed_version = _installed_mir_eval_version()
+    if observed_version != MIR_EVAL_VERSION:
+        raise RuntimeError(
+            f"structure metrics require mir_eval {MIR_EVAL_VERSION}; "
+            f"observed {observed_version}"
+        )
+    return identity
