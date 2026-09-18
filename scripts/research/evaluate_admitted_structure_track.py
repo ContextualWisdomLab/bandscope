@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Score paired functional ACC on the exact corpus-admission handoff.
+"""Score paired structure evidence on the exact corpus-admission handoff.
 
 This module bridges resource admission to Signal-MIR measurement without
 reopening workstation paths. The baseline and candidate segmenters receive the
 same immutable canonical PCM memoryview, while the reference segmentation is
-parsed from the same immutable admitted annotation snapshot. Scientific corpus
-choice, margins, aggregation, uncertainty, and the production feature switch
-remain outside this boundary.
+parsed from the same immutable admitted annotation snapshot. The canonical
+CQT/STFT experiment additionally evaluates the reviewed mir_eval boundary,
+deviation, and repetition contract under the exact research runtime lock.
+Scientific corpus choice, margins, aggregation, uncertainty, and the production
+feature switch remain outside this boundary.
 """
 
 from __future__ import annotations
@@ -22,6 +24,11 @@ from types import ModuleType
 from typing import Any
 
 Segmenter = Callable[[memoryview, int, Fraction], Sequence[Any]]
+SegmentationMetricEvaluator = Callable[[object, object], object]
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+_STRUCTURE_METRIC_RUNTIME_LOCK = (
+    _REPOSITORY_ROOT / "services/analysis-engine/requirements-structure-metrics.lock"
+)
 
 
 def _load_sibling(filename: str, module_name: str) -> ModuleType:
@@ -56,6 +63,31 @@ _LANES = _load_sibling(
     "measure_structure_feature_lanes.py",
     "_bandscope_structure_feature_lanes",
 )
+_SEGMENTATION_EVALUATOR = _load_sibling(
+    "evaluate_structure_segmentation_metrics.py",
+    "_bandscope_structure_segmentation_metrics",
+)
+_RUNTIME_VERIFIER = _load_sibling(
+    "verify_structure_metric_runtime_lock.py",
+    "_bandscope_structure_metric_runtime_lock",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StructureSegmentationMetricEvidence:
+    """Recognized track-level boundary, deviation, and repetition evidence."""
+
+    boundary_precision_0_5: float
+    boundary_recall_0_5: float
+    boundary_f_0_5: float
+    boundary_precision_3_0: float
+    boundary_recall_3_0: float
+    boundary_f_3_0: float
+    reference_to_estimate_median_deviation_seconds: float
+    estimate_to_reference_median_deviation_seconds: float
+    repetition_pairwise_precision: float
+    repetition_pairwise_recall: float
+    repetition_pairwise_f: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +105,9 @@ class PairedFunctionalAccuracyEvidence:
     candidate_accuracy: float
     candidate_correct_frames: int
     candidate_total_frames: int
+    metric_runtime_lock_sha256: str | None
+    baseline_segmentation_metrics: StructureSegmentationMetricEvidence | None
+    candidate_segmentation_metrics: StructureSegmentationMetricEvidence | None
 
 
 def _track_id(value: object) -> str:
@@ -109,29 +144,69 @@ def _annotation_view(annotation_bytes: object) -> memoryview:
     return annotation_bytes
 
 
+def _segmentation_metric_evidence(result: object) -> StructureSegmentationMetricEvidence:
+    """Copy the reviewed adapter result into the consumer-owned immutable receipt."""
+    return StructureSegmentationMetricEvidence(
+        boundary_precision_0_5=float(getattr(result, "boundary_precision_0_5")),
+        boundary_recall_0_5=float(getattr(result, "boundary_recall_0_5")),
+        boundary_f_0_5=float(getattr(result, "boundary_f_0_5")),
+        boundary_precision_3_0=float(getattr(result, "boundary_precision_3_0")),
+        boundary_recall_3_0=float(getattr(result, "boundary_recall_3_0")),
+        boundary_f_3_0=float(getattr(result, "boundary_f_3_0")),
+        reference_to_estimate_median_deviation_seconds=float(
+            getattr(result, "reference_to_estimate_median_deviation_seconds")
+        ),
+        estimate_to_reference_median_deviation_seconds=float(
+            getattr(result, "estimate_to_reference_median_deviation_seconds")
+        ),
+        repetition_pairwise_precision=float(getattr(result, "repetition_pairwise_precision")),
+        repetition_pairwise_recall=float(getattr(result, "repetition_pairwise_recall")),
+        repetition_pairwise_f=float(getattr(result, "repetition_pairwise_f")),
+    )
+
+
 class PairedFunctionalAccuracyTrackConsumer:
-    """Collect paired functional ACC evidence from corpus-admission callbacks."""
+    """Collect paired structure evidence from corpus-admission callbacks."""
 
     def __init__(
         self,
         *,
         baseline_segmenter: Segmenter,
         candidate_segmenter: Segmenter,
+        segmentation_metric_evaluator: SegmentationMetricEvaluator | None = None,
+        metric_runtime_lock_sha256: str | None = None,
     ) -> None:
-        """Bind the two preregistered segmentation lanes without track-specific dispatch."""
+        """Bind preregistered lanes and optional recognized-metric runtime identity."""
         if not callable(baseline_segmenter) or not callable(candidate_segmenter):
             raise TypeError("baseline_segmenter and candidate_segmenter must be callable")
+        if (segmentation_metric_evaluator is None) != (metric_runtime_lock_sha256 is None):
+            raise ValueError(
+                "segmentation metric evaluator and metric runtime lock identity must be bound together"
+            )
+        if segmentation_metric_evaluator is not None and not callable(
+            segmentation_metric_evaluator
+        ):
+            raise TypeError("segmentation_metric_evaluator must be callable")
         self._baseline_segmenter = baseline_segmenter
         self._candidate_segmenter = candidate_segmenter
+        self._segmentation_metric_evaluator = segmentation_metric_evaluator
+        self._metric_runtime_lock_sha256 = metric_runtime_lock_sha256
         self._evidence: list[PairedFunctionalAccuracyEvidence] = []
         self._measured_track_ids: set[str] = set()
 
     @classmethod
     def for_registered_cqt_stft_hypothesis(cls) -> PairedFunctionalAccuracyTrackConsumer:
-        """Bind the canonical #1225 baseline/candidate feature identities."""
+        """Bind canonical CQT/STFT lanes and the reviewed segmentation-metric overlay."""
+        runtime_identity = _RUNTIME_VERIFIER.load_structure_metric_runtime_lock_identity(
+            _STRUCTURE_METRIC_RUNTIME_LOCK
+        )
         return cls(
             baseline_segmenter=_LANES.repository_structure_segmenter("cqt"),
             candidate_segmenter=_LANES.repository_structure_segmenter("stft"),
+            segmentation_metric_evaluator=(
+                _SEGMENTATION_EVALUATOR.calculate_structure_segmentation_metrics
+            ),
+            metric_runtime_lock_sha256=runtime_identity.lock_sha256,
         )
 
     @property
@@ -178,6 +253,31 @@ class PairedFunctionalAccuracyTrackConsumer:
             duration_seconds=duration_seconds,
         )
 
+        baseline_segmentation_metrics: StructureSegmentationMetricEvidence | None = None
+        candidate_segmentation_metrics: StructureSegmentationMetricEvidence | None = None
+        metric_runtime_lock_sha256: str | None = None
+        if self._segmentation_metric_evaluator is not None:
+            runtime_identity = _RUNTIME_VERIFIER.verify_structure_metric_runtime_lock(
+                _STRUCTURE_METRIC_RUNTIME_LOCK
+            )
+            if runtime_identity.lock_sha256 != self._metric_runtime_lock_sha256:
+                raise RuntimeError(
+                    "structure metric runtime lock changed after experiment binding"
+                )
+            baseline_segmentation_metrics = _segmentation_metric_evidence(
+                self._segmentation_metric_evaluator(
+                    reference_segments,
+                    baseline_segments,
+                )
+            )
+            candidate_segmentation_metrics = _segmentation_metric_evidence(
+                self._segmentation_metric_evaluator(
+                    reference_segments,
+                    candidate_segments,
+                )
+            )
+            metric_runtime_lock_sha256 = runtime_identity.lock_sha256
+
         evidence = PairedFunctionalAccuracyEvidence(
             track_id=normalized_track_id,
             decoded_pcm_sha256=hashlib.sha256(pcm).hexdigest(),
@@ -190,6 +290,9 @@ class PairedFunctionalAccuracyTrackConsumer:
             candidate_accuracy=float(candidate_result.accuracy),
             candidate_correct_frames=int(candidate_result.correct_frames),
             candidate_total_frames=int(candidate_result.total_frames),
+            metric_runtime_lock_sha256=metric_runtime_lock_sha256,
+            baseline_segmentation_metrics=baseline_segmentation_metrics,
+            candidate_segmentation_metrics=candidate_segmentation_metrics,
         )
         self._evidence.append(evidence)
         self._measured_track_ids.add(normalized_track_id)
