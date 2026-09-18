@@ -1,3 +1,5 @@
+#[path = "../src/project_load.rs"]
+mod project_load;
 #[path = "../src/project_persistence.rs"]
 mod project_persistence;
 
@@ -114,7 +116,7 @@ fn project_load_migrates_a_historical_fixture_through_receipt_bound_publication(
     let expected = prepare_project_migration(original)
         .expect("historical fixture should prepare a canonical migration");
 
-    let loaded = project_persistence::load_project_document(&target)
+    let loaded = project_load::load_project_document(&target)
         .expect("loading a historical project should publish its validated migration");
 
     assert_eq!(
@@ -140,7 +142,7 @@ fn project_load_does_not_rewrite_a_current_v3_project() {
     fs::write(&target, &current_with_incidental_whitespace)
         .expect("current project should be written");
 
-    project_persistence::load_project_document(&target)
+    project_load::load_project_document(&target)
         .expect("current project should load without a migration publication");
 
     assert_eq!(
