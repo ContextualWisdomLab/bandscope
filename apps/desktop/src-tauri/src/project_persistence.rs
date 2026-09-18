@@ -550,7 +550,16 @@ type JournalPathName = Vec<u8>;
 type JournalPathName = Vec<u16>;
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum PublicationValidation {
+    IdentityOnly,
+    Migration { receipt: ProjectMigrationReceipt },
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct PublicationJournal {
     version: u8,
     target_name: JournalPathName,
@@ -558,6 +567,7 @@ struct PublicationJournal {
     displaced_name: JournalPathName,
     expected: ProjectFileIdentity,
     candidate: ProjectFileIdentity,
+    validation: PublicationValidation,
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -740,15 +750,17 @@ fn create_publication_journal(
     displaced: &Path,
     expected: &ProjectFileIdentity,
     candidate: &ProjectFileIdentity,
+    validation: PublicationValidation,
 ) -> Result<PathBuf, String> {
     let journal_path = publication_journal_path(target, false)?;
     let journal = PublicationJournal {
-        version: 1,
+        version: 2,
         target_name: journal_path_name(target)?,
         candidate_name: journal_path_name(candidate_stage)?,
         displaced_name: journal_path_name(displaced)?,
         expected: expected.clone(),
         candidate: candidate.clone(),
+        validation,
     };
     let bytes = serde_json::to_vec(&journal).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
     let mut file = match File::create_new(&journal_path) {
@@ -861,6 +873,30 @@ fn finish_rolled_back_publication(
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn verify_recovery_migration_predecessor(
+    path: &Path,
+    journal: &PublicationJournal,
+) -> Result<(), String> {
+    if let PublicationValidation::Migration { receipt } = &journal.validation {
+        verify_migration_predecessor(path, &journal.expected, receipt)
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn verify_recovery_migration_candidate(
+    path: &Path,
+    journal: &PublicationJournal,
+) -> Result<(), String> {
+    if let PublicationValidation::Migration { receipt } = &journal.validation {
+        verify_migration_candidate(path, &journal.candidate, receipt)
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn recover_publication_state(
     target: &Path,
     journal_path: &Path,
@@ -885,7 +921,9 @@ fn recover_publication_state(
         {
             return Err(PROJECT_RECOVERY_ERROR.to_string());
         }
+        verify_recovery_migration_candidate(target, journal)?;
         if displaced_identity.is_some() {
+            verify_recovery_migration_predecessor(displaced, journal)?;
             remove_recovery_artifact(displaced)?;
             sync_parent_directory(project_parent(target))
                 .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
@@ -901,6 +939,7 @@ fn recover_publication_state(
             .as_ref()
             .is_some_and(|identity| identity != &journal.candidate)
     {
+        verify_recovery_migration_predecessor(displaced, journal)?;
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         if rename_exchange(displaced, target).is_err() {
             return Err(PROJECT_RECOVERY_ERROR.to_string());
@@ -930,6 +969,7 @@ fn recover_publication_state(
         && candidate_identity.as_ref() == Some(&journal.candidate)
         && (displaced_identity.is_none() || displaced == candidate_stage)
     {
+        verify_recovery_migration_predecessor(target, journal)?;
         remove_recovery_artifact(candidate_stage)?;
         sync_parent_directory(project_parent(target))
             .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
@@ -988,7 +1028,9 @@ fn journal_target_matches(
 ///
 /// Security Notes: journal names are derived from the selected target and stage names are generated
 /// UUID-based same-directory names; target, journal, and stage paths must stay regular non-link files;
-/// journal reads use the bounded no-follow project reader; unrecognized identity pairs fail closed.
+/// journal reads use the bounded no-follow project reader; unrecognized identity/content pairs fail
+/// closed. Migration journals additionally retain the exact deterministic migration receipt so a
+/// post-validation crash cannot later discard rollback material based only on native file identity.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     let parent = project_parent(target);
@@ -1028,7 +1070,7 @@ pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
     if !journal_target_matches(target, parent, &journal.target_name) {
         return Err(PROJECT_RECOVERY_ERROR.to_string());
     }
-    if journal.version != 1
+    if journal.version != 2
         || !generated_stage_name(&journal.candidate_name)
         || !generated_stage_name(&journal.displaced_name)
     {
@@ -1059,6 +1101,7 @@ fn replace_existing_project_file_with_validation<F>(
     stage: &Path,
     target: &Path,
     expected: &ProjectFileIdentity,
+    validation: PublicationValidation,
     validate: F,
 ) -> Result<(), String>
 where
@@ -1071,7 +1114,14 @@ where
             return Err(error);
         }
     };
-    let journal = match create_publication_journal(target, stage, stage, expected, &candidate) {
+    let journal = match create_publication_journal(
+        target,
+        stage,
+        stage,
+        expected,
+        &candidate,
+        validation,
+    ) {
         Ok(journal) => journal,
         Err(error) => {
             remove_stage(stage);
@@ -1104,7 +1154,13 @@ pub(crate) fn replace_existing_project_file(
     target: &Path,
     expected: &ProjectFileIdentity,
 ) -> Result<(), String> {
-    replace_existing_project_file_with_validation(stage, target, expected, |_, _, _| Ok(()))
+    replace_existing_project_file_with_validation(
+        stage,
+        target,
+        expected,
+        PublicationValidation::IdentityOnly,
+        |_, _, _| Ok(()),
+    )
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -1118,6 +1174,9 @@ pub(crate) fn replace_existing_project_file_for_migration(
         stage,
         target,
         expected,
+        PublicationValidation::Migration {
+            receipt: receipt.clone(),
+        },
         |displaced, published, candidate| {
             verify_migration_predecessor(displaced, expected, receipt)?;
             verify_migration_candidate(published, candidate, receipt)
@@ -1130,6 +1189,7 @@ fn replace_existing_project_file_with_validation<F>(
     stage: &Path,
     target: &Path,
     expected: &ProjectFileIdentity,
+    validation: PublicationValidation,
     validate: F,
 ) -> Result<(), String>
 where
@@ -1143,7 +1203,14 @@ where
         }
     };
     let backup = staging_path(target)?;
-    let journal = match create_publication_journal(target, stage, &backup, expected, &candidate) {
+    let journal = match create_publication_journal(
+        target,
+        stage,
+        &backup,
+        expected,
+        &candidate,
+        validation,
+    ) {
         Ok(journal) => journal,
         Err(error) => {
             remove_stage(stage);
@@ -1176,7 +1243,13 @@ pub(crate) fn replace_existing_project_file(
     target: &Path,
     expected: &ProjectFileIdentity,
 ) -> Result<(), String> {
-    replace_existing_project_file_with_validation(stage, target, expected, |_, _, _| Ok(()))
+    replace_existing_project_file_with_validation(
+        stage,
+        target,
+        expected,
+        PublicationValidation::IdentityOnly,
+        |_, _, _| Ok(()),
+    )
 }
 
 #[cfg(windows)]
@@ -1190,6 +1263,9 @@ pub(crate) fn replace_existing_project_file_for_migration(
         stage,
         target,
         expected,
+        PublicationValidation::Migration {
+            receipt: receipt.clone(),
+        },
         |displaced, published, candidate| {
             verify_migration_predecessor(displaced, expected, receipt)?;
             verify_migration_candidate(published, candidate, receipt)
@@ -1381,7 +1457,8 @@ pub(crate) fn read_project_file_with_identity(
 /// points without following them, rejects reparse handles, and compares the volume serial number plus
 /// file index returned for native handles before, during, and after acquisition. Other Unix targets
 /// fail closed until their no-follow open contract is explicitly modeled. The reader remains capped
-/// at `MAX_PROJECT_FILE_BYTES + 1`; backup rotation and migration publication remain later #962 work.
+/// at `MAX_PROJECT_FILE_BYTES + 1`; migration publication now uses the identity-bearing reader above,
+/// while longer-lived backup rotation and global startup recovery remain #962 work.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(
         target,
@@ -1667,6 +1744,7 @@ mod tests {
             &displaced,
             &expected,
             &candidate_identity,
+            super::PublicationValidation::IdentityOnly,
         )
         .expect("the recovery journal should be durable before publication");
         fs::rename(&target, &displaced).expect("original target should be displaced");
@@ -1707,6 +1785,7 @@ mod tests {
             &displaced,
             &expected,
             &candidate_identity,
+            super::PublicationValidation::IdentityOnly,
         )
         .expect("the recovery journal should be durable before publication");
 
@@ -1719,7 +1798,7 @@ mod tests {
         assert!(!stage.exists(), "the owned candidate should be removed");
         assert!(!displaced.exists(), "the consumed rollback artifact should be absent");
         assert!(!journal.exists(), "the completed rollback journal should be removed");
-        fs::remove_dir_all(root).expect("fixture directory should be removable");
+        fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
     #[test]
@@ -1798,7 +1877,7 @@ mod tests {
             read_project_file(&target).expect("bounded project should be readable"),
             content
         );
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[cfg(unix)]
@@ -1883,6 +1962,7 @@ mod tests {
             &stage,
             &expected,
             &candidate_identity,
+            super::PublicationValidation::IdentityOnly,
         )
         .expect("the recovery journal should be durable before publication");
         super::rename_exchange(&stage, &target).expect("fixture should model interrupted exchange");
@@ -1918,6 +1998,7 @@ mod tests {
             &stage,
             &expected,
             &candidate_identity,
+            super::PublicationValidation::IdentityOnly,
         )
         .expect("the recovery journal should be durable before publication");
         fs::rename(&target, &parked).expect("authorized target should be parked by the racer");
@@ -1957,6 +2038,7 @@ mod tests {
             &stage,
             &expected,
             &candidate_identity,
+            super::PublicationValidation::IdentityOnly,
         )
         .expect("the recovery journal should be durable before publication");
         super::rename_exchange(&stage, &target).expect("fixture should model target exchange");
