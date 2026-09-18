@@ -39,6 +39,9 @@ def _registration(audio_hashes: list[str], annotation_hashes: list[str]) -> dict
             },
             "functional_label_accuracy": {
                 "implementation": "mirex2025.frame_level_accuracy",
+                "frame_size_seconds": 0.1,
+                "annotation_contract_version": 1.0,
+                "label_mapping_contract_version": 1.0,
                 "noninferiority_margin": 0.02,
             },
             "repetition_pairwise_f": {
