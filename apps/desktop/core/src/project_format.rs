@@ -117,6 +117,22 @@ pub struct ProjectMigrationReceipt {
     pub migrated: bool,
 }
 
+/// Fully validated in-memory candidate for a historical project migration.
+///
+/// `canonical_content` is the exact current-version byte sequence that a
+/// persistence adapter may stage. It has already reopened through the current
+/// parser and reproduced itself through the canonical serializer before this
+/// value is returned. The raw input is intentionally not retained here.
+#[derive(Clone, Debug)]
+pub struct PreparedProjectMigration {
+    /// Current typed project document produced from the admitted input.
+    pub document: ProjectDocumentPayload,
+    /// Canonical current-version project bytes ready for staged publication.
+    pub canonical_content: String,
+    /// Content-addressed source/target migration evidence.
+    pub receipt: ProjectMigrationReceipt,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProjectFileV2Payload {
@@ -302,34 +318,60 @@ pub fn project_document_from_content(content: &str) -> Result<ProjectDocumentPay
     parse_project_document(content).map(|(document, _)| document)
 }
 
-/// Parse and normalize a project while producing deterministic migration evidence.
+/// Prepare and self-validate a canonical current-version migration candidate.
 ///
-/// The input hash binds the exact bytes supplied by the caller. The output hash
-/// binds the canonical v3 serialization of the admitted typed document. Re-running
-/// this function on that canonical output produces the same output digest and a
-/// `migrated = false` receipt, which makes migration idempotency machine-checkable
-/// without persisting filesystem paths or raw project content in diagnostics.
-pub fn project_document_with_migration_receipt(
-    content: &str,
-) -> Result<(ProjectDocumentPayload, ProjectMigrationReceipt), String> {
+/// The input hash binds the exact bytes supplied by the caller. The candidate
+/// is serialized once through the canonical v3 writer, reopened through the
+/// current parser, and serialized again. Any parser/serializer disagreement
+/// fails before a filesystem adapter can stage the candidate. Re-running this
+/// function on `canonical_content` yields `migrated = false` and the same
+/// output digest, making the validated copy suitable for later receipt-bound
+/// crash-safe publication without retaining raw historical input in the plan.
+pub fn prepare_project_migration(content: &str) -> Result<PreparedProjectMigration, String> {
     let input_sha256 = sha256_hex_reader(Cursor::new(content.as_bytes()))
         .map_err(|_| "Could not compute project migration receipt".to_string())?;
     let (document, source_format_version) = parse_project_document(content)?;
-    let normalized = project_content_for_document(&document)?;
-    let output_sha256 = sha256_hex_reader(Cursor::new(normalized.as_bytes()))
+    let canonical_content = project_content_for_document(&document)?;
+    let output_sha256 = sha256_hex_reader(Cursor::new(canonical_content.as_bytes()))
         .map_err(|_| "Could not compute project migration receipt".to_string())?;
-    let migrated = source_format_version != Some(CURRENT_PROJECT_FORMAT_VERSION);
 
-    Ok((
+    let (reopened, reopened_version) = parse_project_document(&canonical_content)?;
+    if reopened_version != Some(CURRENT_PROJECT_FORMAT_VERSION) {
+        return Err("Could not validate project migration candidate".to_string());
+    }
+    let reopened_content = project_content_for_document(&reopened)?;
+    if reopened_content != canonical_content {
+        return Err("Could not validate project migration candidate".to_string());
+    }
+    let reopened_sha256 = sha256_hex_reader(Cursor::new(reopened_content.as_bytes()))
+        .map_err(|_| "Could not compute project migration receipt".to_string())?;
+    if reopened_sha256 != output_sha256 {
+        return Err("Could not validate project migration candidate".to_string());
+    }
+
+    Ok(PreparedProjectMigration {
         document,
-        ProjectMigrationReceipt {
+        canonical_content,
+        receipt: ProjectMigrationReceipt {
             source_format_version,
             target_format_version: CURRENT_PROJECT_FORMAT_VERSION,
             input_sha256,
             output_sha256,
-            migrated,
+            migrated: source_format_version != Some(CURRENT_PROJECT_FORMAT_VERSION),
         },
-    ))
+    })
+}
+
+/// Parse and normalize a project while producing deterministic migration evidence.
+///
+/// Compatibility wrapper for callers that do not yet consume the validated
+/// canonical copy directly. The same preparation boundary performs the
+/// parse/serialize/reopen check before returning the typed document and receipt.
+pub fn project_document_with_migration_receipt(
+    content: &str,
+) -> Result<(ProjectDocumentPayload, ProjectMigrationReceipt), String> {
+    let prepared = prepare_project_migration(content)?;
+    Ok((prepared.document, prepared.receipt))
 }
 
 /// Compatibility view for callers that currently consume only the song.
