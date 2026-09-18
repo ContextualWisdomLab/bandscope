@@ -141,7 +141,7 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
 
         npm_consumers += 1
         activation_indexes = [
-            index for index, command in enumerate(run_steps) if command.strip() == _ACTIVATION_COMMAND
+            i for i, command in enumerate(run_steps) if command.strip() == _ACTIVATION_COMMAND
         ]
         assert activation_indexes == [dependency_index - 1], f"{job_name} activation ownership"
         assert all("corepack enable npm" not in command for command in run_steps), (
