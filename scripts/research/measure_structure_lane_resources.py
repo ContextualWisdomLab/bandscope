@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Literal, Sequence
+from typing import Literal, Sequence
 
 import numpy as np
 
