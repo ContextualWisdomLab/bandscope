@@ -209,6 +209,78 @@ def _performance_evidence(result: object) -> StructurePerformanceEvidence:
     )
 
 
+def _result_side(
+    accuracy: float,
+    segmentation: StructureSegmentationMetricEvidence,
+    performance: StructurePerformanceEvidence,
+) -> dict[str, float]:
+    """Map one canonical lane evidence object to schema-v1 measurement fields."""
+    return {
+        "boundary_f_0_5": segmentation.boundary_f_0_5,
+        "boundary_f_3_0": segmentation.boundary_f_3_0,
+        "functional_label_accuracy": accuracy,
+        "repetition_pairwise_f": segmentation.repetition_pairwise_f,
+        "boundary_precision_0_5": segmentation.boundary_precision_0_5,
+        "boundary_recall_0_5": segmentation.boundary_recall_0_5,
+        "boundary_precision_3_0": segmentation.boundary_precision_3_0,
+        "boundary_recall_3_0": segmentation.boundary_recall_3_0,
+        "repetition_pairwise_precision": segmentation.repetition_pairwise_precision,
+        "repetition_pairwise_recall": segmentation.repetition_pairwise_recall,
+        "reference_to_estimate_median_deviation_seconds": (
+            segmentation.reference_to_estimate_median_deviation_seconds
+        ),
+        "estimate_to_reference_median_deviation_seconds": (
+            segmentation.estimate_to_reference_median_deviation_seconds
+        ),
+        "p50_latency_seconds": performance.p50_latency_seconds,
+        "p95_latency_seconds": performance.p95_latency_seconds,
+        "peak_rss_mib": performance.peak_rss_mib,
+    }
+
+
+def noninferiority_track_receipt(
+    evidence: PairedFunctionalAccuracyEvidence,
+) -> dict[str, object]:
+    """Build one schema-v1 result track only from complete canonical evidence.
+
+    The base result schema intentionally contains numeric measurements rather than
+    execution machinery. This adapter prevents the canonical experiment path from
+    independently retyping those numbers after admission: functional ACC,
+    recognized segmentation metrics, and the preregistered performance summary
+    all come directly from the immutable evidence object produced for one track.
+    """
+    expected_runtime_lock = _RUNTIME_VERIFIER.load_structure_metric_runtime_lock_identity(
+        _STRUCTURE_METRIC_RUNTIME_LOCK
+    ).lock_sha256
+    expected_performance_contract = _RESOURCE_MEASUREMENT.PERFORMANCE_MEASUREMENT_CONTRACT[
+        "contract_id"
+    ]
+    if (
+        evidence.metric_runtime_lock_sha256 != expected_runtime_lock
+        or evidence.baseline_segmentation_metrics is None
+        or evidence.candidate_segmentation_metrics is None
+        or evidence.performance_contract_id != expected_performance_contract
+        or evidence.baseline_performance is None
+        or evidence.candidate_performance is None
+    ):
+        raise RuntimeError(
+            "result track requires complete canonical quality and performance evidence"
+        )
+    return {
+        "track_id": evidence.track_id,
+        "baseline": _result_side(
+            evidence.baseline_accuracy,
+            evidence.baseline_segmentation_metrics,
+            evidence.baseline_performance,
+        ),
+        "candidate": _result_side(
+            evidence.candidate_accuracy,
+            evidence.candidate_segmentation_metrics,
+            evidence.candidate_performance,
+        ),
+    }
+
+
 class PairedFunctionalAccuracyTrackConsumer:
     """Collect paired structure evidence from corpus-admission callbacks."""
 
@@ -280,6 +352,11 @@ class PairedFunctionalAccuracyTrackConsumer:
     def evidence(self) -> tuple[PairedFunctionalAccuracyEvidence, ...]:
         """Return immutable ordered evidence accumulated from admitted tracks."""
         return tuple(self._evidence)
+
+    @property
+    def result_track_receipts(self) -> tuple[dict[str, object], ...]:
+        """Return schema-v1 track receipts only when every evidence object is complete."""
+        return tuple(noninferiority_track_receipt(item) for item in self._evidence)
 
     def __call__(
         self,
