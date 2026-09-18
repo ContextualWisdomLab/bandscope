@@ -46,6 +46,9 @@ def _performance() -> SimpleNamespace:
 def test_canonical_track_receipt_maps_only_registered_measurement_fields() -> None:
     """The experiment path must not hand-author schema-v1 track measurements."""
     module = _consumer_module()
+    runtime_identity = module._RUNTIME_VERIFIER.load_structure_metric_runtime_lock_identity(
+        module._STRUCTURE_METRIC_RUNTIME_LOCK
+    )
     evidence = module.PairedFunctionalAccuracyEvidence(
         track_id="track-01",
         decoded_pcm_sha256="a" * 64,
@@ -58,7 +61,7 @@ def test_canonical_track_receipt_maps_only_registered_measurement_fields() -> No
         candidate_accuracy=0.92,
         candidate_correct_frames=92,
         candidate_total_frames=100,
-        metric_runtime_lock_sha256="c" * 64,
+        metric_runtime_lock_sha256=runtime_identity.lock_sha256,
         baseline_segmentation_metrics=module._segmentation_metric_evidence(_metrics()),
         candidate_segmentation_metrics=module._segmentation_metric_evidence(_metrics()),
         performance_contract_id="isolated-single-shot-v1",
