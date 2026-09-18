@@ -37,6 +37,23 @@ _EXPECTED_METRIC_CONTRACT = {
         "frame_size_seconds": 0.1,
         "beta": 1.0,
     },
+    "performance_measurement": {
+        "contract_id": "isolated-single-shot-v1",
+        "supported_platforms": ["darwin", "win32"],
+        "warmup_trials": 0,
+        "measured_trials": 20,
+        "trial_process": "fresh_subprocess_per_lane_trial",
+        "lane_order": "alternate_baseline_candidate_by_trial_index",
+        "timer": "time.perf_counter_ns",
+        "timer_scope": "repository_structure_segmenter_only",
+        "worker_startup_in_latency": False,
+        "input_transfer_in_latency": False,
+        "latency_quantiles": [0.5, 0.95],
+        "quantile_method": "linear",
+        "memory_metric": "process_peak_resident_set_size",
+        "memory_scope": "entire_worker_process_lifetime_including_pcm_input",
+        "peak_rss_aggregation": "maximum_across_trials",
+    },
     "aggregation_uncertainty": {
         "aggregation_id": "macro-track-v1",
         "sampling_unit": "registered_track_pair",
@@ -58,6 +75,7 @@ _EXPECTED_METRIC_CONTRACT = {
 
 
 def _validator() -> ModuleType:
+    """Load the metric-aware structure registration validator."""
     return load_module(
         "scripts/research/validate_structure_noninferiority.py",
         "validate_structure_noninferiority_metric_contract",
@@ -65,6 +83,7 @@ def _validator() -> ModuleType:
 
 
 def _canonical_digest(value: object) -> str:
+    """Return the canonical compact JSON SHA-256 used by the registration owner."""
     payload = json.dumps(
         value,
         allow_nan=False,
@@ -76,7 +95,7 @@ def _canonical_digest(value: object) -> str:
 
 
 def test_registration_digest_binds_exact_scientific_semantics() -> None:
-    """Scientific identity includes metric runtime, adapters, and aggregation procedure."""
+    """Scientific identity includes metrics, performance, and aggregation procedure."""
     validator = _validator()
     registration = _registration()
 
@@ -94,7 +113,7 @@ def test_registration_digest_binds_exact_scientific_semantics() -> None:
 
 
 def test_digest_contract_matches_executable_metric_and_aggregation_owners() -> None:
-    """Digest metadata cannot drift from lock, metric, or paired-bootstrap owners."""
+    """Digest metadata cannot drift from metric, performance, or aggregation owners."""
     validator = _validator()
     adapter = load_module(
         "scripts/research/evaluate_structure_segmentation_metrics.py",
@@ -103,6 +122,10 @@ def test_digest_contract_matches_executable_metric_and_aggregation_owners() -> N
     runtime = load_module(
         "scripts/research/verify_structure_metric_runtime_lock.py",
         "structure_metric_runtime_owner_for_registration",
+    )
+    measurement = load_module(
+        "scripts/research/measure_structure_lane_resources.py",
+        "structure_performance_owner_for_registration",
     )
     aggregation = load_module(
         "scripts/research/aggregate_structure_noninferiority.py",
@@ -134,6 +157,9 @@ def test_digest_contract_matches_executable_metric_and_aggregation_owners() -> N
         "frame_size_seconds": adapter.PAIRWISE_FRAME_SIZE_SECONDS,
         "beta": adapter.PAIRWISE_BETA,
     }
+    assert contract["performance_measurement"] == (
+        measurement.PERFORMANCE_MEASUREMENT_CONTRACT
+    )
     assert contract["aggregation_uncertainty"] == (
         aggregation.AGGREGATION_UNCERTAINTY_CONTRACT
     )
