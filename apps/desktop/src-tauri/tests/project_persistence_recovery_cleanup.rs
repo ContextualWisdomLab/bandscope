@@ -51,12 +51,13 @@ mod unix_recovery_cleanup {
         let stage_name = stage.file_name().unwrap().as_bytes().to_vec();
         let journal = prepared_journal_path(&target);
         let record = serde_json::json!({
-            "version": 1,
+            "version": 2,
             "target_name": target_name,
             "candidate_name": stage_name,
             "displaced_name": stage.file_name().unwrap().as_bytes().to_vec(),
             "expected": expected,
             "candidate": candidate_identity,
+            "validation": { "kind": "identity_only" },
         });
         fs::write(&journal, serde_json::to_vec(&record).expect("journal should serialize"))
             .expect("prepared journal should be written");
@@ -154,12 +155,13 @@ mod windows_recovery_cleanup {
             .expect("candidate identity should be capturable");
         let journal = prepared_journal_path(&target);
         let record = serde_json::json!({
-            "version": 1,
+            "version": 2,
             "target_name": journal_name(&target),
             "candidate_name": journal_name(&stage),
             "displaced_name": journal_name(&stage),
             "expected": expected,
             "candidate": candidate_identity,
+            "validation": { "kind": "identity_only" },
         });
         fs::write(&journal, serde_json::to_vec(&record).expect("journal should serialize"))
             .expect("prepared journal should be written");
