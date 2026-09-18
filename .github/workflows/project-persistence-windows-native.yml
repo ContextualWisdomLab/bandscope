@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/crate_root.rs"
       - "apps/desktop/core/src/project_format.rs"
@@ -30,6 +31,7 @@ on:
       - main
     paths:
       - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/crate_root.rs"
       - "apps/desktop/core/src/project_format.rs"
@@ -74,4 +76,4 @@ jobs:
           New-Item -ItemType Directory -Force apps/desktop/dist | Out-Null
           Set-Content -Path apps/desktop/dist/index.html -Value '<!doctype html><title>BandScope test fixture</title>' -NoNewline
       - name: Run Windows recovery-cleanup regression
-        run: cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --tests
+        run: cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --features persistence_warning_gate --tests
