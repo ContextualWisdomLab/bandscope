@@ -252,15 +252,12 @@ pub struct RehearsalCollaborationPayload {
     approvals: Vec<RehearsalApprovalPayload>,
 }
 
-/// Current on-disk project format version, independent of the app version.
-pub const CURRENT_PROJECT_FORMAT_VERSION: u16 = 1;
+/// Historical on-disk project format owned only by the strict v1 compatibility parser.
+const LEGACY_PROJECT_FORMAT_VERSION: u16 = 1;
 
-/// Versioned project envelope. The song remains the compatibility view until
-/// source, derived, decision, handoff, preference, and runtime fields are
-/// promoted into typed sections in a later format version.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ProjectFilePayload {
+struct ProjectFileV1Payload {
     project_format_version: u16,
     song: RehearsalSongPayload,
 }
@@ -299,18 +296,18 @@ pub struct ConfidencePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CuePayload {
+    kind: CueKindPayload,
+    value: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CueKindPayload {
     Lyric,
     Count,
     Transition,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CuePayload {
-    kind: CueKindPayload,
-    value: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -796,7 +793,7 @@ pub fn is_youtube_video_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
 }
 
-pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
+pub(crate) fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayload, String> {
     let payload = serde_json::from_str::<Value>(content)
         .map_err(|_| "Invalid project file format".to_string())?;
 
@@ -804,10 +801,10 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
         let version = version_value
             .as_u64()
             .ok_or_else(|| "Invalid project file format".to_string())?;
-        if version != u64::from(CURRENT_PROJECT_FORMAT_VERSION) {
+        if version != u64::from(LEGACY_PROJECT_FORMAT_VERSION) {
             return Err(format!("Unsupported project format version: {version}"));
         }
-        let envelope = serde_json::from_value::<ProjectFilePayload>(payload)
+        let envelope = serde_json::from_value::<ProjectFileV1Payload>(payload)
             .map_err(|_| "Invalid project file format".to_string())?;
         return Ok(envelope.song);
     }
@@ -830,15 +827,6 @@ pub fn project_payload_from_content(content: &str) -> Result<RehearsalSongPayloa
     }
 
     serde_json::from_value(payload).map_err(|_| "Invalid project file format".to_string())
-}
-
-/// Serialize one validated song into the current versioned project envelope.
-pub fn project_content_for_payload(payload: &RehearsalSongPayload) -> Result<String, String> {
-    serde_json::to_string_pretty(&ProjectFilePayload {
-        project_format_version: CURRENT_PROJECT_FORMAT_VERSION,
-        song: payload.clone(),
-    })
-    .map_err(|_| "Failed to serialize project file format".to_string())
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -1161,17 +1149,20 @@ mod tests {
     }
 
     #[test]
-    fn project_format_v1_round_trips_the_song_and_tempo() {
+    fn project_format_v1_parses_the_song_and_tempo() {
         let mut payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         payload["tempo"] = json!(120.0);
         let song = serde_json::from_value::<RehearsalSongPayload>(payload)
             .expect("song payload should deserialize");
-
-        let content = project_content_for_payload(&song).expect("v1 project should serialize");
+        let content = serde_json::to_string_pretty(&json!({
+            "projectFormatVersion": LEGACY_PROJECT_FORMAT_VERSION,
+            "song": song
+        }))
+        .expect("v1 project fixture should serialize");
         let encoded: Value = serde_json::from_str(&content).expect("v1 project should be JSON");
         assert_eq!(
             encoded["projectFormatVersion"],
-            json!(CURRENT_PROJECT_FORMAT_VERSION)
+            json!(LEGACY_PROJECT_FORMAT_VERSION)
         );
         assert_eq!(encoded["song"]["tempo"], json!(120.0));
 
@@ -1193,7 +1184,7 @@ mod tests {
     fn project_format_rejects_unknown_fields_and_unsupported_versions() {
         let payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         let mut envelope = json!({
-            "projectFormatVersion": CURRENT_PROJECT_FORMAT_VERSION,
+            "projectFormatVersion": LEGACY_PROJECT_FORMAT_VERSION,
             "song": payload
         });
         envelope["unexpected"] = json!(true);
@@ -1205,7 +1196,7 @@ mod tests {
 
         let supported_payload = shared_contract_payload(json!({ "start": 10, "end": 30 }));
         let supported_envelope = json!({
-            "projectFormatVersion": CURRENT_PROJECT_FORMAT_VERSION + 1,
+            "projectFormatVersion": LEGACY_PROJECT_FORMAT_VERSION + 1,
             "song": supported_payload
         });
         assert_eq!(
@@ -1215,7 +1206,7 @@ mod tests {
         );
 
         let future_envelope = json!({
-            "projectFormatVersion": CURRENT_PROJECT_FORMAT_VERSION + 1,
+            "projectFormatVersion": LEGACY_PROJECT_FORMAT_VERSION + 1,
             "futureEnvelopeField": true,
             "song": { "futureSongField": "new schema" }
         });
@@ -1241,7 +1232,7 @@ mod tests {
             project_payload_from_content(
                 &format!(
                     r#"{{"projectFormatVersion":{},"song":{{"id":"song","title":"Song","tempo":1e999,"sections":[],"exportSummary":{{}}}}}}"#,
-                    CURRENT_PROJECT_FORMAT_VERSION
+                    LEGACY_PROJECT_FORMAT_VERSION
                 )
             )
             .is_err(),
