@@ -2,87 +2,92 @@
 
 from __future__ import annotations
 
-import copy
+import hashlib
+import json
 from types import ModuleType
 
 import pytest
 from conftest import load_module
 
-from test_structure_noninferiority_policy import _metrics, _registration
+from test_structure_noninferiority_policy import _registration, _result
 
-_METRIC_LOCK_SHA256 = "16fd203e9c987064afc667282e001b755838ff0b484235c6932f557d2ae389f8"
+_EXPECTED_METRIC_CONTRACT = {
+    "runtime_lock_sha256": (
+        "16fd203e9c987064afc667282e001b755838ff0b484235c6932f557d2ae389f8"
+    ),
+    "boundary_f_0_5": {
+        "implementation": "mir_eval.segment.detection",
+        "window_seconds": 0.5,
+        "beta": 1.0,
+        "trim": True,
+    },
+    "boundary_f_3_0": {
+        "implementation": "mir_eval.segment.detection",
+        "window_seconds": 3.0,
+        "beta": 1.0,
+        "trim": True,
+    },
+    "boundary_deviation": {
+        "implementation": "mir_eval.segment.deviation",
+        "trim": True,
+    },
+    "repetition_pairwise_f": {
+        "implementation": "mir_eval.segment.pairwise",
+        "frame_size_seconds": 0.1,
+        "beta": 1.0,
+    },
+}
 
 
-def _metric_validator() -> ModuleType:
+def _validator() -> ModuleType:
     return load_module(
-        "scripts/research/validate_structure_metric_preregistration.py",
-        "validate_structure_metric_preregistration",
+        "scripts/research/validate_structure_noninferiority.py",
+        "validate_structure_noninferiority_metric_contract",
     )
 
 
-def _exact_registration() -> dict[str, object]:
-    """Return the intended closed metric-runtime and adapter contract."""
+def _canonical_digest(value: object) -> str:
+    payload = json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def test_registration_digest_binds_exact_metric_runtime_and_adapter_semantics() -> None:
+    """Scientific identity includes every reviewed mir_eval argument and lock digest."""
+    validator = _validator()
     registration = _registration()
-    registration["metric_runtime"] = {"lock_sha256": _METRIC_LOCK_SHA256}
-    registration["report_metrics"] = {
-        "boundary_deviation": {
-            "implementation": "mir_eval.segment.deviation",
-            "trim": True,
-        }
-    }
-    metrics = _metrics(registration)
-    boundary_05 = metrics["boundary_f_0_5"]
-    boundary_30 = metrics["boundary_f_3_0"]
-    pairwise = metrics["repetition_pairwise_f"]
-    assert isinstance(boundary_05, dict)
-    assert isinstance(boundary_30, dict)
-    assert isinstance(pairwise, dict)
-    boundary_05.update({"beta": 1.0, "trim": True})
-    boundary_30.update({"beta": 1.0, "trim": True})
-    pairwise["beta"] = 1.0
-    return registration
-
-
-def test_registration_accepts_only_exact_metric_runtime_and_adapter_semantics() -> None:
-    """The digest must bind the exact lock and every result-affecting adapter argument."""
-    validator = _metric_validator()
-    registration = _exact_registration()
 
     validator.validate_registration(registration)
-    expected_digest = validator.registration_digest(registration)
+    expected = _canonical_digest(
+        {
+            "registration": registration,
+            "structure_metric_contract": _EXPECTED_METRIC_CONTRACT,
+        }
+    )
 
-    drifts: list[tuple[str, object]] = [
-        ("metric_runtime", {"lock_sha256": "0" * 64}),
-        (
-            "report_metrics",
-            {
-                "boundary_deviation": {
-                    "implementation": "mir_eval.segment.deviation",
-                    "trim": False,
-                }
-            },
-        ),
-    ]
-    for field, replacement in drifts:
-        drifted = copy.deepcopy(registration)
-        drifted[field] = replacement
-        with pytest.raises(ValueError):
-            validator.validate_registration(drifted)
+    assert validator.STRUCTURE_METRIC_CONTRACT == _EXPECTED_METRIC_CONTRACT
+    assert validator.registration_digest(registration) == expected
+    assert validator.registration_digest(dict(reversed(list(registration.items())))) == expected
 
-    for metric_name, field, replacement in (
-        ("boundary_f_0_5", "beta", 0.5),
-        ("boundary_f_0_5", "trim", False),
-        ("boundary_f_3_0", "beta", 2.0),
-        ("boundary_f_3_0", "trim", False),
-        ("repetition_pairwise_f", "beta", 0.5),
-    ):
-        drifted = copy.deepcopy(registration)
-        metrics = _metrics(drifted)
-        config = metrics[metric_name]
-        assert isinstance(config, dict)
-        config[field] = replacement
-        with pytest.raises(ValueError, match=field):
-            validator.validate_registration(drifted)
 
-    reordered = dict(reversed(list(registration.items())))
-    assert validator.registration_digest(reordered) == expected_digest
+def test_result_rejects_receipt_bound_only_to_the_legacy_registration_digest() -> None:
+    """A receipt cannot omit the metric contract by hashing registration JSON alone."""
+    validator = _validator()
+    registration = _registration()
+    metric_aware_digest = validator.registration_digest(registration)
+    legacy_digest = _canonical_digest(registration)
+
+    with pytest.raises(ValueError, match="metric-aware registration"):
+        validator.evaluate_result(registration, _result(registration, legacy_digest))
+
+    decision = validator.evaluate_result(
+        registration,
+        _result(registration, metric_aware_digest),
+    )
+    assert decision["passed"] is True
+    assert decision["registration_sha256"] == metric_aware_digest
