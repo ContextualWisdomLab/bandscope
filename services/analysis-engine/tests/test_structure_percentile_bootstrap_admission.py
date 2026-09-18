@@ -5,7 +5,11 @@ from __future__ import annotations
 from types import ModuleType
 
 from conftest import load_module
-from test_structure_noninferiority_policy import _registration, _result
+from test_structure_noninferiority_policy import (
+    _refresh_canonical_summary,
+    _registration,
+    _result,
+)
 
 
 def _validator() -> ModuleType:
@@ -16,14 +20,21 @@ def _validator() -> ModuleType:
     )
 
 
-def test_asymmetric_quality_interval_still_fails_registered_noninferiority_margin() -> None:
-    """Removing point containment must not weaken the CI lower-bound decision."""
+def test_canonical_quality_interval_still_fails_registered_noninferiority_margin() -> None:
+    """Receipt binding must preserve the preregistered CI lower-bound decision."""
     validator = _validator()
     registration = _registration()
     result = _result(registration, validator.registration_digest(registration))
-    intervals = result["paired_delta_ci95"]
-    assert isinstance(intervals, dict)
-    intervals["boundary_f_0_5"] = [-0.030, -0.025]
+    tracks = result["tracks"]
+    assert isinstance(tracks, list)
+    for track in tracks:
+        assert isinstance(track, dict)
+        candidate = track["candidate"]
+        assert isinstance(candidate, dict)
+        candidate["boundary_precision_0_5"] = 0.67
+        candidate["boundary_recall_0_5"] = 0.67
+        candidate["boundary_f_0_5"] = 0.67
+    _refresh_canonical_summary(registration, result)
 
     decision = validator.evaluate_result(registration, result)
 
@@ -34,12 +45,19 @@ def test_asymmetric_quality_interval_still_fails_registered_noninferiority_margi
     )
 
 
-def test_asymmetric_latency_interval_still_fails_registered_ratio_threshold() -> None:
-    """The compatibility projection must preserve the original CI upper bound."""
+def test_canonical_latency_interval_still_fails_registered_ratio_threshold() -> None:
+    """Receipt binding must preserve the preregistered latency upper-bound decision."""
     validator = _validator()
     registration = _registration()
     result = _result(registration, validator.registration_digest(registration))
-    result["p95_latency_ratio_ci95"] = [0.81, 0.85]
+    tracks = result["tracks"]
+    assert isinstance(tracks, list)
+    for track in tracks:
+        assert isinstance(track, dict)
+        candidate = track["candidate"]
+        assert isinstance(candidate, dict)
+        candidate["p95_latency_seconds"] = 5.1
+    _refresh_canonical_summary(registration, result)
 
     decision = validator.evaluate_result(registration, result)
 
