@@ -12,7 +12,9 @@ After the successor workflow did materialize, hosted Windows evidence exposed a 
 
 The later migration-recovery journal upgrade exposed a third hosted defect rather than being accepted on source inspection alone. Exact `b1edaf362d837002b833201fadca2a3cf29c4775`, macOS run `35400310428`, job `105778460931`, compiled the real integration suite and failed with Rust `E0061`: `project_persistence_rollback_identity.rs` still called `create_publication_journal` with the old five-argument helper contract after the production journal gained explicit `PublicationValidation`. This was a stale test adapter caused by the owner API evolution. It was repaired directly in the canonical #970 lane rather than skipped or hidden.
 
-The same native log also showed warning debt: the compatibility `runtime_core` still exports an obsolete v1 project serializer alongside the canonical v3 `project_format` owner, and per-test source inclusion makes unrelated Project Persistence symbols appear unused. These warnings are tracked as root-cause work in #1235; this lane does not suppress them with `allow`, `RUSTFLAGS`, output filtering, or test exclusion.
+The same native log also showed warning debt. The compatibility `runtime_core` still carried a public v1 project serializer and a public `CURRENT_PROJECT_FORMAT_VERSION = 1` surface even though canonical writing had moved to the v3 `project_format` owner. In addition, per-test `#[path]`/`include!` source inclusion recompiles the full Project Persistence module into multiple integration-test crates, so symbols unrelated to an individual fixture appear unused. These are root-cause defects, not acceptable diagnostic noise.
+
+The first #1235 repair slice removes the duplicate compatibility writer rather than suppressing its warning. `5c1a26e0ce8945614ea740320492936fff0365eb` deletes the obsolete v1 serializer, makes the historical parser crate-private, renames the compatibility version/envelope as explicit v1-only internals, and converts its unit regression from serializer round-trip to parser admission. `6156d35a5665d19bde7424e2f6cc4f7021aeb963` restores the pre-existing declaration order after that edit and reads the deserialized v1 version field explicitly so the strict compatibility envelope is itself warning-clean. The public current-version writer remains `project_format`; the strict historical parser remains available only to that owner. The per-test source-inclusion warning architecture remains open work under #1235.
 
 ## Decision
 
@@ -27,6 +29,8 @@ The macOS lane remains `.github/workflows/project-persistence-macos.yml` on `mac
 The staged-source durability fixture now reopens the stage with explicit read/write authority before `sync_all`. This matches the authority required for a durable flush on Windows while preserving the same buyer contract: bytes must be durably flushed before the no-replace publication owner is invoked. The repair does not weaken or skip the durability assertion and does not change production publication semantics.
 
 The rollback-identity test adapter now calls the versioned journal owner with `PublicationValidation::IdentityOnly`, matching the ordinary-save behavior that test exists to exercise. It does not fabricate a migration receipt or weaken the new migration-specific recovery contract. Exact descendant `d8edb4a9f6eb422eb7561a763c9692a499dee492` subsequently completed both dedicated Windows and macOS Project Persistence lanes successfully; later heads must reacquire their own verdicts.
+
+Compatibility parsing and current-format serialization now have one-way ownership. `runtime_core` owns only the strict legacy/v1 song parser needed by migration; `project_format` owns current v3 parsing, migration normalization, and serialization. The old compatibility serializer is not retained under a deprecated alias, test-only facade, or warning allowlist. The remaining warning debt is architectural: integration tests must stop compiling a private copy of the entire production persistence source for each fixture.
 
 ## RED / GREEN evidence
 
@@ -62,7 +66,13 @@ Recovery-journal API integration repair:
 - HOSTED RED `b1edaf362d837002b833201fadca2a3cf29c4775`, macOS run `35400310428`, job `105778460931`: the integration build failed with `E0061` in `project_persistence_rollback_identity.rs` because its test wrapper still called `create_publication_journal` without the new `PublicationValidation` argument.
 - GREEN SOURCE `d8edb4a9f6eb422eb7561a763c9692a499dee492` updates only the stale test wrapper to pass `PublicationValidation::IdentityOnly`, preserving the rollback-identity test's ordinary-save semantics.
 - Exact `d8edb4a9f6eb422eb7561a763c9692a499dee492` completed `test / project-persistence / macos` and `test / project-persistence / windows` successfully. General CI/security/SBOM/SAST/build checks and independent review remain separate gates.
-- Warning debt observed in the same hosted lane is tracked by #1235 and is not treated as acceptable native-output noise.
+
+Compatibility-writer warning repair:
+
+- FINDING `#1235`: native logs show the obsolete `runtime_core::project_content_for_payload` current-writer surface is not consumed because v3 `project_format` is the canonical writer. The same compatibility module also exposes a misleading public current-version constant fixed at v1.
+- GREEN SOURCE `5c1a26e0ce8945614ea740320492936fff0365eb`: removes the obsolete v1 serializer, replaces the public current-version surface with private `LEGACY_PROJECT_FORMAT_VERSION`, narrows the v1 envelope and parser to compatibility ownership, and preserves parser coverage without generating historical bytes through a second production writer.
+- GREEN HYGIENE `6156d35a5665d19bde7424e2f6cc4f7021aeb963`: consumes the deserialized v1 version field explicitly and removes incidental declaration-order churn from the first edit. No warning suppression or gate change is introduced.
+- Remaining #1235 work is the per-test source-inclusion architecture. Warning-free native output is not claimed until that owner boundary is repaired and exact-head Windows/macOS logs prove it.
 
 Hosted success must be read from the exact descendant head containing the complete lineage. Source configuration or a predecessor run alone is not terminal GREEN.
 
@@ -70,7 +80,7 @@ Hosted success must be read from the exact descendant head containing the comple
 
 Relying on `build-baseline` alone was rejected because a successful native application build does not execute the Project Persistence integration tests or prove platform-specific rollback behavior.
 
-Treating an earlier platform run as evidence for a later head was rejected because the repository's release and review policy is exact-head based. No-op commits solely to retrigger Actions were also rejected; each commit in this repair changes a test, trigger contract, workflow identity, or traceability contract.
+Treating an earlier platform run as evidence for a later head was rejected because the repository's release and review policy is exact-head based. No-op commits solely to retrigger Actions were also rejected; each commit in this repair changes a test, trigger contract, workflow identity, ownership boundary, or traceability contract.
 
 Keeping both Windows workflow files was rejected because it would create duplicate source owners and could produce ambiguous or duplicate check evidence.
 
@@ -82,10 +92,12 @@ Skipping or `cfg`-excluding the failing durability test on Windows was rejected 
 
 Leaving the rollback helper on its old signature through a test-only overload or default parameter was rejected. The test adapter is part of the executable owner contract and must state whether it is exercising ordinary identity-only publication or receipt-bound migration. `IdentityOnly` is explicit because this regression tests rollback artifact identity, not migration evidence.
 
-Suppressing the Rust warnings was rejected. #1235 owns root-cause removal of the obsolete compatibility serializer/version surface and the per-test source-inclusion warning pattern; native lanes stay diagnostic rather than being made artificially quiet.
+Keeping the v1 serializer under a deprecated alias, a `#[cfg(test)]` branch, or an artificial reference was rejected. Those approaches make `dead_code` quiet while retaining a second writer and a misleading v1 “current” surface. The compatibility boundary now parses historical input only; current output stays with `project_format`.
+
+Suppressing the Rust warnings was rejected. #1235 owns root-cause removal of both the duplicate compatibility writer and the per-test source-inclusion warning pattern; native lanes stay diagnostic rather than being made artificially quiet.
 
 ## Claim boundary
 
 These workflows provide native integration-test execution on hosted Windows and macOS runners. The Windows fixture repair proves only that the durability precondition is expressed with cross-platform-correct handle authority, and the recovery-helper repair proves that the executable test adapter matches the versioned journal contract. Every semantic descendant must obtain its own terminal native evidence.
 
-The lanes are not packaged power-loss, disk-full, permission-failure, signing/notarization, or updater-rollback evidence. Those buyer-facing fault-injection and release gates remain open under #962. Warning-free native output is also not yet claimed; #1235 remains open until the duplicate compatibility surface and test-module warning architecture are repaired without suppression.
+The compatibility-writer slice establishes a single current-format serialization owner and retains only strict historical parsing in `runtime_core`. It does not yet establish warning-free native output because the per-test source-inclusion architecture remains. The lanes are also not packaged power-loss, disk-full, permission-failure, signing/notarization, or updater-rollback evidence. Those buyer-facing fault-injection and release gates remain open under #962.
