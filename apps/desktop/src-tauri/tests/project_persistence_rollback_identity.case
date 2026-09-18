@@ -1,6 +1,6 @@
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod rollback_identity {
-    use super::project_persistence;
+    use crate::project_persistence;
     use std::{
         fs,
         path::PathBuf,
@@ -25,9 +25,9 @@ mod rollback_identity {
         let root = test_dir("foreign-stage");
         let target = root.join("setlist.bscope");
         let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
-        let original = br#"{"id":"original"}"#;
-        let candidate = br#"{"id":"candidate"}"#;
-        let foreign = br#"{"id":"foreign-racer"}"#;
+        let original = br#"{\"id\":\"original\"}"#;
+        let candidate = br#"{\"id\":\"candidate\"}"#;
+        let foreign = br#"{\"id\":\"foreign-racer\"}"#;
         fs::write(&target, original).expect("original fixture should be written");
         fs::write(&stage, candidate).expect("candidate fixture should be written");
 
