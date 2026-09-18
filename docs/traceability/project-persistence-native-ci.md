@@ -16,19 +16,19 @@ The consolidation removed that multiplication, but exact predecessor `522ef9036a
 
 ## Decision
 
-Windows and macOS Project Persistence workflows are owner evidence, not optional packaging smoke tests. They remain read-only (`contents: read`), use the repository-pinned checkout SHA, Rust 1.97.1, and execute:
+Windows and macOS Project Persistence workflows are owner evidence, not optional packaging smoke tests. They remain read-only (`contents: read`), use the repository-pinned checkout SHA and Rust 1.97.1, and execute the same native test command with the owner-scoped warning feature enabled:
 
-`cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --tests`
+`cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --features persistence_warning_gate --tests`
 
-The Windows owner is `.github/workflows/project-persistence-windows-native.yml`; the legacy Windows workflow file is absent. The macOS owner is `.github/workflows/project-persistence-macos.yml`. Both workflows track the direct persistence source, core project-format contracts and fixtures, native test inputs, workflow-policy regression, and this traceability document.
+The Windows owner is `.github/workflows/project-persistence-windows-native.yml`; the legacy Windows workflow file is absent. The macOS owner is `.github/workflows/project-persistence-macos.yml`. Both workflows track the direct persistence source, the core crate root that owns the warning gate, core project-format contracts and fixtures, native test inputs, workflow-policy regression, and this traceability document.
 
 The warning-debt repair keeps canonical ownership narrow. `runtime_core` parses strict historical/v1 input only; `project_format` owns current v3 parsing, migration normalization, and serialization. No deprecated duplicate writer, fake reference, lint allowlist, broad `RUSTFLAGS`, log filtering, test skip, or gate reduction is used.
 
 For native integration tests, the production persistence owner is included once in `apps/desktop/src-tauri/tests/project_persistence.rs`. Case bodies live in `project_persistence_*.case` modules so Cargo does not auto-discover each as a separate integration crate. `project_load.rs` and `project_root.rs` are likewise included once where those cases need the private application boundary. The rollback regression’s access to private journal helpers remains a test-only adapter inside the same included persistence module; production visibility is not widened.
 
-The workflows and `test_project_persistence_workflow_policy.py` track both `project_persistence*.rs` and `project_persistence*.case`, so changing a case cannot silently bypass exact-head native evidence.
+The source boundary matches platform and production use. `trusted_macos_root_alias_target` exists only on macOS, where the trusted-root alias policy and its native case consume it. The legacy String-only `read_project_file` projection is explicitly `#[cfg(test)]`; production project loads remain on `read_project_file_with_identity`, while the generic injected-opener helper continues to serve bounded recovery-journal reads and TOCTOU regressions.
 
-The source boundary now matches platform and production use. `trusted_macos_root_alias_target` exists only on macOS, where the trusted-root alias policy and its native case actually consume it. The legacy String-only `read_project_file` projection is explicitly `#[cfg(test)]`; production project loads remain on `read_project_file_with_identity`, while the generic injected-opener helper continues to serve bounded recovery-journal reads and TOCTOU regressions. This narrows dead code rather than adding a fake call.
+Warning absence is enforced at compile time rather than inferred from text logs. The opt-in Cargo feature `persistence_warning_gate` propagates from `bandscope-desktop` to `bandscope-desktop-core`. Under that feature, the GUI-independent core crate root and the single Project Persistence integration harness apply `deny(warnings)`. This covers the two owned compilation boundaries that produced #1235 findings while leaving third-party dependency lint levels unchanged. The native workflow-policy regression rejects a missing feature invocation and also rejects `RUSTFLAGS` or grep-based warning gates.
 
 ## RED / GREEN evidence
 
@@ -68,17 +68,25 @@ The source boundary now matches platform and production use. `trusted_macos_root
 
 ### #1235 platform/test ownership cleanup
 
-- HOSTED FINDING at exact `522ef9036a7b0b1a90ee1a9234a23298a0f42303`, Windows run `35405419970`, job `105794080572`: the consolidated harness is functionally GREEN (`46 passed`, 0 failed), but rustc reports `trusted_macos_root_alias_target` unused in both the Windows integration/test build and binary test build, plus production `read_project_file` unused in the binary. This is the final source-shape evidence used for the next repair; a passing test verdict is not treated as warning-free evidence.
+- HOSTED FINDING at exact `522ef9036a7b0b1a90ee1a9234a23298a0f42303`, Windows run `35405419970`, job `105794080572`: the consolidated harness is functionally GREEN (`46 passed`, 0 failed), but rustc reports `trusted_macos_root_alias_target` unused in both the Windows integration/test build and binary test build, plus production `read_project_file` unused in the binary. A passing test verdict is not treated as warning-free evidence.
 - GREEN SOURCE `b947e559ff32bf50476d808b870692f68401f74c`: narrows `trusted_macos_root_alias_target` from `cfg(any(target_os = "macos", test))` to macOS only and scopes the String-only `read_project_file` projection to `cfg(test)`. Identity-bearing production load, publication, migration and recovery logic are unchanged.
-- EXACT-HEAD VERDICT: pending. Windows/macOS native workflows for `b947e559...` must both finish and their logs must be inspected before warning-free status is claimed or #1235 is closed.
+- HOSTED WARNING-CLEAN EVIDENCE for `b947e559...`: Windows run `35406483645`, job `105797186346`, succeeds with the consolidated 46-case Project Persistence target; macOS run `35406483687`, job `105797186480`, succeeds with the 58-case Project Persistence target. The inspected rustc/cargo output contains no `warning:` diagnostics. This proves the source cleanup on that exact predecessor, but it is not transferred as the final verdict for later semantic descendants.
 
-Every semantic descendant must reacquire its own hosted verdict. A successful predecessor is lineage evidence only.
+### #1235 compile-time warning enforcement
+
+- RED `29e52d88952ae5dae37f3a1a0216d89db4f73c1c`: workflow-policy regression requires an explicit owner warning-gate feature and compile-time warning denial without `RUSTFLAGS` or grep-based filtering. The then-current workflows/manifests do not satisfy it.
+- GREEN CORE FEATURE `a2d8c74b5e7862b42381dbe24c5bfe3c3a659c31` + `e0ead7d5ed05ed82d337ceee59914d0f0da1b130`: defines `bandscope-desktop-core/persistence_warning_gate` and applies `deny(warnings)` at the GUI-independent core crate root only when that gate is active.
+- GREEN DESKTOP FEATURE `61aca5c27cd9bf78dcf8ed2422cf57484c9ae842`: propagates the opt-in feature from the Tauri crate to the core crate.
+- GREEN HARNESS `a3861a0e40934429475e6452d00b60023d4ba928`: applies the same feature-gated `deny(warnings)` to the single Project Persistence integration harness; production visibility is unchanged.
+- GREEN POLICY SCOPE `9b2b8548f1aca5c9635c69dea9f9cf0c81198299` + `14e54bcc974609a46aff9cad9c2b2f4f44fd7e3c`: narrows the policy to the owned core + persistence harness boundaries and requires the core `root.rs` to be a native workflow trigger input.
+- GREEN WINDOWS `2f1d4c7a0ad07c736caf1eebed603cda3a513e16` and GREEN macOS `bb832ae049abacedbbf000b4ed7d508f5b929e02`: both native workflows invoke `--features persistence_warning_gate`, track `core/src/root.rs`, and retain the same real native test suite. No global/dependency `RUSTFLAGS` or output filtering is introduced.
+- EXACT-HEAD VERDICT: every semantic/document descendant must reacquire both native owner results under the compile-time warning gate before #1235 can be considered complete.
 
 ## Rejected alternatives
 
 `build-baseline` alone is insufficient because it does not execute platform-specific persistence/recovery tests.
 
-Predecessor check results are not transferred to a later source head. No-op commits used only to retrigger Actions are also rejected; every commit here changes a test, trigger, workflow identity, ownership boundary, or traceability contract.
+Predecessor check results are not transferred to a later source head. No-op commits used only to retrigger Actions are rejected; every commit here changes a test, trigger, workflow identity, ownership boundary, warning gate, or traceability contract.
 
 Keeping both Windows workflow files is rejected because it creates duplicate evidence owners. Describing the old workflow as disabled is rejected because the available evidence proves only repeated non-materialization, not the backend cause.
 
@@ -92,10 +100,12 @@ Generating copied test source with a build script/codemod is rejected because it
 
 Keeping the macOS alias helper alive on Windows merely because `cfg(test)` is set is rejected; the mapping is a macOS policy and has no Windows semantic consumer. Keeping the String-only reader in production merely to silence diagnostics is also rejected; production migration authority is intentionally identity-bearing.
 
+`RUSTFLAGS=-Dwarnings` is rejected because it is process-global to the Cargo invocation and also changes dependency compilation. Grep/log parsing is rejected because it treats rendered output as the contract. The feature-gated crate/harness attributes make warning absence a Rust compile-time property of the owned Project Persistence boundaries instead.
+
 ## Claim boundary
 
 Dedicated native Windows/macOS success proves only that the relevant integration suite compiles and passes on those hosted platforms for the exact head tested. It does not prove packaged process-kill, disk-full, permission-failure, power-loss, signing/notarization, updater rollback, or release immutability.
 
-The single-harness repair proves that Project Persistence integration cases no longer each compile their own copy of the production persistence source. Exact `b947e559...` is not yet claimed warning-free until both native owner logs terminate and are checked for compiler warnings.
+The single-harness repair proves that Project Persistence integration cases no longer each compile their own copy of the production persistence source. The feature-gated warning policy proves that owned core/harness warnings become compile errors when the native owner workflows run; it does not claim that third-party dependencies are warning-free.
 
 General CI, security/SAST, SBOM, build-baseline, protected ancestry, Resource Admission #866 integration, and independent current-head review remain separate gates. No Ready transition, merge, tag, signing, or release is authorized solely by this document or by a predecessor native run.
