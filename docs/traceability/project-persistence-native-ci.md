@@ -12,6 +12,8 @@ A later migration-recovery change exposed a second hosted integration defect. Ex
 
 Native logs then exposed warning debt under #1235. The first root cause was semantic: compatibility `runtime_core` still carried a v1 project serializer and a public `CURRENT_PROJECT_FORMAT_VERSION = 1` surface after canonical current writing had moved to v3 `project_format`. The second root cause was test architecture: thirteen Project Persistence integration targets each `#[path]`-compiled or `include!`-compiled the complete private `project_persistence.rs`, and some separately compiled `project_load.rs` or `project_root.rs`. That multiplied unrelated `dead_code` diagnostics and re-ran the embedded `#[cfg(test)]` persistence tests in each integration crate.
 
+The consolidation removed that multiplication, but exact predecessor `522ef9036a7b0b1a90ee1a9234a23298a0f42303` still exposed two genuine warning owners on Windows run `35405419970`, job `105794080572`: `trusted_macos_root_alias_target` was compiled on Windows only because generic `test` was part of its source gate, and `read_project_file` remained a production String-only projection after migrate-on-load had moved to the identity-bearing reader.
+
 ## Decision
 
 Windows and macOS Project Persistence workflows are owner evidence, not optional packaging smoke tests. They remain read-only (`contents: read`), use the repository-pinned checkout SHA, Rust 1.97.1, and execute:
@@ -20,18 +22,13 @@ Windows and macOS Project Persistence workflows are owner evidence, not optional
 
 The Windows owner is `.github/workflows/project-persistence-windows-native.yml`; the legacy Windows workflow file is absent. The macOS owner is `.github/workflows/project-persistence-macos.yml`. Both workflows track the direct persistence source, core project-format contracts and fixtures, native test inputs, workflow-policy regression, and this traceability document.
 
-The warning-debt repair keeps canonical ownership narrow. `runtime_core` parses strict historical/v1 input only; `project_format` owns current v3 parsing, migration normalization, and serialization. No deprecated duplicate writer, fake reference, lint allowlist, `RUSTFLAGS` filter, log filter, test skip, or gate reduction is used.
+The warning-debt repair keeps canonical ownership narrow. `runtime_core` parses strict historical/v1 input only; `project_format` owns current v3 parsing, migration normalization, and serialization. No deprecated duplicate writer, fake reference, lint allowlist, broad `RUSTFLAGS`, log filtering, test skip, or gate reduction is used.
 
-For native integration tests, the production persistence owner is now included once in `apps/desktop/src-tauri/tests/project_persistence.rs`. Case bodies live in `project_persistence_*.case` modules so Cargo does not auto-discover each as a separate integration crate. `project_load.rs` and `project_root.rs` are likewise included once where those cases need the private application boundary. The rollback regression’s access to private journal helpers remains a test-only adapter inside the same included persistence module; production visibility is not widened.
+For native integration tests, the production persistence owner is included once in `apps/desktop/src-tauri/tests/project_persistence.rs`. Case bodies live in `project_persistence_*.case` modules so Cargo does not auto-discover each as a separate integration crate. `project_load.rs` and `project_root.rs` are likewise included once where those cases need the private application boundary. The rollback regression’s access to private journal helpers remains a test-only adapter inside the same included persistence module; production visibility is not widened.
 
 The workflows and `test_project_persistence_workflow_policy.py` track both `project_persistence*.rs` and `project_persistence*.case`, so changing a case cannot silently bypass exact-head native evidence.
 
-This single-harness change intentionally does not pretend that an integration crate and the production binary are one compilation unit. Hosted logs on exact `92136baa8538a68a527be863ec3c9606256f77ac` proved that the previous per-case multiplication is gone: macOS executed one consolidated `tests/project_persistence.rs` target containing 57 Project Persistence cases. The same log also identified two residual warnings rather than hiding them:
-
-- `publish_synced_file_noreplace` was unused only in the consolidated integration harness even though it is a production owner surface.
-- `read_project_file` was unused in the production binary because migrate-on-load now uses `read_project_file_with_identity`; the String-only compatibility projection remains test-only in practice but is still compiled as production code.
-
-The first residual warning is addressed by `2b0d5d9670b7b6906d469ba96b12d0a7386a77b0`, which adds a real integration regression through the production `publish_synced_file_noreplace` wrapper. The test durably flushes a staged source, invokes the actual wrapper, then verifies exact target bytes and stage-name retirement. This is behavioral coverage, not an artificial symbol reference. The `read_project_file` production-warning root remains open under #1235 and must be removed or scoped honestly to test-only compatibility without suppressing diagnostics.
+The source boundary now matches platform and production use. `trusted_macos_root_alias_target` exists only on macOS, where the trusted-root alias policy and its native case actually consume it. The legacy String-only `read_project_file` projection is explicitly `#[cfg(test)]`; production project loads remain on `read_project_file_with_identity`, while the generic injected-opener helper continues to serve bounded recovery-journal reads and TOCTOU regressions. This narrows dead code rather than adding a fake call.
 
 ## RED / GREEN evidence
 
@@ -66,8 +63,14 @@ The first residual warning is addressed by `2b0d5d9670b7b6906d469ba96b12d0a7386a
 - GREEN CI CONTRACT `582ec084cf56838d1d2a06048cef716b03ee2796`: Windows/macOS workflows and policy regression track the new `.case` inputs.
 - HOSTED RED `582ec084...`, macOS native job `105791463150`: the real consolidated harness fails with `E0432` because the nested rollback case imported `super::project_persistence`; after consolidation its immediate parent is the case module, not the integration crate.
 - GREEN SOURCE `92136baa8538a68a527be863ec3c9606256f77ac`: changes only that case import to `crate::project_persistence`.
-- HOSTED GREEN for structural repair: exact `92136baa...` macOS run `35404731489` and Windows run `35404731472` both complete successfully. macOS runs a single consolidated `tests/project_persistence.rs` target with 57 passing Project Persistence cases, while its log still reports the two residual warnings described above. This proves test consolidation, not warning-free production.
-- GREEN COVERAGE `2b0d5d9670b7b6906d469ba96b12d0a7386a77b0`: exercises the real `publish_synced_file_noreplace` production wrapper through a durably flushed stage and native no-replace publication, addressing the harness-only unused-symbol diagnostic without a fake reference.
+- HOSTED GREEN for structural repair: exact `92136baa...` macOS run `35404731489` and Windows run `35404731472` both complete successfully. macOS runs one consolidated `tests/project_persistence.rs` target with 57 passing Project Persistence cases. This proves test consolidation, not warning-free production.
+- GREEN COVERAGE `2b0d5d9670b7b6906d469ba96b12d0a7386a77b0`: exercises the real `publish_synced_file_noreplace` production wrapper through a durably flushed stage and native no-replace publication, removing the harness-only unused-symbol cause with behavioral coverage rather than an artificial symbol reference.
+
+### #1235 platform/test ownership cleanup
+
+- HOSTED FINDING at exact `522ef9036a7b0b1a90ee1a9234a23298a0f42303`, Windows run `35405419970`, job `105794080572`: the consolidated harness is functionally GREEN (`46 passed`, 0 failed), but rustc reports `trusted_macos_root_alias_target` unused in both the Windows integration/test build and binary test build, plus production `read_project_file` unused in the binary. This is the final source-shape evidence used for the next repair; a passing test verdict is not treated as warning-free evidence.
+- GREEN SOURCE `b947e559ff32bf50476d808b870692f68401f74c`: narrows `trusted_macos_root_alias_target` from `cfg(any(target_os = "macos", test))` to macOS only and scopes the String-only `read_project_file` projection to `cfg(test)`. Identity-bearing production load, publication, migration and recovery logic are unchanged.
+- EXACT-HEAD VERDICT: pending. Windows/macOS native workflows for `b947e559...` must both finish and their logs must be inspected before warning-free status is claimed or #1235 is closed.
 
 Every semantic descendant must reacquire its own hosted verdict. A successful predecessor is lineage evidence only.
 
@@ -87,12 +90,12 @@ Making private Project Persistence capabilities broadly `pub` for integration te
 
 Generating copied test source with a build script/codemod is rejected because it creates a self-modifying/source-copy workflow and another mutable representation of the owner.
 
-The consolidated harness is not treated as permission to leave genuine production dead code. The remaining `read_project_file` warning represents a compatibility surface that no production path consumes after identity-bound migrate-on-load. It stays an explicit #1235 repair finding until the source boundary is narrowed or removed with its tests migrated to the identity-bearing reader.
+Keeping the macOS alias helper alive on Windows merely because `cfg(test)` is set is rejected; the mapping is a macOS policy and has no Windows semantic consumer. Keeping the String-only reader in production merely to silence diagnostics is also rejected; production migration authority is intentionally identity-bearing.
 
 ## Claim boundary
 
 Dedicated native Windows/macOS success proves only that the relevant integration suite compiles and passes on those hosted platforms for the exact head tested. It does not prove packaged process-kill, disk-full, permission-failure, power-loss, signing/notarization, updater rollback, or release immutability.
 
-The single-harness repair proves that Project Persistence integration cases no longer each compile their own copy of the production persistence source. It does **not** yet prove warning-free native output: exact `92136baa...` still reports the genuine production `read_project_file` dead-code finding, and the new `2b0d5d...` coverage change must obtain its own exact-head native verdict.
+The single-harness repair proves that Project Persistence integration cases no longer each compile their own copy of the production persistence source. Exact `b947e559...` is not yet claimed warning-free until both native owner logs terminate and are checked for compiler warnings.
 
 General CI, security/SAST, SBOM, build-baseline, protected ancestry, Resource Admission #866 integration, and independent current-head review remain separate gates. No Ready transition, merge, tag, signing, or release is authorized solely by this document or by a predecessor native run.
