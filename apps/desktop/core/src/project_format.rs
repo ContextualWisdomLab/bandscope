@@ -6,8 +6,11 @@
 //! song parser remains the migration authority for historical inputs; this
 //! module owns the current envelope presented to external crate consumers.
 
+use std::io::Cursor;
+
 use crate::{
     audio_resource::MAX_LOCAL_AUDIO_FILE_BYTES,
+    content_sha256::sha256_hex_reader,
     core::{
         is_valid_project_id, project_payload_from_content as project_v1_payload_from_content,
         RehearsalSongPayload, AUDIO_EXTENSIONS,
@@ -91,6 +94,27 @@ pub struct ProjectDocumentPayload {
     /// this absent rather than inventing source authority.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_reference: Option<ProjectSourceReferencePayload>,
+}
+
+/// Content-addressed evidence for one deterministic project-format admission.
+///
+/// `source_format_version` is `None` only for the historical unversioned raw
+/// song shape. A current v3 input still receives a receipt with `migrated =
+/// false`; its output digest identifies the canonical v3 serialization used by
+/// the migration boundary rather than preserving incidental input whitespace.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectMigrationReceipt {
+    /// Historical source version, or `None` for the unversioned legacy shape.
+    pub source_format_version: Option<u16>,
+    /// Current format version produced by this migration boundary.
+    pub target_format_version: u16,
+    /// SHA-256 of the exact input project bytes presented to the parser.
+    pub input_sha256: String,
+    /// SHA-256 of the deterministic current-version serialization.
+    pub output_sha256: String,
+    /// Whether the admitted input required a historical-format migration.
+    pub migrated: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -191,6 +215,77 @@ pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayloa
     validate_document(document)
 }
 
+fn parse_project_document(
+    content: &str,
+) -> Result<(ProjectDocumentPayload, Option<u16>), String> {
+    let root = serde_json::from_str::<Value>(content)
+        .map_err(|_| "Invalid project file format".to_string())?;
+
+    let Some(version_value) = root.get("projectFormatVersion") else {
+        let song = project_v1_payload_from_content(content)?;
+        return Ok((
+            ProjectDocumentPayload {
+                song,
+                preferences: ProjectPreferencesPayload::default(),
+                source_reference: None,
+            },
+            None,
+        ));
+    };
+
+    let version = version_value
+        .as_u64()
+        .ok_or_else(|| "Invalid project file format".to_string())?;
+
+    match version {
+        1 => {
+            let song = project_v1_payload_from_content(content)?;
+            Ok((
+                ProjectDocumentPayload {
+                    song,
+                    preferences: ProjectPreferencesPayload::default(),
+                    source_reference: None,
+                },
+                Some(1),
+            ))
+        }
+        2 => {
+            let envelope = serde_json::from_value::<ProjectFileV2Payload>(root)
+                .map_err(|_| "Invalid project file format".to_string())?;
+            if envelope.project_format_version != 2 {
+                return Err(unsupported_version(u64::from(
+                    envelope.project_format_version,
+                )));
+            }
+            Ok((
+                ProjectDocumentPayload {
+                    song: envelope.song,
+                    preferences: envelope.preferences,
+                    source_reference: None,
+                },
+                Some(2),
+            ))
+        }
+        3 => {
+            let envelope = serde_json::from_value::<ProjectFileV3Payload>(root)
+                .map_err(|_| "Invalid project file format".to_string())?;
+            if envelope.project_format_version != CURRENT_PROJECT_FORMAT_VERSION {
+                return Err(unsupported_version(u64::from(
+                    envelope.project_format_version,
+                )));
+            }
+            let document = validate_document(ProjectDocumentPayload {
+                song: envelope.song,
+                preferences: envelope.preferences,
+                source_reference: envelope.source_reference,
+            })
+            .map_err(|_| "Invalid project file format".to_string())?;
+            Ok((document, Some(CURRENT_PROJECT_FORMAT_VERSION)))
+        }
+        _ => Err(unsupported_version(version)),
+    }
+}
+
 /// Parse a current, v2, v1, or legacy project into the current typed document.
 ///
 /// Security Notes: `.bscope` bytes are untrusted input. Versions 2 and 3 use
@@ -204,62 +299,37 @@ pub fn project_document_from_value(value: Value) -> Result<ProjectDocumentPayloa
 /// invented source reference. Unsupported versions fail before their body is
 /// interpreted as current truth.
 pub fn project_document_from_content(content: &str) -> Result<ProjectDocumentPayload, String> {
-    let root = serde_json::from_str::<Value>(content)
-        .map_err(|_| "Invalid project file format".to_string())?;
+    parse_project_document(content).map(|(document, _)| document)
+}
 
-    let Some(version_value) = root.get("projectFormatVersion") else {
-        let song = project_v1_payload_from_content(content)?;
-        return Ok(ProjectDocumentPayload {
-            song,
-            preferences: ProjectPreferencesPayload::default(),
-            source_reference: None,
-        });
-    };
+/// Parse and normalize a project while producing deterministic migration evidence.
+///
+/// The input hash binds the exact bytes supplied by the caller. The output hash
+/// binds the canonical v3 serialization of the admitted typed document. Re-running
+/// this function on that canonical output produces the same output digest and a
+/// `migrated = false` receipt, which makes migration idempotency machine-checkable
+/// without persisting filesystem paths or raw project content in diagnostics.
+pub fn project_document_with_migration_receipt(
+    content: &str,
+) -> Result<(ProjectDocumentPayload, ProjectMigrationReceipt), String> {
+    let input_sha256 = sha256_hex_reader(Cursor::new(content.as_bytes()))
+        .map_err(|_| "Could not compute project migration receipt".to_string())?;
+    let (document, source_format_version) = parse_project_document(content)?;
+    let normalized = project_content_for_document(&document)?;
+    let output_sha256 = sha256_hex_reader(Cursor::new(normalized.as_bytes()))
+        .map_err(|_| "Could not compute project migration receipt".to_string())?;
+    let migrated = source_format_version != Some(CURRENT_PROJECT_FORMAT_VERSION);
 
-    let version = version_value
-        .as_u64()
-        .ok_or_else(|| "Invalid project file format".to_string())?;
-
-    match version {
-        1 => {
-            let song = project_v1_payload_from_content(content)?;
-            Ok(ProjectDocumentPayload {
-                song,
-                preferences: ProjectPreferencesPayload::default(),
-                source_reference: None,
-            })
-        }
-        2 => {
-            let envelope = serde_json::from_value::<ProjectFileV2Payload>(root)
-                .map_err(|_| "Invalid project file format".to_string())?;
-            if envelope.project_format_version != 2 {
-                return Err(unsupported_version(u64::from(
-                    envelope.project_format_version,
-                )));
-            }
-            Ok(ProjectDocumentPayload {
-                song: envelope.song,
-                preferences: envelope.preferences,
-                source_reference: None,
-            })
-        }
-        3 => {
-            let envelope = serde_json::from_value::<ProjectFileV3Payload>(root)
-                .map_err(|_| "Invalid project file format".to_string())?;
-            if envelope.project_format_version != CURRENT_PROJECT_FORMAT_VERSION {
-                return Err(unsupported_version(u64::from(
-                    envelope.project_format_version,
-                )));
-            }
-            validate_document(ProjectDocumentPayload {
-                song: envelope.song,
-                preferences: envelope.preferences,
-                source_reference: envelope.source_reference,
-            })
-            .map_err(|_| "Invalid project file format".to_string())
-        }
-        _ => Err(unsupported_version(version)),
-    }
+    Ok((
+        document,
+        ProjectMigrationReceipt {
+            source_format_version,
+            target_format_version: CURRENT_PROJECT_FORMAT_VERSION,
+            input_sha256,
+            output_sha256,
+            migrated,
+        },
+    ))
 }
 
 /// Compatibility view for callers that currently consume only the song.
