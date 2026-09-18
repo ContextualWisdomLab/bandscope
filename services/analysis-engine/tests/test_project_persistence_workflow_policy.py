@@ -9,6 +9,7 @@ LEGACY_WINDOWS_WORKFLOW = "project-persistence-windows.yml"
 WARNING_GATE_FEATURE = "persistence_warning_gate"
 REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
+    '"apps/desktop/core/src/root.rs"',
     '"apps/desktop/core/src/lib.rs"',
     '"apps/desktop/core/src/crate_root.rs"',
     '"apps/desktop/core/src/project_format.rs"',
