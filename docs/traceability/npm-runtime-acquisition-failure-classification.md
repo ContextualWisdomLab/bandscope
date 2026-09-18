@@ -8,6 +8,8 @@ PR #1232 exposed a real `ETIMEDOUT` while Corepack acquired the repository-pinne
 
 That blacklist leaves a fail-open classification boundary: a future or differently worded trust/provenance failure would be retried merely because BandScope did not recognize its text. Retryability must be positively established instead. Unknown acquisition failures are not evidence of a transient transport condition.
 
+Fresh workflow review also found a second ownership defect after the helper existed: the four native `build-baseline` jobs used the canonical activation helper, while the exact-minimum Node 22.22.2 compatibility lane still invoked `corepack enable npm` inline and then triggered package-manager resolution through `npm --version`. That bypass meant the same repository-pinned npm provenance contract had two acquisition behaviors. A timeout in the minimum-version lane could still fail at the old unbounded boundary, and future changes to the helper's trust classification would not automatically apply there.
+
 ## Constraints
 
 - `npm@10.9.9` remains the only accepted package-manager runtime for this owner branch.
@@ -16,6 +18,7 @@ That blacklist leaves a fail-open classification boundary: a future or different
 - The hosted incident actually observed `ETIMEDOUT`; this is the only transient diagnostic admitted by the current policy.
 - The admitted timeout path is limited to three attempts with 5 s / 10 s backoff.
 - Any unclassified Corepack failure must stop before `corepack enable npm`, `npm run check:npm-runtime`, or `npm ci` can execute.
+- Every repository workflow that consumes Node dependencies under this owner must use the same activation helper immediately before its first `npm ci`; workflow-local Corepack activation is not a second owner implementation.
 - Error classification remains diagnostic-based because the current Corepack command boundary does not expose a stable machine-readable failure taxonomy to this script.
 
 ## Decision
@@ -23,6 +26,8 @@ That blacklist leaves a fail-open classification boundary: a future or different
 `scripts/checks/activate_pinned_npm_runtime.sh` captures and preserves Corepack's failing diagnostic. It retries only when that diagnostic contains the observed transient error code `ETIMEDOUT`. Every other non-zero acquisition result fails immediately as **not classified as transient**.
 
 This makes signature/integrity failures fail closed without depending on an exhaustive list of current or future Corepack wording. The helper does not disable Corepack verification, alter `COREPACK_INTEGRITY_KEYS`, select another npm version, or guess that an unknown failure is a network event.
+
+The helper is also the single workflow-level activation path for the four native `build-baseline` npm consumers and the exact-minimum Node 22.22.2 compatibility consumer. Each lane calls the helper immediately before its frozen `npm ci`. The minimum-version lane no longer keeps a workflow-local `corepack enable npm` plus separate `npm --version` verification path because the helper already performs exact runtime and bundled-`tar` verification before dependency extraction.
 
 The retry allowlist is intentionally narrow. Additional error codes such as connection reset, DNS retry, or HTTP/server failures must not be admitted from intuition alone; they require a concrete hosted failure, bounded semantics, and a focused regression before this policy expands.
 
@@ -34,6 +39,7 @@ The retry allowlist is intentionally narrow. Additional error codes such as conn
 - Disable or weaken Corepack signature verification: rejected because that changes the supply-chain trust boundary rather than repairing availability.
 - Fall back to Node-bundled npm 10.9.8: rejected because the repository requires npm 10.9.9 and its bundled patched `tar` floor.
 - Retry `npm ci` or later build/test commands: rejected because those operations have different side effects and failure semantics.
+- Keep a separate inline Corepack path in the exact-minimum Node workflow: rejected because it duplicates the same package-manager acquisition contract and can drift from the canonical timeout/trust classifier.
 
 ## Evidence and regression
 
@@ -43,7 +49,9 @@ Fresh review found the remaining default-retry defect. RED `b8fcb799ca83c4dbfa56
 
 GREEN `9c39c2a595ac5e192c53ed207df2cec6e188b483` reverses the classifier: only `ETIMEDOUT` is admitted to the bounded retry loop; any other failed acquisition exits immediately. Fixture alignment `68f71e02d47a5cd90e4c2dce474f6d1b0f8ef5e3` makes the positive retry regression emit the same `ETIMEDOUT` class observed in hosted CI, preserving the two-timeout-then-success and three-timeout-exhaustion contracts without using an unspecified failure as evidence of transience.
 
-Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to the moved allowlist-classifier head.
+A later workflow sweep found that `.github/workflows/node-minimum-compatibility.yml` still bypassed the helper. RED `32928847536a301f7966a20db9420f08cd1b5354` adds a structural regression requiring the exact-minimum Node consumer to use the canonical helper immediately before frozen dependency installation and forbidding inline `corepack enable npm` / `npm --version` ownership. GREEN `97042e151f60fe70ab49a7a6e822964bddeed767` rewires that workflow to the helper and removes the now-redundant workflow-local npm-version environment variable and verification step.
+
+Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to later moved heads. The minimum-version-lane repair likewise requires fresh exact-head hosted evidence before merge.
 
 ## Risks and claim boundary
 
@@ -51,16 +59,22 @@ The allowlist may reject a future genuinely transient Corepack error that is not
 
 Diagnostic matching still depends on upstream text. If Corepack exposes a stable structured error code or typed result, this script should consume that contract instead. This mechanism does not prove package-manager authenticity by itself; authenticity remains Corepack's verification responsibility, while BandScope controls retry and fallback behavior around that boundary.
 
+Structural workflow tests prove command ownership and order, not successful hosted acquisition. A workflow can still fail for runner, registry, Corepack, or dependency reasons; those failures remain visible and must be classified from exact-head evidence rather than suppressed or blindly retried.
+
 ## Follow-up
 
 - Keep both the hostile signature-failure and unclassified-failure regressions in the exact-head gate.
+- Keep every npm-consuming owner workflow on the canonical activation helper; a new inline Corepack activation path is a repair finding.
 - Expand the transient allowlist only from exact observed evidence plus a focused regression and documented retry safety.
 - If Corepack introduces a stable structured failure classification, replace diagnostic-string matching with that contract.
 - Treat any unclassified failure that reaches sleep/retry as a repair finding, not as permission to broaden fallback behavior.
+- Require fresh hosted success for the exact-minimum Node 22.22.2 lane and native build lanes on the unchanged merge candidate head.
 
 ## Security Notes
 
 The package-manager acquisition diagnostic is untrusted upstream text used only for a bounded classification decision and stderr evidence. It is never evaluated or interpolated into a shell command. The trust boundary is `corepack install --global` returning non-zero: only the exact observed `ETIMEDOUT` token permits another attempt; all other results fail closed before npm activation or dependency extraction. No secret, token, package payload, or mutable version selector is logged by this policy.
+
+Centralizing workflow activation does not broaden permissions. The helper operates with the same repository checkout and runner process privileges the inline commands already had; the change removes a duplicate acquisition path rather than introducing a new credential or network capability.
 
 ## References
 
