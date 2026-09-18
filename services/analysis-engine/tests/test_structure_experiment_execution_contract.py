@@ -32,12 +32,12 @@ def _synthetic_host_profile(runner: ModuleType, *, cpu_model: str) -> object:
 
 
 def test_registration_rejects_unversioned_host_profile_label() -> None:
-    """Preregistration must bind a content-addressed host, not a descriptive label."""
+    """Canonical execution requires a content-addressed host, not a descriptive label."""
     runner = _runner()
     registration = _registration()
 
     with pytest.raises(ValueError, match="runtime.host_profile"):
-        runner._VALIDATOR.validate_registration(registration)
+        runner.validate_execution_registration(registration)
 
 
 def test_execution_rejects_registered_host_profile_drift_before_corpus_admission() -> None:
