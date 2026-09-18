@@ -19,6 +19,14 @@ def _validator() -> ModuleType:
     )
 
 
+def _aggregation() -> ModuleType:
+    """Load the canonical paired-track aggregation implementation for fixtures."""
+    return load_module(
+        "scripts/research/aggregate_structure_noninferiority.py",
+        "aggregate_structure_noninferiority_for_policy",
+    )
+
+
 def _registration() -> dict[str, object]:
     """Return a valid synthetic registration fixture for policy tests only."""
     return {
@@ -63,7 +71,7 @@ def _registration() -> dict[str, object]:
         "uncertainty": {
             "procedure_id": "paired-track-bootstrap-v1",
             "confidence_level": 0.95,
-            "resamples": 10000,
+            "resamples": 1000,
             "random_seed": 20260917,
         },
         "corpus": [
@@ -137,8 +145,22 @@ def _uncertainty(registration: dict[str, object]) -> dict[str, object]:
     return value
 
 
+def _refresh_canonical_summary(
+    registration: dict[str, object],
+    result: dict[str, object],
+) -> None:
+    """Recompute the stored summary after a test intentionally changes track receipts."""
+    tracks = result["tracks"]
+    assert isinstance(tracks, list)
+    summary = _aggregation().aggregate_complete_track_measurements(
+        tracks,
+        uncertainty=_uncertainty(registration),
+    )
+    result.update(summary)
+
+
 def _result(registration: dict[str, object], registration_sha256: str) -> dict[str, object]:
-    """Return a result fixture whose paired intervals satisfy the registration."""
+    """Return a result fixture whose stored summary matches canonical aggregation."""
     baseline = _measurement(
         boundary_f_0_5=0.70,
         boundary_f_3_0=0.78,
@@ -159,38 +181,33 @@ def _result(registration: dict[str, object], registration_sha256: str) -> dict[s
     )
     claim_boundary = registration["claim_boundary"]
     assert isinstance(claim_boundary, str)
-    return {
+    tracks: list[dict[str, object]] = [
+        {
+            "track_id": "licensed-track-001",
+            "baseline": copy.deepcopy(baseline),
+            "candidate": copy.deepcopy(candidate),
+        },
+        {
+            "track_id": "licensed-track-002",
+            "baseline": copy.deepcopy(baseline),
+            "candidate": copy.deepcopy(candidate),
+        },
+    ]
+    result: dict[str, object] = {
         "schema_version": 1,
         "experiment_id": "structure-chroma-stft-vs-cqt-v1",
         "registration_sha256": registration_sha256,
         "uncertainty": copy.deepcopy(_uncertainty(registration)),
         "corpus_track_ids": ["licensed-track-001", "licensed-track-002"],
-        "tracks": [
-            {
-                "track_id": "licensed-track-001",
-                "baseline": copy.deepcopy(baseline),
-                "candidate": copy.deepcopy(candidate),
-            },
-            {
-                "track_id": "licensed-track-002",
-                "baseline": copy.deepcopy(baseline),
-                "candidate": copy.deepcopy(candidate),
-            },
-        ],
-        "aggregate": {
-            "baseline": baseline,
-            "candidate": candidate,
-        },
-        "paired_delta_ci95": {
-            "boundary_f_0_5": [-0.015, 0.005],
-            "boundary_f_3_0": [-0.014, 0.004],
-            "functional_label_accuracy": [-0.018, 0.003],
-            "repetition_pairwise_f": [-0.012, 0.006],
-        },
-        "p95_latency_ratio_ci95": [0.66, 0.76],
+        "tracks": tracks,
+        "aggregate": None,
+        "paired_delta_ci95": None,
+        "p95_latency_ratio_ci95": None,
         "failed_tracks": [],
         "claim_boundary": claim_boundary,
     }
+    _refresh_canonical_summary(registration, result)
+    return result
 
 
 def _corpus(registration: dict[str, object]) -> list[dict[str, object]]:
@@ -281,22 +298,29 @@ def test_result_passes_only_when_paired_uncertainty_meets_frozen_contract() -> N
 
 
 def test_result_fails_quality_or_latency_when_ci_crosses_registered_boundary() -> None:
-    """A favorable point estimate cannot hide a noninferiority or latency CI miss."""
+    """Canonical track evidence cannot hide a noninferiority or latency CI miss."""
     validator = _validator()
     registration = _registration()
     digest = validator.registration_digest(registration)
     result = _result(registration, digest)
-    deltas = result["paired_delta_ci95"]
-    assert isinstance(deltas, dict)
-    deltas["boundary_f_0_5"] = [-0.021, 0.004]
-    result["p95_latency_ratio_ci95"] = [0.70, 0.81]
+    tracks = result["tracks"]
+    assert isinstance(tracks, list)
+    for track in tracks:
+        assert isinstance(track, dict)
+        candidate = track["candidate"]
+        assert isinstance(candidate, dict)
+        candidate["boundary_precision_0_5"] = 0.67
+        candidate["boundary_recall_0_5"] = 0.67
+        candidate["boundary_f_0_5"] = 0.67
+        candidate["p95_latency_seconds"] = 5.4
+    _refresh_canonical_summary(registration, result)
 
     decision = validator.evaluate_result(registration, result)
 
     assert decision["passed"] is False
     assert decision["failed_requirements"] == [
-        "boundary_f_0_5 paired CI lower bound -0.021000 is below -0.020000",
-        "p95 latency ratio CI upper bound 0.810000 exceeds 0.800000",
+        "boundary_f_0_5 paired CI lower bound -0.030000 is below -0.020000",
+        "p95 latency ratio CI upper bound 0.900000 exceeds 0.800000",
     ]
 
 
