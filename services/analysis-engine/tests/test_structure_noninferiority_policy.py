@@ -40,8 +40,13 @@ def _registration() -> dict[str, object]:
                 "noninferiority_margin": 0.02,
             },
             "functional_label_accuracy": {
-                "implementation": "mirex2025.frame_level_accuracy",
-                "frame_size_seconds": 0.1,
+                "implementation": (
+                    "ismir-mirex/mirex-evaluation@"
+                    "b9fa0b0b32e2145af31f35830f78fc9d09a4301b:"
+                    "music_structure_analysis.eval_script.calculate_accuracy"
+                ),
+                "frame_size_seconds": 0.2,
+                "frame_grid_contract_version": 1.0,
                 "annotation_contract_version": 1.0,
                 "label_mapping_contract_version": 1.0,
                 "noninferiority_margin": 0.02,
