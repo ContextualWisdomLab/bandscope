@@ -50,6 +50,7 @@ The retry allowlist is intentionally narrow. Additional error codes such as conn
 - Keep the exact-minimum compatibility check as a second standalone workflow after its PR runs are absent from the observed exact-head workflow inventory: rejected because source presence without live PR execution does not satisfy the compatibility evidence requirement.
 - Copy the protected-base Ruff fix from #1176 into #896: rejected because #1176 is the canonical single writer for that prerequisite and the dependent branch can inherit it through ordinary non-force ancestry.
 - Keep #896 retargeted directly onto #1176's branch: rejected after live observation because `.github/workflows/ci.yml` and the other repository pull-request workflows filter on base branch `develop`/`main`; the retargeted generation did not materialize fresh repository CI for the moved head.
+- Treat the exact-head Ruff failure as a runner or tool problem: rejected because the formatter emitted deterministic source diffs for three #896-owned regression files after the runtime, dependency, and Rust setup steps had already succeeded.
 
 ## Evidence and regression
 
@@ -69,6 +70,10 @@ That Ruff failure named four files. Three were #896-owned regression files; `78b
 
 #896 was briefly retargeted onto the #1176 branch to make the dependency stack explicit. Fresh Actions inventory then showed the practical consequence of the repository's base-branch filters: after source moved under that base, no exact moved-head repository pull-request workflows materialized. The PR base was therefore restored to protected `develop`; #1176 remains present as a merge parent, so the formatter delta is still inherited from its canonical writer rather than reimplemented locally.
 
+Exact head `81d7cd910deb7b54250b6397844c15e576df5d9c` added `ruff format --check --diff` so the next hosted failure would carry exact repair evidence rather than only an exit code. Its `gate / ci / node-minimum-compatibility` run again passed Node 22.22.2 setup, canonical npm activation, npm 10.9.9 / bundled tar 7.5.22 verification, frozen Node dependencies, Python sync, stable Rust, and the Rust numeric extension. Ruff then reported exactly three files requiring formatting: `test_node_runtime_contract.py`, `test_npm_runtime_activation_nontransient_failure.py`, and `test_npm_runtime_activation_resilience.py`. No #1176-owned file appeared in this exact-head formatter diff.
+
+Commit `239bfc76c39811a6a71627a794dae2e1e07488ab` applies only that emitted Ruff formatter result to those three #896-owned regression files. It changes no assertion semantics, dependency/runtime contract, workflow behavior, audio/MIR behavior, or foreign-owner file. Because source moved after the failed run, all terminal gate evidence must be collected again from descendants of this repair; the `81d7...` run is causal predecessor evidence only.
+
 Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to later moved heads. Current traceability descendants require fresh hosted evidence on the unchanged merge candidate.
 
 ## Risks and claim boundary
@@ -77,7 +82,7 @@ The allowlist may reject a future genuinely transient Corepack error that is not
 
 Diagnostic matching still depends on upstream text. If Corepack exposes a stable structured error code or typed result, this script should consume that contract instead. This mechanism does not prove package-manager authenticity by itself; authenticity remains Corepack's verification responsibility, while BandScope controls retry and fallback behavior around that boundary.
 
-Structural workflow tests prove command ownership and order, not successful hosted acquisition. Moving the exact-minimum lane into `ci.yml` is an evidence-topology repair, not proof that Node 22.22.2 or npm acquisition succeeds on every hosted run. The c010 run proves that one exact generation reached and passed the npm acquisition boundary before failing later at formatting; source movement after that point requires fresh evidence.
+Structural workflow tests prove command ownership and order, not successful hosted acquisition. Moving the exact-minimum lane into `ci.yml` is an evidence-topology repair, not proof that Node 22.22.2 or npm acquisition succeeds on every hosted run. The `81d7...` hosted run proves the exact npm/runtime path and Rust extension build reached the Ruff gate; it does not transfer a GREEN verdict to the later formatting repair or traceability descendant.
 
 The #1176 merge parent does not transfer #1176 approvals or central-gate evidence into #896. It only establishes ancestry for the canonical formatting prerequisite. #896 still requires its own exact-head repository/central gates and current-head independent review. Keeping the PR base on `develop` also means the #1176 file remains visible in the protected-base diff until #1176 integrates normally; that visibility is accepted rather than suppressing CI or copying the delta.
 
