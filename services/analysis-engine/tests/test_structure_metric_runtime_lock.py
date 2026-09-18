@@ -9,9 +9,13 @@ import pytest
 from conftest import load_module
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-_LOCK_PATH = _REPOSITORY_ROOT / "services/analysis-engine/requirements-structure-metrics.lock"
+_LOCK_PATH = (
+    _REPOSITORY_ROOT / "services/analysis-engine/requirements-structure-metrics.lock"
+)
 _EXPECTED_VERSION = "0.8.2"
-_EXPECTED_WHEEL_SHA256 = "114cda33d8e17408c170598e0b36ed0d71ff4a2fee8eaf9e165b58ecf1c87170"
+_EXPECTED_WHEEL_SHA256 = (
+    "114cda33d8e17408c170598e0b36ed0d71ff4a2fee8eaf9e165b58ecf1c87170"
+)
 _EXPECTED_SOURCE_COMMIT = "8db0b3812e2032544c1fc00d02d4256cab043f3d"
 _EXPECTED_TRANSPARENCY_ENTRY = 174236906
 
@@ -24,10 +28,16 @@ def _verifier() -> ModuleType:
     )
 
 
-def test_runtime_lock_binds_exact_trusted_pypi_wheel(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runtime_lock_binds_exact_trusted_pypi_wheel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Research execution must resolve one reviewed mir_eval artifact identity."""
     verifier = _verifier()
-    monkeypatch.setattr(verifier, "_installed_mir_eval_version", lambda: _EXPECTED_VERSION)
+    monkeypatch.setattr(
+        verifier,
+        "_installed_mir_eval_version",
+        lambda: _EXPECTED_VERSION,
+    )
 
     identity = verifier.verify_structure_metric_runtime_lock(_LOCK_PATH)
 
@@ -55,10 +65,15 @@ def test_runtime_lock_rejects_artifact_drift(
 ) -> None:
     """Changing the wheel hash must invalidate the scientific runtime identity."""
     verifier = _verifier()
-    monkeypatch.setattr(verifier, "_installed_mir_eval_version", lambda: _EXPECTED_VERSION)
+    monkeypatch.setattr(
+        verifier,
+        "_installed_mir_eval_version",
+        lambda: _EXPECTED_VERSION,
+    )
     drifted = tmp_path / "requirements-structure-metrics.lock"
+    lock_text = _LOCK_PATH.read_text(encoding="utf-8")
     drifted.write_text(
-        _LOCK_PATH.read_text(encoding="utf-8").replace(_EXPECTED_WHEEL_SHA256, "0" * 64),
+        lock_text.replace(_EXPECTED_WHEEL_SHA256, "0" * 64),
         encoding="utf-8",
     )
 
