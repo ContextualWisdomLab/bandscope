@@ -12,9 +12,7 @@ import yaml
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _BUILD_BASELINE = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
 _CI_WORKFLOW = _REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
-_ACTIVATION_HELPER = (
-    _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
-)
+_ACTIVATION_HELPER = _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
 _ACTIVATION_COMMAND = "bash scripts/checks/activate_pinned_npm_runtime.sh"
 
 
@@ -79,11 +77,11 @@ exit 64
     )
     _write_executable(
         fake_bin / "sleep",
-        "#!/usr/bin/env bash\nprintf '%s\\n' \"$1\" >> \"$BANDSCOPE_TEST_SLEEP_LOG\"\n",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' "$1" >> "$BANDSCOPE_TEST_SLEEP_LOG"\n',
     )
     _write_executable(
         fake_bin / "npm",
-        "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$BANDSCOPE_TEST_NPM_LOG\"\n",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$BANDSCOPE_TEST_NPM_LOG"\n',
     )
 
     environment = os.environ.copy()
@@ -96,7 +94,9 @@ exit 64
     return environment, corepack_count, sleep_log, npm_log, corepack_enable_log
 
 
-def _run_activation_helper(tmp_path: Path, *, acquisition_failures: int) -> tuple[
+def _run_activation_helper(
+    tmp_path: Path, *, acquisition_failures: int
+) -> tuple[
     subprocess.CompletedProcess[str],
     Path,
     Path,
@@ -131,9 +131,7 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
     npm_consumers = 0
     for job_name, job in jobs.items():
         steps = _job_steps(job)
-        run_steps = [
-            str(step["run"]) for step in steps if isinstance(step.get("run"), str)
-        ]
+        run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
         dependency_index = next(
             (index for index, command in enumerate(run_steps) if command.strip() == "npm ci"),
             None,
@@ -143,9 +141,7 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
 
         npm_consumers += 1
         activation_indexes = [
-            index
-            for index, command in enumerate(run_steps)
-            if command.strip() == _ACTIVATION_COMMAND
+            index for index, command in enumerate(run_steps) if command.strip() == _ACTIVATION_COMMAND
         ]
         assert activation_indexes == [dependency_index - 1], f"{job_name} activation ownership"
         assert all("corepack enable npm" not in command for command in run_steps), (
@@ -171,9 +167,7 @@ def test_registered_ci_exact_minimum_node_lane_uses_same_pinned_npm_activation_b
         if command.strip() == "npm ci --ignore-scripts --no-audit --no-fund"
     )
     activation_indexes = [
-        index
-        for index, command in enumerate(run_steps)
-        if command.strip() == _ACTIVATION_COMMAND
+        index for index, command in enumerate(run_steps) if command.strip() == _ACTIVATION_COMMAND
     ]
 
     assert activation_indexes == [dependency_index - 1]
@@ -205,11 +199,9 @@ def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures
     tmp_path: Path,
 ) -> None:
     """Retry admitted ETIMEDOUT acquisition, then audit the acquired npm before success."""
-    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = (
-        _run_activation_helper(
-            tmp_path,
-            acquisition_failures=2,
-        )
+    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
+        tmp_path,
+        acquisition_failures=2,
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -229,11 +221,9 @@ def test_pinned_npm_activation_fails_closed_after_bounded_timeout_exhaustion(
     tmp_path: Path,
 ) -> None:
     """Stop after three admitted timeout failures without enabling or invoking fallback npm."""
-    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = (
-        _run_activation_helper(
-            tmp_path,
-            acquisition_failures=99,
-        )
+    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
+        tmp_path,
+        acquisition_failures=99,
     )
 
     assert completed.returncode != 0

@@ -9,9 +9,7 @@ from pathlib import Path
 import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-_ACTIVATION_HELPER = (
-    _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
-)
+_ACTIVATION_HELPER = _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -59,11 +57,11 @@ exit 64
     )
     _write_executable(
         fake_bin / "sleep",
-        "#!/usr/bin/env bash\nprintf '%s\\n' \"$1\" >> \"$BANDSCOPE_TEST_SLEEP_LOG\"\n",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' "$1" >> "$BANDSCOPE_TEST_SLEEP_LOG"\n',
     )
     _write_executable(
         fake_bin / "npm",
-        "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >> \"$BANDSCOPE_TEST_NPM_LOG\"\n",
+        '#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$BANDSCOPE_TEST_NPM_LOG"\n',
     )
 
     environment = os.environ.copy()
