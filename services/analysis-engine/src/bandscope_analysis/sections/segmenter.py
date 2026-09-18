@@ -51,8 +51,10 @@ _LABEL_ORDER: tuple[str, ...] = (
 
 def _validated_chroma_feature(value: object) -> ChromaFeature:
     """Return one registered chroma representation or fail closed."""
-    if value == "cqt" or value == "stft":
-        return value
+    if value == "cqt":
+        return "cqt"
+    if value == "stft":
+        return "stft"
     raise ValueError("chroma_feature must be one of: cqt, stft")
 
 
