@@ -115,3 +115,46 @@ def test_segmenter_feature_selector_controls_boundary_and_repetition_chroma(
     )
 
     assert calls == ["stft", "stft"]
+
+
+def test_public_segmenter_propagates_one_feature_to_boundary_and_repetition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The public paired lane must not split STFT boundaries from CQT repetition labels."""
+    audio = np.zeros(160_000, dtype=np.float32)
+    observed: list[tuple[str, str]] = []
+
+    def fake_boundaries(
+        _audio: np.ndarray[Any, np.dtype[np.float32]],
+        _sr: int,
+        _duration: float,
+        *,
+        chroma_feature: str = "cqt",
+    ) -> list[float]:
+        observed.append(("boundary", chroma_feature))
+        return [0.0, 10.0]
+
+    def fake_groups(
+        _audio: np.ndarray[Any, np.dtype[np.float32]],
+        _sr: int,
+        _boundaries: list[float],
+        _duration: float,
+        *,
+        chroma_feature: str = "cqt",
+    ) -> list[int]:
+        observed.append(("repetition", chroma_feature))
+        return [0, 0]
+
+    monkeypatch.setattr(segmenter, "_compute_boundaries", fake_boundaries)
+    monkeypatch.setattr(segmenter, "_segment_repetition_groups", fake_groups)
+
+    sections, boundaries = segmenter.segment_with_boundaries(
+        audio,
+        8_000,
+        duration=20.0,
+        chroma_feature="stft",
+    )
+
+    assert observed == [("boundary", "stft"), ("repetition", "stft")]
+    assert boundaries == [(0.0, 10.0), (10.0, 20.0)]
+    assert [section["form_label"] for section in sections] == ["chorus", "chorus"]
