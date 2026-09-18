@@ -23,7 +23,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MIR_EVAL_VERSION = "0.8.2"
-MIR_EVAL_WHEEL_SHA256 = "114cda33d8e17408c170598e0b36ed0d71ff4a2fee8eaf9e165b58ecf1c87170"
+MIR_EVAL_WHEEL_SHA256 = (
+    "114cda33d8e17408c170598e0b36ed0d71ff4a2fee8eaf9e165b58ecf1c87170"
+)
 MIR_EVAL_SOURCE_COMMIT = "8db0b3812e2032544c1fc00d02d4256cab043f3d"
 MIR_EVAL_PYPI_TRANSPARENCY_ENTRY = 174236906
 MIR_EVAL_WHEEL_URL = (
@@ -37,7 +39,8 @@ EXPECTED_REQUIREMENT = (
 )
 EXPECTED_LOCK_TEXT = (
     "# BandScope structure noninferiority research-metric overlay.\n"
-    "# Install only after the frozen analysis-engine environment is synced, using --no-deps.\n"
+    "# Install only after the frozen analysis-engine environment is synced, "
+    "using --no-deps.\n"
     f"# Upstream source: mir-evaluation/mir_eval@{MIR_EVAL_SOURCE_COMMIT}\n"
     f"# PyPI Sigstore transparency entry: {MIR_EVAL_PYPI_TRANSPARENCY_ENTRY}\n"
     f"{EXPECTED_REQUIREMENT}\n"
@@ -76,9 +79,13 @@ def load_structure_metric_runtime_lock_identity(
         raise ValueError("structure metric runtime lock must be UTF-8 text") from exc
 
     if MIR_EVAL_WHEEL_SHA256 not in text:
-        raise ValueError("structure metric wheel identity does not match the reviewed artifact")
+        raise ValueError(
+            "structure metric wheel identity does not match the reviewed artifact"
+        )
     if text != EXPECTED_LOCK_TEXT:
-        raise ValueError("structure metric runtime lock differs from the reviewed exact contract")
+        raise ValueError(
+            "structure metric runtime lock differs from the reviewed exact contract"
+        )
 
     return StructureMetricRuntimeIdentity(
         version=MIR_EVAL_VERSION,
@@ -92,7 +99,7 @@ def load_structure_metric_runtime_lock_identity(
 def verify_structure_metric_runtime_lock(
     lock_path: Path,
 ) -> StructureMetricRuntimeIdentity:
-    """Validate the reviewed lock artifact and the installed mir_eval distribution."""
+    """Validate the reviewed lock artifact and installed mir_eval distribution."""
     identity = load_structure_metric_runtime_lock_identity(lock_path)
     observed_version = _installed_mir_eval_version()
     if observed_version != MIR_EVAL_VERSION:
