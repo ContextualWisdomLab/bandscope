@@ -4,6 +4,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+WINDOWS_WORKFLOW = "project-persistence-windows-native.yml"
+LEGACY_WINDOWS_WORKFLOW = "project-persistence-windows.yml"
 REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/lib.rs"',
@@ -35,9 +37,11 @@ def _assert_tracks_native_persistence_inputs(workflow: str, lane: str) -> None:
 
 def test_windows_project_persistence_gate_tracks_contract_inputs() -> None:
     """Run the Windows regression whenever a persistence contract input changes."""
-    workflow = _workflow_text("project-persistence-windows.yml")
+    workflow = _workflow_text(WINDOWS_WORKFLOW)
 
     _assert_tracks_native_persistence_inputs(workflow, "Windows")
+    assert f'".github/workflows/{WINDOWS_WORKFLOW}"' in workflow
+    assert not (REPO_ROOT / ".github" / "workflows" / LEGACY_WINDOWS_WORKFLOW).exists()
     assert "runs-on: windows-2025" in workflow
     assert (
         "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
