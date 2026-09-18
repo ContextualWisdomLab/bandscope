@@ -6,7 +6,7 @@ reopening workstation paths. The baseline and candidate segmenters receive the
 same immutable canonical PCM memoryview, while the reference segmentation is
 parsed from the same immutable admitted annotation snapshot. The canonical
 CQT/STFT experiment additionally evaluates the reviewed mir_eval boundary,
-deviation, and repetition contract under the exact research runtime lock.
+deviation, repetition, and isolated single-shot latency/RSS contracts.
 Scientific corpus choice, margins, aggregation, uncertainty, and the production
 feature switch remain outside this boundary.
 """
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import math
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ from typing import Any
 
 Segmenter = Callable[[memoryview, int, Fraction], Sequence[Any]]
 SegmentationMetricEvaluator = Callable[[object, object], object]
+PerformanceEvaluator = Callable[[memoryview, int, Fraction], object]
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 _STRUCTURE_METRIC_RUNTIME_LOCK = (
     _REPOSITORY_ROOT / "services/analysis-engine/requirements-structure-metrics.lock"
@@ -71,6 +73,10 @@ _RUNTIME_VERIFIER = _load_sibling(
     "verify_structure_metric_runtime_lock.py",
     "_bandscope_structure_metric_runtime_lock",
 )
+_RESOURCE_MEASUREMENT = _load_sibling(
+    "measure_structure_lane_resources.py",
+    "_bandscope_structure_lane_resources",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +97,16 @@ class StructureSegmentationMetricEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class StructurePerformanceEvidence:
+    """Preregistered per-track single-shot latency quantiles and peak process RSS."""
+
+    p50_latency_seconds: float
+    p95_latency_seconds: float
+    peak_rss_mib: float
+    measured_trials: int
+
+
+@dataclass(frozen=True, slots=True)
 class PairedFunctionalAccuracyEvidence:
     """Path-free track evidence bound to exact admitted PCM and annotation bytes."""
 
@@ -108,6 +124,9 @@ class PairedFunctionalAccuracyEvidence:
     metric_runtime_lock_sha256: str | None
     baseline_segmentation_metrics: StructureSegmentationMetricEvidence | None
     candidate_segmentation_metrics: StructureSegmentationMetricEvidence | None
+    performance_contract_id: str | None
+    baseline_performance: StructurePerformanceEvidence | None
+    candidate_performance: StructurePerformanceEvidence | None
 
 
 def _track_id(value: object) -> str:
@@ -165,6 +184,31 @@ def _segmentation_metric_evidence(result: object) -> StructureSegmentationMetric
     )
 
 
+def _performance_evidence(result: object) -> StructurePerformanceEvidence:
+    """Validate and copy one lane's isolated performance summary."""
+    p50 = float(getattr(result, "p50_latency_seconds"))
+    p95 = float(getattr(result, "p95_latency_seconds"))
+    peak_rss = float(getattr(result, "peak_rss_mib"))
+    measured_trials = getattr(result, "measured_trials")
+    if not all(math.isfinite(value) and value > 0.0 for value in (p50, p95, peak_rss)):
+        raise RuntimeError("structure performance evidence must be finite and positive")
+    if p95 < p50:
+        raise RuntimeError("structure performance p95 must be greater than or equal to p50")
+    if isinstance(measured_trials, bool) or not isinstance(measured_trials, int):
+        raise RuntimeError("structure performance measured_trials must be an integer")
+    expected_trials = _RESOURCE_MEASUREMENT.PERFORMANCE_MEASUREMENT_CONTRACT[
+        "measured_trials"
+    ]
+    if measured_trials != expected_trials:
+        raise RuntimeError("structure performance measured_trials drifted from contract")
+    return StructurePerformanceEvidence(
+        p50_latency_seconds=p50,
+        p95_latency_seconds=p95,
+        peak_rss_mib=peak_rss,
+        measured_trials=measured_trials,
+    )
+
+
 class PairedFunctionalAccuracyTrackConsumer:
     """Collect paired structure evidence from corpus-admission callbacks."""
 
@@ -175,8 +219,10 @@ class PairedFunctionalAccuracyTrackConsumer:
         candidate_segmenter: Segmenter,
         segmentation_metric_evaluator: SegmentationMetricEvaluator | None = None,
         metric_runtime_lock_sha256: str | None = None,
+        performance_evaluator: PerformanceEvaluator | None = None,
+        performance_contract_id: str | None = None,
     ) -> None:
-        """Bind preregistered lanes and optional recognized-metric runtime identity."""
+        """Bind preregistered quality lanes and optional performance evidence."""
         if not callable(baseline_segmenter) or not callable(candidate_segmenter):
             raise TypeError("baseline_segmenter and candidate_segmenter must be callable")
         if (segmentation_metric_evaluator is None) != (metric_runtime_lock_sha256 is None):
@@ -187,19 +233,36 @@ class PairedFunctionalAccuracyTrackConsumer:
             segmentation_metric_evaluator
         ):
             raise TypeError("segmentation_metric_evaluator must be callable")
+        if (performance_evaluator is None) != (performance_contract_id is None):
+            raise ValueError(
+                "performance evaluator and contract identity must be bound together"
+            )
+        if performance_evaluator is not None and not callable(performance_evaluator):
+            raise TypeError("performance_evaluator must be callable")
+        if performance_contract_id is not None and (
+            not isinstance(performance_contract_id, str) or not performance_contract_id
+        ):
+            raise ValueError("performance_contract_id must be non-empty text")
         self._baseline_segmenter = baseline_segmenter
         self._candidate_segmenter = candidate_segmenter
         self._segmentation_metric_evaluator = segmentation_metric_evaluator
         self._metric_runtime_lock_sha256 = metric_runtime_lock_sha256
+        self._performance_evaluator = performance_evaluator
+        self._performance_contract_id = performance_contract_id
         self._evidence: list[PairedFunctionalAccuracyEvidence] = []
         self._measured_track_ids: set[str] = set()
 
     @classmethod
     def for_registered_cqt_stft_hypothesis(cls) -> PairedFunctionalAccuracyTrackConsumer:
-        """Bind canonical CQT/STFT lanes and the reviewed segmentation-metric overlay."""
+        """Bind canonical CQT/STFT quality and performance measurement contracts."""
         runtime_identity = _RUNTIME_VERIFIER.load_structure_metric_runtime_lock_identity(
             _STRUCTURE_METRIC_RUNTIME_LOCK
         )
+        performance_contract_id = _RESOURCE_MEASUREMENT.PERFORMANCE_MEASUREMENT_CONTRACT[
+            "contract_id"
+        ]
+        if not isinstance(performance_contract_id, str) or not performance_contract_id:
+            raise RuntimeError("structure performance contract_id is invalid")
         return cls(
             baseline_segmenter=_LANES.repository_structure_segmenter("cqt"),
             candidate_segmenter=_LANES.repository_structure_segmenter("stft"),
@@ -207,6 +270,10 @@ class PairedFunctionalAccuracyTrackConsumer:
                 _SEGMENTATION_EVALUATOR.calculate_structure_segmentation_metrics
             ),
             metric_runtime_lock_sha256=runtime_identity.lock_sha256,
+            performance_evaluator=(
+                _RESOURCE_MEASUREMENT.measure_paired_repository_lane_resources
+            ),
+            performance_contract_id=performance_contract_id,
         )
 
     @property
@@ -278,6 +345,26 @@ class PairedFunctionalAccuracyTrackConsumer:
             )
             metric_runtime_lock_sha256 = runtime_identity.lock_sha256
 
+        performance_contract_id: str | None = None
+        baseline_performance: StructurePerformanceEvidence | None = None
+        candidate_performance: StructurePerformanceEvidence | None = None
+        if self._performance_evaluator is not None:
+            performance = self._performance_evaluator(
+                pcm,
+                sample_rate,
+                duration_seconds,
+            )
+            observed_contract = getattr(performance, "contract_id", None)
+            if observed_contract != self._performance_contract_id:
+                raise RuntimeError("structure performance contract identity drifted")
+            baseline_performance = _performance_evidence(
+                getattr(performance, "baseline")
+            )
+            candidate_performance = _performance_evidence(
+                getattr(performance, "candidate")
+            )
+            performance_contract_id = self._performance_contract_id
+
         evidence = PairedFunctionalAccuracyEvidence(
             track_id=normalized_track_id,
             decoded_pcm_sha256=hashlib.sha256(pcm).hexdigest(),
@@ -293,6 +380,9 @@ class PairedFunctionalAccuracyTrackConsumer:
             metric_runtime_lock_sha256=metric_runtime_lock_sha256,
             baseline_segmentation_metrics=baseline_segmentation_metrics,
             candidate_segmentation_metrics=candidate_segmentation_metrics,
+            performance_contract_id=performance_contract_id,
+            baseline_performance=baseline_performance,
+            candidate_performance=candidate_performance,
         )
         self._evidence.append(evidence)
         self._measured_track_ids.add(normalized_track_id)
