@@ -218,12 +218,18 @@ def _registered_host_profile(registration: Mapping[str, Any]) -> str:
     return expected
 
 
+def validate_execution_registration(registration: Mapping[str, Any]) -> str:
+    """Validate scientific registration plus the canonical execution-host identity."""
+    _VALIDATOR.validate_registration(registration)
+    return _registered_host_profile(registration)
+
+
 def _require_registered_host_profile(
     registration: Mapping[str, Any],
     observed: StructureHostProfile,
 ) -> str:
     """Fail before corpus access when the executing host differs from preregistration."""
-    expected = _registered_host_profile(registration)
+    expected = validate_execution_registration(registration)
     actual = host_profile_identity(observed)
     if actual != expected:
         raise ValueError(
@@ -314,7 +320,6 @@ def execute_registered_experiment(
     Synthetic fixtures exercised through those seams are never production
     scientific acceptance evidence.
     """
-    _VALIDATOR.validate_registration(registration)
     observed_host_identity = _require_registered_host_profile(registration, host_profile)
 
     active_consumer = consumer
