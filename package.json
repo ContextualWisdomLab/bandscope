@@ -29,7 +29,7 @@
     "check:npm-runtime": "node scripts/checks/verify_npm_runtime.mjs",
     "check:python-docstrings": "python3 scripts/checks/run_analysis_command.py ruff check src tests ../../scripts --select D100,D101,D102,D103,D104,D105,D106,D107",
     "ruff:check": "python3 scripts/checks/run_analysis_command.py ruff check src tests",
-    "ruff:format:check": "python3 scripts/checks/run_analysis_command.py ruff format --check src tests",
+    "ruff:format:check": "python3 scripts/checks/run_analysis_command.py ruff format --check --diff src tests",
     "bandit:check": "python3 scripts/checks/run_analysis_command.py bandit -c pyproject.toml -r src",
     "lint": "npm run lint:workspaces && npm run check:docs && npm run check:security-notes && npm run check:security-gates && npm run check:supply-chain && npm run check:github-bootstrap && npm run check:python-docstrings && npm run ruff:check && npm run ruff:format:check && npm run bandit:check",
     "typecheck": "npm run typecheck --workspaces --if-present && python3 scripts/checks/run_analysis_command.py mypy src",
