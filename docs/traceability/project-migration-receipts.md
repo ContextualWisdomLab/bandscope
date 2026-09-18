@@ -2,11 +2,13 @@
 
 ## Problem
 
-BandScope accepts legacy, v1, and v2 project documents and migrates them to the current v3 typed document. The first implementation returned only the migrated document, so Project Persistence could not prove which exact input bytes were admitted or which exact current-version bytes were produced. Later revisions added deterministic receipts and a validated `PreparedProjectMigration`, but two filesystem gaps remained.
+BandScope accepts legacy, v1, and v2 project documents and migrates them to the current v3 typed document. The first implementation returned only the migrated document, so Project Persistence could not prove which exact input bytes were admitted or which exact current-version bytes were produced. Later revisions added deterministic receipts and a validated `PreparedProjectMigration`, but filesystem and buyer-path gaps remained.
 
 First, the bounded reader originally returned only UTF-8 content. A publisher would have had to recapture native identity from the pathname after parsing, allowing a different file to occupy the same pathname after the read. `ProjectFileReadSnapshot` fixed that by binding the bounded content to the native identity of the exact opened handle.
 
 Second, native identity is not a content compare-and-swap token. A cooperating or external writer can modify the same inode/file index in place while preserving device/inode on Unix or volume serial/file index on Windows. The ordinary atomic replacement path therefore could still accept a migration derived from stale bytes if it checked only the displaced object's native identity. The same publication also needed to prove that the buyer-visible target still contained the exact canonical migration candidate before rollback material was retired.
+
+Third, those primitives were not part of the production load path. `load_project` recovered a selected target, read it through the compatibility bounded string reader, migrated only in memory through `project_document_from_content`, and returned that document. A successful open therefore did not durably publish the validated current-format copy even when the selected project was historical.
 
 ## Decision
 
@@ -14,11 +16,11 @@ Second, native identity is not a content compare-and-swap token. A cooperating o
 
 `prepare_project_migration` remains the migration-on-copy preparation boundary. It parses through the existing version dispatch, serializes through `project_content_for_document`, hashes the candidate, reopens those exact candidate bytes through the current parser, serializes them again, and returns `PreparedProjectMigration` only when the reopened version is current and canonical bytes reproduce exactly. The prepared value is sealed; external crates receive immutable `document()`, `canonical_content()`, and `receipt()` views and cannot construct or mutate its validated state.
 
-The receipt now owns executable byte verification rather than requiring persistence adapters to duplicate SHA-256 comparison logic. `verify_input_reader` hashes an already-authorized reader with the repository-owned SHA-256 kernel and fails closed unless it equals `input_sha256`. `verify_output_reader` does the same for `output_sha256`. Neither method opens a pathname or claims filesystem authority; the caller must supply the exact native object it intends to validate.
+The receipt owns executable byte verification rather than requiring persistence adapters to duplicate SHA-256 comparison logic. `verify_input_reader` hashes an already-authorized reader with the repository-owned SHA-256 kernel and fails closed unless it equals `input_sha256`. `verify_output_reader` does the same for `output_sha256`. Neither method opens a pathname or claims filesystem authority; the caller must supply the exact native object it intends to validate.
 
 Project Persistence keeps `read_project_file_with_identity` as the predecessor-authority primitive. It performs the existing bounded, no-follow/reparse-safe, before/opened/after stability checks and returns a sealed `ProjectFileReadSnapshot` with content plus native identity from the same opened file.
 
-For migration replacement, Project Persistence now has a receipt-aware replacement path layered on the existing journal/exchange owner. Linux/macOS use the existing atomic exchange; Windows uses the existing `ReplaceFileW` backup path. After replacement, but before the prepared journal is promoted to the durable `published` marker or rollback material is removed, the migration validator:
+For migration replacement, Project Persistence has a receipt-aware replacement path layered on the existing journal/exchange owner. Linux/macOS use the existing atomic exchange; Windows uses the existing `ReplaceFileW` backup path. After replacement, but before the prepared journal is promoted to the durable `published` marker or rollback material is removed, the migration validator:
 
 1. opens the displaced predecessor through the existing no-follow native reader;
 2. requires that exact opened handle to retain the read-bound native identity;
@@ -29,9 +31,11 @@ For migration replacement, Project Persistence now has a receipt-aware replaceme
 
 If either native identity or either digest check fails, the existing rollback path restores the displaced object and cleans the candidate/journal. A crash after native replacement but before those validations leaves the journal in `prepared`, whose recovery behavior is conservative rollback. The journal becomes `published` only after both receipt-bound validations succeed, so a later recovery may retire the displaced artifact without replaying the digest computation.
 
-The ordinary save path still uses the same shared replacement implementation with a no-op post-replacement validator. This preserves existing save semantics while keeping the new migration-specific content-CAS rule isolated to the migration contract instead of changing generic user-save concurrency policy implicitly.
+The ordinary save path still uses the same shared replacement implementation with a no-op post-replacement validator. This preserves existing save semantics while keeping the migration-specific content-CAS rule isolated to the migration contract instead of changing generic user-save concurrency policy implicitly.
 
-Production `load_project` is not yet wired to invoke this migration publication path. This slice provides the exact filesystem/content CAS primitive required for that wiring; it does not claim automatic migrate-on-open is complete.
+Production load now composes those owners through `project_load::load_project_document`. It first runs publication recovery, acquires one `ProjectFileReadSnapshot`, prepares those exact bytes, and does nothing to on-disk bytes when `receipt.migrated` is false. For historical input it creates a same-directory generated candidate through the existing crash-safe `publish_new_project_file` owner, preserves existing Unix project-data permission bits through no-follow file handles, and invokes `replace_existing_project_file_for_migration` with the original snapshot identity and receipt. A successful migration returns `prepared.document().clone()` rather than reparsing the pathname after publication.
+
+This orchestration does not implement a second rename, journal, rollback, or hash engine. Candidate staging is delegated to the existing Project Persistence publisher and final replacement is delegated to the receipt-aware compare-and-swap primitive. The Tauri `load_project` command now calls this owner before restart source re-admission.
 
 ## RED / GREEN evidence
 
@@ -43,6 +47,8 @@ Production `load_project` is not yet wired to invoke this migration publication 
 - RED `26cf9e6586e127c6bcab3f500ba75b07f0d85d05` extended the same contract to the validated output bytes. GREEN `7b4c6e5e609f7074eabd2fca5cee5da4dfb08017` added `verify_output_reader` through the same private receipt-verification helper.
 - RED `847c31da5203ecf625762322f630c4c8fb302378` added a native migration-publication regression. It modifies the already-read predecessor in place, proves native identity did not change, and requires migration publication to roll back because the exact input digest changed. It also requires the unchanged predecessor plus exact canonical candidate to commit successfully. The predecessor had no receipt-aware replacement API, so the contract could not compile.
 - GREEN `a46be0d83531e49e9906d104a16197cb13d44c3b` factors the existing Linux/macOS and Windows replacement implementations through a post-replacement validator and adds `replace_existing_project_file_for_migration`. The migration validator reopens both displaced predecessor and published candidate through no-follow native handles, rechecks their expected native identities on those handles, and verifies exact receipt input/output digests before the existing success path can retire rollback material.
+- RED `c406080919eeabb6df868fcfb20b01a29394208d` required the buyer path to publish a checked-in v2 fixture through the receipt-bound migration owner and required a current v3 file with incidental whitespace to remain byte-for-byte unchanged. The requested load owner did not exist at that head.
+- GREEN lineage `d50b9e396f4feeeeef2873f5c779f71df6f6ca45` → `ee906cf08e210923f80bea94b40edb9e84818325` → `e610db4f782d0bb032d1a7390425cb54f97bb9b4` added the migrate-on-load application service, exercised it through the native integration fixture, and routed the production Tauri command through it. `28daa667ad72cb918a7f246458d13cbf62d952bc` fixed source formatting before hosted lint, `9a4554e8681a9f5d3bbb5521bc341d1c78f1bc17` repaired the old route-contract test so it checks the new identity-bearing owner rather than the removed compatibility call, and `bd318f91e882dbfa538e28e9ae0f6197b859769b` added Unix regression coverage proving migration preserves existing project-data permission bits.
 
 Hosted exact-head CI/security/SBOM/SAST/native-build evidence is required separately; a source commit is not treated as hosted GREEN until those checks are terminal on the exact head.
 
@@ -58,6 +64,10 @@ Deleting rollback material immediately after the native exchange was rejected. V
 
 Writing a second migration-specific atomic-publication engine was rejected. The receipt-aware path composes the existing journal, exchange/`ReplaceFileW`, rollback, synchronization, and recovery machinery and changes only the post-replacement acceptance predicate.
 
+Reusing `publish_new_project_file` directly on the selected historical project was rejected because that generic publisher snapshots whichever target occupies the pathname at publication time. The migrate-on-load owner instead uses it only to create the adjacent candidate; final authority comes from `replace_existing_project_file_for_migration` with the original identity-bearing read snapshot and receipt.
+
+Reparsing the selected pathname after a successful migration was rejected because another process can replace that pathname after publication. The command returns the sealed prepared document that generated the committed candidate; restart source re-admission consumes that document's typed source reference separately.
+
 ## Security Notes
 
 ### Trust boundary
@@ -66,11 +76,15 @@ Project bytes and filesystem state are untrusted inputs to Project Persistence. 
 
 Receipt verification accepts an already-authorized `Read` object and never opens paths. The Tauri persistence layer owns path/native-handle authority and uses its existing no-follow/reparse-safe open contract. The exact opened handle used for digest verification is also checked against the expected native identity before its bytes are consumed.
 
+The migrate-on-load layer never treats its generated staging pathname as predecessor authority. Staging goes through the existing safe publisher, final commit goes through the receipt-aware replacement, and publication failure returns an error without substituting a different document. On Unix only read/write permission bits from the selected project data file are copied to the candidate; executable and special bits are not introduced.
+
 ### Safe failure and crash boundary
 
 Malformed or unsupported projects fail before a prepared migration exists. Candidate parser/serializer disagreement fails before staging. After atomic replacement, native-identity or receipt-digest mismatch routes to the existing rollback path and returns the bounded project-publication error.
 
 A process interruption before the receipt-aware validator finishes leaves the durable journal in `prepared`; recovery rolls the candidate back. Promotion to `published` happens only after predecessor and candidate verification succeed. This ordering is the durable evidence that content-CAS validation completed before cleanup becomes legal.
+
+A current v3 project is parsed through the same prepared boundary but is not rewritten merely to canonicalize insignificant byte representation. This avoids turning ordinary open into an unexpected write for already-current projects.
 
 ### Privacy
 
@@ -82,10 +96,12 @@ Receipts contain versions and SHA-256 values only. `ProjectFileReadSnapshot` car
 
 `apps/desktop/src-tauri/tests/project_persistence_read_identity.rs` proves the bounded read retains the original opened-file identity after the selected pathname is replaced.
 
-`apps/desktop/src-tauri/tests/project_persistence_migration_content_cas.rs` proves that an in-place predecessor byte change with unchanged native identity cannot commit migration publication, while an exact predecessor plus exact candidate can commit and retire the stage.
+`apps/desktop/src-tauri/tests/project_persistence_migration_content_cas.rs` proves that an in-place predecessor byte change with unchanged native identity cannot commit migration publication, an exact predecessor plus exact candidate can commit, a checked-in historical project is migrated through the load owner, a current v3 project is not spuriously rewritten, and Unix migration preserves existing project-data permission bits.
+
+The `project_persistence.rs` source-route regression verifies that the Tauri command uses `project_load::load_project_document` and that the load owner derives authority from `read_project_file_with_identity` rather than the obsolete compatibility string route.
 
 ## Remaining risk and follow-up
 
-The new receipt-aware replacement primitive is not yet called by production `load_project`. The next buyer-path slice is to make load/recovery use `read_project_file_with_identity`, pass those exact bytes to `prepare_project_migration`, and, only when `receipt.migrated` is true, stage `canonical_content` and invoke the receipt-aware replacement using the snapshot identity. The returned current document must remain the same validated prepared document; migration publication failure must not silently substitute a different project state.
+Source-level migrate-on-open wiring is now present, but exact-head hosted CI/native-build/SBOM/SAST/security and qualifying independent review still gate any GREEN or merge claim. Packaged fault injection must still prove the complete load-time migration path under interruption, disk-full, permission failure, and power-loss conditions on supported Windows and macOS targets.
 
-Known-good retention beyond the immediate rollback window, application downgrade behavior, bounded autosave, global startup recovery discovery, accessible Restore / Compare / Discard UX, and packaged Windows/macOS interruption, disk-full, cancellation, and power-loss evidence remain open under #962. Resource Admission owner #866 remains a separate protected prerequisite for source-audio re-admission; this Project Persistence slice does not copy or bypass it.
+Known-good retention beyond the immediate rollback window, application downgrade behavior, bounded autosave, global startup recovery discovery, accessible Restore / Compare / Discard UX, and packaged Windows/macOS cancellation evidence remain open under #962. Resource Admission owner #866 remains a separate protected prerequisite for source-audio re-admission; this Project Persistence slice does not copy or bypass it.
