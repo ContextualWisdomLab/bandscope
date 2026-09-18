@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import Protocol
 
 import numpy as np
 
@@ -23,9 +24,8 @@ _ALLOWED_FUNCTIONAL_LABELS = frozenset(
 )
 
 
-@dataclass(frozen=True, slots=True)
-class FunctionalAccuracySegment:
-    """One preregistered normalized segment for ACC evaluation."""
+class FunctionalSegmentLike(Protocol):
+    """Structural view of the parser-owned functional segment value object."""
 
     start: Fraction
     end: Fraction
@@ -43,11 +43,11 @@ class FunctionalAccuracyResult:
 
 
 def _validate_segments(
-    segments: Sequence[FunctionalAccuracySegment],
+    segments: Sequence[FunctionalSegmentLike],
     *,
     duration_seconds: Fraction,
     field: str,
-) -> tuple[FunctionalAccuracySegment, ...]:
+) -> tuple[FunctionalSegmentLike, ...]:
     """Require one continuous full-duration preregistered segmentation."""
     if not segments:
         raise ValueError(f"{field} must contain at least one segment")
@@ -78,8 +78,8 @@ def _validate_segments(
 
 
 def calculate_functional_accuracy(
-    reference_segments: Sequence[FunctionalAccuracySegment],
-    estimated_segments: Sequence[FunctionalAccuracySegment],
+    reference_segments: Sequence[FunctionalSegmentLike],
+    estimated_segments: Sequence[FunctionalSegmentLike],
     *,
     duration_seconds: Fraction,
 ) -> FunctionalAccuracyResult:
