@@ -1,7 +1,8 @@
-"""Regression tests for exact structure metric preregistration semantics."""
+"""Regression tests for exact structure scientific preregistration semantics."""
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from types import ModuleType
@@ -36,6 +37,23 @@ _EXPECTED_METRIC_CONTRACT = {
         "frame_size_seconds": 0.1,
         "beta": 1.0,
     },
+    "aggregation_uncertainty": {
+        "aggregation_id": "macro-track-v1",
+        "sampling_unit": "registered_track_pair",
+        "quality_weighting": "equal_track",
+        "latency_weighting": "equal_track",
+        "boundary_and_repetition_f": "harmonic_of_macro_precision_recall",
+        "report_deviation": "macro_track_mean",
+        "peak_rss": "maximum_track_peak_rss",
+        "procedure_id": "paired-track-bootstrap-v1",
+        "confidence_level": 0.95,
+        "bootstrap_sample_size": "registered_track_count",
+        "bootstrap_replacement": True,
+        "rng": "numpy.random.Generator(PCG64)",
+        "quantile_method": "linear",
+        "two_sided_tail_probability": 0.025,
+        "maximum_resamples": 100000,
+    },
 }
 
 
@@ -57,8 +75,8 @@ def _canonical_digest(value: object) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def test_registration_digest_binds_exact_metric_runtime_and_adapter_semantics() -> None:
-    """Scientific identity includes every reviewed mir_eval argument and lock digest."""
+def test_registration_digest_binds_exact_scientific_semantics() -> None:
+    """Scientific identity includes metric runtime, adapters, and aggregation procedure."""
     validator = _validator()
     registration = _registration()
 
@@ -75,8 +93,8 @@ def test_registration_digest_binds_exact_metric_runtime_and_adapter_semantics() 
     assert validator.registration_digest(dict(reversed(list(registration.items())))) == expected
 
 
-def test_digest_contract_matches_metric_adapter_and_runtime_lock_owners() -> None:
-    """Duplicated digest metadata cannot drift from the executable metric owners."""
+def test_digest_contract_matches_executable_metric_and_aggregation_owners() -> None:
+    """Digest metadata cannot drift from lock, metric, or paired-bootstrap owners."""
     validator = _validator()
     adapter = load_module(
         "scripts/research/evaluate_structure_segmentation_metrics.py",
@@ -85,6 +103,10 @@ def test_digest_contract_matches_metric_adapter_and_runtime_lock_owners() -> Non
     runtime = load_module(
         "scripts/research/verify_structure_metric_runtime_lock.py",
         "structure_metric_runtime_owner_for_registration",
+    )
+    aggregation = load_module(
+        "scripts/research/aggregate_structure_noninferiority.py",
+        "structure_aggregation_owner_for_registration",
     )
     contract = validator.STRUCTURE_METRIC_CONTRACT
 
@@ -112,10 +134,32 @@ def test_digest_contract_matches_metric_adapter_and_runtime_lock_owners() -> Non
         "frame_size_seconds": adapter.PAIRWISE_FRAME_SIZE_SECONDS,
         "beta": adapter.PAIRWISE_BETA,
     }
+    assert contract["aggregation_uncertainty"] == (
+        aggregation.AGGREGATION_UNCERTAINTY_CONTRACT
+    )
+
+
+def test_registration_rejects_unsupported_uncertainty_implementation() -> None:
+    """A free-form procedure label cannot bypass the one executable bootstrap owner."""
+    validator = _validator()
+    unsupported = _registration()
+    uncertainty = unsupported["uncertainty"]
+    assert isinstance(uncertainty, dict)
+    uncertainty["procedure_id"] = "post-hoc-bootstrap"
+
+    with pytest.raises(ValueError, match="procedure_id"):
+        validator.validate_registration(unsupported)
+
+    excessive = copy.deepcopy(_registration())
+    excessive_uncertainty = excessive["uncertainty"]
+    assert isinstance(excessive_uncertainty, dict)
+    excessive_uncertainty["resamples"] = 100001
+    with pytest.raises(ValueError, match="resamples"):
+        validator.validate_registration(excessive)
 
 
 def test_result_rejects_receipt_bound_only_to_the_legacy_registration_digest() -> None:
-    """A receipt cannot omit the metric contract by hashing registration JSON alone."""
+    """A receipt cannot omit the scientific contract by hashing registration JSON alone."""
     validator = _validator()
     registration = _registration()
     metric_aware_digest = validator.registration_digest(registration)
