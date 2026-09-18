@@ -25,9 +25,10 @@ pub use audio_resource::{
 };
 pub use content_sha256::sha256_hex_reader;
 pub use project_format::{
-    project_content_for_document, project_content_for_payload, project_document_from_content,
-    project_document_from_value, project_document_with_migration_receipt,
-    project_payload_from_content, project_source_reference_from_publication_identity,
+    prepare_project_migration, project_content_for_document, project_content_for_payload,
+    project_document_from_content, project_document_from_value,
+    project_document_with_migration_receipt, project_payload_from_content,
+    project_source_reference_from_publication_identity, PreparedProjectMigration,
     ProjectDocumentPayload, ProjectMigrationReceipt, ProjectPreferencesPayload,
     ProjectSourceReferencePayload, SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
 };
