@@ -103,3 +103,50 @@ fn migration_publication_commits_only_exact_receipt_bound_bytes() {
     assert!(!stage.exists(), "successful publication should retire rollback material");
     fs::remove_dir_all(root).expect("fixture directory should be removable");
 }
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn project_load_migrates_a_historical_fixture_through_receipt_bound_publication() {
+    let root = test_root("load-migrates");
+    let target = root.join("setlist.bscope");
+    let original = include_str!("../../core/testdata/project-v2.json");
+    fs::write(&target, original).expect("historical fixture should be written");
+    let expected = prepare_project_migration(original)
+        .expect("historical fixture should prepare a canonical migration");
+
+    let loaded = project_persistence::load_project_document(&target)
+        .expect("loading a historical project should publish its validated migration");
+
+    assert_eq!(
+        fs::read(&target).expect("the migrated project should remain readable"),
+        expected.canonical_content().as_bytes()
+    );
+    assert_eq!(
+        serde_json::to_value(&loaded).expect("loaded document should serialize"),
+        serde_json::to_value(expected.document()).expect("prepared document should serialize")
+    );
+    fs::remove_dir_all(root).expect("fixture directory should be removable");
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn project_load_does_not_rewrite_a_current_v3_project() {
+    let root = test_root("load-current-noop");
+    let target = root.join("setlist.bscope");
+    let historical = include_str!("../../core/testdata/project-v2.json");
+    let prepared = prepare_project_migration(historical)
+        .expect("historical fixture should prepare a canonical migration");
+    let current_with_incidental_whitespace = format!("{}\n", prepared.canonical_content());
+    fs::write(&target, &current_with_incidental_whitespace)
+        .expect("current project should be written");
+
+    project_persistence::load_project_document(&target)
+        .expect("current project should load without a migration publication");
+
+    assert_eq!(
+        fs::read(&target).expect("current project should remain readable"),
+        current_with_incidental_whitespace.as_bytes(),
+        "format-v3 load must not rewrite bytes when no migration is required"
+    );
+    fs::remove_dir_all(root).expect("fixture directory should be removable");
+}
