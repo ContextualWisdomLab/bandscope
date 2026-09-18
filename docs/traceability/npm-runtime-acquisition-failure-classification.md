@@ -23,6 +23,7 @@ The exact-minimum lane also lived in a newly added standalone workflow. Fresh ex
 - Every repository workflow job that consumes Node dependencies under this owner must use the same activation helper before its first `npm ci`; workflow-local Corepack activation is not a second owner implementation.
 - The exact-minimum Node compatibility job must live in an already-materialized PR CI workflow rather than relying on a second workflow whose pull-request run is absent from the observed inventory.
 - Error classification remains diagnostic-based because the current Corepack command boundary does not expose a stable machine-readable failure taxonomy to this script.
+- Protected-base formatting debt owned by another PR is consumed by stack ancestry; it is not copied into this owner as an unrelated patch.
 
 ## Decision
 
@@ -44,6 +45,7 @@ The retry allowlist is intentionally narrow. Additional error codes such as conn
 - Retry `npm ci` or later build/test commands: rejected because those operations have different side effects and failure semantics.
 - Keep inline Corepack activation in any CI job: rejected because it duplicates the same package-manager acquisition contract and can drift from the canonical timeout/trust classifier.
 - Keep the exact-minimum compatibility check as a second standalone workflow after its PR runs are absent from the observed exact-head workflow inventory: rejected because source presence without live PR execution does not satisfy the compatibility evidence requirement.
+- Copy the protected-base Ruff fix from #1176 into #896: rejected because #1176 is the canonical single writer for that prerequisite and the dependent branch can inherit it through ordinary non-force ancestry.
 
 ## Evidence and regression
 
@@ -57,7 +59,11 @@ A later workflow sweep found that the exact-minimum workflow still bypassed the 
 
 A fresh live `ci.yml` review then exposed the remaining duplicate owners. RED `4830abb4db7b0741ee202582de721af0317750ce` requires the exact-minimum job to live in registered `ci.yml`, rejects the standalone workflow, and requires `lock-validation`, `verify`, `rust-check`, and `node-minimum-compatibility` to delegate activation to the helper with no inline `corepack enable npm` / `npm --version` path. GREEN `99b0707c61099a170695b66f644fd90162fb7f8c` moves the exact-minimum job into `ci.yml`, converts the three existing CI jobs to the helper, removes the redundant workflow-global npm version variable, and deletes the standalone workflow.
 
-Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to later moved heads. Exact `99b0707c...` and its traceability descendants require fresh hosted evidence, including the newly registered exact-minimum CI job.
+Exact head `c010a66fedec3647274a27900a11203e07ee671e` then materialized `gate / ci / node-minimum-compatibility` in the live PR CI workflow. On hosted macOS 15 it successfully reached Node 22.22.2, canonical npm activation, verified npm 10.9.9 with bundled tar 7.5.22, frozen dependency installation, Python dependency sync, and the Rust numeric-extension build. Its first source-backed failure was the repository Ruff formatting gate, not package-manager acquisition.
+
+That Ruff failure named four files. Three were #896-owned regression files; `78bcc37334c512e15289503294bceaff57c5f927` aligns their formatting and removes a stale test dependency on the deleted standalone workflow by reading `node-minimum-compatibility` from registered `ci.yml`. The fourth file, `services/analysis-engine/tests/test_supply_chain_policy.py`, is the canonical formatting delta owned by #1176. Rather than copying it, merge commit `b5dc5bf7834137a8f6b0140b1219e7dbeff7b8db` inherits #1176 exact head `8fe6b6d99c009527ef0bcba419e6f6debdb23c23`, and #896 is retargeted onto that prerequisite branch.
+
+Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to later moved heads. Current traceability descendants require fresh hosted evidence on the unchanged stacked merge candidate.
 
 ## Risks and claim boundary
 
@@ -65,7 +71,9 @@ The allowlist may reject a future genuinely transient Corepack error that is not
 
 Diagnostic matching still depends on upstream text. If Corepack exposes a stable structured error code or typed result, this script should consume that contract instead. This mechanism does not prove package-manager authenticity by itself; authenticity remains Corepack's verification responsibility, while BandScope controls retry and fallback behavior around that boundary.
 
-Structural workflow tests prove command ownership and order, not successful hosted acquisition. Moving the exact-minimum lane into `ci.yml` is an evidence-topology repair, not proof that Node 22.22.2 or npm acquisition succeeds on a hosted runner. A job can still fail for runner, registry, Corepack, dependency, Rust, Python, or product-test reasons; those failures remain visible and must be classified from exact-head evidence rather than suppressed or blindly retried.
+Structural workflow tests prove command ownership and order, not successful hosted acquisition. Moving the exact-minimum lane into `ci.yml` is an evidence-topology repair, not proof that Node 22.22.2 or npm acquisition succeeds on every hosted run. The c010 run proves that one exact generation reached and passed the npm acquisition boundary before failing later at formatting; source movement after that point requires fresh evidence.
+
+The #1176 stack does not transfer #1176 approvals or central-gate evidence into #896. It only establishes ancestry for the canonical formatting prerequisite. #896 still requires its own exact-head repository/central gates and current-head independent review.
 
 ## Follow-up
 
@@ -75,13 +83,14 @@ Structural workflow tests prove command ownership and order, not successful host
 - Expand the transient allowlist only from exact observed evidence plus a focused regression and documented retry safety.
 - If Corepack introduces a stable structured failure classification, replace diagnostic-string matching with that contract.
 - Treat any unclassified failure that reaches sleep/retry as a repair finding, not as permission to broaden fallback behavior.
-- Require fresh hosted success for the exact-minimum Node 22.22.2 job, normal CI jobs, and native build lanes on the unchanged merge candidate head.
+- Preserve #1176 as the single writer for the protected-base Ruff prerequisite; consume it by ancestry until normal integration reaches `develop`.
+- Require fresh hosted success for the exact-minimum Node 22.22.2 job, normal CI jobs, native build lanes, and applicable central security/SBOM/SAST gates on the unchanged stacked merge candidate head.
 
 ## Security Notes
 
 The package-manager acquisition diagnostic is untrusted upstream text used only for a bounded classification decision and stderr evidence. It is never evaluated or interpolated into a shell command. The trust boundary is `corepack install --global` returning non-zero: only the exact observed `ETIMEDOUT` token permits another attempt; all other results fail closed before npm activation or dependency extraction. No secret, token, package payload, or mutable version selector is logged by this policy.
 
-Centralizing workflow activation does not broaden permissions. The helper operates with the same repository checkout and runner process privileges the inline commands already had; the change removes duplicate acquisition paths and places the exact-minimum job inside the existing CI execution surface rather than adding a new credential or network capability.
+Centralizing workflow activation does not broaden permissions. The helper operates with the same repository checkout and runner process privileges the inline commands already had; the change removes duplicate acquisition paths and places the exact-minimum job inside the existing CI execution surface rather than adding a new credential or network capability. Stacking #1176 adds no new runtime authority; it only inherits the canonical formatting prerequisite by commit ancestry.
 
 ## References
 
