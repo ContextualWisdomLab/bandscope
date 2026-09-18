@@ -117,6 +117,22 @@ pub struct ProjectMigrationReceipt {
     pub migrated: bool,
 }
 
+fn verify_receipt_reader(
+    reader: impl Read,
+    expected_sha256: &str,
+    error_message: &str,
+) -> Result<(), String> {
+    if !sha256_hex_is_canonical(expected_sha256) {
+        return Err(error_message.to_string());
+    }
+    let observed_sha256 =
+        sha256_hex_reader(reader).map_err(|_| error_message.to_string())?;
+    if observed_sha256 != expected_sha256 {
+        return Err(error_message.to_string());
+    }
+    Ok(())
+}
+
 impl ProjectMigrationReceipt {
     /// Verify that an already-authorized reader still contains the exact admitted input bytes.
     ///
@@ -125,15 +141,24 @@ impl ProjectMigrationReceipt {
     /// reopening a pathname. This method only applies the canonical SHA-256 contract and never opens
     /// a path, logs content, or treats content identity as authenticity.
     pub fn verify_input_reader(&self, reader: impl Read) -> Result<(), String> {
-        if !sha256_hex_is_canonical(&self.input_sha256) {
-            return Err("Could not validate project migration predecessor".to_string());
-        }
-        let observed_sha256 = sha256_hex_reader(reader)
-            .map_err(|_| "Could not validate project migration predecessor".to_string())?;
-        if observed_sha256 != self.input_sha256 {
-            return Err("Could not validate project migration predecessor".to_string());
-        }
-        Ok(())
+        verify_receipt_reader(
+            reader,
+            &self.input_sha256,
+            "Could not validate project migration predecessor",
+        )
+    }
+
+    /// Verify that an already-authorized reader contains the exact validated output bytes.
+    ///
+    /// A persistence adapter may use this after native replacement and before retiring rollback
+    /// material. The receipt compares bytes only; the caller remains responsible for native file
+    /// authority and for ensuring that the reader denotes the published candidate object.
+    pub fn verify_output_reader(&self, reader: impl Read) -> Result<(), String> {
+        verify_receipt_reader(
+            reader,
+            &self.output_sha256,
+            "Could not validate project migration publication",
+        )
     }
 }
 
