@@ -97,9 +97,7 @@ jobs:
 
           Write-AntivirusEvidence "Antivirus check: no explicit antivirus telemetry was available on this hosted runner."
       - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
+        run: bash scripts/checks/activate_pinned_npm_runtime.sh
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -196,9 +194,7 @@ jobs:
 
           Write-AntivirusEvidence "Antivirus check: no explicit antivirus telemetry was available on this hosted runner."
       - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
+        run: bash scripts/checks/activate_pinned_npm_runtime.sh
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -269,9 +265,7 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
+        run: bash scripts/checks/activate_pinned_npm_runtime.sh
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
@@ -333,9 +327,7 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
+        run: bash scripts/checks/activate_pinned_npm_runtime.sh
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
