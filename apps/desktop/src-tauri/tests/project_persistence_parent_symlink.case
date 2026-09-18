@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use crate::project_persistence;
 
 #[cfg(unix)]
