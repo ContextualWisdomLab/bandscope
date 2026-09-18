@@ -66,9 +66,7 @@ class _FakeSegmentMetrics:
 
 
 class _FakeMirEval:
-    """Minimal versioned mir_eval surface used as a deterministic test boundary."""
-
-    __version__ = "0.8.2"
+    """Minimal mir_eval surface used as a deterministic test boundary."""
 
     def __init__(self) -> None:
         self.segment = _FakeSegmentMetrics()
@@ -81,6 +79,7 @@ def test_adapter_pins_mir_eval_082_and_nontrivial_boundary_semantics(
     module = _adapter()
     backend = _FakeMirEval()
     monkeypatch.setattr(module, "_load_mir_eval", lambda: backend)
+    monkeypatch.setattr(module, "_mir_eval_version", lambda: "0.8.2")
 
     reference = _segments(
         ("0", "10", "intro"),
@@ -120,8 +119,8 @@ def test_adapter_fails_closed_on_unregistered_mir_eval_version(
     """A dependency drift must fail before scientific scores are accepted."""
     module = _adapter()
     backend = _FakeMirEval()
-    backend.__version__ = "0.8.3"
     monkeypatch.setattr(module, "_load_mir_eval", lambda: backend)
+    monkeypatch.setattr(module, "_mir_eval_version", lambda: "0.8.3")
 
     segments = _segments(("0", "10", "verse"), ("10", "20", "chorus"))
 
@@ -138,6 +137,7 @@ def test_adapter_rejects_discontinuous_or_duration_mismatched_segments(
     module = _adapter()
     backend = _FakeMirEval()
     monkeypatch.setattr(module, "_load_mir_eval", lambda: backend)
+    monkeypatch.setattr(module, "_mir_eval_version", lambda: "0.8.2")
 
     reference = _segments(("0", "10", "verse"), ("10", "20", "chorus"))
     gap = _segments(("0", "9", "verse"), ("10", "20", "chorus"))
