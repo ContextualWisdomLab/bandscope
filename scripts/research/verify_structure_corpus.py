@@ -196,6 +196,7 @@ def _decode_pcm_identity(fd: int, target_sample_rate_hz: int) -> tuple[str, int,
         try:
             os.close(duplicate_fd)
         except OSError:
+            # The file object may already have closed the duplicate; preserve the decode error.
             pass
         raise
     if int(actual_sample_rate_hz) != target_sample_rate_hz:
@@ -452,6 +453,7 @@ def _write_receipt_atomic(path: Path, receipt: Mapping[str, object]) -> None:
         try:
             temporary_path.unlink()
         except FileNotFoundError:
+            # Replacement or prior cleanup may have consumed the temp path already.
             pass
         raise
 
