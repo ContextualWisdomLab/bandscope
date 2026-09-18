@@ -78,6 +78,33 @@ def test_consumer_scores_baseline_and_candidate_on_the_same_admitted_pcm() -> No
     assert evidence[0].candidate_total_frames == 4
 
 
+def test_registered_hypothesis_factory_binds_exact_cqt_then_stft_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The canonical experiment factory must not leave feature identity to callers."""
+    module = _consumer_module()
+    requested: list[str] = []
+
+    def lane(feature: str) -> Any:
+        requested.append(feature)
+
+        def segmenter(
+            _pcm: memoryview,
+            _sample_rate: int,
+            _duration: Fraction,
+        ) -> tuple[SimpleNamespace, ...]:
+            return _segments(("0.0", "0.4", "verse"))
+
+        return segmenter
+
+    monkeypatch.setattr(module._LANES, "repository_structure_segmenter", lane)
+
+    consumer = module.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+
+    assert isinstance(consumer, module.PairedFunctionalAccuracyTrackConsumer)
+    assert requested == ["cqt", "stft"]
+
+
 def test_consumer_fails_closed_before_measurement_on_mutable_or_malformed_pcm() -> None:
     """The measurement boundary must not accept mutable or non-float32-shaped handoffs."""
     module = _consumer_module()
