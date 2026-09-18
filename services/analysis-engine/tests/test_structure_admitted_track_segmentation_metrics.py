@@ -51,6 +51,25 @@ def _metric_result(seed: float) -> SimpleNamespace:
     )
 
 
+def _performance_result() -> SimpleNamespace:
+    """Return deterministic preregistered performance evidence for focused tests."""
+    return SimpleNamespace(
+        contract_id="isolated-single-shot-v1",
+        baseline=SimpleNamespace(
+            p50_latency_seconds=0.80,
+            p95_latency_seconds=0.95,
+            peak_rss_mib=512.0,
+            measured_trials=20,
+        ),
+        candidate=SimpleNamespace(
+            p50_latency_seconds=0.42,
+            p95_latency_seconds=0.50,
+            peak_rss_mib=480.0,
+            measured_trials=20,
+        ),
+    )
+
+
 def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -95,6 +114,11 @@ def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
         "_installed_mir_eval_version",
         lambda: "0.8.2",
     )
+    monkeypatch.setattr(
+        module._RESOURCE_MEASUREMENT,
+        "measure_paired_repository_lane_resources",
+        lambda *_args: _performance_result(),
+    )
 
     consumer = (
         module.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
@@ -115,6 +139,7 @@ def test_registered_consumer_binds_runtime_lock_and_scores_both_feature_lanes(
     assert evidence.candidate_segmentation_metrics.boundary_f_0_5 == pytest.approx(0.68)
     assert evidence.baseline_segmentation_metrics.repetition_pairwise_f == pytest.approx(0.72)
     assert evidence.candidate_segmentation_metrics.repetition_pairwise_f == pytest.approx(0.70)
+    assert evidence.performance_contract_id == "isolated-single-shot-v1"
 
 
 def test_registered_consumer_fails_before_metric_execution_on_runtime_drift(
