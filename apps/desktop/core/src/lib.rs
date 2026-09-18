@@ -296,18 +296,18 @@ pub struct ConfidencePayload {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct CuePayload {
-    kind: CueKindPayload,
-    value: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CueKindPayload {
     Lyric,
     Count,
     Transition,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CuePayload {
+    kind: CueKindPayload,
+    value: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -806,6 +806,12 @@ pub(crate) fn project_payload_from_content(content: &str) -> Result<RehearsalSon
         }
         let envelope = serde_json::from_value::<ProjectFileV1Payload>(payload)
             .map_err(|_| "Invalid project file format".to_string())?;
+        if envelope.project_format_version != LEGACY_PROJECT_FORMAT_VERSION {
+            return Err(format!(
+                "Unsupported project format version: {}",
+                envelope.project_format_version
+            ));
+        }
         return Ok(envelope.song);
     }
 
