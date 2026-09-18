@@ -160,8 +160,7 @@ def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
     lock_job = _lock_validation_job(workflow)
 
     assert f'node-version: "{_EXPECTED_NODE_VERSION}"' in workflow
-    assert f'EXPECTED_NPM_VERSION: "{_EXPECTED_NPM_VERSION}"' in workflow
-    assert 'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"' in lock_job
+    assert lock_job.count(_NPM_ACTIVATION_COMMAND) == 1
     assert "npm ci --ignore-scripts --no-audit --no-fund" in lock_job
     assert "git diff --exit-code -- package.json package-lock.json" in lock_job
     assert "needs: lock-validation" in workflow
