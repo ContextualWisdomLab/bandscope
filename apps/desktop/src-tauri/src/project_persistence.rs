@@ -472,6 +472,25 @@ pub(crate) fn project_file_identity(_target: &Path) -> Result<ProjectFileIdentit
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
 
+/// Bounded project content coupled to the native identity of the exact opened file.
+#[derive(Debug)]
+pub(crate) struct ProjectFileReadSnapshot {
+    content: String,
+    identity: ProjectFileIdentity,
+}
+
+impl ProjectFileReadSnapshot {
+    /// Returns the UTF-8 project content read from the identity-bearing native handle.
+    pub(crate) fn content(&self) -> &str {
+        &self.content
+    }
+
+    /// Returns the native identity of the same opened file that produced `content`.
+    pub(crate) fn identity(&self) -> &ProjectFileIdentity {
+        &self.identity
+    }
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[cfg(unix)]
 type JournalPathName = Vec<u8>;
@@ -1117,12 +1136,12 @@ fn project_parent_chain_is_safe(parent: &Path) -> bool {
         })
 }
 
-fn read_project_file_with_opener<F>(
+fn read_project_file_with_identity_and_opener<F>(
     target: &Path,
     open_file: F,
     max_bytes: usize,
     too_large_error: &str,
-) -> Result<String, String>
+) -> Result<ProjectFileReadSnapshot, String>
 where
     F: FnOnce(&Path) -> std::io::Result<File>,
 {
@@ -1153,12 +1172,15 @@ where
     }
 
     #[cfg(unix)]
-    if !same_file_identity(&before, &opened) || !same_file_identity(&opened, &after) {
-        return Err(PROJECT_READ_ERROR.to_string());
-    }
+    let identity = {
+        if !same_file_identity(&before, &opened) || !same_file_identity(&opened, &after) {
+            return Err(PROJECT_READ_ERROR.to_string());
+        }
+        project_file_identity_from_metadata(&opened)
+    };
 
     #[cfg(windows)]
-    {
+    let identity = {
         let after_file = open_project_file(target).map_err(|_| PROJECT_READ_ERROR.to_string())?;
         let after_opened = after_file
             .metadata()
@@ -1176,10 +1198,11 @@ where
         if before_identity != opened_identity || opened_identity != after_identity {
             return Err(PROJECT_READ_ERROR.to_string());
         }
-    }
+        opened_identity
+    };
 
     #[cfg(not(any(unix, windows)))]
-    return Err(PROJECT_READ_ERROR.to_string());
+    let identity: ProjectFileIdentity = return Err(PROJECT_READ_ERROR.to_string());
 
     let mut reader = file.take((max_bytes + 1) as u64);
     let mut bytes = Vec::new();
@@ -1189,7 +1212,39 @@ where
     if bytes.len() > max_bytes {
         return Err(too_large_error.to_string());
     }
-    String::from_utf8(bytes).map_err(|_| PROJECT_READ_ERROR.to_string())
+    let content = String::from_utf8(bytes).map_err(|_| PROJECT_READ_ERROR.to_string())?;
+    Ok(ProjectFileReadSnapshot { content, identity })
+}
+
+fn read_project_file_with_opener<F>(
+    target: &Path,
+    open_file: F,
+    max_bytes: usize,
+    too_large_error: &str,
+) -> Result<String, String>
+where
+    F: FnOnce(&Path) -> std::io::Result<File>,
+{
+    read_project_file_with_identity_and_opener(target, open_file, max_bytes, too_large_error)
+        .map(|read| read.content)
+}
+
+/// Reads one project and retains the native identity of the same bounded file handle.
+///
+/// This is the Project Persistence predecessor-authority primitive for migration publication. Content
+/// and identity are captured from one no-follow native handle after the existing before/opened/after
+/// path-stability checks. A later pathname replacement therefore cannot silently become the expected
+/// predecessor for a migration derived from these bytes. The returned identity is local filesystem
+/// authority only; it is not content authenticity, a signature, or Resource Admission evidence.
+pub(crate) fn read_project_file_with_identity(
+    target: &Path,
+) -> Result<ProjectFileReadSnapshot, String> {
+    read_project_file_with_identity_and_opener(
+        target,
+        open_project_file,
+        MAX_PROJECT_FILE_BYTES,
+        PROJECT_TOO_LARGE_ERROR,
+    )
 }
 
 /// Reads one project through a bounded, path-stable native file handle.
@@ -1201,7 +1256,7 @@ where
 /// points without following them, rejects reparse handles, and compares the volume serial number plus
 /// file index returned for native handles before, during, and after acquisition. Other Unix targets
 /// fail closed until their no-follow open contract is explicitly modeled. The reader remains capped
-/// at `MAX_PROJECT_FILE_BYTES + 1`; backup rotation and migration semantics remain later #962 work.
+/// at `MAX_PROJECT_FILE_BYTES + 1`; backup rotation and migration publication remain later #962 work.
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(
         target,
@@ -1632,7 +1687,8 @@ mod tests {
         let root = test_dir("read-symlink");
         let external = root.join("external.json");
         let selected = root.join("selected.bscope");
-        fs::write(&external, r#"{\"id\":\"external\"}"#).expect("external fixture should be written");
+        fs::write(&external, r#"{\"id\":\"external\"}"#)
+            .expect("external fixture should be written");
         symlink(&external, &selected).expect("fixture symlink should be created");
 
         let error = read_project_file(&selected)
@@ -1648,15 +1704,21 @@ mod tests {
         let selected = root.join("selected.bscope");
         let replacement = root.join("replacement.bscope");
         let parked = root.join("parked.bscope");
-        fs::write(&selected, r#"{\"id\":\"selected\"}"#).expect("selected fixture should be written");
+        fs::write(&selected, r#"{\"id\":\"selected\"}"#)
+            .expect("selected fixture should be written");
         fs::write(&replacement, r#"{\"id\":\"replacement-with-different-bytes\"}"#)
             .expect("replacement fixture should be written");
 
-        let error = read_project_file_with_opener(&selected, |path| {
-            fs::rename(path, &parked)?;
-            fs::rename(&replacement, path)?;
-            fs::File::open(path)
-        }, MAX_PROJECT_FILE_BYTES, PROJECT_TOO_LARGE_ERROR)
+        let error = read_project_file_with_opener(
+            &selected,
+            |path| {
+                fs::rename(path, &parked)?;
+                fs::rename(&replacement, path)?;
+                fs::File::open(path)
+            },
+            MAX_PROJECT_FILE_BYTES,
+            PROJECT_TOO_LARGE_ERROR,
+        )
         .expect_err("a path replacement between preflight and open must fail closed");
 
         assert_eq!(error, "Failed to read file");
@@ -1796,7 +1858,8 @@ mod tests {
         let root = test_dir("unrelated-recovery");
         let target = root.join("selected.bscope");
         let unrelated = root.join("other.bscope");
-        fs::write(&target, br#"{\"id\":\"selected\"}"#).expect("target fixture should be written");
+        fs::write(&target, br#"{\"id\":\"selected\"}"#)
+            .expect("target fixture should be written");
         fs::write(
             super::publication_journal_path(&unrelated, false)
                 .expect("unrelated journal path should be derivable"),
