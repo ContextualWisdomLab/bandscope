@@ -64,8 +64,10 @@ _ANNOTATIONS = _load_annotation_module()
 
 def _registered_feature(value: object) -> ChromaFeature:
     """Return one preregistered feature identity or fail closed."""
-    if value == "cqt" or value == "stft":
-        return value
+    if value == "cqt":
+        return "cqt"
+    if value == "stft":
+        return "stft"
     raise ValueError("registered chroma feature must be one of: cqt, stft")
 
 
