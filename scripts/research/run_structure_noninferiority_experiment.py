@@ -284,7 +284,12 @@ def _result_receipt(
     for index, item in enumerate(corpus):
         if not isinstance(item, Mapping):
             raise ValueError(f"registration.corpus[{index}] must be an object")
-        track_ids.append(_text(item.get("track_id"), f"registration.corpus[{index}].track_id"))
+        track_ids.append(
+            _text(
+                item.get("track_id"),
+                f"registration.corpus[{index}].track_id",
+            )
+        )
 
     result = {
         "schema_version": _VALIDATOR.SCHEMA_VERSION,
@@ -324,7 +329,9 @@ def execute_registered_experiment(
 
     active_consumer = consumer
     if active_consumer is None:
-        active_consumer = _TRACKS.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+        active_consumer = (
+            _TRACKS.PairedFunctionalAccuracyTrackConsumer.for_registered_cqt_stft_hypothesis()
+        )
     admit = _ADMISSION.verify_corpus if corpus_admitter is None else corpus_admitter
     corpus_receipt = admit(
         registration,
