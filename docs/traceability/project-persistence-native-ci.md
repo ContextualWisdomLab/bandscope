@@ -2,102 +2,97 @@
 
 ## Problem
 
-Project Persistence has platform-specific native behavior that ordinary Linux or compile-only evidence cannot substitute for. Windows uses `ReplaceFileW` and reparse-point handling; macOS uses `renamex_np`/`RENAME_SWAP`, no-follow file opens, and trusted root-directory alias handling. The original dedicated Windows Project Persistence workflow did not track `project_load.rs` or `project_root.rs`, and there was no equivalent macOS integration-test lane. `build-baseline` compiles/packages the native shell but does not execute the `src-tauri` integration-test suite that exercises migration publication, recovery, root aliases, path authority, and platform-specific rollback behavior.
+Project Persistence has platform-specific behavior that Linux-only or compile/package smoke evidence cannot substitute for. Windows uses `ReplaceFileW`, native volume/file-index identity, and reparse-point boundaries. macOS uses `renamex_np`/`RENAME_SWAP`, no-follow file opens, and trusted root-alias handling. `build-baseline` can prove that the native shell compiles and packages, but it does not execute the Tauri integration regressions for migration publication, rollback, recovery journals, path authority, or exact native identity.
 
-The first trigger repair was still insufficient as exact-head evidence. Exact descendant `ddfad475bc11f850c0a02598563a4a3fdfdc5527` produced a successful macOS Project Persistence run, but no exact-head Windows owner run was present. After both workflows were made to track this traceability document, exact `60e062354d8e74fc3762d70e7b1d8323abad7d07` again materialized the macOS owner workflow but still did not materialize the Windows owner workflow. This is observable workflow-registration behavior; it does not prove why GitHub retained that behavior, so the repair does not label the old workflow as disabled.
+The first native-CI repair found two evidence defects. The original Windows workflow did not track every direct persistence owner input and there was no symmetric macOS integration lane. After the trigger contract was repaired, macOS materialized but the old Windows workflow repeatedly did not. Repository evidence established the non-materialization, not its GitHub backend cause, so the workflow was replaced by a single canonical successor rather than being described as “disabled.”
 
-Because this project requires evidence to belong to the exact source head rather than a predecessor, a workflow identity that repeatedly fails to materialize cannot remain the canonical Windows evidence owner.
+Once Windows actually ran, it exposed a fixture portability defect: run `35389890487`, job `105745527622` reached the real Tauri suite and failed only `synced_source_publication_moves_the_owned_stage_only_after_durable_no_replace_publish`. The test had reopened a staged file read-only before `sync_all`; Windows correctly returned `ERROR_ACCESS_DENIED` because durable file-buffer flushing requires write authority on that handle. The fixture was repaired without skipping Windows or weakening the durability assertion.
 
-After the successor workflow did materialize, hosted Windows evidence exposed a second, independent defect in the integration fixture. Run `35389890487`, job `105745527622`, reached the actual Tauri test suite and failed only `synced_source_publication_moves_the_owned_stage_only_after_durable_no_replace_publish`. The fixture wrote a staged source and then reopened it with `fs::File::open`, which is a read-only handle. Calling `sync_all` on that handle succeeds on the Unix lane but Windows returned `ERROR_ACCESS_DENIED` (OS error 5), because durable file-buffer flushing requires write authority on the Windows handle. This was a test portability defect in the durability precondition, not evidence that the publication primitive itself rejected a valid staged file.
+A later migration-recovery change exposed a second hosted integration defect. Exact `b1edaf362d837002b833201fadca2a3cf29c4775`, macOS run `35400310428`, job `105778460931`, failed with Rust `E0061` because a rollback regression still used the pre-`PublicationValidation` test adapter. That adapter was repaired to exercise explicit `IdentityOnly` semantics rather than inventing migration evidence.
 
-The later migration-recovery journal upgrade exposed a third hosted defect rather than being accepted on source inspection alone. Exact `b1edaf362d837002b833201fadca2a3cf29c4775`, macOS run `35400310428`, job `105778460931`, compiled the real integration suite and failed with Rust `E0061`: `project_persistence_rollback_identity.rs` still called `create_publication_journal` with the old five-argument helper contract after the production journal gained explicit `PublicationValidation`. This was a stale test adapter caused by the owner API evolution. It was repaired directly in the canonical #970 lane rather than skipped or hidden.
-
-The same native log also showed warning debt. The compatibility `runtime_core` still carried a public v1 project serializer and a public `CURRENT_PROJECT_FORMAT_VERSION = 1` surface even though canonical writing had moved to the v3 `project_format` owner. In addition, per-test `#[path]`/`include!` source inclusion recompiles the full Project Persistence module into multiple integration-test crates, so symbols unrelated to an individual fixture appear unused. These are root-cause defects, not acceptable diagnostic noise.
-
-The first #1235 repair slice removes the duplicate compatibility writer rather than suppressing its warning. `5c1a26e0ce8945614ea740320492936fff0365eb` deletes the obsolete v1 serializer, makes the historical parser crate-private, renames the compatibility version/envelope as explicit v1-only internals, and converts its unit regression from serializer round-trip to parser admission. `6156d35a5665d19bde7424e2f6cc4f7021aeb963` restores the pre-existing declaration order after that edit and reads the deserialized v1 version field explicitly so the strict compatibility envelope is itself warning-clean. The public current-version writer remains `project_format`; the strict historical parser remains available only to that owner. The per-test source-inclusion warning architecture remains open work under #1235.
+Native logs then exposed warning debt under #1235. The first root cause was semantic: compatibility `runtime_core` still carried a v1 project serializer and a public `CURRENT_PROJECT_FORMAT_VERSION = 1` surface after canonical current writing had moved to v3 `project_format`. The second root cause was test architecture: thirteen Project Persistence integration targets each `#[path]`-compiled or `include!`-compiled the complete private `project_persistence.rs`, and some separately compiled `project_load.rs` or `project_root.rs`. That multiplied unrelated `dead_code` diagnostics and re-ran the embedded `#[cfg(test)]` persistence tests in each integration crate.
 
 ## Decision
 
-Project Persistence treats Windows and macOS native test lanes as owner evidence, not as optional packaging smoke tests.
+Windows and macOS Project Persistence workflows are owner evidence, not optional packaging smoke tests. They remain read-only (`contents: read`), use the repository-pinned checkout SHA, Rust 1.97.1, and execute:
 
-Both workflows track the direct Project Persistence inputs, including `project_load.rs`, `project_persistence.rs`, `project_root.rs`, the Tauri entry point, project-format/core contracts, persistence tests/fixtures, the workflow-policy regression, and this native-CI traceability document. Updating the evidence contract therefore refreshes both platform lanes on the resulting exact head.
+`cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --tests`
 
-The Windows lane now uses the successor file identity `.github/workflows/project-persistence-windows-native.yml`. Its job/check contract remains `test / project-persistence / windows`, `windows-2025`, Rust 1.97.1, and `cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --no-default-features --tests`. The previous `.github/workflows/project-persistence-windows.yml` file is removed so there is one Windows Project Persistence source owner rather than duplicate workflow writers.
+The Windows owner is `.github/workflows/project-persistence-windows-native.yml`; the legacy Windows workflow file is absent. The macOS owner is `.github/workflows/project-persistence-macos.yml`. Both workflows track the direct persistence source, core project-format contracts and fixtures, native test inputs, workflow-policy regression, and this traceability document.
 
-The macOS lane remains `.github/workflows/project-persistence-macos.yml` on `macos-15` with the same Rust/tool/test boundary. Both workflows remain read-only (`contents: read`) and use the repository-pinned checkout SHA with persisted credentials disabled. They do not add signing, notarization, secrets, deployment, or release authority.
+The warning-debt repair keeps canonical ownership narrow. `runtime_core` parses strict historical/v1 input only; `project_format` owns current v3 parsing, migration normalization, and serialization. No deprecated duplicate writer, fake reference, lint allowlist, `RUSTFLAGS` filter, log filter, test skip, or gate reduction is used.
 
-The staged-source durability fixture now reopens the stage with explicit read/write authority before `sync_all`. This matches the authority required for a durable flush on Windows while preserving the same buyer contract: bytes must be durably flushed before the no-replace publication owner is invoked. The repair does not weaken or skip the durability assertion and does not change production publication semantics.
+For native integration tests, the production persistence owner is now included once in `apps/desktop/src-tauri/tests/project_persistence.rs`. Case bodies live in `project_persistence_*.case` modules so Cargo does not auto-discover each as a separate integration crate. `project_load.rs` and `project_root.rs` are likewise included once where those cases need the private application boundary. The rollback regression’s access to private journal helpers remains a test-only adapter inside the same included persistence module; production visibility is not widened.
 
-The rollback-identity test adapter now calls the versioned journal owner with `PublicationValidation::IdentityOnly`, matching the ordinary-save behavior that test exists to exercise. It does not fabricate a migration receipt or weaken the new migration-specific recovery contract. Exact descendant `d8edb4a9f6eb422eb7561a763c9692a499dee492` subsequently completed both dedicated Windows and macOS Project Persistence lanes successfully; later heads must reacquire their own verdicts.
+The workflows and `test_project_persistence_workflow_policy.py` track both `project_persistence*.rs` and `project_persistence*.case`, so changing a case cannot silently bypass exact-head native evidence.
 
-Compatibility parsing and current-format serialization now have one-way ownership. `runtime_core` owns only the strict legacy/v1 song parser needed by migration; `project_format` owns current v3 parsing, migration normalization, and serialization. The old compatibility serializer is not retained under a deprecated alias, test-only facade, or warning allowlist. The remaining warning debt is architectural: integration tests must stop compiling a private copy of the entire production persistence source for each fixture.
+This single-harness change intentionally does not pretend that an integration crate and the production binary are one compilation unit. Hosted logs on exact `92136baa8538a68a527be863ec3c9606256f77ac` proved that the previous per-case multiplication is gone: macOS executed one consolidated `tests/project_persistence.rs` target containing 57 Project Persistence cases. The same log also identified two residual warnings rather than hiding them:
+
+- `publish_synced_file_noreplace` was unused only in the consolidated integration harness even though it is a production owner surface.
+- `read_project_file` was unused in the production binary because migrate-on-load now uses `read_project_file_with_identity`; the String-only compatibility projection remains test-only in practice but is still compiled as production code.
+
+The first residual warning is addressed by `2b0d5d9670b7b6906d469ba96b12d0a7386a77b0`, which adds a real integration regression through the production `publish_synced_file_noreplace` wrapper. The test durably flushes a staged source, invokes the actual wrapper, then verifies exact target bytes and stage-name retirement. This is behavioral coverage, not an artificial symbol reference. The `read_project_file` production-warning root remains open under #1235 and must be removed or scoped honestly to test-only compatibility without suppressing diagnostics.
 
 ## RED / GREEN evidence
 
-Initial native-lane repair:
+### Native lane registration and portability
 
-- RED `4008dab7a5aa9092c37559fcc17632dfee8d7e57` extends `test_project_persistence_workflow_policy.py` so the owner gate requires `project_load.rs` and `project_root.rs`, and requires a macOS persistence workflow using `macos-15` plus the pinned Tauri integration-test command.
-- GREEN `cc80424c4e048cbbc0337eae530c572d083a5200` repairs the original Windows workflow path contract.
-- GREEN `e0566c363604c2a29a17c09105123d220e57effc` adds the native macOS Project Persistence lane.
-- TRACEABILITY `ddfad475bc11f850c0a02598563a4a3fdfdc5527` produced an exact-head macOS native test success, but no exact-head Windows owner run was present, so that state was not accepted as symmetric platform evidence.
+- RED `4008dab7a5aa9092c37559fcc17632dfee8d7e57`: policy regression requires `project_load.rs`, `project_root.rs`, and a macOS owner lane.
+- GREEN `cc80424c4e048cbbc0337eae530c572d083a5200`: repairs the original Windows path contract.
+- GREEN `e0566c363604c2a29a17c09105123d220e57effc`: adds the macOS native lane.
+- RED `1726e9bfa1455dd3b9cb6afb93b18aede2befcd7`: both workflows must track traceability/policy inputs.
+- GREEN `488b89d56b3dc8d2e9d34ac72dd69bb065e0350a` and `ad9087ac83e8e513e7a665c7d6bc6757d27d79b6`: exact-head trigger refresh contract.
+- RED `488b2decf961d2ce28c8fdefe48d456cfdbe2f27`: policy requires the Windows successor identity and absence of the legacy file.
+- GREEN `c6045d8d743f4d0b997f706fc1b35c27a666b16b` + `61f7d5654f9618e098ba6c031980d4cdc48a2c06`: creates the successor and removes the duplicate Windows owner.
+- HOSTED RED `05ed6c1b10d89d470281edaae2a7c3c68785ad68`, run `35389890487`, job `105745527622`: Windows reaches the suite; 20/21 atomic-publication tests pass and the read-only `sync_all` fixture fails with OS error 5.
+- GREEN SOURCE `62ac8f8e46acb26fc542c4e995cc530ebc295090`: stage is reopened read/write before the same durability flush. Exact descendant `fddd9965043c9b67a5542d6db45f79661a032734` subsequently passes both native lanes.
 
-Exact-head refresh repair:
+### Recovery-journal adapter
 
-- RED `1726e9bfa1455dd3b9cb6afb93b18aede2befcd7` requires both native workflows to track this traceability document and the policy regression itself.
-- GREEN `488b89d56b3dc8d2e9d34ac72dd69bb065e0350a` adds the traceability path to Windows pull-request/protected-branch triggers.
-- GREEN `ad9087ac83e8e513e7a665c7d6bc6757d27d79b6` adds the same trigger contract to macOS.
-- TRACEABILITY `60e062354d8e74fc3762d70e7b1d8323abad7d07` again materialized macOS but not the Windows owner workflow, demonstrating that path coverage alone did not restore exact-head Windows evidence.
+- HOSTED RED `b1edaf362d837002b833201fadca2a3cf29c4775`, macOS run `35400310428`, job `105778460931`: stale rollback adapter fails Rust `E0061` after `PublicationValidation` becomes explicit.
+- GREEN SOURCE `d8edb4a9f6eb422eb7561a763c9692a499dee492`: adapter explicitly uses `PublicationValidation::IdentityOnly`; that exact head passes both native lanes.
 
-Windows workflow-identity successor repair:
+### #1235 current-format writer ownership
 
-- RED `488b2decf961d2ce28c8fdefe48d456cfdbe2f27` changes the policy regression to require the canonical successor filename and the absence of the legacy Windows workflow file. The predecessor still had only the legacy file, so the regression is intentionally non-green there.
-- GREEN `c6045d8d743f4d0b997f706fc1b35c27a666b16b` creates `project-persistence-windows-native.yml` with the same platform, permissions, pinned checkout, Rust version, owner-input triggers, and integration-test command.
-- GREEN `61f7d5654f9618e098ba6c031980d4cdc48a2c06` removes the old Windows workflow file so the successor is the sole Windows Project Persistence workflow owner.
-- TRACEABILITY `05ed6c1b10d89d470281edaae2a7c3c68785ad68` is the first exact head where both native owner workflows materialized. macOS completed successfully; Windows reached the suite and produced the hosted RED below.
+- FINDING: native warning output showed that v1 compatibility code still exposed a second project writer and a misleading public “current version = 1” surface.
+- GREEN SOURCE `5c1a26e0ce8945614ea740320492936fff0365eb`: removes the obsolete v1 serializer, replaces the public current-version surface with private `LEGACY_PROJECT_FORMAT_VERSION`, and retains strict historical parsing only.
+- GREEN HYGIENE `6156d35a5665d19bde7424e2f6cc4f7021aeb963`: consumes the deserialized v1 version field and removes incidental declaration-order churn.
+- TRACEABILITY `7f55bfc8ce049bc08525257a7a69ed59a97e2627`: records the single-writer decision and leaves the per-test compilation architecture explicitly open.
 
-Windows durable-flush portability repair:
+### #1235 single-compile integration harness
 
-- HOSTED RED `05ed6c1b10d89d470281edaae2a7c3c68785ad68`, run `35389890487`, job `105745527622`: 20/21 `project_persistence_atomic_publication` tests passed; `synced_source_publication_moves_the_owned_stage_only_after_durable_no_replace_publish` failed at the fixture's pre-publication `sync_all` with Windows OS error 5 (`Access is denied`).
-- GREEN SOURCE `62ac8f8e46acb26fc542c4e995cc530ebc295090` changes only that fixture's reopen authority from read-only `File::open` to `OpenOptions` with read/write access before `sync_all`. No production publication code, gate, or assertion is weakened.
-- Exact descendant `fddd9965043c9b67a5542d6db45f79661a032734` completed both dedicated native owner lanes successfully before the next semantic recovery change.
+- FINDING at `7f55bfc8ce049bc08525257a7a69ed59a97e2627`: thirteen native Project Persistence integration targets independently compiled the complete private persistence source, multiplying unrelated `dead_code` diagnostics and embedded unit-test execution.
+- GREEN SOURCE `69d54d40191fca3e39fbd540d4a2a165675c1eaa`: consolidates the integration cases under one `tests/project_persistence.rs` harness; former auto-discovered `.rs` case files become `.case` modules; private rollback helpers stay test-only inside the included owner module.
+- GREEN CI CONTRACT `582ec084cf56838d1d2a06048cef716b03ee2796`: Windows/macOS workflows and policy regression track the new `.case` inputs.
+- HOSTED RED `582ec084...`, macOS native job `105791463150`: the real consolidated harness fails with `E0432` because the nested rollback case imported `super::project_persistence`; after consolidation its immediate parent is the case module, not the integration crate.
+- GREEN SOURCE `92136baa8538a68a527be863ec3c9606256f77ac`: changes only that case import to `crate::project_persistence`.
+- HOSTED GREEN for structural repair: exact `92136baa...` macOS run `35404731489` and Windows run `35404731472` both complete successfully. macOS runs a single consolidated `tests/project_persistence.rs` target with 57 passing Project Persistence cases, while its log still reports the two residual warnings described above. This proves test consolidation, not warning-free production.
+- GREEN COVERAGE `2b0d5d9670b7b6906d469ba96b12d0a7386a77b0`: exercises the real `publish_synced_file_noreplace` production wrapper through a durably flushed stage and native no-replace publication, addressing the harness-only unused-symbol diagnostic without a fake reference.
 
-Recovery-journal API integration repair:
-
-- HOSTED RED `b1edaf362d837002b833201fadca2a3cf29c4775`, macOS run `35400310428`, job `105778460931`: the integration build failed with `E0061` in `project_persistence_rollback_identity.rs` because its test wrapper still called `create_publication_journal` without the new `PublicationValidation` argument.
-- GREEN SOURCE `d8edb4a9f6eb422eb7561a763c9692a499dee492` updates only the stale test wrapper to pass `PublicationValidation::IdentityOnly`, preserving the rollback-identity test's ordinary-save semantics.
-- Exact `d8edb4a9f6eb422eb7561a763c9692a499dee492` completed `test / project-persistence / macos` and `test / project-persistence / windows` successfully. General CI/security/SBOM/SAST/build checks and independent review remain separate gates.
-
-Compatibility-writer warning repair:
-
-- FINDING `#1235`: native logs show the obsolete `runtime_core::project_content_for_payload` current-writer surface is not consumed because v3 `project_format` is the canonical writer. The same compatibility module also exposes a misleading public current-version constant fixed at v1.
-- GREEN SOURCE `5c1a26e0ce8945614ea740320492936fff0365eb`: removes the obsolete v1 serializer, replaces the public current-version surface with private `LEGACY_PROJECT_FORMAT_VERSION`, narrows the v1 envelope and parser to compatibility ownership, and preserves parser coverage without generating historical bytes through a second production writer.
-- GREEN HYGIENE `6156d35a5665d19bde7424e2f6cc4f7021aeb963`: consumes the deserialized v1 version field explicitly and removes incidental declaration-order churn from the first edit. No warning suppression or gate change is introduced.
-- Remaining #1235 work is the per-test source-inclusion architecture. Warning-free native output is not claimed until that owner boundary is repaired and exact-head Windows/macOS logs prove it.
-
-Hosted success must be read from the exact descendant head containing the complete lineage. Source configuration or a predecessor run alone is not terminal GREEN.
+Every semantic descendant must reacquire its own hosted verdict. A successful predecessor is lineage evidence only.
 
 ## Rejected alternatives
 
-Relying on `build-baseline` alone was rejected because a successful native application build does not execute the Project Persistence integration tests or prove platform-specific rollback behavior.
+`build-baseline` alone is insufficient because it does not execute platform-specific persistence/recovery tests.
 
-Treating an earlier platform run as evidence for a later head was rejected because the repository's release and review policy is exact-head based. No-op commits solely to retrigger Actions were also rejected; each commit in this repair changes a test, trigger contract, workflow identity, ownership boundary, or traceability contract.
+Predecessor check results are not transferred to a later source head. No-op commits used only to retrigger Actions are also rejected; every commit here changes a test, trigger, workflow identity, ownership boundary, or traceability contract.
 
-Keeping both Windows workflow files was rejected because it would create duplicate source owners and could produce ambiguous or duplicate check evidence.
+Keeping both Windows workflow files is rejected because it creates duplicate evidence owners. Describing the old workflow as disabled is rejected because the available evidence proves only repeated non-materialization, not the backend cause.
 
-Describing the old workflow as disabled was rejected because the available repository evidence proves repeated non-materialization, not the underlying GitHub Actions workflow-state cause. The successor identity repairs the observable registration/evidence failure without inventing a backend diagnosis.
+A Windows `cfg` skip, accepting OS error 5, or removing `sync_all` is rejected because it would erase the durability condition that the platform-specific lane exists to test.
 
-Combining Windows and macOS into one matrix workflow was deferred because that would unnecessarily change the already-working macOS workflow identity and diagnostics while the defect is isolated to Windows workflow materialization.
+A deprecated v1 writer, test-only duplicate writer, fake call, `#[allow(dead_code)]`, broad warning suppression, or output filtering is rejected. Current-format serialization has one owner and warning debt is repaired at its cause.
 
-Skipping or `cfg`-excluding the failing durability test on Windows was rejected because Windows is exactly the platform where the handle-authority distinction matters. Replacing the flush with a no-op or accepting OS error 5 would turn a real durability precondition into false-positive evidence. The fixture instead acquires the authority required to perform the same flush contract.
+Making private Project Persistence capabilities broadly `pub` for integration tests is rejected. The consolidated harness preserves the crate-private production boundary and supplies only narrow test adapters inside its private included module.
 
-Leaving the rollback helper on its old signature through a test-only overload or default parameter was rejected. The test adapter is part of the executable owner contract and must state whether it is exercising ordinary identity-only publication or receipt-bound migration. `IdentityOnly` is explicit because this regression tests rollback artifact identity, not migration evidence.
+Generating copied test source with a build script/codemod is rejected because it creates a self-modifying/source-copy workflow and another mutable representation of the owner.
 
-Keeping the v1 serializer under a deprecated alias, a `#[cfg(test)]` branch, or an artificial reference was rejected. Those approaches make `dead_code` quiet while retaining a second writer and a misleading v1 “current” surface. The compatibility boundary now parses historical input only; current output stays with `project_format`.
-
-Suppressing the Rust warnings was rejected. #1235 owns root-cause removal of both the duplicate compatibility writer and the per-test source-inclusion warning pattern; native lanes stay diagnostic rather than being made artificially quiet.
+The consolidated harness is not treated as permission to leave genuine production dead code. The remaining `read_project_file` warning represents a compatibility surface that no production path consumes after identity-bound migrate-on-load. It stays an explicit #1235 repair finding until the source boundary is narrowed or removed with its tests migrated to the identity-bearing reader.
 
 ## Claim boundary
 
-These workflows provide native integration-test execution on hosted Windows and macOS runners. The Windows fixture repair proves only that the durability precondition is expressed with cross-platform-correct handle authority, and the recovery-helper repair proves that the executable test adapter matches the versioned journal contract. Every semantic descendant must obtain its own terminal native evidence.
+Dedicated native Windows/macOS success proves only that the relevant integration suite compiles and passes on those hosted platforms for the exact head tested. It does not prove packaged process-kill, disk-full, permission-failure, power-loss, signing/notarization, updater rollback, or release immutability.
 
-The compatibility-writer slice establishes a single current-format serialization owner and retains only strict historical parsing in `runtime_core`. It does not yet establish warning-free native output because the per-test source-inclusion architecture remains. The lanes are also not packaged power-loss, disk-full, permission-failure, signing/notarization, or updater-rollback evidence. Those buyer-facing fault-injection and release gates remain open under #962.
+The single-harness repair proves that Project Persistence integration cases no longer each compile their own copy of the production persistence source. It does **not** yet prove warning-free native output: exact `92136baa...` still reports the genuine production `read_project_file` dead-code finding, and the new `2b0d5d...` coverage change must obtain its own exact-head native verdict.
+
+General CI, security/SAST, SBOM, build-baseline, protected ancestry, Resource Admission #866 integration, and independent current-head review remain separate gates. No Ready transition, merge, tag, signing, or release is authorized solely by this document or by a predecessor native run.
