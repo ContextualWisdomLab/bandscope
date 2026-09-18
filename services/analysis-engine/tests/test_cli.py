@@ -361,7 +361,7 @@ def test_cli_main_temporal_analyzer_mock_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    """Ensure the temporal analyzer injection block succeeds."""
+    """Ensure the temporal analyzer injection block succeeds without running separation."""
     audio_path = tmp_path / "test.wav"
     write_short_wav(audio_path)
     stdin = io.StringIO(
@@ -384,12 +384,30 @@ def test_cli_main_temporal_analyzer_mock_success(
         )
     )
     stdout = io.StringIO()
+    analyzed_paths: list[str] = []
 
     class FakeAnalyzerSuccess:
         def analyze(self, path):
+            analyzed_paths.append(path)
             return {"bpm": 120.0, "beats": []}
 
+    def fake_run_analysis_job(
+        job_id: str,
+        request: object,
+        requested_at: str,
+    ) -> dict[str, object]:
+        assert job_id == "job-audio-success"
+        assert isinstance(request, dict)
+        assert request["sourceKind"] == "local_audio"
+        return {
+            "jobId": job_id,
+            "state": "succeeded",
+            "requestedAt": requested_at,
+            "updatedAt": requested_at,
+        }
+
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(cli, "run_analysis_job", fake_run_analysis_job)
     monkeypatch.setattr(
         "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
         lambda self, y, sr: None,
@@ -405,6 +423,7 @@ def test_cli_main_temporal_analyzer_mock_success(
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
     assert res["jobId"] == "job-audio-success"
+    assert analyzed_paths == [str(audio_path)]
 
 
 def test_cli_main_progress_jsonl_streams_status_updates(
