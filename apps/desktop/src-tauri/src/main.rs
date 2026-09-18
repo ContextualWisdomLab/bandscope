@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod analysis_source;
+mod project_load;
 mod project_persistence;
 mod project_root;
 
@@ -1057,9 +1058,7 @@ fn load_project(
         .pick_file()
         .ok_or_else(|| "User cancelled".to_string())?;
 
-    project_persistence::recover_project_publication(&path)?;
-    let content = project_persistence::read_project_file(&path)?;
-    let document = project_document_from_content(&content)?;
+    let document = project_load::load_project_document(&path)?;
     restore_project_source_after_restart(&app, &state, &publication_state, &document)?;
     Ok(document)
 }
