@@ -24,6 +24,7 @@ The exact-minimum lane also lived in a newly added standalone workflow. Fresh ex
 - The exact-minimum Node compatibility job must live in an already-materialized PR CI workflow rather than relying on a second workflow whose pull-request run is absent from the observed inventory.
 - Error classification remains diagnostic-based because the current Corepack command boundary does not expose a stable machine-readable failure taxonomy to this script.
 - Protected-base formatting debt owned by another PR is consumed by stack ancestry; it is not copied into this owner as an unrelated patch.
+- Repository pull-request workflows currently filter their base branches to `develop`/`main`; #896 must therefore remain based on `develop` while carrying #1176 as a merge-parent prerequisite, otherwise repository CI disappears from the live PR generation.
 
 ## Decision
 
@@ -34,6 +35,8 @@ This makes signature/integrity failures fail closed without depending on an exha
 The helper is the single workflow-level activation path for the four native `build-baseline` npm consumers and the four npm-consuming jobs in the registered `ci` workflow: `lock-validation`, `verify`, `rust-check`, and `node-minimum-compatibility`. The three existing CI jobs no longer keep workflow-local `corepack enable npm` plus separate `npm --version` verification. The exact-minimum Node 22.22.2 lane is now a job in `.github/workflows/ci.yml`; the standalone `.github/workflows/node-minimum-compatibility.yml` owner is removed.
 
 The retry allowlist is intentionally narrow. Additional error codes such as connection reset, DNS retry, or HTTP/server failures must not be admitted from intuition alone; they require a concrete hosted failure, bounded semantics, and a focused regression before this policy expands.
+
+#1176 remains the canonical single writer for the protected-base Ruff formatting prerequisite. #896 consumes that exact head through ordinary merge ancestry but keeps its PR base on protected `develop`, because the repository workflow triggers are scoped to pull requests targeting `develop` or `main`. This keeps owner lineage and exact-head CI simultaneously observable.
 
 ## Rejected alternatives
 
@@ -46,6 +49,7 @@ The retry allowlist is intentionally narrow. Additional error codes such as conn
 - Keep inline Corepack activation in any CI job: rejected because it duplicates the same package-manager acquisition contract and can drift from the canonical timeout/trust classifier.
 - Keep the exact-minimum compatibility check as a second standalone workflow after its PR runs are absent from the observed exact-head workflow inventory: rejected because source presence without live PR execution does not satisfy the compatibility evidence requirement.
 - Copy the protected-base Ruff fix from #1176 into #896: rejected because #1176 is the canonical single writer for that prerequisite and the dependent branch can inherit it through ordinary non-force ancestry.
+- Keep #896 retargeted directly onto #1176's branch: rejected after live observation because `.github/workflows/ci.yml` and the other repository pull-request workflows filter on base branch `develop`/`main`; the retargeted generation did not materialize fresh repository CI for the moved head.
 
 ## Evidence and regression
 
@@ -61,9 +65,11 @@ A fresh live `ci.yml` review then exposed the remaining duplicate owners. RED `4
 
 Exact head `c010a66fedec3647274a27900a11203e07ee671e` then materialized `gate / ci / node-minimum-compatibility` in the live PR CI workflow. On hosted macOS 15 it successfully reached Node 22.22.2, canonical npm activation, verified npm 10.9.9 with bundled tar 7.5.22, frozen dependency installation, Python dependency sync, and the Rust numeric-extension build. Its first source-backed failure was the repository Ruff formatting gate, not package-manager acquisition.
 
-That Ruff failure named four files. Three were #896-owned regression files; `78bcc37334c512e15289503294bceaff57c5f927` aligns their formatting and removes a stale test dependency on the deleted standalone workflow by reading `node-minimum-compatibility` from registered `ci.yml`. The fourth file, `services/analysis-engine/tests/test_supply_chain_policy.py`, is the canonical formatting delta owned by #1176. Rather than copying it, merge commit `b5dc5bf7834137a8f6b0140b1219e7dbeff7b8db` inherits #1176 exact head `8fe6b6d99c009527ef0bcba419e6f6debdb23c23`, and #896 is retargeted onto that prerequisite branch.
+That Ruff failure named four files. Three were #896-owned regression files; `78bcc37334c512e15289503294bceaff57c5f927` aligns their formatting and removes a stale test dependency on the deleted standalone workflow by reading `node-minimum-compatibility` from registered `ci.yml`. The fourth file, `services/analysis-engine/tests/test_supply_chain_policy.py`, is the canonical formatting delta owned by #1176. Rather than copying it, merge commit `b5dc5bf7834137a8f6b0140b1219e7dbeff7b8db` inherits #1176 exact head `8fe6b6d99c009527ef0bcba419e6f6debdb23c23`.
 
-Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to later moved heads. Current traceability descendants require fresh hosted evidence on the unchanged stacked merge candidate.
+#896 was briefly retargeted onto the #1176 branch to make the dependency stack explicit. Fresh Actions inventory then showed the practical consequence of the repository's base-branch filters: after source moved under that base, no exact moved-head repository pull-request workflows materialized. The PR base was therefore restored to protected `develop`; #1176 remains present as a merge parent, so the formatter delta is still inherited from its canonical writer rather than reimplemented locally.
+
+Predecessor exact head `3983dd216d95dc5f78e78f6b17259ad4c5530ebc` completed all four native Windows/macOS build jobs successfully with exact npm activation. That hosted evidence validates the predecessor command path only; it does not transfer to later moved heads. Current traceability descendants require fresh hosted evidence on the unchanged merge candidate.
 
 ## Risks and claim boundary
 
@@ -73,7 +79,7 @@ Diagnostic matching still depends on upstream text. If Corepack exposes a stable
 
 Structural workflow tests prove command ownership and order, not successful hosted acquisition. Moving the exact-minimum lane into `ci.yml` is an evidence-topology repair, not proof that Node 22.22.2 or npm acquisition succeeds on every hosted run. The c010 run proves that one exact generation reached and passed the npm acquisition boundary before failing later at formatting; source movement after that point requires fresh evidence.
 
-The #1176 stack does not transfer #1176 approvals or central-gate evidence into #896. It only establishes ancestry for the canonical formatting prerequisite. #896 still requires its own exact-head repository/central gates and current-head independent review.
+The #1176 merge parent does not transfer #1176 approvals or central-gate evidence into #896. It only establishes ancestry for the canonical formatting prerequisite. #896 still requires its own exact-head repository/central gates and current-head independent review. Keeping the PR base on `develop` also means the #1176 file remains visible in the protected-base diff until #1176 integrates normally; that visibility is accepted rather than suppressing CI or copying the delta.
 
 ## Follow-up
 
@@ -84,13 +90,14 @@ The #1176 stack does not transfer #1176 approvals or central-gate evidence into 
 - If Corepack introduces a stable structured failure classification, replace diagnostic-string matching with that contract.
 - Treat any unclassified failure that reaches sleep/retry as a repair finding, not as permission to broaden fallback behavior.
 - Preserve #1176 as the single writer for the protected-base Ruff prerequisite; consume it by ancestry until normal integration reaches `develop`.
-- Require fresh hosted success for the exact-minimum Node 22.22.2 job, normal CI jobs, native build lanes, and applicable central security/SBOM/SAST gates on the unchanged stacked merge candidate head.
+- Keep #896 based on protected `develop` while repository workflows remain base-filtered to `develop`/`main`; do not trade away exact-head CI visibility merely to make the stack prettier in the PR UI.
+- Require fresh hosted success for the exact-minimum Node 22.22.2 job, normal CI jobs, native build lanes, and applicable central security/SBOM/SAST gates on the unchanged merge candidate head.
 
 ## Security Notes
 
 The package-manager acquisition diagnostic is untrusted upstream text used only for a bounded classification decision and stderr evidence. It is never evaluated or interpolated into a shell command. The trust boundary is `corepack install --global` returning non-zero: only the exact observed `ETIMEDOUT` token permits another attempt; all other results fail closed before npm activation or dependency extraction. No secret, token, package payload, or mutable version selector is logged by this policy.
 
-Centralizing workflow activation does not broaden permissions. The helper operates with the same repository checkout and runner process privileges the inline commands already had; the change removes duplicate acquisition paths and places the exact-minimum job inside the existing CI execution surface rather than adding a new credential or network capability. Stacking #1176 adds no new runtime authority; it only inherits the canonical formatting prerequisite by commit ancestry.
+Centralizing workflow activation does not broaden permissions. The helper operates with the same repository checkout and runner process privileges the inline commands already had; the change removes duplicate acquisition paths and places the exact-minimum job inside the existing CI execution surface rather than adding a new credential or network capability. Consuming #1176 as a merge parent adds no new runtime authority; keeping the PR based on `develop` preserves the repository's existing CI trigger surface.
 
 ## References
 
