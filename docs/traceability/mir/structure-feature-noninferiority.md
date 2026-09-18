@@ -20,7 +20,7 @@ A registration is valid only when it records all of the following before the res
 - baseline `chroma_cqt` and candidate `chroma_stft`;
 - a rights-cleared real-audio corpus with stable track IDs, content-unique audio SHA-256 identities, annotation SHA-256, rights basis, and provenance URI;
 - exact source commit and `uv.lock` identity plus Python, librosa, NumPy, sample rate, channel count, and host profile;
-- the complete metric implementation contract and noninferiority/speed thresholds, including functional-label ACC frame resolution plus versioned annotation and label-mapping semantics;
+- the complete metric implementation contract and noninferiority/speed thresholds, including the pinned MIREX functional-ACC evaluator commit/function, 200 ms frame-grid contract v1, and versioned annotation/label-mapping semantics;
 - the paired-uncertainty procedure identity, confidence level, resample count, and random seed;
 - a non-empty claim boundary stating the population/runtime scope to which a passing result may be applied.
 
@@ -42,19 +42,21 @@ Schema v1 does not contain a preregistered dropout, exclusion, or missing-track 
 
 ## Metrics
 
-BandScope uses MIREX 2025 Music Structure Analysis as the functional-structure reference point. The registered quality gate requires:
+BandScope uses the MIREX Music Structure Analysis task and its standardized evaluator repository as the functional-structure reference point. The registered quality gate requires:
 
 | Evidence | Registered implementation / convention | Decision use |
 | --- | --- | --- |
 | Boundary precision/recall/F at 0.5 s | `mir_eval.segment.detection`, 0.5 s window | F noninferiority |
 | Boundary precision/recall/F at 3.0 s | `mir_eval.segment.detection`, 3.0 s window | F noninferiority |
 | Boundary median deviation, both directions | `mir_eval.segment.deviation` convention | Report per track and aggregate |
-| Functional-label accuracy | MIREX 2025 frame-level ACC; 0.1 s grid; annotation contract v1; label-mapping contract v1 | Noninferiority |
+| Functional-label accuracy | `ismir-mirex/mirex-evaluation@b9fa0b0...:music_structure_analysis.eval_script.calculate_accuracy`; 0.2 s grid; frame-grid v1; annotation v1; label-mapping v1 | Noninferiority |
 | Repetition/group consistency precision/recall/F | `mir_eval.segment.pairwise`, 0.1 s frame size | F noninferiority |
 | Latency | paired p50/p95 on the registered host | p95 ratio superiority |
 | Peak memory | peak RSS on the registered host | Report per track and aggregate |
 
-MIREX 2025 evaluates functional structure with frame-level label accuracy plus boundary hit-rate F measures at 0.5 s and 3.0 s. Its ACC description gives 10 ms and 100 ms as example frame resolutions rather than fixing a single grid. BandScope therefore freezes 100 ms before measurement and versions the annotation and label-mapping semantics instead of leaving those choices to the eventual runner. The detailed v1 contract and the MIREX vocabulary ambiguity are recorded in `docs/traceability/mir/functional-label-accuracy-contract.md`. `mir_eval.segment.detection` uses one-to-one boundary matching within the selected tolerance; `mir_eval.segment.deviation` reports the median nearest-boundary deviations in both directions; `mir_eval.segment.pairwise` measures structural grouping agreement. These are different questions and must not be collapsed into one score.
+The MIREX task page describes frame-level ACC conceptually and gives finer resolutions as examples, but the current official `ismir-mirex/mirex-evaluation` MIREX-2025 reproduction is more specific: at commit `b9fa0b0b32e2145af31f35830f78fc9d09a4301b`, `calculate_accuracy` uses a 0.2 s hop, `np.arange(0, gt_duration, frame_hop)`, and advances a segment when a frame point is greater than or equal to the segment end. BandScope therefore pins that exact evaluator identity and frame-grid contract rather than selecting 100 ms from prose examples. The local annotation mapping remains preregistered and content-addressed before evaluation; raw-label normalization is not allowed to drift after candidate results are visible. The detailed contract is recorded in `docs/traceability/mir/functional-label-accuracy-contract.md`, and `scripts/research/evaluate_structure_functional_accuracy.py` is the repository-owned adapter for the normalized seven-label subset.
+
+`mir_eval.segment.detection` uses one-to-one boundary matching within the selected tolerance; `mir_eval.segment.deviation` reports the median nearest-boundary deviations in both directions; `mir_eval.segment.pairwise` measures structural grouping agreement. These are different questions and must not be collapsed into one score.
 
 Result receipts must carry the reported precision and recall alongside F for the boundary and repetition measures. The admission validator recomputes the harmonic mean and rejects an internally inconsistent P/R/F triplet. This does not replace the recognized metric implementation; it prevents a malformed receipt from claiming a metric value that its own reported components cannot support.
 
@@ -96,9 +98,9 @@ The JSON `source_uri` value remains provenance metadata only; it is never derefe
 
 ## Reproducibility sequence
 
-1. Review the rights basis, corpus composition, distinct audio-content identities, feature hypothesis, metric contract, functional-label frame/annotation/mapping contract, host profile, numeric margins, aggregation procedure, paired-uncertainty procedure, and claim boundary **before** running the candidate. Freeze the procedure identifier, confidence level, resample count, random seed, and claim boundary in the registration. If repeated recordings, clustering, source-label normalization, or any failure/exclusion tolerance is scientifically required, define and version that dependence/mapping/exclusion policy before measurement rather than remapping or omitting observations after results are visible.
+1. Review the rights basis, corpus composition, distinct audio-content identities, feature hypothesis, metric contract, pinned functional-ACC evaluator/grid/annotation/mapping contract, host profile, numeric margins, aggregation procedure, paired-uncertainty procedure, and claim boundary **before** running the candidate. Freeze the procedure identifier, confidence level, resample count, random seed, and claim boundary in the registration. If repeated recordings, clustering, source-label normalization, or any failure/exclusion tolerance is scientifically required, define and version that dependence/mapping/exclusion policy before measurement rather than remapping or omitting observations after results are visible.
 2. Serialize the registration and run `python scripts/research/validate_structure_noninferiority.py <registration.json>` to obtain its canonical SHA-256.
-3. Run baseline and candidate on the same decoded track identities and host profile. The experiment runner must compute the approved aggregation and paired uncertainty procedure from the complete measured-track evidence rather than accepting caller-authored aggregate numbers as scientific authority. Record recognized MIR metrics, p50/p95 latency, and peak RSS for successful tracks. If a registered track cannot produce a baseline/candidate measurement, preserve its ordered `track_id` receipt, add that exact ID to `failed_tracks`, and set the aggregate plus both CI summary fields to JSON `null`; do not invent metric values or compute a complete-case aggregate from the surviving tracks. Only a complete run records aggregate outputs and paired uncertainty using the preregistered procedure.
+3. Run baseline and candidate on the same decoded track identities and host profile. Functional ACC must consume the admitted normalized annotation through `scripts/research/evaluate_structure_functional_accuracy.py` and preserve the pinned 200 ms MIREX grid semantics; it must not reopen corpus paths or remap labels after preregistration. The experiment runner must compute the approved aggregation and paired uncertainty procedure from the complete measured-track evidence rather than accepting caller-authored aggregate numbers as scientific authority. Record recognized MIR metrics, p50/p95 latency, and peak RSS for successful tracks. If a registered track cannot produce a baseline/candidate measurement, preserve its ordered `track_id` receipt, add that exact ID to `failed_tracks`, and set the aggregate plus both CI summary fields to JSON `null`; do not invent metric values or compute a complete-case aggregate from the surviving tracks. Only a complete run records aggregate outputs and paired uncertainty using the preregistered procedure.
 4. Put the registration digest, identical uncertainty-plan fields, and identical claim boundary in the result receipt, then run `python scripts/research/validate_structure_noninferiority.py <registration.json> <result.json>`. Under schema v1, any recorded failed track keeps the diagnostic receipt valid but makes acceptance fail closed before aggregate decision rules; undeclared missing measurements, non-null post-failure summaries, and claim-boundary drift are rejected.
 5. Preserve the registration, result receipt, corpus/annotation hashes, exact source commit, lock hash, aggregation implementation identity, uncertainty procedure, and claim boundary together. A production feature switch requires this evidence plus normal code review and protected-head checks.
 
@@ -110,7 +112,7 @@ No step authorizes committing licensed audio to Git. Rights-cleared means BandSc
 - Evidence JSON is limited to 2 MiB, must be a regular file read through one open descriptor, must decode as UTF-8, and rejects duplicate keys plus non-standard `NaN`/`Infinity` constants.
 - `source_uri` is evidence metadata, not an instruction to fetch content. Local absolute, relative, drive-relative, and `file:` forms are rejected; an explicit non-file URI scheme is required so transient workstation paths cannot become provenance authority or leak into review artifacts.
 - Audio and annotation SHA-256 values bind measurements to bytes without embedding media in the result receipt; duplicate audio SHA-256 values under different track IDs are rejected so one recording cannot be silently counted multiple times.
-- Invalid/non-finite measurements, corpus drift, duplicate audio content identity, functional-label frame/annotation/mapping drift, uncertainty-plan drift, claim-boundary drift, registration drift, undeclared missing measurements, measurement-bearing failed receipts, non-null aggregate/CI summaries after any failed track, unregistered registration/hypothesis/metric/corpus/runtime/result/track/aggregate/measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
+- Invalid/non-finite measurements, corpus drift, duplicate audio content identity, functional-label evaluator/grid/annotation/mapping drift, uncertainty-plan drift, claim-boundary drift, registration drift, undeclared missing measurements, measurement-bearing failed receipts, non-null aggregate/CI summaries after any failed track, unregistered registration/hypothesis/metric/corpus/runtime/result/track/aggregate/measurement fields, inconsistent P/R/F triplets, post-hoc metric additions, and unregistered failed-track exclusion fail closed.
 - The validator does not claim that SHA-256 proves licensing, annotation validity, scientific adequacy, independence beyond exact-byte uniqueness, aggregate derivation, or that the registered statistical procedure is appropriate. Rights and scientific review remain separate gates.
 
 ## References
@@ -124,6 +126,10 @@ Kim, T., & Nam, J. (2023). All-in-one metrical and functional structure analysis
 MIREX. (2025). *Music Structure Analysis*. https://music-ir.org/mirex/wiki/2025:Music_Structure_Analysis
 
 MIREX. (2025). *Music Structure Analysis Results*. https://music-ir.org/mirex/wiki/2025:Music_Structure_Analysis_Results
+
+MIREX. (2026). *Music Structure Analysis*. https://music-ir.org/mirex/wiki/2026:Music_Structure_Analysis
+
+MIREX Evaluation contributors. (2026). *music_structure_analysis/eval_script.py* (commit `b9fa0b0b32e2145af31f35830f78fc9d09a4301b`). GitHub. https://github.com/ismir-mirex/mirex-evaluation/blob/b9fa0b0b32e2145af31f35830f78fc9d09a4301b/music_structure_analysis/eval_script.py
 
 mir_eval contributors. (n.d.). *mir_eval.segment: Structural segmentation evaluation*. https://github.com/mir-evaluation/mir_eval/blob/main/mir_eval/segment.py
 
