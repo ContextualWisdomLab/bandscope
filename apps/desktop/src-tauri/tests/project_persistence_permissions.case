@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use crate::project_persistence;
 
 #[cfg(unix)]
@@ -19,11 +20,11 @@ fn existing_project_overwrite_preserves_restrictive_mode() {
     ));
     fs::create_dir_all(&root).expect("test directory should be created");
     let target = root.join("private.bscope");
-    fs::write(&target, br#"{"id":"private-old"}"#).expect("fixture should be written");
+    fs::write(&target, br#"{\"id\":\"private-old\"}"#).expect("fixture should be written");
     fs::set_permissions(&target, fs::Permissions::from_mode(0o600))
         .expect("fixture should be restricted to its owner");
 
-    project_persistence::publish_new_project_file(&target, br#"{"id":"private-new"}"#)
+    project_persistence::publish_new_project_file(&target, br#"{\"id\":\"private-new\"}"#)
         .expect("existing private project should be replaced safely");
 
     let mode = fs::metadata(&target)
@@ -57,11 +58,11 @@ fn existing_project_overwrite_strips_executable_bits() {
     ));
     fs::create_dir_all(&root).expect("test directory should be created");
     let target = root.join("project.bscope");
-    fs::write(&target, br#"{"id":"executable-old"}"#).expect("fixture should be written");
+    fs::write(&target, br#"{\"id\":\"executable-old\"}"#).expect("fixture should be written");
     fs::set_permissions(&target, fs::Permissions::from_mode(0o755))
         .expect("fixture should be executable");
 
-    project_persistence::publish_new_project_file(&target, br#"{"id":"data-new"}"#)
+    project_persistence::publish_new_project_file(&target, br#"{\"id\":\"data-new\"}"#)
         .expect("existing executable project should be replaced safely");
 
     let mode = fs::metadata(&target)
