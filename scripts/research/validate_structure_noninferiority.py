@@ -238,23 +238,35 @@ def _project_percentile_intervals_for_base(
     return projected
 
 
-def _require_canonical_aggregate(result_value: Mapping[str, Any]) -> None:
-    """Bind a successful stored aggregate to the canonical registered-track reducer."""
-    failed_tracks = result_value.get("failed_tracks")
-    if failed_tracks:
+def _require_canonical_summary(
+    registration_value: object,
+    result_value: Mapping[str, Any],
+) -> None:
+    """Bind successful aggregate and CI receipts to deterministic recomputation."""
+    if result_value.get("failed_tracks"):
         return
 
+    registration = _BASE._mapping(registration_value, "registration")
     aggregation = _aggregation()
-    _, baseline_sides, candidate_sides = aggregation._normalize_tracks(
-        result_value.get("tracks")
+    expected = aggregation.aggregate_complete_track_measurements(
+        result_value.get("tracks"),
+        uncertainty=registration.get("uncertainty"),
     )
-    expected_aggregate = {
-        "baseline": aggregation._aggregate_side(baseline_sides),
-        "candidate": aggregation._aggregate_side(candidate_sides),
-    }
-    if result_value.get("aggregate") != expected_aggregate:
+    if result_value.get("aggregate") != expected["aggregate"]:
         raise ValueError(
             "result.aggregate does not match canonical macro-track-v1 recomputation"
+        )
+    if result_value.get("paired_delta_ci95") != expected["paired_delta_ci95"]:
+        raise ValueError(
+            "result.paired_delta_ci95 does not match canonical "
+            "paired-track-bootstrap-v1 recomputation"
+        )
+    if result_value.get("p95_latency_ratio_ci95") != expected[
+        "p95_latency_ratio_ci95"
+    ]:
+        raise ValueError(
+            "result.p95_latency_ratio_ci95 does not match canonical "
+            "paired-track-bootstrap-v1 recomputation"
         )
 
 
@@ -286,7 +298,7 @@ def evaluate_result(
         )
         decision = _BASE.evaluate_result(registration_value, percentile_projection)
 
-    _require_canonical_aggregate(projected_result)
+    _require_canonical_summary(registration_value, projected_result)
     decision["registration_sha256"] = expected_digest
     return decision
 
