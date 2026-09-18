@@ -17,10 +17,18 @@ def _runner() -> ModuleType:
     )
 
 
+def _parser() -> ModuleType:
+    """Load the canonical preregistered functional-annotation parser."""
+    return load_module(
+        "scripts/research/parse_structure_functional_annotations.py",
+        "parse_structure_functional_annotations_for_acc",
+    )
+
+
 def _segment(start: str, end: str, label: str) -> object:
-    """Create one runner segment without importing the production parser."""
-    runner = _runner()
-    return runner.FunctionalAccuracySegment(
+    """Create one canonical parser-owned functional segment value object."""
+    parser = _parser()
+    return parser.FunctionalSegment(
         start=Fraction(start),
         end=Fraction(end),
         label=label,
