@@ -54,12 +54,14 @@ def parse_functional_annotations(
     decoded_frames: int,
     sample_rate_hz: int,
 ) -> tuple[FunctionalSegment, ...]:
-    """Parse the v1 MIREX-style TSV annotation contract.
+    """Parse the BandScope v1 normalized three-column TSV contract.
 
-    Each non-empty line must be ``start<TAB>end<TAB>label``. The admitted
-    annotation must be read-only, start at zero, remain gap/overlap-free, and
-    cover the decoded signal exactly. Functional labels are already normalized
-    before preregistration; this parser intentionally performs no case folding,
+    Each non-empty line must be ``start<TAB>end<TAB>label``. This local storage
+    contract is not the MIREX 2025 submission-file syntax; it freezes the same
+    start/end/label semantics before evaluation. The admitted annotation must be
+    read-only, start at zero, remain gap/overlap-free, and cover the decoded
+    signal exactly. Functional labels are already normalized before
+    preregistration; this parser intentionally performs no case folding,
     synonym mapping, or suffix stripping.
     """
     if not isinstance(annotation_bytes, memoryview) or not annotation_bytes.readonly:
