@@ -40,6 +40,9 @@ _QUALITY_METRICS: dict[str, dict[str, float | str]] = {
     },
     "functional_label_accuracy": {
         "implementation": "mirex2025.frame_level_accuracy",
+        "frame_size_seconds": 0.1,
+        "annotation_contract_version": 1.0,
+        "label_mapping_contract_version": 1.0,
     },
     "repetition_pairwise_f": {
         "implementation": "mir_eval.segment.pairwise",
