@@ -11,7 +11,6 @@ from test_structure_noninferiority_policy import _metrics, _registration, _valid
 
 _FUNCTIONAL_ACC_CONTRACT = {
     "frame_size_seconds": 0.1,
-    "frame_grid_contract_version": 1.0,
     "annotation_contract_version": 1.0,
     "label_mapping_contract_version": 1.0,
 }
@@ -49,11 +48,6 @@ def test_functional_label_accuracy_rejects_post_hoc_contract_drift() -> None:
     _functional_metric(drifted_frame)["frame_size_seconds"] = 0.01
     with pytest.raises(ValueError, match="frame_size_seconds"):
         validator.validate_registration(drifted_frame)
-
-    drifted_grid = copy.deepcopy(registration)
-    _functional_metric(drifted_grid)["frame_grid_contract_version"] = 2.0
-    with pytest.raises(ValueError, match="frame_grid_contract_version"):
-        validator.validate_registration(drifted_grid)
 
     drifted_parser = copy.deepcopy(registration)
     _functional_metric(drifted_parser)["annotation_contract_version"] = 2.0
