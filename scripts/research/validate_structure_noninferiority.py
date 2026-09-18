@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Bind exact structure-metric semantics into the scientific registration digest.
+"""Bind exact scientific semantics into the structure experiment identity.
 
 The base registration schema owns corpus, experiment runtime, margins, and
-paired-decision fields. This façade adds the repository-owned metric contract to
-the canonical digest without making callers repeat immutable adapter constants
-inside every registration JSON. No MIR metric or corpus outcome is computed
-here.
+result-policy fields. This façade adds repository-owned metric, aggregation, and
+paired-uncertainty semantics to the canonical digest without making experiment
+authors duplicate immutable implementation constants in registration JSON.
 """
 
 from __future__ import annotations
@@ -45,6 +44,23 @@ STRUCTURE_METRIC_CONTRACT = {
         "frame_size_seconds": 0.1,
         "beta": 1.0,
     },
+    "aggregation_uncertainty": {
+        "aggregation_id": "macro-track-v1",
+        "sampling_unit": "registered_track_pair",
+        "quality_weighting": "equal_track",
+        "latency_weighting": "equal_track",
+        "boundary_and_repetition_f": "harmonic_of_macro_precision_recall",
+        "report_deviation": "macro_track_mean",
+        "peak_rss": "maximum_track_peak_rss",
+        "procedure_id": "paired-track-bootstrap-v1",
+        "confidence_level": 0.95,
+        "bootstrap_sample_size": "registered_track_count",
+        "bootstrap_replacement": True,
+        "rng": "numpy.random.Generator(PCG64)",
+        "quantile_method": "linear",
+        "two_sided_tail_probability": 0.025,
+        "maximum_resamples": 100000,
+    },
 }
 
 
@@ -68,8 +84,28 @@ MAX_EVIDENCE_BYTES = _BASE.MAX_EVIDENCE_BYTES
 
 
 def validate_registration(registration_value: object) -> None:
-    """Validate the closed base registration consumed by the metric-aware digest."""
+    """Validate base policy plus the one supported paired-bootstrap procedure."""
     _BASE.validate_registration(registration_value)
+    if not isinstance(registration_value, Mapping):
+        raise ValueError("registration must be an object")
+    uncertainty = registration_value.get("uncertainty")
+    if not isinstance(uncertainty, Mapping):
+        raise ValueError("uncertainty must be an object")
+    contract = STRUCTURE_METRIC_CONTRACT["aggregation_uncertainty"]
+    if uncertainty.get("procedure_id") != contract["procedure_id"]:
+        raise ValueError(
+            "uncertainty.procedure_id must equal paired-track-bootstrap-v1"
+        )
+    resamples = uncertainty.get("resamples")
+    if isinstance(resamples, bool) or not isinstance(resamples, int):
+        raise ValueError("uncertainty.resamples must be an integer")
+    maximum_resamples = contract["maximum_resamples"]
+    assert isinstance(maximum_resamples, int)
+    if resamples > maximum_resamples:
+        raise ValueError(
+            f"uncertainty.resamples must be <= {maximum_resamples} for "
+            "paired-track-bootstrap-v1"
+        )
 
 
 def _digest_payload(registration_value: object) -> dict[str, object]:
@@ -82,7 +118,7 @@ def _digest_payload(registration_value: object) -> dict[str, object]:
 
 
 def registration_digest(registration_value: object) -> str:
-    """Return SHA-256 over registration data plus exact metric/runtime semantics."""
+    """Return SHA-256 over registration data plus exact scientific semantics."""
     canonical = json.dumps(
         _digest_payload(registration_value),
         allow_nan=False,
