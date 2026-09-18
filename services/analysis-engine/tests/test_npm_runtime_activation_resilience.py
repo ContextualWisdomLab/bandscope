@@ -11,10 +11,10 @@ import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _BUILD_BASELINE = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.yml"
-_NODE_MINIMUM_COMPATIBILITY = (
-    _REPOSITORY_ROOT / ".github" / "workflows" / "node-minimum-compatibility.yml"
+_CI_WORKFLOW = _REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
+_ACTIVATION_HELPER = (
+    _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
 )
-_ACTIVATION_HELPER = _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
 _ACTIVATION_COMMAND = "bash scripts/checks/activate_pinned_npm_runtime.sh"
 
 
@@ -131,7 +131,9 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
     npm_consumers = 0
     for job_name, job in jobs.items():
         steps = _job_steps(job)
-        run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
+        run_steps = [
+            str(step["run"]) for step in steps if isinstance(step.get("run"), str)
+        ]
         dependency_index = next(
             (index for index, command in enumerate(run_steps) if command.strip() == "npm ci"),
             None,
@@ -153,13 +155,13 @@ def test_build_baseline_uses_retrying_pinned_npm_activation_before_dependency_re
     assert npm_consumers == 4
 
 
-def test_exact_minimum_node_lane_uses_same_pinned_npm_activation_boundary() -> None:
+def test_registered_ci_exact_minimum_node_lane_uses_same_pinned_npm_activation_boundary() -> None:
     """Keep the exact-minimum Node consumer on the canonical npm acquisition helper."""
-    document = yaml.safe_load(_NODE_MINIMUM_COMPATIBILITY.read_text(encoding="utf-8"))
+    document = yaml.safe_load(_CI_WORKFLOW.read_text(encoding="utf-8"))
     assert isinstance(document, dict)
     jobs = document.get("jobs")
     assert isinstance(jobs, dict)
-    assert set(jobs) == {"node-minimum-compatibility"}
+    assert "node-minimum-compatibility" in jobs
 
     steps = _job_steps(jobs["node-minimum-compatibility"])
     run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
@@ -203,9 +205,11 @@ def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures
     tmp_path: Path,
 ) -> None:
     """Retry admitted ETIMEDOUT acquisition, then audit the acquired npm before success."""
-    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
-        tmp_path,
-        acquisition_failures=2,
+    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = (
+        _run_activation_helper(
+            tmp_path,
+            acquisition_failures=2,
+        )
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -225,9 +229,11 @@ def test_pinned_npm_activation_fails_closed_after_bounded_timeout_exhaustion(
     tmp_path: Path,
 ) -> None:
     """Stop after three admitted timeout failures without enabling or invoking fallback npm."""
-    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = _run_activation_helper(
-        tmp_path,
-        acquisition_failures=99,
+    completed, corepack_count, sleep_log, npm_log, corepack_enable_log = (
+        _run_activation_helper(
+            tmp_path,
+            acquisition_failures=99,
+        )
     )
 
     assert completed.returncode != 0

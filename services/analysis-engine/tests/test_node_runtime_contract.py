@@ -63,7 +63,9 @@ def test_jsdom_30_is_adopted_in_manifest_and_lock() -> None:
         package_lock["packages"]["apps/desktop"]["devDependencies"]["jsdom"]
         == EXPECTED_JSDOM_RANGE
     )
-    assert package_lock["packages"]["apps/desktop/node_modules/jsdom"]["version"] == "30.0.1"
+    assert (
+        package_lock["packages"]["apps/desktop/node_modules/jsdom"]["version"] == "30.0.1"
+    )
 
 
 def test_eslint_10_9_1_intent_is_preserved_in_both_workspaces_and_lock() -> None:
@@ -160,7 +162,8 @@ def test_repository_no_longer_advertises_node_22_13_floor() -> None:
     stale = [
         path
         for path in audited_paths
-        if path != "package-lock.json" and "22.13" in (ROOT / path).read_text(encoding="utf-8")
+        if path != "package-lock.json"
+        and "22.13" in (ROOT / path).read_text(encoding="utf-8")
     ]
     package_lock = _load_json("package-lock.json")
     if package_lock["packages"][""]["engines"] != {"node": EXPECTED_NODE_ENGINE}:

@@ -9,7 +9,9 @@ from pathlib import Path
 import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-_ACTIVATION_HELPER = _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
+_ACTIVATION_HELPER = (
+    _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
+)
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -97,7 +99,10 @@ def _assert_immediate_failure(
     assert not npm_log.exists()
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows lanes")
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="shell helper is exercised by hosted Windows lanes",
+)
 def test_pinned_npm_activation_does_not_retry_signature_failure(tmp_path: Path) -> None:
     """A provenance/signature failure must fail immediately instead of being retried."""
     result = _run_corepack_failure(
@@ -109,7 +114,10 @@ def test_pinned_npm_activation_does_not_retry_signature_failure(tmp_path: Path) 
     assert "Signature does not match" in result[0].stderr
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows lanes")
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="shell helper is exercised by hosted Windows lanes",
+)
 def test_pinned_npm_activation_does_not_retry_unknown_failure(tmp_path: Path) -> None:
     """An unclassified Corepack failure must fail closed instead of being guessed transient."""
     result = _run_corepack_failure(
