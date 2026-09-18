@@ -34,6 +34,8 @@ MAX_SEGMENTS = 20
 # Maximum frame count for dense SSM construction.
 MAX_SSM_FRAMES = 4096
 
+ChromaFeature = Literal["cqt", "stft"]
+
 # Canonical section label assignment order for repeating patterns.
 _LABEL_ORDER: tuple[str, ...] = (
     "intro",
@@ -47,10 +49,33 @@ _LABEL_ORDER: tuple[str, ...] = (
 )
 
 
+def _validated_chroma_feature(value: object) -> ChromaFeature:
+    """Return one registered chroma representation or fail closed."""
+    if value == "cqt" or value == "stft":
+        return value
+    raise ValueError("chroma_feature must be one of: cqt, stft")
+
+
+def _extract_chroma(
+    audio: NDArray[np.floating[Any]],
+    sr: int,
+    hop_length: int,
+    *,
+    chroma_feature: ChromaFeature,
+) -> NDArray[np.floating[Any]]:
+    """Extract the registered chroma representation for one structure lane."""
+    feature = _validated_chroma_feature(chroma_feature)
+    if feature == "cqt":
+        return librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=hop_length)
+    return librosa.feature.chroma_stft(y=audio, sr=sr, hop_length=hop_length)
+
+
 def compute_novelty_curve(
     audio: NDArray[np.floating[Any]],
     sr: int,
     hop_length: int = 512,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> tuple[NDArray[np.floating[Any]], NDArray[np.floating[Any]]]:
     """Compute a novelty curve from the self-similarity matrix of chroma features.
 
@@ -58,14 +83,20 @@ def compute_novelty_curve(
         audio: Mono audio signal as a 1D float array.
         sr: Sample rate.
         hop_length: Hop length for feature extraction.
+        chroma_feature: Registered chroma representation. Production defaults to CQT.
 
     Returns:
         Tuple of (novelty_curve, frame_times).
     """
+    feature = _validated_chroma_feature(chroma_feature)
     effective_hop_length = max(hop_length, math.ceil(audio.size / MAX_SSM_FRAMES))
 
-    # Extract chroma features for structural comparison
-    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=effective_hop_length)
+    chroma = _extract_chroma(
+        audio,
+        sr,
+        effective_hop_length,
+        chroma_feature=feature,
+    )
 
     # Build self-similarity matrix from chroma
     ssm = librosa.segment.recurrence_matrix(
@@ -211,27 +242,32 @@ def _segment_repetition_groups(
     sr: int,
     boundaries: list[float],
     duration: float,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> list[int]:
     """Group segments that repeat, by mean-chroma similarity.
 
     Returns a group id per segment; segments sharing an id are acoustically
-    similar (a repeated section). Reuses the chroma the boundary detector relies
-    on, so labels reflect the audio rather than a segment's position.
+    similar (a repeated section). Reuses the same registered chroma representation
+    as boundary detection so labels reflect the measured lane rather than a mixed
+    CQT/STFT pipeline.
 
     Args:
         audio: Mono audio signal.
         sr: Sample rate.
         boundaries: Sorted boundary start times.
         duration: Total audio duration.
+        chroma_feature: Registered chroma representation.
 
     Returns:
         A group id per segment, in segment order.
     """
+    feature = _validated_chroma_feature(chroma_feature)
     n = len(boundaries)
     if n == 0:
         return []
     hop = max(512, math.ceil(audio.size / MAX_SSM_FRAMES))
-    chroma = librosa.feature.chroma_cqt(y=audio, sr=sr, hop_length=hop)
+    chroma = _extract_chroma(audio, sr, hop, chroma_feature=feature)
     n_frames = chroma.shape[1]
     reps: list[NDArray[np.floating[Any]]] = []
     groups: list[int] = []
@@ -358,6 +394,8 @@ def segment_audio(
     audio: NDArray[np.floating[Any]],
     sr: int,
     duration: float | None = None,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> list[SectionCandidate]:
     """Run full structural segmentation pipeline on audio.
 
@@ -365,10 +403,12 @@ def segment_audio(
         audio: Mono audio signal.
         sr: Sample rate.
         duration: Optional pre-computed duration. Calculated if not provided.
+        chroma_feature: Registered chroma representation. Production defaults to CQT.
 
     Returns:
         List of SectionCandidate dicts with detected boundaries and labels.
     """
+    feature = _validated_chroma_feature(chroma_feature)
     if audio.size == 0:
         return []
 
@@ -379,18 +419,31 @@ def segment_audio(
         return _single_section_fallback("Audio too short for structural analysis")
 
     try:
-        boundaries = _compute_boundaries(audio, sr, duration)
+        boundaries = _compute_boundaries(
+            audio,
+            sr,
+            duration,
+            chroma_feature=feature,
+        )
     except Exception as e:
         logger.warning("Structural segmentation failed, falling back to single section: %s", e)
         return _single_section_fallback(f"Segmentation fallback: {e}")
 
-    return _sections_from_boundaries(boundaries, duration, audio, sr)
+    return _sections_from_boundaries(
+        boundaries,
+        duration,
+        audio,
+        sr,
+        chroma_feature=feature,
+    )
 
 
 def segment_boundaries_from_audio(
     audio: NDArray[np.floating[Any]],
     sr: int,
     duration: float | None = None,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> list[tuple[float, float]]:
     """Return raw (start, end) boundary pairs from audio segmentation.
 
@@ -400,10 +453,12 @@ def segment_boundaries_from_audio(
         audio: Mono audio signal.
         sr: Sample rate.
         duration: Optional pre-computed duration.
+        chroma_feature: Registered chroma representation. Production defaults to CQT.
 
     Returns:
         List of (start_seconds, end_seconds) tuples for each segment.
     """
+    feature = _validated_chroma_feature(chroma_feature)
     if audio.size == 0:
         return []
 
@@ -414,7 +469,12 @@ def segment_boundaries_from_audio(
         return [(0.0, duration)]
 
     try:
-        boundaries = _compute_boundaries(audio, sr, duration)
+        boundaries = _compute_boundaries(
+            audio,
+            sr,
+            duration,
+            chroma_feature=feature,
+        )
     except Exception as e:
         logger.warning("Boundary detection failed: %s", e)
         return [(0.0, duration)]
@@ -426,6 +486,8 @@ def segment_with_boundaries(
     audio: NDArray[np.floating[Any]],
     sr: int,
     duration: float | None = None,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> tuple[list[SectionCandidate], list[tuple[float, float]]]:
     """Run segmentation and return both section candidates and boundary pairs.
 
@@ -436,10 +498,12 @@ def segment_with_boundaries(
         audio: Mono audio signal.
         sr: Sample rate.
         duration: Optional pre-computed duration.
+        chroma_feature: Registered chroma representation. Production defaults to CQT.
 
     Returns:
         Tuple of (section_candidates, boundary_pairs).
     """
+    feature = _validated_chroma_feature(chroma_feature)
     if audio.size == 0:
         return [], []
 
@@ -452,13 +516,22 @@ def segment_with_boundaries(
         ]
 
     try:
-        boundaries = _compute_boundaries(audio, sr, duration)
+        boundaries = _compute_boundaries(
+            audio,
+            sr,
+            duration,
+            chroma_feature=feature,
+        )
     except Exception as e:
         logger.warning("Structural segmentation failed, falling back to single section: %s", e)
         return _single_section_fallback(f"Segmentation fallback: {e}"), [(0.0, duration)]
 
     return _sections_from_boundaries(
-        boundaries, duration, audio, sr
+        boundaries,
+        duration,
+        audio,
+        sr,
+        chroma_feature=feature,
     ), _boundary_pairs_from_boundaries(boundaries, duration)
 
 
@@ -486,9 +559,17 @@ def _sections_from_boundaries(
     duration: float,
     audio: NDArray[np.floating[Any]],
     sr: int,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> list[SectionCandidate]:
     """Build section candidates from precomputed boundary start times."""
-    groups = _segment_repetition_groups(audio, sr, boundaries, duration)
+    groups = _segment_repetition_groups(
+        audio,
+        sr,
+        boundaries,
+        duration,
+        chroma_feature=chroma_feature,
+    )
     labels = assign_section_labels(boundaries, duration, groups)
     sections: list[SectionCandidate] = []
     n_boundaries = len(boundaries)
@@ -538,6 +619,8 @@ def _compute_boundaries(
     audio: NDArray[np.floating[Any]],
     sr: int,
     duration: float,
+    *,
+    chroma_feature: ChromaFeature = "cqt",
 ) -> list[float]:
     """Compute raw boundary times from audio (shared implementation).
 
@@ -545,9 +628,14 @@ def _compute_boundaries(
         audio: Mono audio signal.
         sr: Sample rate.
         duration: Total audio duration.
+        chroma_feature: Registered chroma representation.
 
     Returns:
         Sorted list of boundary start times.
     """
-    novelty, frame_times = compute_novelty_curve(audio, sr)
+    novelty, frame_times = compute_novelty_curve(
+        audio,
+        sr,
+        chroma_feature=chroma_feature,
+    )
     return detect_boundaries(novelty, frame_times, duration)
