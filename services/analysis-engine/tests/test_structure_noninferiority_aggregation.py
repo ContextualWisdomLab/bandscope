@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from types import ModuleType
 
 import pytest
@@ -192,19 +193,26 @@ def test_paired_bootstrap_is_deterministic_and_resamples_track_pairs() -> None:
     assert first["p95_latency_ratio_ci95"][0] > 0.0
 
 
-def test_percentile_interval_is_not_required_to_contain_original_point_estimate() -> None:
-    """Percentile bootstrap intervals may be asymmetric around the observed statistic."""
+def test_percentile_projection_preserves_asymmetric_interval_bounds() -> None:
+    """Legacy point containment is adapted without changing percentile endpoints."""
     validator = _validator()
     registration = _registration()
-    digest = validator.registration_digest(registration)
-    result = _result(registration, digest)
-    intervals = result["paired_delta_ci95"]
+    result = _result(registration, validator.registration_digest(registration))
+    projected = copy.deepcopy(result)
+    projected["registration_sha256"] = validator._BASE.registration_digest(registration)
+    intervals = projected["paired_delta_ci95"]
     assert isinstance(intervals, dict)
     intervals["boundary_f_0_5"] = [0.001, 0.010]
-    result["p95_latency_ratio_ci95"] = [0.60, 0.65]
+    projected["p95_latency_ratio_ci95"] = [0.60, 0.65]
 
-    decision = validator.evaluate_result(registration, result)
+    with pytest.raises(ValueError, match="must contain the aggregate point delta"):
+        validator._BASE.evaluate_result(registration, projected)
 
+    adapted = validator._project_percentile_intervals_for_base(projected)
+    decision = validator._BASE.evaluate_result(registration, adapted)
+
+    assert adapted["paired_delta_ci95"] == projected["paired_delta_ci95"]
+    assert adapted["p95_latency_ratio_ci95"] == projected["p95_latency_ratio_ci95"]
     assert decision["passed"] is True
 
 
