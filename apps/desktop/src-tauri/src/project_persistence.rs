@@ -3,6 +3,8 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
 };
+
+use bandscope_desktop_core::ProjectMigrationReceipt;
 use serde::{Deserialize, Serialize};
 
 const MAX_PROJECT_FILE_BYTES: usize = 5 * 1024 * 1024;
@@ -489,6 +491,54 @@ impl ProjectFileReadSnapshot {
     pub(crate) fn identity(&self) -> &ProjectFileIdentity {
         &self.identity
     }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn open_project_file_with_expected_identity(
+    path: &Path,
+    expected: &ProjectFileIdentity,
+) -> Result<File, String> {
+    let file = open_project_file(path).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&metadata) {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+
+    #[cfg(unix)]
+    let identity = project_file_identity_from_metadata(&metadata);
+    #[cfg(windows)]
+    let identity = windows_file_identity(&file).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+
+    if &identity != expected {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    Ok(file)
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn verify_migration_predecessor(
+    path: &Path,
+    expected: &ProjectFileIdentity,
+    receipt: &ProjectMigrationReceipt,
+) -> Result<(), String> {
+    let file = open_project_file_with_expected_identity(path, expected)?;
+    receipt
+        .verify_input_reader(file)
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn verify_migration_candidate(
+    path: &Path,
+    expected: &ProjectFileIdentity,
+    receipt: &ProjectMigrationReceipt,
+) -> Result<(), String> {
+    let file = open_project_file_with_expected_identity(path, expected)?;
+    receipt
+        .verify_output_reader(file)
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -1005,11 +1055,15 @@ pub(crate) fn recover_project_publication(_target: &Path) -> Result<(), String> 
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-pub(crate) fn replace_existing_project_file(
+fn replace_existing_project_file_with_validation<F>(
     stage: &Path,
     target: &Path,
     expected: &ProjectFileIdentity,
-) -> Result<(), String> {
+    validate: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &Path, &ProjectFileIdentity) -> Result<(), String>,
+{
     let candidate = match project_file_identity(stage) {
         Ok(candidate) => candidate,
         Err(error) => {
@@ -1031,7 +1085,8 @@ pub(crate) fn replace_existing_project_file(
     }
 
     let displaced = project_file_identity(stage);
-    if displaced.as_ref().is_ok_and(|identity| identity == expected) {
+    let displaced_matches = displaced.as_ref().is_ok_and(|identity| identity == expected);
+    if displaced_matches && validate(stage, target, &candidate).is_ok() {
         return finish_successful_publication(&journal, stage, target);
     }
 
@@ -1043,12 +1098,43 @@ pub(crate) fn replace_existing_project_file(
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
 
-#[cfg(windows)]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(crate) fn replace_existing_project_file(
     stage: &Path,
     target: &Path,
     expected: &ProjectFileIdentity,
 ) -> Result<(), String> {
+    replace_existing_project_file_with_validation(stage, target, expected, |_, _, _| Ok(()))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub(crate) fn replace_existing_project_file_for_migration(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+    receipt: &ProjectMigrationReceipt,
+) -> Result<(), String> {
+    replace_existing_project_file_with_validation(
+        stage,
+        target,
+        expected,
+        |displaced, published, candidate| {
+            verify_migration_predecessor(displaced, expected, receipt)?;
+            verify_migration_candidate(published, candidate, receipt)
+        },
+    )
+}
+
+#[cfg(windows)]
+fn replace_existing_project_file_with_validation<F>(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+    validate: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &Path, &ProjectFileIdentity) -> Result<(), String>,
+{
     let candidate = match project_file_identity(stage) {
         Ok(candidate) => candidate,
         Err(error) => {
@@ -1071,7 +1157,8 @@ pub(crate) fn replace_existing_project_file(
     }
 
     let displaced = project_file_identity(&backup);
-    if displaced.as_ref().is_ok_and(|identity| identity == expected) {
+    let displaced_matches = displaced.as_ref().is_ok_and(|identity| identity == expected);
+    if displaced_matches && validate(&backup, target, &candidate).is_ok() {
         return finish_successful_publication(&journal, &backup, target);
     }
 
@@ -1083,11 +1170,49 @@ pub(crate) fn replace_existing_project_file(
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
 
+#[cfg(windows)]
+pub(crate) fn replace_existing_project_file(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+) -> Result<(), String> {
+    replace_existing_project_file_with_validation(stage, target, expected, |_, _, _| Ok(()))
+}
+
+#[cfg(windows)]
+pub(crate) fn replace_existing_project_file_for_migration(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+    receipt: &ProjectMigrationReceipt,
+) -> Result<(), String> {
+    replace_existing_project_file_with_validation(
+        stage,
+        target,
+        expected,
+        |displaced, published, candidate| {
+            verify_migration_predecessor(displaced, expected, receipt)?;
+            verify_migration_candidate(published, candidate, receipt)
+        },
+    )
+}
+
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub(crate) fn replace_existing_project_file(
     stage: &Path,
     _target: &Path,
     _expected: &ProjectFileIdentity,
+) -> Result<(), String> {
+    remove_stage(stage);
+    Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+pub(crate) fn replace_existing_project_file_for_migration(
+    stage: &Path,
+    _target: &Path,
+    _expected: &ProjectFileIdentity,
+    _receipt: &ProjectMigrationReceipt,
 ) -> Result<(), String> {
     remove_stage(stage);
     Err(PROJECT_PUBLISH_ERROR.to_string())
@@ -1402,9 +1527,6 @@ where
         }
     }
 
-    // The final hard-link directory entry must be durable before staging cleanup can be acknowledged.
-    // A failed sync leaves both complete names intact and reports a publication failure; it never
-    // deletes the buyer-visible target or pretends that crash-safe first-save durability was achieved.
     sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
     remove_stage(&stage);
     Ok(())
