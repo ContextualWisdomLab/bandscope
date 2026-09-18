@@ -130,6 +130,30 @@ fn project_load_migrates_a_historical_fixture_through_receipt_bound_publication(
     fs::remove_dir_all(root).expect("fixture directory should be removable");
 }
 
+#[cfg(unix)]
+#[test]
+fn project_load_preserves_existing_data_permissions_during_migration() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = test_root("load-permissions");
+    let target = root.join("setlist.bscope");
+    let original = include_str!("../../core/testdata/project-v2.json");
+    fs::write(&target, original).expect("historical fixture should be written");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o640))
+        .expect("fixture data permissions should be set");
+
+    project_load::load_project_document(&target)
+        .expect("migration should preserve existing project data permissions");
+
+    let mode = fs::metadata(&target)
+        .expect("migrated project metadata should be readable")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(mode, 0o640);
+    fs::remove_dir_all(root).expect("fixture directory should be removable");
+}
+
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
 fn project_load_does_not_rewrite_a_current_v3_project() {
