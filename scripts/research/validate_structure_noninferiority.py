@@ -2,9 +2,10 @@
 """Bind exact scientific semantics into the structure experiment identity.
 
 The base registration schema owns corpus, experiment runtime, margins, and
-result-policy fields. This façade adds repository-owned metric, aggregation, and
-paired-uncertainty semantics to the canonical digest without making experiment
-authors duplicate immutable implementation constants in registration JSON.
+result-policy fields. This façade adds repository-owned metric, aggregation,
+performance-measurement, and paired-uncertainty semantics to the canonical
+digest without making experiment authors duplicate immutable implementation
+constants in registration JSON.
 """
 
 from __future__ import annotations
@@ -43,6 +44,23 @@ STRUCTURE_METRIC_CONTRACT = {
         "implementation": "mir_eval.segment.pairwise",
         "frame_size_seconds": 0.1,
         "beta": 1.0,
+    },
+    "performance_measurement": {
+        "contract_id": "isolated-single-shot-v1",
+        "supported_platforms": ["darwin", "win32"],
+        "warmup_trials": 0,
+        "measured_trials": 20,
+        "trial_process": "fresh_subprocess_per_lane_trial",
+        "lane_order": "alternate_baseline_candidate_by_trial_index",
+        "timer": "time.perf_counter_ns",
+        "timer_scope": "repository_structure_segmenter_only",
+        "worker_startup_in_latency": False,
+        "input_transfer_in_latency": False,
+        "latency_quantiles": [0.5, 0.95],
+        "quantile_method": "linear",
+        "memory_metric": "process_peak_resident_set_size",
+        "memory_scope": "entire_worker_process_lifetime_including_pcm_input",
+        "peak_rss_aggregation": "maximum_across_trials",
     },
     "aggregation_uncertainty": {
         "aggregation_id": "macro-track-v1",
