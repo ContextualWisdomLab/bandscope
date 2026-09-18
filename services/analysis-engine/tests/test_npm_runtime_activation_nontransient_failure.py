@@ -17,9 +17,12 @@ def _write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
-@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows lanes")
-def test_pinned_npm_activation_does_not_retry_signature_failure(tmp_path: Path) -> None:
-    """A provenance/signature failure must fail immediately instead of being retried."""
+def _run_corepack_failure(
+    tmp_path: Path,
+    *,
+    diagnostic: str,
+) -> tuple[subprocess.CompletedProcess[str], Path, Path, Path, Path]:
+    """Run the activation helper against one deterministic Corepack failure."""
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     count_file = tmp_path / "corepack-count.txt"
@@ -33,7 +36,7 @@ def test_pinned_npm_activation_does_not_retry_signature_failure(tmp_path: Path) 
     )
     _write_executable(
         fake_bin / "corepack",
-        """#!/usr/bin/env bash
+        f"""#!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1" == "install" ]]; then
   count=0
@@ -42,11 +45,11 @@ if [[ "$1" == "install" ]]; then
   fi
   count=$((count + 1))
   printf '%s' "$count" > "$BANDSCOPE_TEST_COREPACK_COUNT"
-  echo 'Signature does not match the expected keyid' >&2
+  printf '%s\\n' {diagnostic!r} >&2
   exit 1
 fi
 if [[ "$1" == "enable" ]]; then
-  printf '%s\n' "$*" >> "$BANDSCOPE_TEST_ENABLE_LOG"
+  printf '%s\\n' "$*" >> "$BANDSCOPE_TEST_ENABLE_LOG"
   exit 0
 fi
 exit 64
@@ -76,11 +79,44 @@ exit 64
         capture_output=True,
         check=False,
     )
+    return completed, count_file, sleep_log, enable_log, npm_log
 
+
+def _assert_immediate_failure(
+    completed: subprocess.CompletedProcess[str],
+    count_file: Path,
+    sleep_log: Path,
+    enable_log: Path,
+    npm_log: Path,
+) -> None:
+    """Require one acquisition attempt and no downstream activation work."""
     assert completed.returncode != 0
     assert count_file.read_text(encoding="utf-8") == "1"
     assert not sleep_log.exists()
     assert not enable_log.exists()
     assert not npm_log.exists()
-    assert "Signature does not match" in completed.stderr
-    assert "non-transient" in completed.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows lanes")
+def test_pinned_npm_activation_does_not_retry_signature_failure(tmp_path: Path) -> None:
+    """A provenance/signature failure must fail immediately instead of being retried."""
+    result = _run_corepack_failure(
+        tmp_path,
+        diagnostic="Signature does not match the expected keyid",
+    )
+
+    _assert_immediate_failure(*result)
+    assert "Signature does not match" in result[0].stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shell helper is exercised by hosted Windows lanes")
+def test_pinned_npm_activation_does_not_retry_unknown_failure(tmp_path: Path) -> None:
+    """An unclassified Corepack failure must fail closed instead of being guessed transient."""
+    result = _run_corepack_failure(
+        tmp_path,
+        diagnostic="Corepack failed while validating package-manager metadata",
+    )
+
+    _assert_immediate_failure(*result)
+    assert "validating package-manager metadata" in result[0].stderr
+    assert "not classified as transient" in result[0].stderr
