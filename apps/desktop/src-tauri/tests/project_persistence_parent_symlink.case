@@ -1,5 +1,4 @@
-#[path = "../src/project_persistence.rs"]
-mod project_persistence;
+use crate::project_persistence;
 
 #[cfg(unix)]
 fn fixture_root(label: &str) -> std::path::PathBuf {

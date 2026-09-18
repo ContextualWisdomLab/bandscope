@@ -1,7 +1,4 @@
-#[path = "../src/project_load.rs"]
-mod project_load;
-#[path = "../src/project_persistence.rs"]
-mod project_persistence;
+use crate::{project_load, project_persistence};
 
 use bandscope_desktop_core::prepare_project_migration;
 use std::{fs, io::Write};

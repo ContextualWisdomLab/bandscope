@@ -1,7 +1,4 @@
-#[path = "../src/project_persistence.rs"]
-mod project_persistence;
-#[path = "../src/project_root.rs"]
-mod project_root;
+use crate::{project_persistence, project_root};
 
 use bandscope_desktop_core::{
     re_admit_local_audio_publication_from_project_root, sha256_hex_reader,
@@ -69,21 +66,21 @@ fn restart_adapter_reopens_the_exact_regular_app_owned_source() {
         std::process::id()
     ));
     let project_id = "project-1-1";
-    let project_root = root.join(project_id);
-    fs::create_dir_all(&project_root).expect("project root should be created");
+    let project_root_path = root.join(project_id);
+    fs::create_dir_all(&project_root_path).expect("project root should be created");
     let source_bytes = b"RIFF-safe-reopen-fixture";
-    fs::write(project_root.join("source.wav"), source_bytes)
+    fs::write(project_root_path.join("source.wav"), source_bytes)
         .expect("source fixture should be written");
     let reference = source_reference(project_id, source_bytes);
 
     let reopened = re_admit_local_audio_publication_from_project_root(
-        &project_root,
+        &project_root_path,
         &reference,
         project_persistence::open_project_file,
     )
     .expect("the exact regular app-owned source should regain native identity");
 
-    assert_eq!(reopened.source_path, project_root.join("source.wav"));
+    assert_eq!(reopened.source_path, project_root_path.join("source.wav"));
     assert_eq!(reopened.identity.project_id, project_id);
     assert_eq!(reopened.identity.content_sha256, reference.content_sha256);
     fs::remove_dir_all(root).expect("test directory should be removable");
@@ -105,13 +102,13 @@ fn restart_adapter_rejects_artifact_traversal_before_opening() {
         std::process::id()
     ));
     let project_id = "project-1-1";
-    let project_root = root.join(project_id);
-    fs::create_dir_all(&project_root).expect("project root should be created");
+    let project_root_path = root.join(project_id);
+    fs::create_dir_all(&project_root_path).expect("project root should be created");
     let mut reference = source_reference(project_id, b"outside-project");
     reference.artifact_name = "../external.wav".to_string();
 
     let error = re_admit_local_audio_publication_from_project_root(
-        &project_root,
+        &project_root_path,
         &reference,
         |_path| -> std::io::Result<std::fs::File> {
             panic!("forged durable evidence must fail before filesystem authority is requested")
@@ -141,17 +138,17 @@ fn restart_adapter_refuses_a_symlink_source_artifact() {
         std::process::id()
     ));
     let project_id = "project-1-1";
-    let project_root = root.join(project_id);
-    fs::create_dir_all(&project_root).expect("project root should be created");
+    let project_root_path = root.join(project_id);
+    fs::create_dir_all(&project_root_path).expect("project root should be created");
     let external_bytes = b"outside-project";
     let external = root.join("external.wav");
-    let source_path = project_root.join("source.wav");
+    let source_path = project_root_path.join("source.wav");
     fs::write(&external, external_bytes).expect("external fixture should be written");
     symlink(&external, &source_path).expect("source symlink should be created");
     let reference = source_reference(project_id, external_bytes);
 
     let error = re_admit_local_audio_publication_from_project_root(
-        &project_root,
+        &project_root_path,
         &reference,
         project_persistence::open_project_file,
     )
@@ -179,13 +176,13 @@ fn restart_lookup_requires_an_existing_regular_project_directory() {
     ));
     fs::create_dir_all(&base_root).expect("base root should be created");
     let project_id = "project-1-1";
-    let project_root = base_root.join(project_id);
-    fs::create_dir(&project_root).expect("project root should be created");
+    let project_root_path = base_root.join(project_id);
+    fs::create_dir(&project_root_path).expect("project root should be created");
 
     let resolved = project_root::resolve_existing_project_root(&base_root, project_id)
         .expect("an existing regular project directory should resolve");
 
-    assert_eq!(resolved, project_root);
+    assert_eq!(resolved, project_root_path);
     fs::remove_dir_all(base_root).expect("test directory should be removable");
 }
 
@@ -206,14 +203,14 @@ fn restart_lookup_does_not_create_a_missing_project_directory() {
     ));
     fs::create_dir_all(&base_root).expect("base root should be created");
     let project_id = "project-1-1";
-    let project_root = base_root.join(project_id);
+    let project_root_path = base_root.join(project_id);
 
     let error = project_root::resolve_existing_project_root(&base_root, project_id)
         .expect_err("restart must not provision a missing project directory");
 
     assert_eq!(error, "Could not prepare the local project workspace.");
     assert!(
-        !project_root.exists(),
+        !project_root_path.exists(),
         "read-side restart lookup must remain non-provisioning"
     );
     fs::remove_dir_all(base_root).expect("test directory should be removable");

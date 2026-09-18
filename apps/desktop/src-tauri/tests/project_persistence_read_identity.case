@@ -1,7 +1,6 @@
 //! Regression coverage for read-handle-bound project predecessor identity.
 
-#[path = "../src/project_persistence.rs"]
-mod project_persistence;
+use crate::project_persistence;
 
 use std::{
     fs,

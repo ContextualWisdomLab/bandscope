@@ -1,5 +1,4 @@
-#[path = "../src/project_persistence.rs"]
-mod project_persistence;
+use crate::project_persistence;
 
 use std::{
     cell::Cell,
