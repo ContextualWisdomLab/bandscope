@@ -9,7 +9,14 @@ mod project_persistence {
         expected: &ProjectFileIdentity,
         candidate: &ProjectFileIdentity,
     ) -> Result<std::path::PathBuf, String> {
-        create_publication_journal(target, candidate_stage, displaced, expected, candidate)
+        create_publication_journal(
+            target,
+            candidate_stage,
+            displaced,
+            expected,
+            candidate,
+            PublicationValidation::IdentityOnly,
+        )
     }
 
     pub(crate) fn finish_rolled_back_publication_for_test(
@@ -75,14 +82,19 @@ mod rollback_identity {
             &journal,
             &target,
         )
-        .expect_err("rollback cleanup must not delete a stage whose identity no longer matches the candidate");
+        .expect_err(
+            "rollback cleanup must not delete a stage whose identity no longer matches the candidate",
+        );
 
         assert_eq!(error, "Could not recover the project publication safely.");
         assert_eq!(
             fs::read(&stage).expect("foreign artifact must remain for recovery"),
             foreign
         );
-        assert!(journal.exists(), "the journal must remain when rollback identity is ambiguous");
+        assert!(
+            journal.exists(),
+            "the journal must remain when rollback identity is ambiguous"
+        );
         assert_eq!(
             fs::read(&target).expect("target must remain untouched"),
             original
