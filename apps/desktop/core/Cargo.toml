@@ -9,6 +9,10 @@ publish = false
 name = "bandscope_desktop_core"
 path = "src/root.rs"
 
+[features]
+default = []
+persistence_warning_gate = []
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 
