@@ -1764,7 +1764,7 @@ mod tests {
             .expect("selected symlink should remain")
             .file_type()
             .is_symlink());
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("test fixture should be removable");
     }
 
     #[test]
@@ -2013,12 +2013,17 @@ mod tests {
     }
 
     #[test]
-    fn load_project_command_routes_through_bounded_reader() {
+    fn load_project_command_routes_through_migration_owner() {
         let main_source = include_str!("main.rs");
+        let load_source = include_str!("project_load.rs");
 
         assert!(
-            main_source.contains("project_persistence::read_project_file(&path)"),
-            "the Tauri load command must enforce the byte ceiling while reading"
+            main_source.contains("project_load::load_project_document(&path)"),
+            "the Tauri load command must route through the migrate-on-load owner"
+        );
+        assert!(
+            load_source.contains("project_persistence::read_project_file_with_identity(target)"),
+            "migrate-on-load must derive migration authority from the bounded identity-bearing read"
         );
         assert!(
             !main_source.contains("std::fs::read_to_string(path)"),
