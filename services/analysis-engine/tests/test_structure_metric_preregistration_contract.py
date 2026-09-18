@@ -75,6 +75,45 @@ def test_registration_digest_binds_exact_metric_runtime_and_adapter_semantics() 
     assert validator.registration_digest(dict(reversed(list(registration.items())))) == expected
 
 
+def test_digest_contract_matches_metric_adapter_and_runtime_lock_owners() -> None:
+    """Duplicated digest metadata cannot drift from the executable metric owners."""
+    validator = _validator()
+    adapter = load_module(
+        "scripts/research/evaluate_structure_segmentation_metrics.py",
+        "structure_segmentation_metric_owner_for_registration",
+    )
+    runtime = load_module(
+        "scripts/research/verify_structure_metric_runtime_lock.py",
+        "structure_metric_runtime_owner_for_registration",
+    )
+    contract = validator.STRUCTURE_METRIC_CONTRACT
+
+    assert contract["runtime_lock_sha256"] == hashlib.sha256(
+        runtime.EXPECTED_LOCK_TEXT.encode("utf-8")
+    ).hexdigest()
+    assert contract["boundary_f_0_5"] == {
+        "implementation": "mir_eval.segment.detection",
+        "window_seconds": adapter.BOUNDARY_WINDOWS_SECONDS[0],
+        "beta": adapter.BOUNDARY_BETA,
+        "trim": adapter.BOUNDARY_TRIM,
+    }
+    assert contract["boundary_f_3_0"] == {
+        "implementation": "mir_eval.segment.detection",
+        "window_seconds": adapter.BOUNDARY_WINDOWS_SECONDS[1],
+        "beta": adapter.BOUNDARY_BETA,
+        "trim": adapter.BOUNDARY_TRIM,
+    }
+    assert contract["boundary_deviation"] == {
+        "implementation": "mir_eval.segment.deviation",
+        "trim": adapter.BOUNDARY_TRIM,
+    }
+    assert contract["repetition_pairwise_f"] == {
+        "implementation": "mir_eval.segment.pairwise",
+        "frame_size_seconds": adapter.PAIRWISE_FRAME_SIZE_SECONDS,
+        "beta": adapter.PAIRWISE_BETA,
+    }
+
+
 def test_result_rejects_receipt_bound_only_to_the_legacy_registration_digest() -> None:
     """A receipt cannot omit the metric contract by hashing registration JSON alone."""
     validator = _validator()
