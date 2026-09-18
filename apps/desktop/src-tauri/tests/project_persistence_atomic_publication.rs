@@ -164,8 +164,11 @@ fn synced_source_publication_moves_the_owned_stage_only_after_durable_no_replace
     let target = root.join("source.wav");
     let content = b"RIFF-durable-source";
     fs::write(&stage, content).expect("source stage should be written");
-    fs::File::open(&stage)
-        .expect("source stage should reopen")
+    fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&stage)
+        .expect("source stage should reopen with write authority for durable flush")
         .sync_all()
         .expect("source stage bytes should be durable before publication");
     let sync_calls = Cell::new(0usize);
