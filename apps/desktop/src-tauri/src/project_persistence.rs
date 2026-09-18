@@ -1294,7 +1294,7 @@ pub(crate) fn replace_existing_project_file_for_migration(
     Err(PROJECT_PUBLISH_ERROR.to_string())
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(target_os = "macos")]
 pub(crate) fn trusted_macos_root_alias_target(path: &Path) -> Option<&'static Path> {
     match path.to_str()? {
         "/etc" => Some(Path::new("/private/etc")),
@@ -1448,17 +1448,8 @@ pub(crate) fn read_project_file_with_identity(
     )
 }
 
-/// Reads one project through a bounded, path-stable native file handle.
-///
-/// The selected path must name the same regular file before the open, on the opened handle, and
-/// immediately after the open. Linux and macOS acquire the handle with no-follow plus non-blocking
-/// flags before comparing device/inode identity, so a last-component symlink swap cannot redirect
-/// handle acquisition and a special-file swap cannot block the UI thread. Windows opens reparse
-/// points without following them, rejects reparse handles, and compares the volume serial number plus
-/// file index returned for native handles before, during, and after acquisition. Other Unix targets
-/// fail closed until their no-follow open contract is explicitly modeled. The reader remains capped
-/// at `MAX_PROJECT_FILE_BYTES + 1`; migration publication now uses the identity-bearing reader above,
-/// while longer-lived backup rotation and global startup recovery remain #962 work.
+/// Test-only String projection of the bounded identity-bearing project reader.
+#[cfg(test)]
 pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
     read_project_file_with_opener(
         target,
@@ -1877,7 +1868,7 @@ mod tests {
             read_project_file(&target).expect("bounded project should be readable"),
             content
         );
-        fs::remove_dir_all(root).expect("fixture directory should be removable");
+        fs::remove_dir_all(root).expect("test fixture should be removable");
     }
 
     #[cfg(unix)]
@@ -2053,7 +2044,7 @@ mod tests {
         assert_eq!(fs::read(&target).expect("target should remain readable"), candidate);
         assert!(!stage.exists(), "the displaced known-good stage should be cleaned");
         assert!(!published.exists(), "the published journal should be cleaned");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
