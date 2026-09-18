@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "persistence_warning_gate", deny(warnings))]
+
 //! Pure, GUI-independent logic for the BandScope desktop application.
 //!
 //! The historical desktop-core implementation remains in `lib.rs` as the
@@ -38,6 +40,6 @@ pub use publication_identity::{
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
 pub use source_readmission::{
-    re_admit_local_audio_publication, re_admit_local_audio_publication_from_project_root,
-    ReAdmittedLocalAudioPublication,
+    readmit_project_source_reference, SourceReadmissionDecision, SourceReadmissionFailure,
+    SourceReadmissionResult,
 };
