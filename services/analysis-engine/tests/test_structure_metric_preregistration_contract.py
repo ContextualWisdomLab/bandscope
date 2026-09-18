@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import copy
+from types import ModuleType
 
 import pytest
+from conftest import load_module
 
-from test_structure_noninferiority_policy import _metrics, _registration, _validator
+from test_structure_noninferiority_policy import _metrics, _registration
 
 _METRIC_LOCK_SHA256 = "16fd203e9c987064afc667282e001b755838ff0b484235c6932f557d2ae389f8"
+
+
+def _metric_validator() -> ModuleType:
+    return load_module(
+        "scripts/research/validate_structure_metric_preregistration.py",
+        "validate_structure_metric_preregistration",
+    )
 
 
 def _exact_registration() -> dict[str, object]:
@@ -36,7 +45,7 @@ def _exact_registration() -> dict[str, object]:
 
 def test_registration_accepts_only_exact_metric_runtime_and_adapter_semantics() -> None:
     """The digest must bind the exact lock and every result-affecting adapter argument."""
-    validator = _validator()
+    validator = _metric_validator()
     registration = _exact_registration()
 
     validator.validate_registration(registration)
