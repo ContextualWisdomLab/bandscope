@@ -2,7 +2,10 @@
 mod project_persistence;
 
 use bandscope_desktop_core::prepare_project_migration;
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 fn test_root(label: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!(
@@ -61,6 +64,9 @@ fn published_migration_fixture(
     let root = test_root(label);
     let target = root.join("setlist.bscope");
     let displaced = generated_stage(&root);
+    #[cfg(unix)]
+    let candidate_stage = displaced.clone();
+    #[cfg(windows)]
     let candidate_stage = generated_stage(&root);
     let historical = include_str!("../../core/testdata/project-v2.json");
     let prepared = prepare_project_migration(historical)
@@ -112,8 +118,14 @@ fn published_v2_migration_journal_cleans_only_exact_receipt_bound_artifacts() {
         fs::read(&target).expect("published candidate should remain readable"),
         candidate
     );
-    assert!(!displaced.exists(), "validated rollback material should retire");
-    assert!(!journal.exists(), "validated published journal should retire");
+    assert!(
+        !displaced.exists(),
+        "validated rollback material should retire"
+    );
+    assert!(
+        !journal.exists(),
+        "validated published journal should retire"
+    );
     fs::remove_dir_all(root).expect("fixture directory should be removable");
 }
 
@@ -146,8 +158,14 @@ fn published_v2_migration_journal_preserves_rollback_on_in_place_candidate_chang
         fs::read(&target).expect("mutated candidate should remain inspectable"),
         mutated
     );
-    assert!(displaced.exists(), "known-good predecessor must remain available");
-    assert!(journal.exists(), "failed recovery must retain its durable journal");
+    assert!(
+        displaced.exists(),
+        "known-good predecessor must remain available"
+    );
+    assert!(
+        journal.exists(),
+        "failed recovery must retain its durable journal"
+    );
     fs::remove_dir_all(root).expect("fixture directory should be removable");
 }
 
@@ -165,7 +183,13 @@ fn legacy_identity_only_published_journal_fails_closed_without_deleting_known_go
         fs::read(&target).expect("candidate should remain inspectable"),
         candidate
     );
-    assert!(displaced.exists(), "legacy rollback material must remain available");
-    assert!(journal.exists(), "legacy journal must remain for explicit recovery handling");
+    assert!(
+        displaced.exists(),
+        "legacy rollback material must remain available"
+    );
+    assert!(
+        journal.exists(),
+        "legacy journal must remain for explicit recovery handling"
+    );
     fs::remove_dir_all(root).expect("fixture directory should be removable");
 }
