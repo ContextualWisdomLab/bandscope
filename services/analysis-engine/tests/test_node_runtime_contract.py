@@ -73,7 +73,7 @@ def test_eslint_10_9_1_intent_is_preserved_in_both_workspaces_and_lock() -> None
 
 
 def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
-    """Exercise the exact Node floor after activating the reviewed npm runtime."""
+    """Exercise the exact Node floor through the canonical npm activation owner."""
     workflow = (ROOT / ".github/workflows/node-minimum-compatibility.yml").read_text(
         encoding="utf-8"
     )
@@ -88,9 +88,7 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
     required_fragments = (
         "node-version: 22.22.2",
         "package-manager-cache: false",
-        "corepack enable npm",
-        'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"',
-        "npm run check:npm-runtime",
+        "bash scripts/checks/activate_pinned_npm_runtime.sh",
         "npm ci --ignore-scripts --no-audit --no-fund",
         "npm run lint",
         "npm run typecheck",
@@ -103,7 +101,19 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
     for fragment in required_fragments:
         assert fragment in body, f"minimum-version job is missing: {fragment}"
 
-    assert f'EXPECTED_NPM_VERSION: "{EXPECTED_NPM_VERSION}"' in workflow
+    activation_boundary = (
+        "      - name: Activate and verify pinned npm runtime\n"
+        "        run: bash scripts/checks/activate_pinned_npm_runtime.sh\n"
+        "      - name: Install frozen Node dependencies\n"
+        "        run: npm ci --ignore-scripts --no-audit --no-fund"
+    )
+    assert activation_boundary in body
+
+    for duplicate_activation in ("corepack enable npm", "npm --version"):
+        assert duplicate_activation not in body, (
+            "minimum-version workflow must delegate npm activation to the canonical helper: "
+            f"{duplicate_activation}"
+        )
 
     for mutable_command in ("npm install ", "npm update ", "npx "):
         assert mutable_command not in body, (
@@ -112,7 +122,7 @@ def test_minimum_node_lane_runs_complete_suite_with_pinned_npm() -> None:
         )
 
     setup_node = body.split("- uses: actions/setup-node@", maxsplit=1)[1].split(
-        "- name: Activate pinned npm runtime", maxsplit=1
+        "- name: Activate and verify pinned npm runtime", maxsplit=1
     )[0]
     assert "cache: npm" not in setup_node
     assert "package-manager-cache: false" in setup_node
