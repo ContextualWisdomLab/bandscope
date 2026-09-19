@@ -42,6 +42,23 @@ describe("project document save authority", () => {
     });
   });
 
+  it("selects the app-owned workspace snapshot without accepting a renderer path", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+    const document = {
+      song: createDemoRehearsalSong(),
+      preferences: { selectedPlaybackSource: "full_mix" as const }
+    };
+
+    await saveProjectDocument(document, "project-400-4", true);
+
+    expect(invoke).toHaveBeenCalledWith("save_project", {
+      payload: document,
+      projectId: "project-400-4",
+      workspace: true
+    });
+  });
+
   it("rejects renderer-authored source identity before persistence IPC", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
     tauriWindow.__TAURI_INVOKE__ = invoke;
