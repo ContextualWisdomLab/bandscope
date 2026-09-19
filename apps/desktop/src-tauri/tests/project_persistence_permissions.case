@@ -135,6 +135,26 @@ fn new_project_and_recovery_journal_remain_owner_private_with_permissive_umask()
         "new durable project data must default to owner-only permissions"
     );
 
+    let shared_target = root.join("shared-existing.bscope");
+    fs::write(&shared_target, br#"{\"id\":\"shared-old\"}"#)
+        .expect("shared predecessor should be written");
+    fs::set_permissions(&shared_target, fs::Permissions::from_mode(0o640))
+        .expect("shared predecessor mode should be explicit");
+    project_persistence::publish_new_project_file(
+        &shared_target,
+        br#"{\"id\":\"shared-new\"}"#,
+    )
+    .expect("existing shared project should retain its deliberate read/write mode");
+    let shared_mode = fs::metadata(&shared_target)
+        .expect("shared replacement should be readable")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        shared_mode, 0o640,
+        "private staging must not silently revoke an existing project's deliberate sharing mode"
+    );
+
     let existing_target = root.join("existing.bscope");
     let stage = root.join(format!(
         ".bandscope-stage-{}.stage",
