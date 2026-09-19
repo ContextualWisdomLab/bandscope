@@ -212,15 +212,78 @@ pub fn publish_score_pdf_attachment(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    const SCORE_ID: &str = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
+
+    fn unique_test_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("bandscope-score-recovery-{name}-{suffix}"))
+    }
 
     #[test]
     fn reserved_stage_name_requires_exact_score_uuid_shape() {
         assert_eq!(
             reserved_stage_score_id(".score-6fa459ea-ee8a-4ca4-894e-db77e160355e.stage"),
-            Some("6fa459ea-ee8a-4ca4-894e-db77e160355e")
+            Some(SCORE_ID)
         );
         assert_eq!(reserved_stage_score_id(".score-../escape.stage"), None);
         assert_eq!(reserved_stage_score_id("score-6fa459ea-ee8a-4ca4-894e-db77e160355e.stage"), None);
         assert_eq!(reserved_stage_score_id(".score-6fa459ea-ee8a-4ca4-894e-db77e160355e.tmp"), None);
+    }
+
+    #[test]
+    fn workspace_lease_rejects_a_second_live_writer() {
+        let root = unique_test_dir("lease-contention");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let first = acquire_score_workspace_lease(&root).expect("first writer should acquire lease");
+
+        let second = acquire_score_workspace_lease(&root);
+
+        assert_eq!(second.err().as_deref(), Some(SCORE_RECOVERY_ERROR));
+        drop(first);
+        acquire_score_workspace_lease(&root).expect("lease should release when the first owner drops");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn recovery_removes_only_stage_without_destination() {
+        let root = unique_test_dir("stage-only");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join(format!(".score-{SCORE_ID}.stage"));
+        fs::write(&stage, b"%PDF-1.7\nabandoned").expect("stage fixture should be written");
+        let lease = acquire_score_workspace_lease(&root).expect("recovery should acquire lease");
+
+        let removed = recover_abandoned_score_stages(&root, &lease)
+            .expect("stage-only orphan should be recoverable");
+
+        assert_eq!(removed, 1);
+        assert!(!stage.exists());
+        drop(lease);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn recovery_preserves_ambiguous_stage_plus_destination() {
+        let root = unique_test_dir("stage-and-destination");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join(format!(".score-{SCORE_ID}.stage"));
+        let destination = root.join(format!("{SCORE_ID}.pdf"));
+        fs::write(&stage, b"%PDF-1.7\nstage").expect("stage fixture should be written");
+        fs::write(&destination, b"%PDF-1.7\ndestination")
+            .expect("destination fixture should be written");
+        let lease = acquire_score_workspace_lease(&root).expect("recovery should acquire lease");
+
+        let error = recover_abandoned_score_stages(&root, &lease)
+            .expect_err("ambiguous published state must fail closed");
+
+        assert_eq!(error, SCORE_RECOVERY_ERROR);
+        assert!(stage.exists());
+        assert!(destination.exists());
+        drop(lease);
+        let _ = fs::remove_dir_all(root);
     }
 }
