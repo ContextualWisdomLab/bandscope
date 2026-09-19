@@ -238,7 +238,12 @@ fn first_save_flush_target(
     Ok(())
 }
 
-fn publish_project_file_with_linker_and_directory_sync<F, S>(
+/// Executes the single first-save publication state machine with injectable native boundaries.
+///
+/// Production passes the real hard-link and parent-durability operations. Native persistence tests
+/// replace only those two boundaries to exercise failure ordering while preserving the identical
+/// staging, identity, no-clobber, permission, replacement, cleanup, and durability implementation.
+pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
     target: &Path,
     content: &[u8],
     link: F,
@@ -351,41 +356,10 @@ where
 }
 
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
-    publish_project_file_with_linker_and_directory_sync(
+    publish_new_project_file_with_linker_and_directory_sync(
         target,
         content,
         |source, destination| fs::hard_link(source, destination),
         first_save_sync_parent,
     )
-}
-
-#[cfg(test)]
-pub(crate) fn publish_new_project_file_with_linker<F>(
-    target: &Path,
-    content: &[u8],
-    link: F,
-) -> Result<(), String>
-where
-    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
-{
-    publish_project_file_with_linker_and_directory_sync(
-        target,
-        content,
-        link,
-        first_save_sync_parent,
-    )
-}
-
-#[cfg(test)]
-pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
-    target: &Path,
-    content: &[u8],
-    link: F,
-    sync_parent: S,
-) -> Result<(), String>
-where
-    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
-    S: FnMut(&Path) -> std::io::Result<()>,
-{
-    publish_project_file_with_linker_and_directory_sync(target, content, link, sync_parent)
 }
