@@ -302,10 +302,12 @@ fn existing_project_replacement_rolls_back_when_candidate_flush_fails() {
         .expect("known-good target identity should be capturable");
     let flush_calls = Cell::new(0usize);
 
-    let error = project_persistence::replace_existing_project_file_with_flush_for_test(
+    let error = project_persistence::replace_existing_project_file_with_validation_and_flush(
         &stage,
         &target,
         &expected,
+        project_persistence::PublicationValidation::IdentityOnly,
+        |_, _, _| Ok(()),
         |flushed, _identity| {
             let call = flush_calls.get() + 1;
             flush_calls.set(call);

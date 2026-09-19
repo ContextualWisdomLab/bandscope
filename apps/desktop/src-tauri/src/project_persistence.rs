@@ -581,7 +581,7 @@ type JournalPathName = Vec<u16>;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-enum PublicationValidation {
+pub(crate) enum PublicationValidation {
     IdentityOnly,
     Migration { receipt: ProjectMigrationReceipt },
 }
@@ -972,7 +972,9 @@ fn recover_publication_state(
             .as_ref()
             .is_some_and(|identity| identity != &journal.candidate)
     {
-        verify_recovery_migration_predecessor(displaced, journal)?;
+        if displaced_identity.as_ref() == Some(&journal.expected) {
+            verify_recovery_migration_predecessor(displaced, journal)?;
+        }
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         if rename_exchange(displaced, target).is_err() {
             return Err(PROJECT_RECOVERY_ERROR.to_string());
@@ -985,7 +987,10 @@ fn recover_publication_state(
             if replace_file_with_backup(target, displaced, candidate_stage).is_err() {
                 return Err(PROJECT_RECOVERY_ERROR.to_string());
             }
-            flush_project_file_with_expected_identity(target, &journal.expected)
+            let restored_identity = displaced_identity
+                .as_ref()
+                .ok_or_else(|| PROJECT_RECOVERY_ERROR.to_string())?;
+            flush_project_file_with_expected_identity(target, restored_identity)
                 .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         }
         remove_recovery_artifact(candidate_stage)?;
@@ -1223,7 +1228,7 @@ pub(crate) fn replace_existing_project_file_for_migration(
 }
 
 #[cfg(windows)]
-fn replace_existing_project_file_with_validation_and_flush<F, S>(
+pub(crate) fn replace_existing_project_file_with_validation_and_flush<F, S>(
     stage: &Path,
     target: &Path,
     expected: &ProjectFileIdentity,
@@ -1275,7 +1280,10 @@ where
     let target_is_candidate =
         project_file_identity(target).is_ok_and(|identity| identity == candidate);
     if target_is_candidate && replace_file_with_backup(target, &backup, stage).is_ok() {
-        if flush(target, expected).is_ok() {
+        if displaced
+            .as_ref()
+            .is_ok_and(|restored_identity| flush(target, restored_identity).is_ok())
+        {
             let _ = finish_rolled_back_publication(stage, &journal, target);
         }
     }
@@ -1300,26 +1308,6 @@ where
         validation,
         validate,
         flush_project_file_with_expected_identity,
-    )
-}
-
-#[cfg(all(windows, test))]
-pub(crate) fn replace_existing_project_file_with_flush_for_test<S>(
-    stage: &Path,
-    target: &Path,
-    expected: &ProjectFileIdentity,
-    flush: S,
-) -> Result<(), String>
-where
-    S: FnMut(&Path, &ProjectFileIdentity) -> Result<(), String>,
-{
-    replace_existing_project_file_with_validation_and_flush(
-        stage,
-        target,
-        expected,
-        PublicationValidation::IdentityOnly,
-        |_, _, _| Ok(()),
-        flush,
     )
 }
 
@@ -1560,8 +1548,9 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// publication only when the displaced inode still matches that captured identity; a mismatch is
 /// exchanged back before returning an error. Windows uses `ReplaceFileW` with a unique same-directory
 /// backup, validates the displaced file's native identity, flushes the exact published candidate
-/// before retiring rollback material, and restores plus flushes the expected predecessor if validation
-/// or the candidate flush fails. For a destination that was absent at the snapshot, a hard link is
+/// before retiring rollback material, and on rejection restores plus flushes the exact displaced file
+/// that occupied the target at replacement time. Only a displaced file matching the captured expected
+/// identity can authorize commit. For a destination that was absent at the snapshot, a hard link is
 /// attempted first; Linux then uses `renameat2(RENAME_NOREPLACE)`, macOS uses
 /// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without
 /// `MOVEFILE_REPLACE_EXISTING`. Windows also flushes the exact hard-linked target before removing the
@@ -2063,13 +2052,18 @@ mod tests {
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
 
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn recovers_a_competing_file_preserved_by_an_interrupted_exchange() {
         let root = test_dir("raced-recovery");
         let target = root.join("setlist.bscope");
         let parked = root.join("parked-authorized.bscope");
         let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
+        let displaced = if cfg!(windows) {
+            super::staging_path(&target).expect("Windows displaced path should be derivable")
+        } else {
+            stage.clone()
+        };
         let authorized = br#"{\"id\":\"authorized\"}"#;
         let racer = br#"{\"id\":\"racer\"}"#;
         let candidate = br#"{\"id\":\"candidate\"}"#;
@@ -2082,7 +2076,7 @@ mod tests {
         let journal = super::create_publication_journal(
             &target,
             &stage,
-            &stage,
+            &displaced,
             &expected,
             &candidate_identity,
             super::PublicationValidation::IdentityOnly,
@@ -2090,7 +2084,11 @@ mod tests {
         .expect("the recovery journal should be durable before publication");
         fs::rename(&target, &parked).expect("authorized target should be parked by the racer");
         fs::write(&target, racer).expect("racer should win the target pathname");
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         super::rename_exchange(&stage, &target).expect("fixture should model interrupted exchange");
+        #[cfg(windows)]
+        super::replace_file_with_backup(&target, &stage, &displaced)
+            .expect("fixture should model interrupted ReplaceFileW publication");
 
         super::recover_project_publication(&target)
             .expect("the preserved competing file should be restored");
@@ -2101,6 +2099,7 @@ mod tests {
             authorized
         );
         assert!(!stage.exists(), "the candidate should be cleaned");
+        assert!(!displaced.exists(), "the displaced racer artifact should be consumed");
         assert!(!journal.exists(), "the recovery journal should be cleaned");
         fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
