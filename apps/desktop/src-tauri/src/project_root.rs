@@ -23,17 +23,61 @@ fn metadata_is_safe_existing_project_directory(metadata: &fs::Metadata) -> bool 
     metadata.is_dir() && !metadata.file_type().is_symlink()
 }
 
+#[cfg(target_os = "macos")]
+fn trusted_macos_root_alias_target(path: &Path) -> Option<&'static Path> {
+    match path.to_str()? {
+        "/etc" => Some(Path::new("/private/etc")),
+        "/tmp" => Some(Path::new("/private/tmp")),
+        "/var" => Some(Path::new("/private/var")),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn metadata_is_trusted_macos_root_directory_alias(path: &Path, metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Some(expected_target) = trusted_macos_root_alias_target(path) else {
+        return false;
+    };
+
+    metadata.file_type().is_symlink()
+        && metadata.uid() == 0
+        && path.parent() == Some(Path::new("/"))
+        && fs::canonicalize(path).is_ok_and(|resolved| resolved == expected_target)
+        && fs::symlink_metadata(expected_target)
+            .is_ok_and(|target_metadata| metadata_is_safe_existing_project_directory(&target_metadata))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn metadata_is_trusted_macos_root_directory_alias(_path: &Path, _metadata: &fs::Metadata) -> bool {
+    false
+}
+
+fn existing_project_directory_chain_is_safe(path: &Path) -> bool {
+    path.ancestors()
+        .filter(|ancestor| !ancestor.as_os_str().is_empty())
+        .all(|ancestor| {
+            fs::symlink_metadata(ancestor).is_ok_and(|metadata| {
+                metadata_is_safe_existing_project_directory(&metadata)
+                    || metadata_is_trusted_macos_root_directory_alias(ancestor, &metadata)
+            })
+        })
+}
+
 /// Resolve one already-provisioned app-local project directory without creating it.
 ///
-/// Security Notes: `project_id` is validated before joining. The app-local base
-/// itself and the final project directory must already exist as real directories
-/// rather than symlinks or Windows reparse points. Rejecting a linked base before
+/// Security Notes: `project_id` is validated before joining. The app-local base,
+/// its lexical ancestor chain, and the final project directory must already exist
+/// as real directories rather than symlinks or Windows reparse points. macOS keeps
+/// only the root-owned `/etc`, `/tmp`, and `/var` aliases whose canonical targets
+/// are the exact system `/private` directories. Rejecting linked ancestors before
 /// joining prevents a stable app-local path name from redirecting reopen into a
 /// different filesystem subtree. This read-side resolver never calls
 /// `create_dir_all`, so a missing or replaced project root cannot be silently
-/// provisioned during reopen. Descriptor-bound authority for every ancestor and
-/// concurrent parent replacement remains a separate platform-hardening
-/// requirement.
+/// provisioned during reopen. These checks close stable link redirection; they do
+/// not claim descriptor-bound protection against an ancestor replaced after the
+/// check.
 pub(crate) fn resolve_existing_project_root(
     base_root: &Path,
     project_id: &str,
@@ -42,16 +86,12 @@ pub(crate) fn resolve_existing_project_root(
         return Err(PROJECT_ROOT_ERROR.to_string());
     }
 
-    let base_metadata =
-        fs::symlink_metadata(base_root).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
-    if !metadata_is_safe_existing_project_directory(&base_metadata) {
+    if !existing_project_directory_chain_is_safe(base_root) {
         return Err(PROJECT_ROOT_ERROR.to_string());
     }
 
     let project_root = base_root.join(project_id);
-    let metadata = fs::symlink_metadata(&project_root)
-        .map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
-    if !metadata_is_safe_existing_project_directory(&metadata) {
+    if !existing_project_directory_chain_is_safe(&project_root) {
         return Err(PROJECT_ROOT_ERROR.to_string());
     }
 
