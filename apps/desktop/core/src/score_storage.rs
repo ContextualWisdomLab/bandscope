@@ -222,7 +222,14 @@ fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String
 }
 
 #[cfg(windows)]
-fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String> {
+fn remove_owned_stage_with_hook<F>(
+    path: &Path,
+    expected: StageIdentity,
+    before_unlink: F,
+) -> Result<(), String>
+where
+    F: FnOnce(),
+{
     let current_metadata =
         fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
     if !current_metadata.is_file() {
@@ -233,7 +240,13 @@ fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
     drop(current_file);
+    before_unlink();
     fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
+}
+
+#[cfg(windows)]
+fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String> {
+    remove_owned_stage_with_hook(path, expected, || {})
 }
 
 #[cfg(all(not(unix), not(windows)))]
@@ -362,7 +375,7 @@ where
             file.as_raw_handle(),
             FILE_DISPOSITION_INFO_CLASS,
             (&mut disposition as *mut WindowsFileDispositionInfo).cast(),
-            size_of::<WindowsFileDispositionInfo>() as u32,
+            std::mem::size_of::<WindowsFileDispositionInfo>() as u32,
         )
     };
     if result == 0 {
@@ -495,7 +508,11 @@ pub fn publish_score_pdf_attachment(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{io::Cursor, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        io::Cursor,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn unique_test_dir(name: &str) -> PathBuf {
         let suffix = SystemTime::now()
@@ -573,8 +590,14 @@ mod tests {
         .expect_err("identity mismatch must fail closed before unlinkat");
 
         assert_eq!(error, SCORE_REMOVE_ERROR);
-        assert_eq!(fs::read(&target).expect("replacement should survive"), b"%PDF-foreign");
-        assert_eq!(fs::read(&moved).expect("owned file should survive failed deletion"), b"%PDF-owned");
+        assert_eq!(
+            fs::read(&target).expect("replacement should survive"),
+            b"%PDF-foreign"
+        );
+        assert_eq!(
+            fs::read(&moved).expect("owned file should survive failed deletion"),
+            b"%PDF-owned"
+        );
         let _ = fs::remove_dir_all(root);
     }
 
@@ -593,8 +616,42 @@ mod tests {
         })
         .expect("handle-bound disposition should delete only the originally opened score");
 
-        assert_eq!(fs::read(&target).expect("replacement should survive"), b"%PDF-foreign");
-        assert!(!moved.exists(), "the originally opened score object should be deleted");
+        assert_eq!(
+            fs::read(&target).expect("replacement should survive"),
+            b"%PDF-foreign"
+        );
+        assert!(
+            !moved.exists(),
+            "the originally opened score object should be deleted"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_stage_cleanup_deletes_owned_object_not_replacement_path() {
+        let root = unique_test_dir("score-stage-cleanup-replacement");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join("stage.pdf");
+        let moved = root.join("owned-before-replacement.pdf");
+        let stage_file = create_private_stage(&stage).expect("owned stage should be created");
+        let expected = stage_identity(&stage_file).expect("owned stage identity should be captured");
+        drop(stage_file);
+
+        remove_owned_stage_with_hook(&stage, expected, || {
+            fs::rename(&stage, &moved).expect("owned stage should move after identity check");
+            fs::write(&stage, b"foreign replacement").expect("foreign replacement should be written");
+        })
+        .expect("cleanup should delete the captured stage object, not the replacement pathname");
+
+        assert_eq!(
+            fs::read(&stage).expect("foreign replacement must survive cleanup"),
+            b"foreign replacement"
+        );
+        assert!(
+            !moved.exists(),
+            "the captured stage object should be deleted through its original authority"
+        );
         let _ = fs::remove_dir_all(root);
     }
 
