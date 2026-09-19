@@ -21,9 +21,9 @@ mod unix_parent_swap {
         path
     }
 
-    fn owned_stage(parent: &Path) -> PathBuf {
+    fn generated_stage(parent: &Path) -> PathBuf {
         fs::read_dir(parent)
-            .expect("parked project directory should be readable")
+            .expect("project directory should be readable")
             .filter_map(Result::ok)
             .find_map(|entry| {
                 let name = entry.file_name();
@@ -31,7 +31,7 @@ mod unix_parent_swap {
                 (name_text.starts_with(".bandscope-stage-") && name_text.ends_with(".stage"))
                     .then(|| entry.path())
             })
-            .expect("the original staged project should remain in the parked directory")
+            .expect("a generated project stage should remain inspectable")
     }
 
     #[test]
@@ -68,9 +68,15 @@ mod unix_parent_swap {
             "publication must not report success when the selected parent is replaced and the published inode is not the staged candidate"
         );
         assert_eq!(
-            fs::read(owned_stage(&parked_parent)).expect("original staged bytes should remain readable"),
+            fs::read(generated_stage(&parked_parent)).expect("original staged bytes should remain readable"),
             candidate,
             "the original staged candidate must not be confused with the redirected file"
+        );
+        assert_eq!(
+            fs::read(generated_stage(&redirected_parent))
+                .expect("foreign redirected stage should remain inspectable"),
+            redirected,
+            "fail-closed publication must not delete a generated-looking file from a parent that replaced the authorized directory"
         );
         assert_eq!(
             fs::read(redirected_parent.join("setlist.bscope"))
