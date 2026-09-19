@@ -110,11 +110,73 @@ fn stage_identity(file: &File) -> Result<StageIdentity, String> {
     })
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsFileId128 {
+    identifier: [u8; 16],
+}
+
+#[cfg(windows)]
+#[repr(C)]
+struct WindowsFileIdInfo {
+    volume_serial_number: u64,
+    file_id: WindowsFileId128,
+}
+
+#[cfg(windows)]
+const FILE_ID_INFO_CLASS: i32 = 0x12;
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetFileInformationByHandleEx(
+        file: *mut std::ffi::c_void,
+        file_information_class: i32,
+        file_information: *mut std::ffi::c_void,
+        buffer_size: u32,
+    ) -> i32;
+}
+
+#[cfg(windows)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct StageIdentity {
+    volume_serial_number: u64,
+    file_id: [u8; 16],
+}
+
+#[cfg(windows)]
+fn stage_identity(file: &File) -> Result<StageIdentity, String> {
+    use std::{
+        mem::{size_of, MaybeUninit},
+        os::windows::io::AsRawHandle,
+    };
+
+    let mut info = MaybeUninit::<WindowsFileIdInfo>::zeroed();
+    // FILE_ID_INFO is the Windows identity contract here: volume serial plus
+    // the 128-bit file id avoids treating a pathname as cleanup authority.
+    let result = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FILE_ID_INFO_CLASS,
+            info.as_mut_ptr().cast(),
+            size_of::<WindowsFileIdInfo>() as u32,
+        )
+    };
+    if result == 0 {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+    let info = unsafe { info.assume_init() };
+    Ok(StageIdentity {
+        volume_serial_number: info.volume_serial_number,
+        file_id: info.file_id.identifier,
+    })
+}
+
+#[cfg(all(not(unix), not(windows)))]
 #[derive(Clone, Copy)]
 struct StageIdentity;
 
-#[cfg(not(unix))]
+#[cfg(all(not(unix), not(windows)))]
 fn stage_identity(_file: &File) -> Result<StageIdentity, String> {
     Ok(StageIdentity)
 }
@@ -130,7 +192,22 @@ fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String
     fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String> {
+    let current_metadata =
+        fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if !current_metadata.is_file() {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+    let current_file = File::open(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if stage_identity(&current_file)? != expected {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+    drop(current_file);
+    fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn remove_owned_stage(path: &Path, _expected: StageIdentity) -> Result<(), String> {
     let current = fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
     if !current.is_file() {
@@ -149,12 +226,13 @@ fn remove_owned_stage(path: &Path, _expected: StageIdentity) -> Result<(), Strin
 /// while Windows deliberately inherits the app-owned parent ACL. Publication
 /// uses a hard link so an existing `<score_id>.pdf` is never replaced.
 ///
-/// Security Notes: errors never include the source path or PDF bytes. On Unix,
-/// staging cleanup compares device/inode identity captured from the open stage
-/// before unlinking so a foreign replacement is not deleted. Windows denies
-/// stage pathname sharing during write and closes the synchronized handle before
-/// publication; identity-bound cleanup after handle close remains a separate
-/// acceptance item under #1239.
+/// Security Notes: errors never include the source path or PDF bytes. Unix
+/// cleanup compares device/inode identity captured from the open stage. Windows
+/// captures the volume serial plus 128-bit `FILE_ID_INFO` from the original
+/// handle and requires the same identity after reopening the stage pathname, so
+/// a foreign replacement is not accepted merely because it is a regular file.
+/// The final identity-check-to-unlink interval is still pathname based and is
+/// not claimed as descriptor-relative deletion.
 pub fn publish_score_pdf_attachment(
     source: &Path,
     scores_root: &Path,
@@ -214,7 +292,8 @@ pub fn publish_score_pdf_attachment(
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
-    let destination_metadata = fs::metadata(&destination).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let destination_metadata =
+        fs::metadata(&destination).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
     if !destination_metadata.is_file() || destination_metadata.len() != written {
         // Do not unlink `destination` here: after publication a pathname swap
         // could make it foreign. Preserve unexpected evidence and fail closed.
@@ -252,7 +331,7 @@ mod tests {
             &mut output,
             (PDF_MAGIC.len() + 1) as u64,
         )
-        .expect_err("truncation after the descriptor snapshot must fail closed");
+        .expect_err("truncation after the metadata snapshot must fail closed");
 
         assert_eq!(error, SCORE_ATTACH_ERROR);
     }
