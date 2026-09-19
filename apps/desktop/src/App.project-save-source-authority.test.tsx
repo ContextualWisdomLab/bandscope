@@ -124,6 +124,24 @@ describe("App local-audio save authority", () => {
     promptSpy.mockRestore();
   });
 
+  it("keeps the previously accepted song when workspace persistence fails", async () => {
+    mockSaveProject.mockRejectedValueOnce(new Error("Could not prepare the local project workspace."));
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText("source.wav")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => expect(screen.getAllByText("C#m7", { selector: "button" }).length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getAllByText("C#m7", { selector: "button" })[0]!);
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.queryAllByText("Dbmaj7").length).toBe(0);
+    promptSpy.mockRestore();
+  });
+
   it("preserves reopened source identity and playback-source intent on resave", async () => {
     const song = createDemoRehearsalSong();
     const projectDocument = {
