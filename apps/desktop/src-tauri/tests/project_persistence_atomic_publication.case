@@ -45,7 +45,7 @@ fn hard_link_fallback_never_reserves_the_final_path_with_an_empty_file() {
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
-fn hard_link_first_save_does_not_acknowledge_a_failed_parent_directory_sync() {
+fn hard_link_first_save_discards_temporary_alias_before_parent_durability_boundary() {
     let root = test_dir("hard-link-dir-sync-failure");
     let target = root.join("setlist.bscope");
     let content = br#"{"id":"durable-candidate"}"#;
@@ -74,10 +74,9 @@ fn hard_link_first_save_does_not_acknowledge_a_failed_parent_directory_sync() {
         fs::read(&target).expect("the fully published target must not be deleted on sync failure"),
         content
     );
-    assert_eq!(
-        stage_paths(&root).len(),
-        1,
-        "hard-link publication must not acknowledge staging cleanup before directory durability"
+    assert!(
+        stage_paths(&root).is_empty(),
+        "the temporary hard-link alias must be removed before the directory durability boundary so a failed sync cannot retain hidden project bytes"
     );
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
