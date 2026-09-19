@@ -201,6 +201,76 @@ fn stage_identity(file: &File) -> Result<StageIdentity, String> {
     })
 }
 
+#[cfg(unix)]
+fn destination_matches_stage(
+    path: &Path,
+    expected: StageIdentity,
+    written: u64,
+) -> Result<bool, String> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+
+    let entry = fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if !entry.is_file()
+        || entry.len() != written
+        || entry.dev() != expected.device
+        || entry.ino() != expected.inode
+    {
+        return Ok(false);
+    }
+
+    let file = OpenOptions::new()
+        .read(true)
+        .custom_flags(O_NOFOLLOW)
+        .open(path)
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let opened = file
+        .metadata()
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    Ok(opened.is_file() && opened.len() == written && stage_identity(&file)? == expected)
+}
+
+#[cfg(windows)]
+fn destination_matches_stage(
+    path: &Path,
+    expected: StageIdentity,
+    written: u64,
+) -> Result<bool, String> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+
+    let entry = fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if !entry.is_file()
+        || entry.len() != written
+        || entry.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Ok(false);
+    }
+
+    let mut options = OpenOptions::new();
+    options
+        .access_mode(FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = options
+        .open(path)
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let opened = file
+        .metadata()
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    Ok(opened.is_file()
+        && opened.len() == written
+        && opened.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0
+        && stage_identity(&file)? == expected)
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn destination_matches_stage(
+    _path: &Path,
+    _expected: StageIdentity,
+    _written: u64,
+) -> Result<bool, String> {
+    Err(SCORE_ATTACH_ERROR.to_string())
+}
+
 #[cfg(windows)]
 fn open_windows_delete_handle(path: &Path, error: &str) -> Result<File, String> {
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
@@ -488,16 +558,27 @@ where
 
     after_link(&stage, &destination);
 
-    let destination_metadata =
-        fs::metadata(&destination).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
-    if !destination_metadata.is_file() || destination_metadata.len() != written {
-        // Do not unlink `destination` here: after publication a pathname swap
-        // could make it foreign. Preserve unexpected evidence and fail closed.
+    // A same-length regular-file replacement is not the object we staged.
+    // Attest the pathname to the synchronized stage identity both before and
+    // after retiring the temporary alias; unexpected replacements are kept as
+    // evidence rather than unlinked through pathname authority.
+    if !matches!(
+        destination_matches_stage(&destination, expected_stage, written),
+        Ok(true)
+    ) {
         let _ = remove_owned_stage(&stage, expected_stage);
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
     remove_owned_stage(&stage, expected_stage)?;
+
+    if !matches!(
+        destination_matches_stage(&destination, expected_stage, written),
+        Ok(true)
+    ) {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+
     Ok(written)
 }
 
@@ -509,13 +590,19 @@ where
 /// growth cannot silently change the accepted resource. The staging file is
 /// created with `create_new`; Unix requests mode `0600` at first visibility,
 /// while Windows deliberately inherits the app-owned parent ACL. Publication
-/// uses a hard link so an existing `<score_id>.pdf` is never replaced.
+/// uses a hard link so an existing `<score_id>.pdf` is never replaced. Before
+/// returning attachment authority, the destination is matched to the exact
+/// synchronized stage object by device/inode on Unix or volume/file ID on
+/// Windows, with a second check after the temporary stage alias is retired.
 ///
 /// Security Notes: errors never include the source path or PDF bytes. Unix
 /// cleanup compares device/inode identity captured from the open stage. Windows
 /// opens the exact stage object with DELETE authority, verifies its volume plus
 /// 128-bit file id against the captured identity, then marks that same handle
-/// for deletion so a late pathname replacement cannot redirect cleanup.
+/// for deletion so a late pathname replacement cannot redirect cleanup. Final
+/// destination attestation is identity-based but does not claim immunity from a
+/// replacement that occurs after the last attestation and before the caller's
+/// later use of the returned attachment.
 pub fn publish_score_pdf_attachment(
     source: &Path,
     scores_root: &Path,
