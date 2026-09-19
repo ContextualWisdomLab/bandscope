@@ -1,5 +1,5 @@
 #[cfg(unix)]
-use crate::project_persistence;
+use crate::{project_persistence, project_root};
 
 #[cfg(unix)]
 #[test]
@@ -187,6 +187,87 @@ fn new_project_and_recovery_journal_remain_owner_private_with_permissive_umask()
         journal_mode, 0o600,
         "recovery metadata must default to owner-only permissions"
     );
+
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
+
+#[cfg(unix)]
+#[test]
+fn app_owned_project_and_workspace_directories_remain_owner_private_with_permissive_umask() {
+    use std::{
+        fs,
+        os::raw::c_uint,
+        os::unix::fs::PermissionsExt,
+        process::Command,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    const CHILD_ENV: &str = "BANDSCOPE_PROJECT_PRIVATE_DIRECTORY_MODE_CHILD";
+    const TEST_NAME: &str = "permissions::app_owned_project_and_workspace_directories_remain_owner_private_with_permissive_umask";
+
+    if std::env::var_os(CHILD_ENV).is_none() {
+        let output = Command::new(std::env::current_exe().expect("test executable should resolve"))
+            .args(["--exact", TEST_NAME, "--nocapture"])
+            .env(CHILD_ENV, "1")
+            .output()
+            .expect("isolated permissive-umask child should launch");
+        assert!(
+            output.status.success(),
+            "permissive-umask directory child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    extern "C" {
+        fn umask(mask: c_uint) -> c_uint;
+    }
+
+    unsafe {
+        umask(0);
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "bandscope-project-private-directory-mode-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).expect("test directory should be created");
+
+    let project_base = root.join("app-local");
+    let project_root = project_root::provision_new_project_root(&project_base, "project-1-1")
+        .expect("new app-owned project root should be provisioned");
+    for directory in [&project_base, &project_root] {
+        let mode = fs::metadata(directory)
+            .expect("app-owned project directory should be readable")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(
+            mode, 0o700,
+            "new app-owned project directories must default to owner-only permissions"
+        );
+    }
+
+    let workspace_parent = root.join("cache");
+    let workspace_root = workspace_parent.join("project-1-1");
+    project_root::ensure_owned_directory(&workspace_root)
+        .expect("new reusable app-owned workspace should be provisioned");
+    for directory in [&workspace_parent, &workspace_root] {
+        let mode = fs::metadata(directory)
+            .expect("app-owned workspace directory should be readable")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(
+            mode, 0o700,
+            "new reusable app-owned workspace directories must default to owner-only permissions"
+        );
+    }
 
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
