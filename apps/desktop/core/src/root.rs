@@ -8,10 +8,12 @@
 #[path = "lib.rs"]
 mod runtime_core;
 mod score_pdf;
+mod score_recovery;
 mod score_retention;
 mod score_storage;
 
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
+pub use score_recovery::publish_score_pdf_attachment;
 pub use score_retention::resolve_score_pdf_for_removal;
-pub use score_storage::{publish_score_pdf_attachment, remove_score_pdf_attachment};
+pub use score_storage::remove_score_pdf_attachment;
