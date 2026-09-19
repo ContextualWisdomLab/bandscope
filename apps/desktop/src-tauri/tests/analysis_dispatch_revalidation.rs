@@ -1,6 +1,8 @@
 #[path = "../src/analysis_source.rs"]
 mod analysis_source;
 
+#[cfg(unix)]
+use analysis_source::create_private_local_audio_stage;
 use analysis_source::revalidate_local_audio_bootstrap_for_analysis;
 use bandscope_desktop_core::{
     build_local_audio_publication_identity, LocalAudioCopyReceipt, LocalAudioSourcePayload,
@@ -98,6 +100,68 @@ fn analysis_dispatch_revalidates_current_app_owned_bytes() {
     );
 
     fs::remove_dir_all(project_root.parent().expect("project root should have parent"))
+        .expect("fixture should be removed");
+}
+
+#[cfg(unix)]
+#[test]
+fn local_audio_stage_remains_owner_private_with_permissive_umask() {
+    use std::{
+        io::Write,
+        os::raw::c_uint,
+        os::unix::fs::PermissionsExt,
+        process::Command,
+    };
+
+    const CHILD_ENV: &str = "BANDSCOPE_LOCAL_AUDIO_PRIVATE_STAGE_CHILD";
+    const TEST_NAME: &str =
+        "local_audio_stage_remains_owner_private_with_permissive_umask";
+
+    if std::env::var_os(CHILD_ENV).is_none() {
+        let output = Command::new(std::env::current_exe().expect("test executable should resolve"))
+            .args(["--exact", TEST_NAME, "--nocapture"])
+            .env(CHILD_ENV, "1")
+            .output()
+            .expect("isolated permissive-umask child should launch");
+        assert!(
+            output.status.success(),
+            "permissive-umask local-audio child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    extern "C" {
+        fn umask(mask: c_uint) -> c_uint;
+    }
+
+    unsafe {
+        umask(0);
+    }
+
+    let root = unique_project_root();
+    fs::create_dir_all(&root).expect("test project root should be created");
+    let stage = root.join(".source-private.stage");
+    let mut staged = create_private_local_audio_stage(&stage)
+        .expect("production local-audio stage should be created");
+    staged
+        .write_all(WAV_BYTES)
+        .expect("fixture bytes should be written through the production stage handle");
+    staged.sync_all().expect("fixture stage should synchronize");
+    drop(staged);
+
+    let mode = fs::metadata(&stage)
+        .expect("local-audio stage should be readable")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        mode, 0o600,
+        "app-owned local-audio stage must remain owner-only under a permissive umask"
+    );
+
+    fs::remove_dir_all(root.parent().expect("project root should have parent"))
         .expect("fixture should be removed");
 }
 
