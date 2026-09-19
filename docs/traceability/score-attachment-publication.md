@@ -5,147 +5,116 @@ Canonical owner: Score Storage / Score Attachment
 
 ## Problem and owner boundary
 
-The desktop attachment command originally admitted a PDF and copied it into `<project>/scores` with `std::fs::copy`. That left first-visible permissions, source mutation during copy, no-clobber publication, partial-copy cleanup, final-object identity, and retention semantics implicit.
+Score attachment bytes are buyer data. This bounded context owns score-PDF write-time confidentiality, bounded publication, final-object identity, abandoned-stage recovery, explicit removal and retention semantics. Native read-time allocation/content validation remains #865. App-owned project/workspace link, ACL and lifecycle authority remains Project Persistence #970. Score Storage consumes that workspace as a narrow filesystem boundary and does not copy Project Persistence policy.
 
-The native read-time 25 MiB allocation/content guard remains #865. Project/workspace directory authority remains Project Persistence #970. This lane owns score attachment publication and explicit attachment removal/retention only.
+The original desktop command copied a selected PDF with `std::fs::copy`. Subsequent repairs established a descriptor-bounded 25 MiB copy, private staging, no-clobber publication, OS-object identity attestation and object-aware deletion. Two lifecycle problems are distinct:
 
-Deletion had two separate authority problems. First, the product resolved and canonicalized `<score_id>.pdf` and later removed a pathname, allowing validation and deletion to refer to different objects. Second, the Tauri command treated every `resolve_existing_score_pdf` error as `Ok(false)`. That collapsed a genuinely absent entry together with symlink/non-regular, containment, canonicalization, permission, and other indeterminate states. The UI could therefore treat unsafe storage as "already gone" and remove attachment metadata.
+1. a successfully returned attachment must survive process teardown and fresh-process readback;
+2. a process can die after selected PDF bytes have reached `.score-<uuid>.stage`, leaving buyer bytes behind even though no attachment authority was returned.
 
-Publication also had two independent identity gaps. Windows stage cleanup initially compared `FILE_ID_INFO`, closed that handle, and then unlinked a pathname, so a late replacement could redirect cleanup. Final publication initially accepted any regular destination of the expected length, so a same-length foreign file could be accepted as the score.
+The first is successful-publication durability/readability. The second is interrupted staging recovery. Neither is Project Persistence project-file recovery.
 
-## Publication decision
+## Publication contract
 
-`publish_score_pdf_attachment` is the native Score Storage publication boundary.
+`score_storage::publish_score_pdf_attachment` remains the lower-level publication primitive.
 
-- Reopen the already-admitted source once and bind copy to that descriptor.
-- Snapshot descriptor length and reject `0` or `> 25 MiB` before copy.
-- Copy through a fixed 64 KiB buffer. Early EOF is truncation; a one-byte probe after the snapshot detects growth. Both fail closed.
-- Revalidate `%PDF-` on the bytes actually copied.
-- Stage with `create_new`. Unix requests `0600` at first visibility rather than creating broad permissions and tightening them later.
-- Windows inherits the app-owned scores-directory DACL. Native acceptance requires the child DACL to remain unprotected (`SE_DACL_PROTECTED` clear) and contain at least one `INHERITED_ACE`; this is the Windows contract rather than a POSIX `0600` analogy.
-- Windows denies sharing during the untrusted write. The synchronized stage handle closes before hard-link publication because pathname mutation is intentionally denied while that handle is live.
-- Publish with a hard link to `<score_id>.pdf`; an existing score id is never overwritten.
-- Before returning attachment authority, attest that the destination is the exact synchronized stage object: device/inode on Unix, volume serial + 128-bit `FILE_ID_INFO` on Windows. Reject symlink/reparse and non-regular destinations. Repeat the identity check after retiring the temporary stage alias.
-- Return the byte count from the descriptor-bound copy rather than an earlier path-validation size snapshot.
+- Reopen the admitted source once and bind copy to that descriptor.
+- Snapshot descriptor length; reject zero and `> 25 MiB`.
+- Copy with a fixed 64 KiB buffer; early EOF and post-copy growth probe fail closed.
+- Revalidate `%PDF-` on bytes actually copied.
+- Stage with `create_new`; Unix requests `0600` at first visibility. Windows inherits the app-owned parent DACL and native acceptance verifies inherited ACE evidence.
+- Keep the Windows write handle non-shareable until `sync_all` finishes.
+- Publish by hard-link to `<score_id>.pdf`; never overwrite an existing score id.
+- Attest destination identity to the synchronized stage object before and after retiring the stage alias: device/inode on Unix, volume serial + 128-bit `FILE_ID_INFO` on Windows.
+- Return the descriptor-bound byte count, not a stale path metadata value.
 
-### Stage cleanup authority
+Windows stage cleanup reopens the exact non-reparse stage with DELETE authority, verifies file identity and applies `FileDispositionInfo` to that handle. Unix cleanup still has a documented final identity-check-to-path-unlink race.
 
-On Unix, stage identity is device/inode from the owned stage. Cleanup compares identity before pathname unlink. A final identity-check-to-unlink name race remains explicit.
+## Process-abandoned staging recovery
 
-On Windows, cleanup opens the stage with `DELETE | FILE_READ_ATTRIBUTES`, `FILE_FLAG_OPEN_REPARSE_POINT`, and read/write/delete sharing; rejects reparse/non-regular objects; verifies volume serial + 128-bit file id against the staging identity; then calls `SetFileInformationByHandle(FileDispositionInfo)` on that same handle. A foreign replacement cannot redirect deletion to itself.
+The crate-root `publish_score_pdf_attachment` now routes through `score_recovery` before calling the lower-level publisher.
 
-## Retention/delete decision
+A cross-process Score Storage workspace lease spans both recovery and the complete publication:
 
-`remove_score_pdf_attachment` owns final score-file deletion after Score Storage has resolved an authorized attachment.
+- Unix opens persistent `.score-storage.lock` with `O_NOFOLLOW`, mode `0600`, then takes non-blocking exclusive `flock`.
+- Windows opens the persistent lock file with no sharing and `FILE_FLAG_OPEN_REPARSE_POINT`; a reparse lock object is rejected.
+- The operating system releases the held lease when the process exits, including abnormal termination. The lock file itself contains no buyer payload.
+- Recovery only examines the reserved exact namespace `.score-<lowercase-hyphenated-uuid>.stage`. Malformed names are outside Score Storage ownership and are ignored rather than broadened into a glob-delete contract.
+- A reserved stage must be a regular, non-reparse object. Suspicious reserved objects fail closed.
+- A stage-only orphan with no matching `<uuid>.pdf` is removed through the existing Score Storage object-deletion boundary.
+- If both `.score-<uuid>.stage` and `<uuid>.pdf` exist, recovery fails closed and preserves both. Interruption may have happened after hard-link publication but before higher-level attachment metadata persistence; Score Storage does not infer buyer lifecycle intent from those two names.
 
-- Windows opens the exact non-reparse object with `DELETE | FILE_READ_ATTRIBUTES` and marks that handle with `FileDispositionInfo`.
-- Unix pins the parent directory, opens the score basename with `openat(..., O_NOFOLLOW)`, captures device/inode, reopens under the same parent descriptor immediately before `unlinkat`, and fails closed if identity changed.
-- Portable POSIX `unlinkat` removes a directory entry rather than an arbitrary already-open object. Parent pinning removes ancestor substitution but not the final identity-check-to-`unlinkat` basename race.
+This lease prevents another process that uses the same current Score Storage contract from being mistaken for a stale writer. It deliberately does **not** claim compatibility with an older concurrently running BandScope build that never acquires the lease. Broader ancestor-link/workspace authority still belongs to #970 and requires fresh reconciliation after #970 integrates.
 
-`resolve_score_pdf_for_removal` owns the missing-versus-unsafe classification before deletion:
+## Retention/delete contract
 
-- validate the score id before joining a local name;
-- require the supplied scores workspace itself to exist as a directory before interpreting any child `NotFound`; broader app-owned workspace/link authority remains Project Persistence #970;
-- inspect the exact `<score_id>.pdf` directory entry with `symlink_metadata`;
-- return `Ok(None)` only when that child lookup reports `ErrorKind::NotFound` under the existing workspace;
-- once an entry is observed, delegate to the existing `resolve_existing_score_pdf` authority and convert any symlink, non-regular, canonicalization, containment, permission, concurrent-disappearance, or other validation failure into a removal error;
-- return `Some(path)` only for an authorized existing score.
+`resolve_score_pdf_for_removal` distinguishes genuine absence from unsafe or indeterminate storage:
 
-The Tauri command therefore returns `false` only for an observed absent child under an existing score workspace. Unsafe or indeterminate storage remains an error, so buyer metadata is not silently discarded while the file is still present or unverified. This is an absence observation, not a durable non-existence guarantee: another same-user/local actor can create the pathname after `NotFound` and before metadata changes.
+- validate score id before local name construction;
+- require the supplied scores workspace to exist as a directory before a child `NotFound` can mean absence;
+- return `Ok(None)` only for an observed missing `<score_id>.pdf` child under that existing workspace;
+- once an entry exists, preserve symlink/non-regular/canonicalization/containment/permission/concurrent-disappearance failures as errors.
 
-## Successful-publication restart/readback decision
+`remove_score_pdf_attachment` then owns final object deletion. Windows marks the exact opened object for deletion with `FileDispositionInfo`. Unix pins the parent directory, opens the basename with `openat(..., O_NOFOLLOW)`, rechecks device/inode and then calls `unlinkat`; the final basename race remains explicit.
 
-Restart/readback acceptance is separated from interrupted-publication recovery.
+## Successful-publication restart/readback
 
-`score_pdf_restart_readback` publishes a real PDF fixture through `publish_score_pdf_attachment`, then launches a fresh instance of the native Rust test executable. The child process resolves the published score through production `resolve_existing_score_pdf`, reads it through production `read_validated_score_pdf`, and requires exact bytes. After the child exits, the parent requires zero `.score-*.stage` aliases for that successful publication.
+`score_pdf_restart_readback` publishes through the production crate-root boundary, starts a fresh native test process, resolves the stored score through `resolve_existing_score_pdf`, reads it through `read_validated_score_pdf` and requires exact bytes. The success path also requires zero `.score-*.stage` aliases after publication.
 
-This proves a successfully returned attachment survives process teardown and can be reopened through the normal native authority/read path without relying on in-process state. It also proves the success path retires its stage alias before later process use.
+This proves a successfully returned attachment survives one process lifetime and is readable through the normal bounded native path. It is separate from interrupted-writer recovery.
 
-It does **not** prove recovery from a process kill during publication, cancellation, disk-full, permission failure, power loss, or discovery/cleanup of a stage abandoned before publication completed. Those remain separate #1239/#970 acceptance work.
+## Interruption RED and repair
 
-## Hosted findings and repairs
+Commit `2c55e34c7262d087783502050cd9f084a1f7255c` added `score_pdf_interruption_recovery`. A child native test process writes and synchronizes selected PDF fixture bytes into the exact reserved `.score-<uuid>.stage` shape, exposes a readiness marker and remains alive. The parent confirms the stage exists, terminates and reaps that child, then attempts a different score publication through the production crate-root API and requires all score staging aliases to be gone before attachment authority returns.
 
-### Publication and Windows cleanup
+`45ae83d84f7416f9d0567fa1a47f65f0854a086a` put that regression into the macOS/Windows owner workflow. Descendant pushes superseded the early workflow run before a terminal RED verdict, so no hosted RED is claimed for that source. The pre-repair behavior is nevertheless a deterministic source RED: publishing a different UUID had no code path that removed the abandoned earlier stage, so the final zero-stage assertion could not hold.
 
-Initial publication RED `f8ba40d10458ed6b7b3b0e9d4d8f79ec866c50df` established the publication contract before production code. That source-level RED was superseded before a terminal hosted compiler verdict, so no hosted claim is made for it.
+`ad2c4633fba5a9a981859407a035a2b9c367f9ec` added the OS-released workspace lease and reserved-stage recovery. `a1f21f1310ab6af96109def3575220e0017e19a2` routed the public crate-root publisher through recovery. `f4962d21b77148ff7e90ac4349979d666ef32d75` tightened the owner workflow so both lower-level Score Storage and recovery unit suites plus publication, retention, interruption, restart and wiring regressions execute.
 
-Exact-source run `35451457938` on `69463eba53b61ba0505e4121317e3d726bfa4096` isolated a Windows sharing contract: macOS passed, while Windows publication failed because a `share_mode(0)` stage handle was still live during hard-link/unlink. The repair keeps exclusive sharing during untrusted write, captures identity, synchronizes, and only then closes before publication.
+At `f4962d21b77148ff7e90ac4349979d666ef32d75`, Windows Server 2025 job `105959193774` in run `35466321613` passed checkout, Rust 1.97.1, both owned unit suites and all publication/retention/interruption/restart/wiring regressions. The document update is a later source identity, so exact-current-head native evidence must be reacquired and recorded on PR #1241 rather than transferring this predecessor verdict.
 
-RED `a7373ca153e8740923ad13098953a61a7c263cc0` replaced the Windows stage pathname with a foreign regular file. Run `35452152802`, Windows job `105921067591`, failed that regression while macOS job `105921067494` remained green. GREEN `49976461c7158869d1f10a6a43b46e0ee522352f` switched comparison to `GetFileInformationByHandleEx(FileIdInfo)`.
+The process-kill acceptance is intentionally scoped: it verifies recovery of a synchronized **stage-only** artifact left by a terminated process, followed by a production publication. It does not claim that the test kills the lower-level publisher at every internal instruction point. Packaged-app process-kill, disk-full, permission failure, explicit cancellation, power loss and stage-plus-destination lifecycle recovery remain separate acceptance.
 
-RED `89f136e312ded829b89f2beafda68ca1c373044c` then replaced the stage after Windows identity validation but before the old pathname unlink. Exact run `35454589087` kept macOS job `105927525260` green and failed Windows job `105927525168`. GREEN `d36969bf4e3ed2c470c00db0bb07b1de0ec2fa70` keeps the identity-matched delete handle open and applies `FileDispositionInfo`; run `35454808019` passed macOS `105928096806` and Windows `105928096678`.
+## Earlier hosted evidence retained
 
-### Product deletion authority
-
-RED `06cc24a1b0bf89d1525cfb0b06921e9229e7b5dd` required the Tauri removal command to use Score Storage deletion rather than direct `std::fs::remove_file`. Exact run `35453934315` failed the wiring regression on macOS `105925792583` and Windows Server 2025 `105925792679`. GREEN `09610fb26127408f818a754a42b75a083e0e5045` routed removal through `remove_score_pdf_attachment`; run `35454259017` passed macOS `105926649166` and Windows `105926649120`.
-
-The Windows replacement regression acquires the delete handle, renames the opened score, creates a foreign file at the former pathname, then marks only the open handle for deletion. The replacement survives. The Unix counterpart replaces the basename before the second descriptor-relative identity check and requires fail-closed preservation.
-
-### Windows ACL inheritance
-
-Commit `579a67d4767d098d0dd608b5678d59e66efe1701` inspects the published child security descriptor using `GetNamedSecurityInfoW`, `GetSecurityDescriptorControl`, `GetAclInformation`, and `GetAce`. Exact run `35455174325` passed macOS job `105929062031` and Windows Server 2025 job `105929062235`, proving the selected child-inheritance contract for the current parent directory model. A changed workspace ACL after #970 integration requires fresh acceptance; this evidence is not transferable.
-
-### Final publication object identity
-
-RED `3274560cff4b8ecec5856d6f358e1a5fcea1c212` moved the owned hard link aside and wrote a different same-length regular PDF at `<score_id>.pdf`. Exact run `35456813143` failed the owned unit-test step on macOS `105933454955` and Windows Server 2025 `105933455061`, proving regular-file + length attestation insufficient.
-
-GREEN `91c240385acdc7ae5dea4a2ebd7c32db0f53953f` added platform object-identity attestation. Exact native run `35456879153` passed macOS `105933633903` and Windows `105933633950`.
-
-### Missing versus unsafe removal resolution
-
-Contract commit `9ba8c0b9ceeb8b6b3fbaa33fb858af9db1b9b951` first introduced `score_pdf_retention_resolution` for genuinely absent entries, normal regular scores, directory masquerades, Unix symlink replacement, and Tauri wiring. The workflow at that commit did not execute the new test target; run `35459793839` therefore completed successfully and is not RED evidence. The workflow omission was repaired by adding `score_pdf_retention_resolution` to the owner command and `score_retention.rs` to its path filter.
-
-The first implementation then revealed a narrower classification bug: a missing scores workspace caused `symlink_metadata(<missing-root>/<score>.pdf)` to report `NotFound`, which was incorrectly treated as an idempotent missing attachment. RED `22749b83d9c7e6f7e3c0b5986af5802427e98d2a` requires an existing workspace before child absence can produce `None`. Exact `score-storage-native` run `35460119001` failed the retention regression on macOS job `105942349093` and Windows Server 2025 job `105942349170`; the existing owner suites passed before the targeted failure.
-
-GREEN `6444f21a158a877ae402fd665469d908f8afa3a2` checks the supplied score workspace with `symlink_metadata` and requires a directory before child lookup. It deliberately does not recreate Project Persistence link/reparse policy; #970 remains the broader workspace authority. Exact run `35460197487` is terminal **SUCCESS** on macOS job `105942555476` and Windows Server 2025 job `105942555631`.
-
-`36325246e060dae612eccad8e619d8e2b5b494c4` made this document code-current for the retention repair. Exact run `35460313972` was terminal SUCCESS on Windows Server 2025 job `105942873778` and macOS job `105942873910`.
-
-### Successful-publication restart/readback
-
-`297327de172bbe30cdf226518a5135605db983ef` adds the fresh-process restart/readback regression. `0e4070ef6d92d55a91463e8bc4c1fa6b71f86003` adds that target to the macOS/Windows owner workflow.
-
-Exact owner run `35463057196` checked out `0e4070ef6d92d55a91463e8bc4c1fa6b71f86003` and passed the owned Score Storage unit suite plus publication, retention, restart/readback, and wiring regressions on macOS job `105950252549` and Windows Server 2025 job `105950252698`.
-
-This document update is a later exact source identity, so that predecessor GREEN is lineage evidence only. The current head must reacquire owner and repository-wide checks without transferring the `0e4070ef…` verdict.
+- Windows share-mode repair: run `35451457938` isolated the hard-link/unlink failure while the exclusive write handle was live.
+- Windows foreign-stage replacement RED `a7373ca153e8740923ad13098953a61a7c263cc0`: run `35452152802`, Windows `105921067591`, failed; `49976461c7158869d1f10a6a43b46e0ee522352f` moved identity to `FILE_ID_INFO`.
+- Windows identity-check-to-unlink RED `89f136e312ded829b89f2beafda68ca1c373044c`: run `35454589087` failed Windows `105927525168`; `d36969bf4e3ed2c470c00db0bb07b1de0ec2fa70` made cleanup handle-bound and run `35454808019` passed Windows/macOS.
+- Tauri direct-delete wiring RED `06cc24a1b0bf89d1525cfb0b06921e9229e7b5dd`: run `35453934315` failed Windows/macOS; `09610fb26127408f818a754a42b75a083e0e5045` routed removal through Score Storage and run `35454259017` passed.
+- Windows inherited-DACL acceptance `579a67d4767d098d0dd608b5678d59e66efe1701`: run `35455174325` passed macOS `105929062031` and Windows `105929062235`.
+- Final destination identity RED `3274560cff4b8ecec5856d6f358e1a5fcea1c212`: run `35456813143` failed macOS `105933454955` and Windows `105933455061`; `91c240385acdc7ae5dea4a2ebd7c32db0f53953f` added OS-object identity and run `35456879153` passed.
+- Missing-workspace retention RED `22749b83d9c7e6f7e3c0b5986af5802427e98d2a`: run `35460119001` failed macOS `105942349093` and Windows `105942349170`; `6444f21a158a877ae402fd665469d908f8afa3a2` repaired classification and run `35460197487` passed.
+- Successful-publication fresh-process readback: `297327de172bbe30cdf226518a5135605db983ef` plus workflow wiring `0e4070ef6d92d55a91463e8bc4c1fa6b71f86003`; run `35463057196` passed macOS `105950252549` and Windows `105950252698`.
 
 ## Alternatives rejected
 
-`std::fs::copy` was rejected because it does not express publication invariants as one auditable boundary. Process-wide `umask` mutation was rejected because it affects unrelated threads. Create-then-`chmod` was rejected because bytes can be visible before tightening. Overwriting a UUID destination was rejected because correctness must not rely on collision probability when no-clobber publication exists.
+Blind `.score-*.stage` glob deletion is rejected because a live concurrent writer can own those bytes. File age/mtime heuristics are rejected because elapsed time is not ownership or liveness proof. PID-only or mutable sidecar ownership is rejected because stale metadata and process-ID reuse do not create a robust lease. The selected OS-held lease dies with the process and spans recovery plus publication.
 
-A second pathname `stat` before deletion was rejected because it only moves the race. Windows has object-bound deletion through a handle with DELETE authority. On Unix, absolute-path reopening was rejected in favor of a pinned parent descriptor plus `openat`/`unlinkat`.
+Deleting a matching destination while recovering a stage is rejected because filesystem publication is not yet transactionally coupled to the buyer-visible attachment metadata lifecycle. A stage-plus-destination state is ambiguous and is preserved for the later lifecycle/recovery vertical.
 
-Treating all resolver failures as absence was rejected because filesystem corruption, permission failure, symlink/reparse substitution, containment failure, missing workspace, and concurrent mutation are not evidence that the attachment is gone. Error-message string matching was also rejected: the resolver intentionally uses payload-safe generic messages and strings are not a stable domain discriminator. The selected contract performs the narrow child-`NotFound` classification only after the score workspace itself has been observed as a directory, then preserves every later failure.
-
-Length-only final publication checks were rejected because a same-length foreign regular file is not the staged score. Path hashing was rejected as the primary identity primitive because it still binds verification to whichever object the pathname resolves to and requires a second full PDF read. The selected contract uses OS object identity plus the descriptor-bound byte count.
-
-Weakening Windows staging share mode was rejected. The write remains non-shareable until `sync_all`; only the completed stage is reopened under the narrower deletion contract.
-
-A same-process reopen was rejected as restart/readback acceptance because it can accidentally rely on process state. The selected regression launches a fresh native test process and traverses the normal resolver plus bounded reader. Conversely, that success-path test is not used as evidence for interruption recovery because it never kills a writer with selected PDF bytes still staged.
+`std::fs::copy`, create-then-`chmod`, process-wide `umask` mutation, overwrite publication, length-only destination checks, pathname hashing as primary identity and a second pathname `stat` before deletion remain rejected for the reasons encoded in the corresponding REDs: each leaves visibility, mutation, clobber or pathname/object identity gaps.
 
 ## Security Notes
 
-**Untrusted input.** Selected PDF bytes/path and any pre-existing score destination, staging, or retention name are untrusted. File-dialog paths and PDF bytes are not echoed to the WebView in errors.
+**Untrusted input.** Selected PDF bytes/path and pre-existing destination, stage, lock and retention names are untrusted. No selected PDF bytes or absolute buyer path are emitted in ordinary errors.
 
-**Trust boundaries.** OS-selected source → source admission → descriptor-bound Score Storage stage → no-clobber, object-identity-attested attachment. Removal is validated score id → existing score-workspace precondition → exact child absence classification → existing in-root path authority → Score Storage OS-object deletion boundary. Restart/readback crosses a process lifetime boundary but does not add IPC, network, or database authority.
+**Trust boundaries.** OS-selected source → source admission → Score Storage workspace lease → reserved-stage recovery → descriptor-bounded private stage → no-clobber/object-identity-attested attachment. Removal remains validated score id → existing workspace precondition → exact child resolution → OS-object deletion. #970 still owns broader app-owned workspace ancestry/link authority.
 
-**Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy/sync failure, reparse/symlink/non-regular object, identity mismatch, missing workspace, unsafe resolution, and indeterminate I/O fail closed with path/payload-safe diagnostics. Foreign replacements are preserved in the covered final-publication, Windows object-bound cleanup, and Unix pre-`unlinkat` replacement cases.
+**Safe failure.** Oversize, growth/truncation, wrong magic, duplicate destination, copy/sync failure, suspicious reserved stage, reparse/symlink/non-regular object, identity mismatch, lease acquisition failure, missing/indeterminate workspace, unsafe resolution and stage-plus-destination ambiguity fail closed. Recovery does not turn ambiguous lifecycle state into deletion.
 
-**Privacy.** Unix publication requests `0600` at first visibility. Windows publication deliberately inherits the app-owned parent DACL and tests that inheritance directly rather than asserting POSIX equivalence. The restart regression uses only generated PDF fixture bytes under a temporary test workspace; it does not log buyer PDF contents or source paths.
+**Privacy.** Unix stage and lock creation request `0600`. Windows deliberately consumes the parent DACL contract. The lock file contains no PDF payload. The native interruption fixture uses generated test PDF bytes only.
 
-**Test points.** Native tests cover valid/no-clobber publication, same-length foreign final-destination replacement, permissive-`umask(000)` Unix first visibility, Windows parent-DACL inheritance, source growth/truncation, wrong magic, Tauri publication/deletion wiring, Windows post-close stage replacement, Windows late-stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, Unix replacement before the second descriptor-relative identity check, removal classification for existing-root absent child/missing workspace/regular/directory/Unix symlink states, and successful-publication fresh-process restart/readback with successful-path stage-alias retirement.
+**Test points.** Native tests cover valid/no-clobber publication, same-length destination replacement, Unix permissive-umask privacy, Windows parent-DACL inheritance, source growth/truncation, Tauri wiring, Windows handle-bound cleanup/delete replacement cases, Unix pre-`unlinkat` replacement, removal classification, successful fresh-process readback, reserved-stage namespace parsing, and process-terminated stage-only recovery before the next production publication.
 
 ## Remaining risk / claim boundary
 
-This work does not prove packaged-app crash or power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, buyer-visible detach/project lifecycle, cancellation/interruption orphan acceptance, and #970 workspace reconciliation remain open. The Windows file-level inheritance contract must be re-run if #970 changes parent-directory ACL authority.
+Stage-only process-kill recovery is now implemented under the current Score Storage lease contract. Still open are interruption after a destination has been hard-linked, explicit cancellation, disk-full, permission failure, power-loss durability, detach/project-delete/recovery rollback semantics, packaged-app fault evidence, and compatibility with an older concurrently running build that does not acquire the lease.
 
-Successful-publication restart/readback is now covered at the native process boundary. It does not prove that an interrupted writer leaves no stage file, that a later process can safely distinguish an orphan from an active writer, or that cancellation/disk-full/power-loss recovery is complete.
+The Windows parent-DACL acceptance must be rerun after #970 workspace authority integrates. Parent-directory durability and project lifecycle remain #970 concerns; Score Storage must reconcile without copying that implementation.
 
-A successful final publication attests that the pathname resolves to the synchronized stage object at that instant; it does not make the name immutable afterward. A later same-user/local replacement belongs to read/path authority.
+A successful final publication attests object identity at the covered boundary but does not make the pathname immutable afterward. Windows cleanup/delete is object-bound for the tested contract. Unix cleanup/delete retains documented final basename races. A removal `Ok(None)` remains an observed absence, not an atomic reservation.
 
-Windows explicit removal and stage cleanup are object-bound for the tested local-filesystem contract. Unix explicit removal and Unix stage cleanup retain final basename races unless a stronger platform primitive or storage invariant is adopted. `Ok(None)` from retention resolution is likewise an observed child absence under an existing workspace, not an atomic reservation preventing subsequent creation.
-
-The implementation remains stacked on #865 because write-time publication and read-time bounded validation share the score-native crate surface. #865 must integrate first. Any later restack requires fresh exact-head evidence; predecessor CI is not transferable.
+The implementation remains stacked on #865 because write-time publication and read-time bounded validation share the score-native crate surface. #865 must integrate first. Any descendant restack requires fresh exact-head evidence; predecessor CI is not transferable.
 
 ## References
 
@@ -157,13 +126,11 @@ Microsoft. (2024, February 22). *FILE_DISPOSITION_INFO structure (winbase.h)*. M
 
 Microsoft. (2024). *SetFileInformationByHandle function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
 
+Microsoft. (n.d.). *CreateFileA function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+
 Microsoft. (n.d.). *ACE inheritance rules*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance-rules
 
-Microsoft. (n.d.). *Automatic propagation of inheritable ACEs*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/secauthz/automatic-propagation-of-inheritable-aces
-
 Microsoft. (n.d.). *GetNamedSecurityInfoW function (aclapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getnamedsecurityinfow
-
-Microsoft. (n.d.). *CreateFileA function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
 
 The Open Group. (2024). *unlink, unlinkat — remove a directory entry*. POSIX.1-2024 / The Open Group Base Specifications Issue 8. https://pubs.opengroup.org/onlinepubs/9799919799/functions/unlink.html
 
