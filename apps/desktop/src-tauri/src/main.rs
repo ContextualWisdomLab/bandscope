@@ -5,7 +5,9 @@ mod project_load;
 mod project_persistence;
 mod project_root;
 
-use analysis_source::revalidate_local_audio_bootstrap_for_analysis;
+use analysis_source::{
+    create_private_local_audio_stage, revalidate_local_audio_bootstrap_for_analysis,
+};
 use bandscope_desktop_core::*;
 use rfd::FileDialog;
 use serde_json::{json, Value};
@@ -221,10 +223,7 @@ fn materialize_local_audio_source(
 
     let destination = project_root.join(format!("source.{extension}"));
     let stage = project_root.join(format!(".source-{}.stage", uuid::Uuid::new_v4()));
-    let mut staged = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&stage)
+    let mut staged = create_private_local_audio_stage(&stage)
         .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
 
     let receipt = match copy_bounded_local_audio_with_receipt(source, &mut staged) {
