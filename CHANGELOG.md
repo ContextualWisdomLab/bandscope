@@ -17,6 +17,7 @@
 
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 - Bound native stored-score PDF reads to the 25 MiB product limit before heap allocation and revalidate PDF magic on the same opened descriptor, preventing an attached score that later grows from bypassing the local resource boundary.
+- Recover process-abandoned score-PDF staging before the next attachment publication under an OS-released cross-process workspace lease; ambiguous stage-plus-destination state is preserved and fails closed instead of being deleted by a blind sweep.
 
 ## [0.1.3] - 2026-04-29
 
