@@ -43,6 +43,8 @@ mod project_root;
 
 #[path = "project_persistence_atomic_publication.case"]
 mod atomic_publication;
+#[path = "project_persistence_journal_path_boundary.case"]
+mod journal_path_boundary;
 #[path = "project_persistence_linked_ancestor.case"]
 mod linked_ancestor;
 #[cfg(target_os = "macos")]
