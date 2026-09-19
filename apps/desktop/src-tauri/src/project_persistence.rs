@@ -1594,12 +1594,13 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// identity can authorize commit. For a destination that was absent at the snapshot, a hard link is
 /// attempted first; Linux then uses `renameat2(RENAME_NOREPLACE)`, macOS uses
 /// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without
-/// `MOVEFILE_REPLACE_EXISTING`. Windows also flushes the exact hard-linked target before removing the
-/// staging name. A newly created final directory entry is part of the success contract: Unix fsyncs
-/// its parent, while Windows requires the identity-bound file flush or `MOVEFILE_WRITE_THROUGH`
-/// before success is acknowledged. If that durability step fails after the complete target is visible,
-/// the caller receives the safe publication error and rollback/recovery material is retained or
-/// restored. Filesystems without the required native primitive fail closed. These checks do not claim
+/// `MOVEFILE_REPLACE_EXISTING`. Windows also flushes the exact hard-linked target after the temporary
+/// stage alias is retired. For hard-link first saves, the stage alias is removed before the parent
+/// directory durability boundary; if that sync fails, the complete target remains but hidden duplicate
+/// project bytes are not intentionally retained. A newly created final directory entry is part of the
+/// success contract: Unix fsyncs its parent, while Windows requires the identity-bound file flush or
+/// `MOVEFILE_WRITE_THROUGH` before success is acknowledged. Existing-target replacement keeps durable
+/// recovery material until commit or rollback authority is proven. These checks do not claim
 /// descriptor-bound protection for a parent-chain swap or full-machine power-loss proof; packaged
 /// interruption testing remains required. A durable adjacent journal repairs interrupted replacement
 /// state the next time the same target is selected; global startup scanning and backup rotation remain
@@ -1719,10 +1720,10 @@ where
         }
     }
 
+    fs::remove_file(&stage).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
     sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
     #[cfg(windows)]
     flush_project_file_with_expected_identity(target, &staged_identity)?;
-    remove_stage(&stage);
     Ok(())
 }
 
