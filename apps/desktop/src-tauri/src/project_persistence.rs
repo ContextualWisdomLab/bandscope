@@ -1,4 +1,4 @@
-#[path = "project_persistence_engine.rs"]
+#[path = "../src/project_persistence_engine.rs"]
 mod engine;
 
 pub(crate) use engine::*;
