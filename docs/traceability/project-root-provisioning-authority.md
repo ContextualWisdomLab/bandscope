@@ -35,6 +35,36 @@ The RED intentionally names the missing creation-side authority `provision_new_p
 
 `create_dir_all` followed by validation was rejected because bytes can already be created under a redirected ancestor before the later check. Canonicalizing the base and accepting the canonical target was rejected because that turns redirection into authority rather than rejecting it. Process-wide locking does not prevent another process or local principal from replacing a directory entry. Platform-specific symlink creation privileges are irrelevant to detecting already-present Windows reparse points, so the Windows regression uses a junction fixture.
 
+## Security Notes
+
+### Attack surface
+
+The affected surface is local project bootstrap at the Tauri filesystem boundary. The untrusted condition is a pre-existing Unix symlink, Windows reparse-point/junction, or replaced directory component inside the lexical app-local root chain. No renderer-supplied absolute path is accepted by this API; `project_id` remains a BandScope-shaped identifier.
+
+### Trust boundary
+
+Authority crosses the `Storage Boundary` defined by `docs/security/app-security.md`: BandScope is allowed to create project-owned artifacts only under the Tauri-resolved app-local data root. A linked ancestor must not silently convert that app-owned path into authority over another filesystem subtree. Resource Admission remains a downstream consumer of the resulting project root and does not own path authorization.
+
+### Realistic threats
+
+A local process or user with permission to prepare an entry inside the relevant app-local parent could place a symlink/junction before BandScope creates a project. Without the creation-side check, later source materialization could write admitted audio and other project-owned data beneath the redirected destination. The current model does not treat an attacker who can replace ancestors between individual metadata checks and filesystem operations as fully mitigated.
+
+### Mitigations
+
+Every existing lexical component is inspected with `symlink_metadata`; Unix symlinks and Windows reparse points fail closed. Missing components are created one at a time and immediately revalidated rather than recursively following them through `create_dir_all`. Only the existing exact root-owned macOS `/etc`, `/tmp`, and `/var` aliases are admitted. The final project directory uses `create_dir` so an existing directory is not silently adopted as a newly minted project.
+
+### Safe failure, logging, and privacy
+
+Rejected authority returns the existing generic local-workspace error. The implementation does not log the rejected path, user name, project payload, or admitted audio. It does not delete or rewrite a foreign link target when validation fails. This preserves the app-security rule against leaking full local paths while preventing a failed admission from becoming destructive cleanup.
+
+### Test points
+
+Unix coverage uses a real symlinked app-local base; Windows coverage uses a real junction/reparse-point fixture. Both require fail-closed provisioning and verify that the redirected destination did not receive the minted project directory. A positive test covers ordinary nested app-local provisioning and rejects silent reuse. Both native owner workflows include this integration target and must be GREEN on the unchanged exact source head before acceptance.
+
+### Remaining risk
+
+The implementation is path-based, not descriptor-relative. A directory component replaced after validation but before a following operation can still change path resolution; closing that requires a platform-specific descriptor/handle-bound design. Cache, temp, and score subdirectory creation also remain separate authority surfaces and are not claimed fixed here. Packaged interruption, disk-full, permission-failure, and power-loss acceptance are likewise outside this fix.
+
 ## Evidence and claim boundary
 
 Primary references:
