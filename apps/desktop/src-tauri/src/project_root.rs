@@ -74,7 +74,7 @@ fn existing_project_directory_chain_is_safe(path: &Path) -> bool {
         })
 }
 
-/// Create missing app-local directory components one at a time without following a stable link.
+/// Create missing app-owned directory components one at a time without following a stable link.
 ///
 /// Security Notes: unlike `create_dir_all`, each already-existing lexical component is inspected
 /// with `symlink_metadata` before a child component is created. A newly created component is
@@ -109,6 +109,23 @@ fn provision_directory_chain(path: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Provision or reopen one app-owned workspace directory without following linked components.
+///
+/// Security Notes: cache, temp, and score workspaces are reusable across operations, so unlike a
+/// newly minted project root this function permits an already-existing final directory. Every
+/// lexical component must still be a real directory rather than a Unix symlink or Windows reparse
+/// point, with only the narrow root-owned macOS system aliases admitted. Missing components are
+/// created one at a time and revalidated immediately. This prevents stable cache/temp/scores
+/// redirection through `create_dir_all`; it does not claim descriptor-bound protection against a
+/// component replaced after validation.
+pub(crate) fn ensure_owned_directory(path: &Path) -> Result<PathBuf, String> {
+    provision_directory_chain(path)?;
+    if !existing_project_directory_chain_is_safe(path) {
+        return Err(PROJECT_ROOT_ERROR.to_string());
+    }
+    Ok(path.to_path_buf())
 }
 
 /// Provision one new app-local project directory without following linked ancestors.
