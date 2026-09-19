@@ -21,6 +21,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/src-tauri/src/main.rs"',
     '"apps/desktop/src-tauri/src/project_load.rs"',
     '"apps/desktop/src-tauri/src/project_persistence.rs"',
+    '"apps/desktop/src-tauri/src/project_persistence_engine.rs"',
     '"apps/desktop/src-tauri/src/project_root.rs"',
     '"apps/desktop/src-tauri/tests/project_persistence*.rs"',
     '"apps/desktop/src-tauri/tests/project_persistence*.case"',
