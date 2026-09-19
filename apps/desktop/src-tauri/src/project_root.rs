@@ -23,6 +23,7 @@ fn metadata_is_safe_existing_project_directory(metadata: &fs::Metadata) -> bool 
     metadata.is_dir() && !metadata.file_type().is_symlink()
 }
 
+/// Return the exact canonical destination allowed for a standard macOS root alias.
 #[cfg(target_os = "macos")]
 fn trusted_macos_root_alias_target(path: &Path) -> Option<&'static Path> {
     match path.to_str()? {
@@ -33,6 +34,7 @@ fn trusted_macos_root_alias_target(path: &Path) -> Option<&'static Path> {
     }
 }
 
+/// Return whether one macOS root symlink is the exact root-owned system alias BandScope permits.
 #[cfg(target_os = "macos")]
 fn metadata_is_trusted_macos_root_directory_alias(path: &Path, metadata: &fs::Metadata) -> bool {
     use std::os::unix::fs::MetadataExt;
@@ -49,11 +51,13 @@ fn metadata_is_trusted_macos_root_directory_alias(path: &Path, metadata: &fs::Me
             .is_ok_and(|target_metadata| metadata_is_safe_existing_project_directory(&target_metadata))
 }
 
+/// Keep the macOS alias exception unavailable on platforms that do not have those system aliases.
 #[cfg(not(target_os = "macos"))]
 fn metadata_is_trusted_macos_root_directory_alias(_path: &Path, _metadata: &fs::Metadata) -> bool {
     false
 }
 
+/// Validate every existing lexical directory component that grants project-root authority.
 fn existing_project_directory_chain_is_safe(path: &Path) -> bool {
     path.ancestors()
         .filter(|ancestor| !ancestor.as_os_str().is_empty())
