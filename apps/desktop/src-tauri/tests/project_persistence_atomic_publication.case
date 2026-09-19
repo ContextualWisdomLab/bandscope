@@ -126,7 +126,7 @@ fn no_replace_rename_first_save_does_not_acknowledge_a_failed_parent_directory_s
 
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 #[test]
-fn successful_first_save_syncs_the_parent_before_hard_link_stage_cleanup() {
+fn successful_first_save_retires_hard_link_alias_before_parent_sync() {
     let root = test_dir("dir-sync-success");
     let target = root.join("setlist.bscope");
     let content = br#"{"id":"durable-success"}"#;
@@ -141,6 +141,10 @@ fn successful_first_save_syncs_the_parent_before_hard_link_stage_cleanup() {
             assert_eq!(
                 fs::read(&target).expect("target must exist before its directory is synced"),
                 content
+            );
+            assert!(
+                stage_paths(&root).is_empty(),
+                "temporary hard-link aliases must be retired before the parent directory durability boundary"
             );
             sync_calls.set(sync_calls.get() + 1);
             Ok(())
