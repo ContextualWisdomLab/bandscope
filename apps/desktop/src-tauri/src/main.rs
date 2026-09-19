@@ -1033,10 +1033,19 @@ async fn import_youtube_url(
     Err("YouTube import failed with an unknown error.".to_string())
 }
 
+/// Persist either a user-selected export or the app-owned local project snapshot.
+///
+/// Security Notes: workspace persistence never accepts a renderer path. It
+/// requires a BandScope-minted project id, resolves the existing project root
+/// through Project Persistence authority, and publishes the fixed
+/// `project.bscope` child with the same crash-safe recovery/publication state
+/// machine used by manual saves. Manual Save keeps the OS-owned file picker.
 #[tauri::command]
 fn save_project(
     payload: Value,
     project_id: Option<String>,
+    workspace: Option<bool>,
+    app: tauri::AppHandle<impl Runtime>,
     publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
 ) -> Result<(), String> {
     let parsed = project_document_from_value(payload)
@@ -1046,13 +1055,21 @@ fn save_project(
         project_id.as_deref(),
         &publication_state,
     )?;
-
-    let path = FileDialog::new()
-        .add_filter("BandScope Project", &["bscope", "json"])
-        .save_file()
-        .ok_or_else(|| "User cancelled".to_string())?;
-
     let content = project_content_for_document(&parsed)?;
+
+    let path = if workspace.unwrap_or(false) {
+        let project_id = project_id
+            .as_deref()
+            .ok_or_else(|| "Invalid project payload".to_string())?;
+        let project_root = app_owned_root(&app, "projects", project_id)?;
+        project_root.join("project.bscope")
+    } else {
+        FileDialog::new()
+            .add_filter("BandScope Project", &["bscope", "json"])
+            .save_file()
+            .ok_or_else(|| "User cancelled".to_string())?
+    };
+
     project_persistence::recover_project_publication(&path)?;
     project_persistence::publish_new_project_file(&path, content.as_bytes())?;
 
