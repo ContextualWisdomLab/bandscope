@@ -201,6 +201,51 @@ fn stage_identity(file: &File) -> Result<StageIdentity, String> {
     })
 }
 
+#[cfg(windows)]
+fn open_windows_delete_handle(path: &Path, error: &str) -> Result<File, String> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+
+    let path_metadata = fs::symlink_metadata(path).map_err(|_| error.to_string())?;
+    if !path_metadata.is_file()
+        || path_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(error.to_string());
+    }
+
+    let mut options = OpenOptions::new();
+    options
+        .access_mode(DELETE_ACCESS | FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = options.open(path).map_err(|_| error.to_string())?;
+    let opened_metadata = file.metadata().map_err(|_| error.to_string())?;
+    if !opened_metadata.is_file()
+        || opened_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(error.to_string());
+    }
+    Ok(file)
+}
+
+#[cfg(windows)]
+fn mark_windows_handle_for_deletion(file: &File, error: &str) -> Result<(), String> {
+    use std::{mem::size_of, os::windows::io::AsRawHandle};
+
+    let mut disposition = WindowsFileDispositionInfo { delete_file: 1 };
+    let result = unsafe {
+        SetFileInformationByHandle(
+            file.as_raw_handle(),
+            FILE_DISPOSITION_INFO_CLASS,
+            (&mut disposition as *mut WindowsFileDispositionInfo).cast(),
+            size_of::<WindowsFileDispositionInfo>() as u32,
+        )
+    };
+    if result == 0 {
+        return Err(error.to_string());
+    }
+    Ok(())
+}
+
 #[cfg(all(not(unix), not(windows)))]
 #[derive(Clone, Copy)]
 struct StageIdentity;
@@ -230,18 +275,16 @@ fn remove_owned_stage_with_hook<F>(
 where
     F: FnOnce(),
 {
-    let current_metadata =
-        fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
-    if !current_metadata.is_file() {
-        return Err(SCORE_ATTACH_ERROR.to_string());
-    }
-    let current_file = File::open(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let current_file = open_windows_delete_handle(path, SCORE_ATTACH_ERROR)?;
     if stage_identity(&current_file)? != expected {
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
-    drop(current_file);
+
     before_unlink();
-    fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
+
+    mark_windows_handle_for_deletion(&current_file, SCORE_ATTACH_ERROR)?;
+    drop(current_file);
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -340,47 +383,11 @@ fn remove_score_pdf_attachment_with_hook<F>(path: &Path, before_unlink: F) -> Re
 where
     F: FnOnce(),
 {
-    use std::{mem::size_of, os::windows::fs::MetadataExt, os::windows::fs::OpenOptionsExt};
-    use std::os::windows::io::AsRawHandle;
-
-    let path_metadata = fs::symlink_metadata(path).map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
-    if !path_metadata.is_file()
-        || path_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
-    {
-        return Err(SCORE_REMOVE_ERROR.to_string());
-    }
-
-    let mut options = OpenOptions::new();
-    options
-        .access_mode(DELETE_ACCESS | FILE_READ_ATTRIBUTES)
-        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
-        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
-    let file = options
-        .open(path)
-        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
-    let opened_metadata = file
-        .metadata()
-        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
-    if !opened_metadata.is_file()
-        || opened_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
-    {
-        return Err(SCORE_REMOVE_ERROR.to_string());
-    }
+    let file = open_windows_delete_handle(path, SCORE_REMOVE_ERROR)?;
 
     before_unlink();
 
-    let mut disposition = WindowsFileDispositionInfo { delete_file: 1 };
-    let result = unsafe {
-        SetFileInformationByHandle(
-            file.as_raw_handle(),
-            FILE_DISPOSITION_INFO_CLASS,
-            (&mut disposition as *mut WindowsFileDispositionInfo).cast(),
-            std::mem::size_of::<WindowsFileDispositionInfo>() as u32,
-        )
-    };
-    if result == 0 {
-        return Err(SCORE_REMOVE_ERROR.to_string());
-    }
+    mark_windows_handle_for_deletion(&file, SCORE_REMOVE_ERROR)?;
     drop(file);
     Ok(())
 }
@@ -428,11 +435,9 @@ pub fn remove_score_pdf_attachment(path: &Path) -> Result<(), String> {
 ///
 /// Security Notes: errors never include the source path or PDF bytes. Unix
 /// cleanup compares device/inode identity captured from the open stage. Windows
-/// captures the volume serial plus 128-bit `FILE_ID_INFO` from the original
-/// handle and requires the same identity after reopening the stage pathname, so
-/// a foreign replacement is not accepted merely because it is a regular file.
-/// The final identity-check-to-unlink interval is still pathname based and is
-/// not claimed as descriptor-relative deletion.
+/// opens the exact stage object with DELETE authority, verifies its volume plus
+/// 128-bit file id against the captured identity, then marks that same handle
+/// for deletion so a late pathname replacement cannot redirect cleanup.
 pub fn publish_score_pdf_attachment(
     source: &Path,
     scores_root: &Path,
