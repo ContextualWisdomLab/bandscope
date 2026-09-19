@@ -1,8 +1,6 @@
-use crate::project_persistence;
-
 #[cfg(unix)]
 mod unix_parent_swap {
-    use super::project_persistence;
+    use crate::project_persistence;
     use std::{
         fs::{self, File},
         os::unix::fs::symlink,
