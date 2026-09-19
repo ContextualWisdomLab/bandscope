@@ -22,7 +22,8 @@ Publication cleanup also retained one Windows gap after the first identity repai
 - Copy through a fixed 64 KiB buffer. Early EOF is truncation; a one-byte probe after the snapshot detects growth. Both fail closed.
 - Revalidate `%PDF-` on the bytes actually copied.
 - Stage with `create_new`. Unix requests `0600` at first visibility rather than creating broad permissions and tightening them later.
-- Windows inherits the app-owned scores-directory ACL and denies sharing during the untrusted write. The synchronized stage handle is closed before hard-link publication because pathname mutation is intentionally denied while that handle is live.
+- Windows does not synthesize a POSIX-style child ACL. The stage is created inside the app-owned scores directory and inherits that parent DACL. Native acceptance requires the published score DACL to remain unprotected (`SE_DACL_PROTECTED` clear) and to contain at least one ACE marked `INHERITED_ACE` on the Windows Server 2025 runner.
+- Windows denies sharing during the untrusted write. The synchronized stage handle is closed before hard-link publication because pathname mutation is intentionally denied while that handle is live.
 - Publish with a hard link to `<score_id>.pdf` so an existing attachment is never overwritten.
 - Return the byte count from the descriptor-bound copy rather than the earlier path-validation size snapshot.
 
@@ -63,7 +64,13 @@ The Windows retention regression acquires the delete handle, renames the opened 
 
 RED `89f136e312ded829b89f2beafda68ca1c373044c` inserted a hook after Windows stage identity validation but before the old pathname unlink. The hook renames the owned stage and creates a foreign file at the former stage pathname. Exact run `35454589087` behaved as expected: macOS job `105927525260` stayed **SUCCESS** because the regression is Windows-only; Windows Server 2025 job `105927525168` failed in the owned Score Storage unit-test step. This is hosted RED evidence that identity-check-then-pathname-unlink was still redirectable.
 
-The repair keeps the identity-matched stage handle open with DELETE authority and applies `FileDispositionInfo` to that exact object. The same helper is used by retention deletion, avoiding two divergent Windows delete contracts. The regression now requires the foreign replacement to survive while the captured stage object is deleted.
+GREEN `d36969bf4e3ed2c470c00db0bb07b1de0ec2fa70` keeps the identity-matched stage handle open with DELETE authority and applies `FileDispositionInfo` to that exact object. The same helper is used by retention deletion, avoiding two divergent Windows delete contracts. Exact native run `35454808019` passed on macOS job `105928096806` and Windows Server 2025 job `105928096678`.
+
+### Windows ACL inheritance acceptance
+
+Commit `579a67d4767d098d0dd608b5678d59e66efe1701` adds native inspection of the published score security descriptor using `GetNamedSecurityInfoW`, `GetSecurityDescriptorControl`, `GetAclInformation`, and `GetAce`. The test does not compare Windows permissions to Unix `0600`; it verifies the chosen Windows contract directly: the child DACL is not protected from parent inheritance and the resulting DACL contains at least one ACE carrying `INHERITED_ACE`.
+
+Exact `score-storage-native` run `35455174325` passed on macOS job `105929062031` and Windows Server 2025 job `105929062235`, including the Windows ACL regression. This closes the file-level ACL-inheritance evidence gap for the current parent directory model. It does not pre-approve whatever parent-directory ACL #970 eventually establishes; workspace reconciliation still requires a fresh exact-head run.
 
 ## Alternatives rejected
 
@@ -81,13 +88,13 @@ Weakening the Windows staging write share mode was also rejected. The write rema
 
 **Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy/sync failure, reparse/symlink object, or identity mismatch fails closed with payload-safe diagnostics. Unexpected foreign replacements are preserved in the tested Windows object-bound races and Unix pre-`unlinkat` replacement case.
 
-**Privacy.** Unix publication requests `0600` at first visibility. Windows uses actual parent ACL inheritance; no POSIX-equivalence claim is made.
+**Privacy.** Unix publication requests `0600` at first visibility. Windows publication deliberately inherits the app-owned parent DACL; the native acceptance test verifies that the child is not DACL-protected and contains inherited ACEs rather than asserting POSIX-equivalent permissions.
 
-**Test points.** Core/native tests cover valid publication, no-clobber publication, permissive-`umask(000)` Unix first visibility, descriptor growth/truncation, wrong magic, Tauri call-site wiring, Windows post-close stage replacement, Windows stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, and Unix retention replacement before the second descriptor-relative identity check.
+**Test points.** Core/native tests cover valid publication, no-clobber publication, permissive-`umask(000)` Unix first visibility, Windows parent-DACL inheritance, descriptor growth/truncation, wrong magic, Tauri call-site wiring, Windows post-close stage replacement, Windows stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, and Unix retention replacement before the second descriptor-relative identity check.
 
 ## Remaining risk / claim boundary
 
-This work does not prove packaged-app crash or power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, buyer-visible detach/project lifecycle, actual Windows ACL/inheritance acceptance, and Project Persistence #970 workspace reconciliation remain open.
+This work does not prove packaged-app crash or power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, buyer-visible detach/project lifecycle, and Project Persistence #970 workspace reconciliation remain open. The Windows file-level inheritance contract is now tested, but a changed workspace ACL after #970 integration requires fresh acceptance rather than evidence transfer.
 
 Windows explicit removal and Windows stage cleanup are object-bound to the handles used by `FileDispositionInfo` for the tested local-filesystem contract. Unix explicit removal and Unix stage cleanup still retain final pathname/name races unless a stronger platform-specific primitive or storage invariant is adopted. Those risks must remain visible in the threat model rather than being described as race-free.
 
@@ -102,6 +109,12 @@ Microsoft. (2024, February 22). *GetFileInformationByHandleEx function (winbase.
 Microsoft. (2024, February 22). *FILE_DISPOSITION_INFO structure (winbase.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_disposition_info
 
 Microsoft. (2024). *SetFileInformationByHandle function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
+
+Microsoft. (n.d.). *ACE inheritance rules*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-inheritance-rules
+
+Microsoft. (n.d.). *Automatic propagation of inheritable ACEs*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/secauthz/automatic-propagation-of-inheritable-aces
+
+Microsoft. (n.d.). *GetNamedSecurityInfoW function (aclapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getnamedsecurityinfow
 
 Microsoft. (n.d.). *CreateFileA function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
 
