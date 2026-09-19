@@ -45,6 +45,20 @@ fn remove_stage(path: &Path) {
     let _ = fs::remove_file(path);
 }
 
+#[cfg(unix)]
+fn create_private_file_new(path: &Path) -> std::io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true).mode(0o600);
+    options.open(path)
+}
+
+#[cfg(not(unix))]
+fn create_private_file_new(path: &Path) -> std::io::Result<File> {
+    File::create_new(path)
+}
+
 #[cfg(target_os = "linux")]
 fn rename_noreplace(source: &Path, destination: &Path) -> std::io::Result<()> {
     use std::{ffi::CString, os::unix::ffi::OsStrExt};
@@ -799,7 +813,7 @@ fn create_publication_journal(
         validation,
     };
     let bytes = serde_json::to_vec(&journal).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
-    let mut file = match File::create_new(&journal_path) {
+    let mut file = match create_private_file_new(&journal_path) {
         Ok(file) => file,
         Err(_) => return Err(PROJECT_RECOVERY_ERROR.to_string()),
     };
@@ -1568,10 +1582,9 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// root-owned `/etc`, `/tmp`, and `/var` aliases are admitted, and each must resolve to its exact
 /// `/private` system directory; arbitrary root-level aliases remain fail-closed. This rejects
 /// user-writable static ancestor-link redirection without breaking normal paths below macOS system
-/// aliases. `File::create_new` makes staging non-clobbering. If the selected target exists, its native
-/// identity and permissions are captured from the same pre-staging metadata snapshot on Unix; the
-/// staged inode receives the existing read/write permission bits after its bytes are written and
-/// before it is synced; executable and special bits are never copied to project data.
+/// aliases. A newly created Unix stage starts owner-only (`0600`) before any bytes are written; an
+/// existing target's read/write mode is then applied to that staged inode before sync, while executable
+/// and special bits are never copied to project data. Windows keeps its native ACL creation semantics.
 /// Linux and macOS then atomically exchange the synced staging inode with the target and accept the
 /// publication only when the displaced inode still matches that captured identity; a mismatch is
 /// exchanged back before returning an error. Windows uses `ReplaceFileW` with a unique same-directory
@@ -1651,7 +1664,7 @@ where
     };
 
     let stage = staging_path(target)?;
-    let mut staged = File::create_new(&stage).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
+    let mut staged = create_private_file_new(&stage).map_err(|_| PROJECT_STAGE_ERROR.to_string())?;
     if staged.write_all(content).is_err() {
         drop(staged);
         remove_stage(&stage);
