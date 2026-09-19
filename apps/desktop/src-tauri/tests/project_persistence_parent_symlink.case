@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use crate::project_persistence;
+use crate::project_root;
 
-#[cfg(unix)]
 fn fixture_root(label: &str) -> std::path::PathBuf {
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -73,5 +73,60 @@ fn refuses_to_publish_through_symlinked_ancestor_directory() {
         "no staging or published artifact may escape through a linked ancestor"
     );
 
+    fs::remove_dir_all(root).expect("test fixture should be removable");
+}
+
+#[cfg(unix)]
+#[test]
+fn linked_ancestor_cannot_authorize_existing_project_root() {
+    use std::{fs, os::unix::fs::symlink};
+
+    let root = fixture_root("project-root-ancestor-symlink");
+    let real_ancestor = root.join("real-ancestor");
+    let real_base = real_ancestor.join("app-local");
+    let linked_ancestor = root.join("linked-ancestor");
+    let selected_base = linked_ancestor.join("app-local");
+    let project_id = "project-1-1";
+
+    fs::create_dir_all(real_base.join(project_id))
+        .expect("real app-local project directory should be created");
+    symlink(&real_ancestor, &linked_ancestor).expect("linked ancestor should be created");
+
+    assert!(
+        project_root::resolve_existing_project_root(&selected_base, project_id).is_err(),
+        "a linked ancestor must not redirect existing project-root authority"
+    );
+
+    fs::remove_dir_all(root).expect("test fixture should be removable");
+}
+
+#[cfg(windows)]
+#[test]
+fn reparse_ancestor_cannot_authorize_existing_project_root() {
+    use std::{fs, process::Command};
+
+    let root = fixture_root("project-root-ancestor-reparse");
+    let real_ancestor = root.join("real-ancestor");
+    let real_base = real_ancestor.join("app-local");
+    let linked_ancestor = root.join("linked-ancestor");
+    let selected_base = linked_ancestor.join("app-local");
+    let project_id = "project-1-1";
+
+    fs::create_dir_all(real_base.join(project_id))
+        .expect("real app-local project directory should be created");
+    let junction = Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&linked_ancestor)
+        .arg(&real_ancestor)
+        .status()
+        .expect("junction command should start");
+    assert!(junction.success(), "junction fixture should be created");
+
+    assert!(
+        project_root::resolve_existing_project_root(&selected_base, project_id).is_err(),
+        "a reparse ancestor must not redirect existing project-root authority"
+    );
+
+    fs::remove_dir(&linked_ancestor).expect("junction should be removable");
     fs::remove_dir_all(root).expect("test fixture should be removable");
 }
