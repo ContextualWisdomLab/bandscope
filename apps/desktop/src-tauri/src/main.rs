@@ -158,9 +158,8 @@ fn app_owned_root<R: Runtime>(
         return project_root::resolve_existing_project_root(&base_root, project_id);
     }
     let root = base_root.join(project_id);
-    std::fs::create_dir_all(&root)
-        .map_err(|_| format!("Could not prepare the local {kind} workspace."))?;
-    Ok(root)
+    project_root::ensure_owned_directory(&root)
+        .map_err(|_| format!("Could not prepare the local {kind} workspace."))
 }
 
 fn provision_project_root<R: Runtime>(
@@ -867,7 +866,7 @@ fn start_analysis_job(
         updated_at: requested_at.clone(),
         progress_label: Some("Queued for analysis".into()),
         progress_stage: Some(AnalysisJobStage::Queued),
-        progress_percent: Some(0),
+        progress_percent: Some(10),
         cache_status: Some(AnalysisCacheStatus::Disabled),
         result: None,
         error: None,
@@ -1085,9 +1084,8 @@ fn scores_root_for_project<R: Runtime>(
     // before this join; the root stays inside the app-owned data directory.
     let project_root = app_owned_root(app, "projects", project_id)?;
     let root = project_root.join("scores");
-    std::fs::create_dir_all(&root)
-        .map_err(|_| "Could not prepare the local scores workspace.".to_string())?;
-    Ok(root)
+    project_root::ensure_owned_directory(&root)
+        .map_err(|_| "Could not prepare the local scores workspace.".to_string())
 }
 
 /// Security Notes: the file path comes exclusively from the OS file dialog
