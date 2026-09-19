@@ -70,6 +70,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install Rust 1.97.1
         run: rustup toolchain install 1.97.1 --profile minimal
       - name: Prepare compile-only frontendDist fixture

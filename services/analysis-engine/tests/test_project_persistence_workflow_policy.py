@@ -7,6 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 WINDOWS_WORKFLOW = "project-persistence-windows-native.yml"
 LEGACY_WINDOWS_WORKFLOW = "project-persistence-windows.yml"
 WARNING_GATE_FEATURE = "persistence_warning_gate"
+EXACT_SOURCE_REF = "ref: ${{ github.event.pull_request.head.sha || github.sha }}"
 REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/root.rs"',
@@ -45,12 +46,19 @@ def _assert_enforces_owned_rust_warnings(workflow: str, lane: str) -> None:
     ), f"{lane} persistence workflow must compile owned Rust with the warning gate feature"
 
 
+def _assert_checks_out_exact_source_identity(workflow: str, lane: str) -> None:
+    assert (
+        EXACT_SOURCE_REF in workflow
+    ), f"{lane} persistence workflow must test the exact PR source head rather than GitHub's merge ref"
+
+
 def test_windows_project_persistence_gate_tracks_contract_inputs() -> None:
     """Run the Windows regression whenever a persistence contract input changes."""
     workflow = _workflow_text(WINDOWS_WORKFLOW)
 
     _assert_tracks_native_persistence_inputs(workflow, "Windows")
     _assert_enforces_owned_rust_warnings(workflow, "Windows")
+    _assert_checks_out_exact_source_identity(workflow, "Windows")
     assert f'".github/workflows/{WINDOWS_WORKFLOW}"' in workflow
     assert not (REPO_ROOT / ".github" / "workflows" / LEGACY_WINDOWS_WORKFLOW).exists()
     assert "runs-on: windows-2025" in workflow
@@ -66,6 +74,7 @@ def test_macos_project_persistence_gate_tracks_contract_inputs() -> None:
 
     _assert_tracks_native_persistence_inputs(workflow, "macOS")
     _assert_enforces_owned_rust_warnings(workflow, "macOS")
+    _assert_checks_out_exact_source_identity(workflow, "macOS")
     assert "runs-on: macos-15" in workflow
     assert (
         "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
