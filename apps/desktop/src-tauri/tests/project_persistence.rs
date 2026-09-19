@@ -27,6 +27,15 @@ mod project_persistence {
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
+    pub(crate) fn finish_successful_publication_for_test(
+        journal: &std::path::Path,
+        stage: &std::path::Path,
+        target: &std::path::Path,
+    ) -> Result<(), String> {
+        finish_successful_publication(journal, stage, target)
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     pub(crate) fn finish_rolled_back_publication_for_test(
         stage: &std::path::Path,
         journal: &std::path::Path,
