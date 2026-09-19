@@ -23,9 +23,10 @@ fn create_private_stage(path: &Path) -> Result<File, String> {
     #[cfg(windows)]
     {
         use std::os::windows::fs::OpenOptionsExt;
-        // Keep the staging pathname stable while its handle is open. The
-        // buyer-visible destination inherits the app-owned scores directory
-        // ACL; this is deliberately not described as POSIX-equivalent 0600.
+        // Deny pathname sharing while bytes are being written. Windows also
+        // denies the later hard-link/unlink operations while this handle is
+        // open, so publication deliberately starts only after the synchronized
+        // stage handle is closed.
         options.share_mode(0);
     }
 
@@ -90,21 +91,47 @@ fn copy_bounded_pdf_stream(
 }
 
 #[cfg(unix)]
-fn remove_owned_stage(path: &Path, owned: &File) -> Result<(), String> {
+#[derive(Clone, Copy)]
+struct StageIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+fn stage_identity(file: &File) -> Result<StageIdentity, String> {
     use std::os::unix::fs::MetadataExt;
 
-    let expected = owned
+    let metadata = file
         .metadata()
         .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    Ok(StageIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(not(unix))]
+#[derive(Clone, Copy)]
+struct StageIdentity;
+
+#[cfg(not(unix))]
+fn stage_identity(_file: &File) -> Result<StageIdentity, String> {
+    Ok(StageIdentity)
+}
+
+#[cfg(unix)]
+fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+
     let current = fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
-    if !current.is_file() || expected.dev() != current.dev() || expected.ino() != current.ino() {
+    if !current.is_file() || expected.device != current.dev() || expected.inode != current.ino() {
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
     fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
 }
 
 #[cfg(not(unix))]
-fn remove_owned_stage(path: &Path, _owned: &File) -> Result<(), String> {
+fn remove_owned_stage(path: &Path, _expected: StageIdentity) -> Result<(), String> {
     let current = fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
     if !current.is_file() {
         return Err(SCORE_ATTACH_ERROR.to_string());
@@ -123,10 +150,11 @@ fn remove_owned_stage(path: &Path, _owned: &File) -> Result<(), String> {
 /// uses a hard link so an existing `<score_id>.pdf` is never replaced.
 ///
 /// Security Notes: errors never include the source path or PDF bytes. On Unix,
-/// staging cleanup compares device/inode identity before unlinking so a foreign
-/// replacement is not deleted. Windows keeps the staging pathname non-shareable
-/// while the handle is open, but descriptor-bound cleanup after handle close is
-/// still a separate acceptance item under #1239.
+/// staging cleanup compares device/inode identity captured from the open stage
+/// before unlinking so a foreign replacement is not deleted. Windows denies
+/// stage pathname sharing during write and closes the synchronized handle before
+/// publication; identity-bound cleanup after handle close remains a separate
+/// acceptance item under #1239.
 pub fn publish_score_pdf_attachment(
     source: &Path,
     scores_root: &Path,
@@ -151,6 +179,7 @@ pub fn publish_score_pdf_attachment(
     let stage = scores_root.join(format!(".score-{score_id}.stage"));
     let destination = scores_root.join(format!("{score_id}.pdf"));
     let mut stage_file = create_private_stage(&stage)?;
+    let expected_stage = stage_identity(&stage_file)?;
 
     let copy_result = copy_bounded_pdf_stream(&mut source_file, &mut stage_file, expected_len)
         .and_then(|written| {
@@ -169,24 +198,31 @@ pub fn publish_score_pdf_attachment(
     let written = match copy_result {
         Ok(written) => written,
         Err(error) => {
-            let _ = remove_owned_stage(&stage, &stage_file);
+            drop(stage_file);
+            let _ = remove_owned_stage(&stage, expected_stage);
             return Err(error);
         }
     };
 
+    // Windows cannot create a hard link to, or unlink, a path whose handle was
+    // opened with share_mode(0). Closing only after sync preserves exclusive
+    // write ownership while making the completed stage publishable.
+    drop(stage_file);
+
     if fs::hard_link(&stage, &destination).is_err() {
-        let _ = remove_owned_stage(&stage, &stage_file);
+        let _ = remove_owned_stage(&stage, expected_stage);
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
     let destination_metadata = fs::metadata(&destination).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
     if !destination_metadata.is_file() || destination_metadata.len() != written {
-        let _ = fs::remove_file(&destination);
-        let _ = remove_owned_stage(&stage, &stage_file);
+        // Do not unlink `destination` here: after publication a pathname swap
+        // could make it foreign. Preserve unexpected evidence and fail closed.
+        let _ = remove_owned_stage(&stage, expected_stage);
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
-    remove_owned_stage(&stage, &stage_file)?;
+    remove_owned_stage(&stage, expected_stage)?;
     Ok(written)
 }
 
