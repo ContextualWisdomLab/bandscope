@@ -11,6 +11,7 @@ on:
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/score_pdf.rs"
       - "apps/desktop/core/src/score_retention.rs"
+      - "apps/desktop/core/src/score_recovery.rs"
       - "apps/desktop/core/src/score_storage.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
@@ -26,6 +27,7 @@ on:
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/score_pdf.rs"
       - "apps/desktop/core/src/score_retention.rs"
+      - "apps/desktop/core/src/score_recovery.rs"
       - "apps/desktop/core/src/score_storage.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
@@ -61,11 +63,12 @@ jobs:
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
           --lib score_storage::tests::
-      - name: Run Score Storage publication, retention, restart, and wiring regressions
+      - name: Run Score Storage publication, retention, interruption, restart, and wiring regressions
         run: >-
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
           --test score_pdf_attachment_publication
           --test score_pdf_retention_resolution
+          --test score_pdf_interruption_recovery
           --test score_pdf_restart_readback
           --test score_pdf_attachment_wiring
