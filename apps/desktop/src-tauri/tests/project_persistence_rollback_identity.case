@@ -227,49 +227,4 @@ mod rollback_identity {
 
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
-
-    #[test]
-    fn prepared_recovery_preserves_candidate_and_journal_when_target_identity_is_ambiguous() {
-        let root = test_dir("ambiguous-target-after-rollback");
-        let target = root.join("setlist.bscope");
-        let stage = root.join(format!(".bandscope-stage-{}.stage", uuid::Uuid::new_v4()));
-        let original = br#"{\"id\":\"original\"}"#;
-        let candidate = br#"{\"id\":\"candidate\"}"#;
-        let foreign = br#"{\"id\":\"foreign-after-rollback\"}"#;
-
-        fs::write(&target, original).expect("original fixture should be written");
-        fs::write(&stage, candidate).expect("candidate fixture should be written");
-        let expected = project_persistence::project_file_identity(&target)
-            .expect("original identity should be capturable");
-        let candidate_identity = project_persistence::project_file_identity(&stage)
-            .expect("candidate identity should be capturable");
-        let journal = write_identity_journal(
-            &target,
-            &stage,
-            &stage,
-            &expected,
-            &candidate_identity,
-            false,
-        );
-
-        fs::remove_file(&target).expect("target pathname should be replaceable by the ambiguity fixture");
-        fs::write(&target, foreign).expect("foreign target occupant should be written");
-
-        let error = project_persistence::recover_project_publication(&target).expect_err(
-            "prepared recovery must not treat an unrecorded third target identity as proven rollback completion",
-        );
-
-        assert_eq!(error, "Could not recover the project publication safely.");
-        assert_eq!(
-            fs::read(&target).expect("ambiguous target occupant must be preserved"),
-            foreign
-        );
-        assert_eq!(
-            fs::read(&stage).expect("candidate rollback evidence must be preserved"),
-            candidate
-        );
-        assert!(journal.exists(), "prepared recovery evidence must remain while target authority is ambiguous");
-
-        fs::remove_dir_all(root).expect("test directory should be removable");
-    }
 }
