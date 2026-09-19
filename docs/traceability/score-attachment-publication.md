@@ -18,14 +18,20 @@ The native read-time 25 MiB allocation/content guard remains #865. Project/works
 - Copy through a fixed 64 KiB buffer. Early EOF is truncation; a one-byte probe after the snapshot detects growth. Both fail closed.
 - Revalidate `%PDF-` on the bytes that are actually copied.
 - Stage with `create_new`. Unix requests `0600` at creation time instead of creating broad permissions and tightening them later.
-- Windows intentionally uses the app-owned scores directory ACL/inheritance model rather than claiming POSIX-equivalent `0600`; the staging handle denies sharing while open.
+- Windows intentionally uses the app-owned scores directory ACL/inheritance model rather than claiming POSIX-equivalent `0600`. Its staging handle denies sharing while bytes are written, is synchronized, and is then closed before hard-link publication and stage unlink. This preserves exclusive write ownership without asking Windows to rename/link/delete a pathname whose handle forbids those operations.
 - Publish with a hard link from the synchronized stage to `<score_id>.pdf`, so an existing score id is not overwritten.
-- On Unix, cleanup compares device/inode identity before unlinking a stage. A foreign replacement is never deleted merely because it occupies the expected pathname.
+- On Unix, stage identity is captured from the open file and cleanup compares device/inode before unlinking. A foreign replacement is never deleted merely because it occupies the expected pathname.
 - Return the byte count from the descriptor-bound copy to IPC rather than trusting the earlier path-validation size snapshot.
+
+## Hosted finding and repair
+
+Exact-source run `35451457938` on `69463eba53b61ba0505e4121317e3d726bfa4096` separated a platform contract from test/workflow noise. macOS passed the owned Score Storage unit and publication regressions. Windows passed all three owned unit tests but failed both publication regressions: the success path returned `Could not attach the score PDF.`, and the duplicate-destination case left the stage pathname behind. The common cause was the Windows stage handle opened with `share_mode(0)` remaining live while `hard_link` or `remove_file` needed pathname mutation.
+
+The repair keeps `share_mode(0)` during the untrusted write, captures the stage identity while the handle is live, calls `sync_all`, and drops the handle before publication or cleanup. No sharing flag was loosened merely to make the test pass. Unix retains device/inode-bound cleanup; Windows identity-bound cleanup after handle close remains a separate acceptance item.
 
 ## Alternatives rejected
 
-`std::fs::copy` was rejected because it does not express the Score Storage invariants above as one auditable boundary. Process-wide `umask` mutation was rejected because it affects unrelated threads. Create-then-`chmod` was rejected because bytes can be visible before tightening. Overwriting an existing UUID destination was rejected even though collision probability is very small: storage correctness must not rely on UUID probability when a no-clobber primitive is available.
+`std::fs::copy` was rejected because it does not express the Score Storage invariants above as one auditable boundary. Process-wide `umask` mutation was rejected because it affects unrelated threads. Create-then-`chmod` was rejected because bytes can be visible before tightening. Overwriting an existing UUID destination was rejected even though collision probability is very small: storage correctness must not rely on UUID probability when a no-clobber primitive is available. Allowing Windows path sharing during the write was also rejected as the first repair for the hosted failure; closing only after `sync_all` keeps the stronger write-phase boundary and makes the completed stage publishable.
 
 ## Security Notes
 
@@ -33,7 +39,7 @@ The native read-time 25 MiB allocation/content guard remains #865. Project/works
 
 **Trust boundaries.** OS-selected path → existing score source admission → one opened source descriptor → app-owned Score Storage staging file → no-clobber buyer-visible attachment.
 
-**Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy error, sync error, or identity mismatch returns a payload-safe error. The implementation does not log or return PDF bytes or absolute source paths.
+**Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy error, sync error, or identity mismatch returns a payload-safe error. The implementation does not log or return PDF bytes or absolute source paths. After a successful hard link, an unexpected destination metadata mismatch is preserved rather than blindly unlinked because a pathname swap could make that destination foreign.
 
 **Privacy.** New Unix score bytes request `0600` at first visibility. Windows uses native ACL inheritance and does not claim POSIX permission equivalence.
 
@@ -41,6 +47,6 @@ The native read-time 25 MiB allocation/content guard remains #865. Project/works
 
 ## Remaining risk / claim boundary
 
-This change does not prove packaged app crash/power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, detach retention policy, and Windows identity-bound cleanup after the staging handle closes remain acceptance work under #1239. Current path/workspace authority also depends on the eventual protected integration/reconciliation of #970; this PR does not copy Project Persistence directory-authority code.
+This change does not prove packaged app crash/power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, detach retention policy, actual Windows ACL/inheritance acceptance, and Windows identity-bound cleanup after the staging handle closes remain acceptance work under #1239. Current path/workspace authority also depends on the eventual protected integration/reconciliation of #970; this PR does not copy Project Persistence directory-authority code.
 
 The implementation is stacked on #865 because write-time publication and read-time bounded validation share the score-native crate surface, but #865 remains the owner of reads. #1239 must be non-force reconciled after #865 and the relevant Project Persistence prerequisite integrate; predecessor CI evidence is not transferable to a restacked head.
