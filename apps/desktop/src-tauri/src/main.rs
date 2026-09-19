@@ -657,7 +657,6 @@ fn select_local_audio_source(
         source,
     };
     store_bootstrap_source(&state, summary.clone());
-
     Ok(summary)
 }
 
@@ -841,9 +840,11 @@ fn read_score_pdf(
     read_validated_score_pdf(&path)
 }
 
-/// Security Notes: same id validation and traversal guard as `read_score_pdf`;
-/// deletion is scoped to a single validated file inside the app-owned scores
-/// root. Returns `false` when the score does not exist (idempotent removal).
+/// Security Notes: same id validation and traversal guard as `read_score_pdf`.
+/// Score Storage owns the final deletion authority: Windows marks the opened
+/// file object for deletion by handle; Unix pins the parent directory and
+/// revalidates device/inode before descriptor-relative `unlinkat`.
+/// Returns `false` when the score does not exist (idempotent removal).
 #[tauri::command]
 fn remove_score_pdf(
     project_id: String,
@@ -861,7 +862,7 @@ fn remove_score_pdf(
         Ok(path) => path,
         Err(_) => return Ok(false),
     };
-    std::fs::remove_file(path).map_err(|_| "Could not remove the score PDF.".to_string())?;
+    remove_score_pdf_attachment(&path)?;
     Ok(true)
 }
 

@@ -12,4 +12,4 @@ mod score_storage;
 
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
-pub use score_storage::publish_score_pdf_attachment;
+pub use score_storage::{publish_score_pdf_attachment, remove_score_pdf_attachment};

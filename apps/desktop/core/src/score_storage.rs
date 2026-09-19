@@ -6,6 +6,7 @@ use std::{
 };
 
 const SCORE_ATTACH_ERROR: &str = "Could not attach the score PDF.";
+const SCORE_REMOVE_ERROR: &str = "Could not remove the score PDF.";
 const SCORE_TOO_LARGE_ERROR: &str = "Score PDF is too large (exceeds 25MB limit).";
 const SCORE_INVALID_PDF_ERROR: &str = "The selected file is not a valid PDF.";
 const COPY_BUFFER_BYTES: usize = 64 * 1024;
@@ -91,7 +92,7 @@ fn copy_bounded_pdf_stream(
 }
 
 #[cfg(unix)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct StageIdentity {
     device: u64,
     inode: u64,
@@ -124,12 +125,40 @@ struct WindowsFileIdInfo {
 }
 
 #[cfg(windows)]
+#[repr(C)]
+struct WindowsFileDispositionInfo {
+    delete_file: u8,
+}
+
+#[cfg(windows)]
 const FILE_ID_INFO_CLASS: i32 = 0x12;
+#[cfg(windows)]
+const FILE_DISPOSITION_INFO_CLASS: i32 = 4;
+#[cfg(windows)]
+const DELETE_ACCESS: u32 = 0x0001_0000;
+#[cfg(windows)]
+const FILE_READ_ATTRIBUTES: u32 = 0x0000_0080;
+#[cfg(windows)]
+const FILE_SHARE_READ: u32 = 0x0000_0001;
+#[cfg(windows)]
+const FILE_SHARE_WRITE: u32 = 0x0000_0002;
+#[cfg(windows)]
+const FILE_SHARE_DELETE: u32 = 0x0000_0004;
+#[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+#[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 #[cfg(windows)]
 #[link(name = "kernel32")]
 extern "system" {
     fn GetFileInformationByHandleEx(
+        file: *mut std::ffi::c_void,
+        file_information_class: i32,
+        file_information: *mut std::ffi::c_void,
+        buffer_size: u32,
+    ) -> i32;
+    fn SetFileInformationByHandle(
         file: *mut std::ffi::c_void,
         file_information_class: i32,
         file_information: *mut std::ffi::c_void,
@@ -214,6 +243,164 @@ fn remove_owned_stage(path: &Path, _expected: StageIdentity) -> Result<(), Strin
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
     fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
+}
+
+#[cfg(unix)]
+const O_RDONLY: i32 = 0;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+const O_NOFOLLOW: i32 = 0x0002_0000;
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "android"))))]
+const O_NOFOLLOW: i32 = 0x0000_0100;
+
+#[cfg(unix)]
+extern "C" {
+    fn openat(dirfd: i32, pathname: *const std::os::raw::c_char, flags: i32) -> i32;
+    fn unlinkat(dirfd: i32, pathname: *const std::os::raw::c_char, flags: i32) -> i32;
+}
+
+#[cfg(unix)]
+fn open_score_entry_at(parent: &File, name: &std::ffi::CString) -> Result<File, String> {
+    use std::os::fd::{AsRawFd, FromRawFd};
+
+    let fd = unsafe { openat(parent.as_raw_fd(), name.as_ptr(), O_RDONLY | O_NOFOLLOW) };
+    if fd < 0 {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+    Ok(unsafe { File::from_raw_fd(fd) })
+}
+
+#[cfg(unix)]
+fn remove_score_pdf_attachment_with_hook<F>(path: &Path, before_unlink: F) -> Result<(), String>
+where
+    F: FnOnce(),
+{
+    use std::{ffi::CString, os::fd::AsRawFd, os::unix::ffi::OsStrExt};
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| SCORE_REMOVE_ERROR.to_string())?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| SCORE_REMOVE_ERROR.to_string())?;
+    let parent_file = File::open(parent).map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    if !parent_file
+        .metadata()
+        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?
+        .is_dir()
+    {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+    let name = CString::new(file_name.as_bytes()).map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    let target_file = open_score_entry_at(&parent_file, &name)?;
+    let target_metadata = target_file
+        .metadata()
+        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    if !target_metadata.is_file() {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+    let expected = stage_identity(&target_file).map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+
+    before_unlink();
+
+    // Re-open by basename under the already-open parent directory. This keeps
+    // ancestor replacement out of the authority check. The remaining
+    // identity-check-to-unlinkat interval is documented as residual TOCTOU.
+    let current_file = open_score_entry_at(&parent_file, &name)?;
+    let current_metadata = current_file
+        .metadata()
+        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    if !current_metadata.is_file()
+        || stage_identity(&current_file).map_err(|_| SCORE_REMOVE_ERROR.to_string())? != expected
+    {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+
+    let result = unsafe { unlinkat(parent_file.as_raw_fd(), name.as_ptr(), 0) };
+    if result != 0 {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn remove_score_pdf_attachment_with_hook<F>(path: &Path, before_unlink: F) -> Result<(), String>
+where
+    F: FnOnce(),
+{
+    use std::{mem::size_of, os::windows::fs::MetadataExt, os::windows::fs::OpenOptionsExt};
+    use std::os::windows::io::AsRawHandle;
+
+    let path_metadata = fs::symlink_metadata(path).map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    if !path_metadata.is_file()
+        || path_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+
+    let mut options = OpenOptions::new();
+    options
+        .access_mode(DELETE_ACCESS | FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = options
+        .open(path)
+        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    let opened_metadata = file
+        .metadata()
+        .map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    if !opened_metadata.is_file()
+        || opened_metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+
+    before_unlink();
+
+    let mut disposition = WindowsFileDispositionInfo { delete_file: 1 };
+    let result = unsafe {
+        SetFileInformationByHandle(
+            file.as_raw_handle(),
+            FILE_DISPOSITION_INFO_CLASS,
+            (&mut disposition as *mut WindowsFileDispositionInfo).cast(),
+            size_of::<WindowsFileDispositionInfo>() as u32,
+        )
+    };
+    if result == 0 {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+    drop(file);
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn remove_score_pdf_attachment_with_hook<F>(path: &Path, before_unlink: F) -> Result<(), String>
+where
+    F: FnOnce(),
+{
+    let metadata = fs::symlink_metadata(path).map_err(|_| SCORE_REMOVE_ERROR.to_string())?;
+    if !metadata.is_file() {
+        return Err(SCORE_REMOVE_ERROR.to_string());
+    }
+    before_unlink();
+    fs::remove_file(path).map_err(|_| SCORE_REMOVE_ERROR.to_string())
+}
+
+/// Remove one score attachment after the caller has resolved it inside the
+/// app-owned score workspace.
+///
+/// Windows opens the exact file object with DELETE authority and marks that
+/// same handle for deletion with `SetFileInformationByHandle(FileDispositionInfo)`,
+/// so a later pathname replacement cannot redirect deletion to a foreign file.
+/// Unix pins the parent directory, opens the basename with `O_NOFOLLOW`,
+/// rechecks device/inode identity through that directory descriptor, and then
+/// calls `unlinkat`. Unix still has a narrow identity-check-to-`unlinkat` race;
+/// callers must not treat this as a race-free object deletion primitive.
+///
+/// Security Notes: no absolute path or file content is returned in errors. A
+/// reparse/symlink entry, non-regular object, identity change, or OS deletion
+/// failure is fail-closed.
+pub fn remove_score_pdf_attachment(path: &Path) -> Result<(), String> {
+    remove_score_pdf_attachment_with_hook(path, || {})
 }
 
 /// Publish one validated score PDF into the app-owned score workspace.
@@ -308,7 +495,15 @@ pub fn publish_score_pdf_attachment(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
+    use std::{io::Cursor, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+
+    fn unique_test_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after epoch")
+            .as_nanos();
+        std::env::temp_dir().join(format!("bandscope-{name}-{suffix}"))
+    }
 
     #[test]
     fn bounded_stream_rejects_growth_after_length_snapshot() {
@@ -349,16 +544,64 @@ mod tests {
         assert!(!error.contains("PK"));
     }
 
+    #[test]
+    fn score_attachment_delete_removes_authorized_regular_file() {
+        let root = unique_test_dir("score-delete");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let target = root.join("score.pdf");
+        fs::write(&target, b"%PDF-delete").expect("score fixture should be written");
+
+        remove_score_pdf_attachment(&target).expect("authorized score should be removed");
+
+        assert!(!target.exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_delete_preserves_replacement_before_descriptor_relative_unlink() {
+        let root = unique_test_dir("score-delete-unix-replacement");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let target = root.join("score.pdf");
+        let moved = root.join("owned-before-replacement.pdf");
+        fs::write(&target, b"%PDF-owned").expect("owned score should be written");
+
+        let error = remove_score_pdf_attachment_with_hook(&target, || {
+            fs::rename(&target, &moved).expect("owned score should move inside the same directory");
+            fs::write(&target, b"%PDF-foreign").expect("foreign replacement should be written");
+        })
+        .expect_err("identity mismatch must fail closed before unlinkat");
+
+        assert_eq!(error, SCORE_REMOVE_ERROR);
+        assert_eq!(fs::read(&target).expect("replacement should survive"), b"%PDF-foreign");
+        assert_eq!(fs::read(&moved).expect("owned file should survive failed deletion"), b"%PDF-owned");
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_delete_marks_open_file_object_not_replacement_path() {
+        let root = unique_test_dir("score-delete-windows-replacement");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let target = root.join("score.pdf");
+        let moved = root.join("owned-before-replacement.pdf");
+        fs::write(&target, b"%PDF-owned").expect("owned score should be written");
+
+        remove_score_pdf_attachment_with_hook(&target, || {
+            fs::rename(&target, &moved).expect("owned score should move while delete handle is open");
+            fs::write(&target, b"%PDF-foreign").expect("foreign replacement should be written");
+        })
+        .expect("handle-bound disposition should delete only the originally opened score");
+
+        assert_eq!(fs::read(&target).expect("replacement should survive"), b"%PDF-foreign");
+        assert!(!moved.exists(), "the originally opened score object should be deleted");
+        let _ = fs::remove_dir_all(root);
+    }
+
     #[cfg(windows)]
     #[test]
     fn windows_cleanup_preserves_replaced_stage_path() {
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let suffix = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock should be after epoch")
-            .as_nanos();
-        let root = std::env::temp_dir().join(format!("bandscope-score-stage-identity-{suffix}"));
+        let root = unique_test_dir("score-stage-identity");
         fs::create_dir_all(&root).expect("score root should be created");
         let stage = root.join("stage.pdf");
         let stage_file = create_private_stage(&stage).expect("owned stage should be created");
