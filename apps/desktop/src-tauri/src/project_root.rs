@@ -1,6 +1,7 @@
 use bandscope_desktop_core::is_valid_project_id;
 use std::{
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
 };
 
@@ -57,16 +58,87 @@ fn metadata_is_trusted_macos_root_directory_alias(_path: &Path, _metadata: &fs::
     false
 }
 
+fn metadata_is_safe_project_directory_component(path: &Path, metadata: &fs::Metadata) -> bool {
+    metadata_is_safe_existing_project_directory(metadata)
+        || metadata_is_trusted_macos_root_directory_alias(path, metadata)
+}
+
 /// Validate every existing lexical directory component that grants project-root authority.
 fn existing_project_directory_chain_is_safe(path: &Path) -> bool {
     path.ancestors()
         .filter(|ancestor| !ancestor.as_os_str().is_empty())
         .all(|ancestor| {
             fs::symlink_metadata(ancestor).is_ok_and(|metadata| {
-                metadata_is_safe_existing_project_directory(&metadata)
-                    || metadata_is_trusted_macos_root_directory_alias(ancestor, &metadata)
+                metadata_is_safe_project_directory_component(ancestor, &metadata)
             })
         })
+}
+
+/// Create missing app-local directory components one at a time without following a stable link.
+///
+/// Security Notes: unlike `create_dir_all`, each already-existing lexical component is inspected
+/// with `symlink_metadata` before a child component is created. A newly created component is
+/// inspected again immediately and must be a real directory. This closes stable symlink/junction
+/// redirection during provisioning while preserving the narrow root-owned macOS aliases accepted
+/// by reopen. It does not claim descriptor-bound protection against an ancestor replaced between
+/// the metadata check and the following filesystem operation.
+fn provision_directory_chain(path: &Path) -> Result<(), String> {
+    let mut ancestors: Vec<&Path> = path
+        .ancestors()
+        .filter(|ancestor| !ancestor.as_os_str().is_empty())
+        .collect();
+    ancestors.reverse();
+
+    for ancestor in ancestors {
+        match fs::symlink_metadata(ancestor) {
+            Ok(metadata) => {
+                if !metadata_is_safe_project_directory_component(ancestor, &metadata) {
+                    return Err(PROJECT_ROOT_ERROR.to_string());
+                }
+            }
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                fs::create_dir(ancestor).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
+                let metadata = fs::symlink_metadata(ancestor)
+                    .map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
+                if !metadata_is_safe_project_directory_component(ancestor, &metadata) {
+                    return Err(PROJECT_ROOT_ERROR.to_string());
+                }
+            }
+            Err(_) => return Err(PROJECT_ROOT_ERROR.to_string()),
+        }
+    }
+
+    Ok(())
+}
+
+/// Provision one new app-local project directory without following linked ancestors.
+///
+/// Security Notes: `project_id` is validated before joining. Missing app-local base components are
+/// created one lexical directory at a time and every existing/new component must be a real
+/// directory rather than a Unix symlink or Windows reparse point. The final project directory uses
+/// single-directory create semantics and therefore refuses to reuse an already-existing target.
+/// This creation-side authority mirrors `resolve_existing_project_root` instead of letting a raw
+/// `create_dir_all` follow a stable link into another filesystem subtree.
+pub(crate) fn provision_new_project_root(
+    base_root: &Path,
+    project_id: &str,
+) -> Result<PathBuf, String> {
+    if !is_valid_project_id(project_id) {
+        return Err(PROJECT_ROOT_ERROR.to_string());
+    }
+
+    provision_directory_chain(base_root)?;
+    if !existing_project_directory_chain_is_safe(base_root) {
+        return Err(PROJECT_ROOT_ERROR.to_string());
+    }
+
+    let project_root = base_root.join(project_id);
+    fs::create_dir(&project_root).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
+    if !existing_project_directory_chain_is_safe(&project_root) {
+        return Err(PROJECT_ROOT_ERROR.to_string());
+    }
+
+    Ok(project_root)
 }
 
 /// Resolve one already-provisioned app-local project directory without creating it.
