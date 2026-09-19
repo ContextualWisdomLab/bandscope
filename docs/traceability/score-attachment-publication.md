@@ -53,6 +53,16 @@ On Windows, cleanup opens the stage with `DELETE | FILE_READ_ATTRIBUTES`, `FILE_
 
 The Tauri command therefore returns `false` only for an observed absent child under an existing score workspace. Unsafe or indeterminate storage remains an error, so buyer metadata is not silently discarded while the file is still present or unverified. This is an absence observation, not a durable non-existence guarantee: another same-user/local actor can create the pathname after `NotFound` and before metadata changes.
 
+## Successful-publication restart/readback decision
+
+Restart/readback acceptance is separated from interrupted-publication recovery.
+
+`score_pdf_restart_readback` publishes a real PDF fixture through `publish_score_pdf_attachment`, then launches a fresh instance of the native Rust test executable. The child process resolves the published score through production `resolve_existing_score_pdf`, reads it through production `read_validated_score_pdf`, and requires exact bytes. After the child exits, the parent requires zero `.score-*.stage` aliases for that successful publication.
+
+This proves a successfully returned attachment survives process teardown and can be reopened through the normal native authority/read path without relying on in-process state. It also proves the success path retires its stage alias before later process use.
+
+It does **not** prove recovery from a process kill during publication, cancellation, disk-full, permission failure, power loss, or discovery/cleanup of a stage abandoned before publication completed. Those remain separate #1239/#970 acceptance work.
+
 ## Hosted findings and repairs
 
 ### Publication and Windows cleanup
@@ -85,9 +95,19 @@ GREEN `91c240385acdc7ae5dea4a2ebd7c32db0f53953f` added platform object-identity 
 
 Contract commit `9ba8c0b9ceeb8b6b3fbaa33fb858af9db1b9b951` first introduced `score_pdf_retention_resolution` for genuinely absent entries, normal regular scores, directory masquerades, Unix symlink replacement, and Tauri wiring. The workflow at that commit did not execute the new test target; run `35459793839` therefore completed successfully and is not RED evidence. The workflow omission was repaired by adding `score_pdf_retention_resolution` to the owner command and `score_retention.rs` to its path filter.
 
-The first implementation then revealed a narrower classification bug: a missing scores workspace caused `symlink_metadata(<missing-root>/<score>.pdf)` to report `NotFound`, which was incorrectly treated as an idempotent missing attachment. RED `22749b83d9c7e6f7e3c0b5986af5802427e98d2a` requires an existing workspace before child absence can produce `None`. Exact `score-storage-native` run `35460119001` failed the retention regression on macOS job `105942349093` and Windows Server 2025 job `105942349170`; the Windows log shows all eight owned unit tests, all three publication regressions, and both existing wiring regressions passing before only `removal_resolution_rejects_a_missing_scores_root` failed.
+The first implementation then revealed a narrower classification bug: a missing scores workspace caused `symlink_metadata(<missing-root>/<score>.pdf)` to report `NotFound`, which was incorrectly treated as an idempotent missing attachment. RED `22749b83d9c7e6f7e3c0b5986af5802427e98d2a` requires an existing workspace before child absence can produce `None`. Exact `score-storage-native` run `35460119001` failed the retention regression on macOS job `105942349093` and Windows Server 2025 job `105942349170`; the existing owner suites passed before the targeted failure.
 
-GREEN `6444f21a158a877ae402fd665469d908f8afa3a2` checks the supplied score workspace with `symlink_metadata` and requires a directory before child lookup. It deliberately does not recreate Project Persistence link/reparse policy; #970 remains the broader workspace authority. Exact run `35460197487` is terminal **SUCCESS** on macOS job `105942555476` and Windows Server 2025 job `105942555631`, including the owner unit suite and publication/retention/wiring regressions.
+GREEN `6444f21a158a877ae402fd665469d908f8afa3a2` checks the supplied score workspace with `symlink_metadata` and requires a directory before child lookup. It deliberately does not recreate Project Persistence link/reparse policy; #970 remains the broader workspace authority. Exact run `35460197487` is terminal **SUCCESS** on macOS job `105942555476` and Windows Server 2025 job `105942555631`.
+
+`36325246e060dae612eccad8e619d8e2b5b494c4` made this document code-current for the retention repair. Exact run `35460313972` was terminal SUCCESS on Windows Server 2025 job `105942873778` and macOS job `105942873910`.
+
+### Successful-publication restart/readback
+
+`297327de172bbe30cdf226518a5135605db983ef` adds the fresh-process restart/readback regression. `0e4070ef6d92d55a91463e8bc4c1fa6b71f86003` adds that target to the macOS/Windows owner workflow.
+
+Exact owner run `35463057196` checked out `0e4070ef6d92d55a91463e8bc4c1fa6b71f86003` and passed the owned Score Storage unit suite plus publication, retention, restart/readback, and wiring regressions on macOS job `105950252549` and Windows Server 2025 job `105950252698`.
+
+This document update is a later exact source identity, so that predecessor GREEN is lineage evidence only. The current head must reacquire owner and repository-wide checks without transferring the `0e4070ef…` verdict.
 
 ## Alternatives rejected
 
@@ -101,21 +121,25 @@ Length-only final publication checks were rejected because a same-length foreign
 
 Weakening Windows staging share mode was rejected. The write remains non-shareable until `sync_all`; only the completed stage is reopened under the narrower deletion contract.
 
+A same-process reopen was rejected as restart/readback acceptance because it can accidentally rely on process state. The selected regression launches a fresh native test process and traverses the normal resolver plus bounded reader. Conversely, that success-path test is not used as evidence for interruption recovery because it never kills a writer with selected PDF bytes still staged.
+
 ## Security Notes
 
 **Untrusted input.** Selected PDF bytes/path and any pre-existing score destination, staging, or retention name are untrusted. File-dialog paths and PDF bytes are not echoed to the WebView in errors.
 
-**Trust boundaries.** OS-selected source → source admission → descriptor-bound Score Storage stage → no-clobber, object-identity-attested attachment. Removal is validated score id → existing score-workspace precondition → exact child absence classification → existing in-root path authority → Score Storage OS-object deletion boundary.
+**Trust boundaries.** OS-selected source → source admission → descriptor-bound Score Storage stage → no-clobber, object-identity-attested attachment. Removal is validated score id → existing score-workspace precondition → exact child absence classification → existing in-root path authority → Score Storage OS-object deletion boundary. Restart/readback crosses a process lifetime boundary but does not add IPC, network, or database authority.
 
 **Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy/sync failure, reparse/symlink/non-regular object, identity mismatch, missing workspace, unsafe resolution, and indeterminate I/O fail closed with path/payload-safe diagnostics. Foreign replacements are preserved in the covered final-publication, Windows object-bound cleanup, and Unix pre-`unlinkat` replacement cases.
 
-**Privacy.** Unix publication requests `0600` at first visibility. Windows publication deliberately inherits the app-owned parent DACL and tests that inheritance directly rather than asserting POSIX equivalence.
+**Privacy.** Unix publication requests `0600` at first visibility. Windows publication deliberately inherits the app-owned parent DACL and tests that inheritance directly rather than asserting POSIX equivalence. The restart regression uses only generated PDF fixture bytes under a temporary test workspace; it does not log buyer PDF contents or source paths.
 
-**Test points.** Native tests cover valid/no-clobber publication, same-length foreign final-destination replacement, permissive-`umask(000)` Unix first visibility, Windows parent-DACL inheritance, source growth/truncation, wrong magic, Tauri publication/deletion wiring, Windows post-close stage replacement, Windows late-stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, Unix replacement before the second descriptor-relative identity check, and removal classification for existing-root absent child, missing workspace, regular file, directory, and Unix symlink states.
+**Test points.** Native tests cover valid/no-clobber publication, same-length foreign final-destination replacement, permissive-`umask(000)` Unix first visibility, Windows parent-DACL inheritance, source growth/truncation, wrong magic, Tauri publication/deletion wiring, Windows post-close stage replacement, Windows late-stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, Unix replacement before the second descriptor-relative identity check, removal classification for existing-root absent child/missing workspace/regular/directory/Unix symlink states, and successful-publication fresh-process restart/readback with successful-path stage-alias retirement.
 
 ## Remaining risk / claim boundary
 
-This work does not prove packaged-app crash or power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, buyer-visible detach/project lifecycle, cancellation/orphan acceptance, restart/readback, and #970 workspace reconciliation remain open. The Windows file-level inheritance contract must be re-run if #970 changes parent-directory ACL authority.
+This work does not prove packaged-app crash or power-loss durability and does not make Score Storage part of Project Persistence. Parent-directory durability, project deletion semantics, buyer-visible detach/project lifecycle, cancellation/interruption orphan acceptance, and #970 workspace reconciliation remain open. The Windows file-level inheritance contract must be re-run if #970 changes parent-directory ACL authority.
+
+Successful-publication restart/readback is now covered at the native process boundary. It does not prove that an interrupted writer leaves no stage file, that a later process can safely distinguish an orphan from an active writer, or that cancellation/disk-full/power-loss recovery is complete.
 
 A successful final publication attests that the pathname resolves to the synchronized stage object at that instant; it does not make the name immutable afterward. A later same-user/local replacement belongs to read/path authority.
 
