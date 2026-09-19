@@ -73,3 +73,98 @@ fn existing_project_overwrite_strips_executable_bits() {
     assert_eq!(mode, 0o644, "project data must not retain executable bits");
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
+
+#[cfg(unix)]
+#[test]
+fn new_project_and_recovery_journal_remain_owner_private_with_permissive_umask() {
+    use std::{
+        fs,
+        os::raw::c_uint,
+        os::unix::fs::PermissionsExt,
+        process::Command,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    const CHILD_ENV: &str = "BANDSCOPE_PROJECT_PRIVATE_MODE_CHILD";
+    const TEST_NAME: &str =
+        "permissions::new_project_and_recovery_journal_remain_owner_private_with_permissive_umask";
+
+    if std::env::var_os(CHILD_ENV).is_none() {
+        let output = Command::new(std::env::current_exe().expect("test executable should resolve"))
+            .args(["--exact", TEST_NAME, "--nocapture"])
+            .env(CHILD_ENV, "1")
+            .output()
+            .expect("isolated permissive-umask child should launch");
+        assert!(
+            output.status.success(),
+            "permissive-umask child failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return;
+    }
+
+    extern "C" {
+        fn umask(mask: c_uint) -> c_uint;
+    }
+
+    unsafe {
+        umask(0);
+    }
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "bandscope-project-private-mode-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).expect("test directory should be created");
+
+    let new_target = root.join("new-private.bscope");
+    project_persistence::publish_new_project_file(&new_target, br#"{\"id\":\"private-new\"}"#)
+        .expect("new project should publish under a permissive process umask");
+    let new_mode = fs::metadata(&new_target)
+        .expect("new project should be readable")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        new_mode, 0o600,
+        "new durable project data must default to owner-only permissions"
+    );
+
+    let existing_target = root.join("existing.bscope");
+    let stage = root.join(format!(
+        ".bandscope-stage-{}.stage",
+        uuid::Uuid::new_v4()
+    ));
+    fs::write(&existing_target, br#"{\"id\":\"known-good\"}"#)
+        .expect("known-good project should be written");
+    fs::write(&stage, br#"{\"id\":\"candidate\"}"#)
+        .expect("candidate stage should be written");
+    let expected = project_persistence::project_file_identity(&existing_target)
+        .expect("known-good identity should be readable");
+    let candidate = project_persistence::project_file_identity(&stage)
+        .expect("candidate identity should be readable");
+    let journal = project_persistence::create_publication_journal_for_test(
+        &existing_target,
+        &stage,
+        &stage,
+        &expected,
+        &candidate,
+    )
+    .expect("recovery journal should be created");
+    let journal_mode = fs::metadata(&journal)
+        .expect("recovery journal should be readable")
+        .permissions()
+        .mode()
+        & 0o777;
+    assert_eq!(
+        journal_mode, 0o600,
+        "recovery metadata must default to owner-only permissions"
+    );
+
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
