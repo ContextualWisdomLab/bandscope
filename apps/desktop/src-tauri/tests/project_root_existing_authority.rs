@@ -1,6 +1,30 @@
 #[path = "../src/project_root.rs"]
 mod project_root;
 
+#[test]
+fn ordinary_app_local_base_provisions_one_new_project_root_without_reuse() {
+    use std::fs;
+
+    let test_root = std::env::temp_dir().join(format!(
+        "bandscope-project-root-provisioning-positive-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let base_root = test_root.join("app-local").join("BandScope");
+    let project_id = "project-1-1";
+
+    let created = project_root::provision_new_project_root(&base_root, project_id)
+        .expect("ordinary missing app-local components should be provisioned");
+    assert_eq!(created, base_root.join(project_id));
+    assert!(created.is_dir(), "new project root should be a real directory");
+    assert!(
+        project_root::provision_new_project_root(&base_root, project_id).is_err(),
+        "new-project provisioning must not silently reuse an existing project root"
+    );
+
+    fs::remove_dir_all(&test_root).expect("test directory should be removable");
+}
+
 #[cfg(unix)]
 #[test]
 fn linked_app_local_base_cannot_authorize_a_project_root() {
