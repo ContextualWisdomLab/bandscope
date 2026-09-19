@@ -17,7 +17,8 @@ fn unique_temp_dir(label: &str) -> std::path::PathBuf {
 #[test]
 fn removal_resolution_returns_none_only_for_an_absent_entry() {
     let scores_root = unique_temp_dir("missing");
-    let result = resolve_score_pdf_for_removal(&scores_root, "score-missing")
+    let score_id = "11111111-1111-4111-8111-111111111111";
+    let result = resolve_score_pdf_for_removal(&scores_root, score_id)
         .expect("genuinely absent score should be an idempotent removal");
     assert!(result.is_none());
     fs::remove_dir_all(scores_root).expect("retention test root should be removed");
@@ -26,7 +27,7 @@ fn removal_resolution_returns_none_only_for_an_absent_entry() {
 #[test]
 fn removal_resolution_returns_the_existing_regular_score() {
     let scores_root = unique_temp_dir("regular");
-    let score_id = "score-regular";
+    let score_id = "22222222-2222-4222-8222-222222222222";
     let path = scores_root.join(format!("{score_id}.pdf"));
     fs::write(&path, b"%PDF-retention").expect("score fixture should be written");
 
@@ -41,7 +42,7 @@ fn removal_resolution_returns_the_existing_regular_score() {
 #[test]
 fn removal_resolution_rejects_a_directory_instead_of_reporting_absent() {
     let scores_root = unique_temp_dir("directory");
-    let score_id = "score-directory";
+    let score_id = "33333333-3333-4333-8333-333333333333";
     fs::create_dir(scores_root.join(format!("{score_id}.pdf")))
         .expect("directory fixture should be created");
 
@@ -57,7 +58,7 @@ fn removal_resolution_rejects_a_symlink_instead_of_reporting_absent() {
     let scores_root = unique_temp_dir("symlink");
     let target = scores_root.join("foreign.pdf");
     fs::write(&target, b"%PDF-foreign").expect("foreign score fixture should be written");
-    let score_id = "score-symlink";
+    let score_id = "44444444-4444-4444-8444-444444444444";
     symlink(&target, scores_root.join(format!("{score_id}.pdf")))
         .expect("symlink fixture should be created");
 
