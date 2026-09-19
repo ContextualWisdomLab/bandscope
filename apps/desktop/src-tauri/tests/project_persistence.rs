@@ -35,6 +35,8 @@ mod parent_swap;
 mod parent_symlink;
 #[path = "project_persistence_permissions.case"]
 mod permissions;
+#[path = "project_persistence_process_kill.case"]
+mod process_kill;
 #[path = "project_persistence_published_recovery_content_cas.case"]
 mod published_recovery_content_cas;
 #[path = "project_persistence_read_identity.case"]
