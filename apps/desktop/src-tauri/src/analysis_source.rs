@@ -3,10 +3,37 @@ use bandscope_desktop_core::{
     re_admit_local_audio_publication_from_project_root,
     LocalAudioPublicationIdentity, ProjectBootstrapSummaryPayload,
 };
-use std::{io::Read, path::Path};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::Path,
+};
 
 const ANALYSIS_SOURCE_NOT_FOUND: &str =
     "Analysis job source was not found. Choose local audio again.";
+
+/// Create one non-clobbering local-audio stage without widening Unix permissions through umask.
+///
+/// Security Notes: the stage path is already constrained to a validated app-owned project root by
+/// the caller. Unix requests owner-only mode `0600` at creation so a permissive inherited process
+/// umask cannot make the raw rehearsal audio group/world accessible before publication. Non-Unix
+/// platforms retain native ACL inheritance. This function creates only the single requested file;
+/// it does not acquire source-path authority, publish/replace a destination, or change Resource
+/// Admission size/content semantics.
+#[cfg(unix)]
+pub(crate) fn create_private_local_audio_stage(path: &Path) -> std::io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true).mode(0o600);
+    options.open(path)
+}
+
+/// Create one non-clobbering local-audio stage while preserving native ACL inheritance.
+#[cfg(not(unix))]
+pub(crate) fn create_private_local_audio_stage(path: &Path) -> std::io::Result<File> {
+    File::create_new(path)
+}
 
 /// Re-establish current app-owned source bytes immediately before analysis dispatch.
 ///
