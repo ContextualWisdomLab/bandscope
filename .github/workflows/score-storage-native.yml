@@ -10,8 +10,8 @@ on:
       - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/score_pdf.rs"
-      - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_recovery.rs"
+      - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_storage.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
@@ -26,8 +26,8 @@ on:
       - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/score_pdf.rs"
-      - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_recovery.rs"
+      - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_storage.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
@@ -59,10 +59,14 @@ jobs:
       - name: Install Rust 1.97.1
         run: rustup toolchain install 1.97.1 --profile minimal
       - name: Run owned Score Storage unit tests
-        run: >-
-          cargo +1.97.1 test
-          --manifest-path apps/desktop/core/Cargo.toml
-          --lib score_storage::tests::
+        shell: bash
+        run: |
+          cargo +1.97.1 test \
+            --manifest-path apps/desktop/core/Cargo.toml \
+            --lib score_storage::tests::
+          cargo +1.97.1 test \
+            --manifest-path apps/desktop/core/Cargo.toml \
+            --lib score_recovery::tests::
       - name: Run Score Storage publication, retention, interruption, restart, and wiring regressions
         run: >-
           cargo +1.97.1 test
