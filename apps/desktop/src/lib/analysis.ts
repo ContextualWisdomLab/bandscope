@@ -387,10 +387,13 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
  * source evidence fails before persistence IPC. When the caller owns an already-
  * minted project aggregate, it may pass only that project id; Tauri resolves the
  * retained publication identity and injects the path-free reference natively.
+ * `workspace=true` selects the app-owned crash-safe snapshot instead of opening
+ * a user-facing Save As dialog.
  */
 export async function saveProjectDocument(
   projectDocument: ProjectDocument,
-  projectId?: string
+  projectId?: string,
+  workspace = false
 ): Promise<void> {
   const parsedDocument = parseProjectDocument(projectDocument);
   if (parsedDocument.sourceReference) {
@@ -398,7 +401,8 @@ export async function saveProjectDocument(
   }
   await invokeAnalysis("save_project", {
     payload: parsedDocument,
-    ...(projectId === undefined ? {} : { projectId })
+    ...(projectId === undefined ? {} : { projectId }),
+    ...(workspace ? { workspace: true } : {})
   });
 }
 
@@ -412,9 +416,14 @@ export async function loadProjectDocument(): Promise<ProjectDocument> {
 export async function saveProject(
   song: RehearsalSong,
   selectedPlaybackSource: SelectedPlaybackSource = "full_mix",
-  projectId?: string
+  projectId?: string,
+  workspace = false
 ): Promise<void> {
-  await saveProjectDocument(createProjectDocument(song, selectedPlaybackSource), projectId);
+  await saveProjectDocument(
+    createProjectDocument(song, selectedPlaybackSource),
+    projectId,
+    workspace
+  );
 }
 
 /** Compatibility load for existing song-only consumers while mounted reopen composition remains separate work. */
