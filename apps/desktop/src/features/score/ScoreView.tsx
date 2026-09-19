@@ -18,8 +18,12 @@ export interface ScoreViewProps {
    * disabled without it.
    */
   projectId: string | null;
-  /** Callback receiving the song with updated `scoreAttachments` metadata. */
-  onSongUpdate: (song: RehearsalSong) => void;
+  /**
+   * Commit updated song metadata. Async owners may return `false` when the
+   * project snapshot was not durably accepted; legacy synchronous owners may
+   * return `void`, which remains an accepted update for backward compatibility.
+   */
+  onSongUpdate: (song: RehearsalSong) => void | boolean | Promise<void | boolean>;
 }
 
 /**
@@ -77,9 +81,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   };
 
   /**
-   * Attach a new score PDF via the native picker and open it. The attach
-   * control is disabled while `isAttaching`, so overlapping attaches cannot be
-   * started; the active project id is supplied by the enabled control.
+   * Attach a new score PDF via the native picker and open it only after the
+   * owning project metadata accepts the attachment. A rejected async metadata
+   * commit deliberately leaves the already-published PDF as a recovery
+   * candidate rather than deleting buyer bytes without lifecycle authority.
    */
   const handleAttach = async (activeProjectId: string) => {
     setError(null);
@@ -87,16 +92,28 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     try {
       const result = await attachScorePdf(activeProjectId, song.id);
       const attachment: ScoreAttachment = { id: result.id, fileName: result.fileName };
-      onSongUpdate({ ...song, scoreAttachments: [...attachments, attachment] });
-      setIsAttaching(false);
+      const accepted = await onSongUpdate({
+        ...song,
+        scoreAttachments: [...attachments, attachment]
+      });
+      if (accepted === false) {
+        return;
+      }
       await openAttachment(activeProjectId, attachment);
     } catch (attachError) {
-      setIsAttaching(false);
       setError(bridgeErrorDetail(attachError, t("scoreAttachFailed")));
+    } finally {
+      setIsAttaching(false);
     }
   };
 
-  /** Remove an attachment after confirmation (metadata and stored copy). */
+  /**
+   * Detach metadata before destructive byte deletion. If the project owner
+   * rejects the metadata commit, the stored PDF remains intact and referenced.
+   * Once metadata is accepted, a later storage-delete failure can leave an
+   * unreferenced recovery/cleanup candidate but cannot create a durable project
+   * reference to bytes that this interaction already deleted.
+   */
   const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
     const confirmed = window.confirm(
       t("scoreRemoveConfirm").replace("{fileName}", attachment.fileName)
@@ -106,17 +123,20 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     }
     setError(null);
     try {
-      await removeScorePdf(activeProjectId, attachment.id);
-      onSongUpdate({
+      const accepted = await onSongUpdate({
         ...song,
         scoreAttachments: attachments.filter((entry) => entry.id !== attachment.id)
       });
+      if (accepted === false) {
+        return;
+      }
       if (selected?.id === attachment.id) {
         readRequestRef.current += 1;
         setSelected(null);
         setPdfBytes(null);
         setIsOpening(false);
       }
+      await removeScorePdf(activeProjectId, attachment.id);
     } catch (removeError) {
       setError(bridgeErrorDetail(removeError, t("scoreRemoveFailed")));
     }
