@@ -28,3 +28,8 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+
+## 2024-08-01 - Prevent Log Forging / Injection
+**Vulnerability:** Untrusted user input (e.g., file paths, filenames) was logged directly using f-strings or without proper sanitization, which allows attackers to inject malicious log entries (like newlines) to forge log records.
+**Learning:** Python logging should always use deferred string interpolation (e.g., `%s` formatting) rather than f-strings. Additionally, untrusted inputs must be wrapped with `repr()` before being passed to the logger to escape control characters.
+**Prevention:** Use parameterized formatting (`logger.info("msg %s", repr(var))`) consistently for all log statements containing external inputs.
