@@ -61,10 +61,11 @@ jobs:
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
           --lib score_storage::tests::
-      - name: Run Score Storage publication, retention, and wiring regressions
+      - name: Run Score Storage publication, retention, restart, and wiring regressions
         run: >-
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
           --test score_pdf_attachment_publication
           --test score_pdf_retention_resolution
+          --test score_pdf_restart_readback
           --test score_pdf_attachment_wiring
