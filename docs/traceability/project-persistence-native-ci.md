@@ -82,6 +82,13 @@ Warning absence is enforced at compile time rather than inferred from text logs.
 - GREEN WINDOWS `2f1d4c7a0ad07c736caf1eebed603cda3a513e16` and GREEN macOS `bb832ae049abacedbbf000b4ed7d508f5b929e02`: both native workflows invoke `--features persistence_warning_gate`, track `core/src/root.rs`, and retain the same real native test suite. No global/dependency `RUSTFLAGS` or output filtering is introduced.
 - EXACT-HEAD VERDICT: every semantic/document descendant must reacquire both native owner results under the compile-time warning gate before #1235 can be considered complete.
 
+### Warning-gate crate-root export regression
+
+- HOSTED RED exact `15d030521b598daad0fc503213921e4862cdc279`: Windows native run `35407025318`, job `105798775166`, and macOS native run `35407025272`, job `105798775295`, both fail before test execution with Rust `E0432`. `core/src/root.rs` tries to re-export `readmit_project_source_reference`, `SourceReadmissionDecision`, `SourceReadmissionFailure`, and `SourceReadmissionResult`, but `source_readmission.rs` owns `re_admit_local_audio_publication`, `re_admit_local_audio_publication_from_project_root`, and `ReAdmittedLocalAudioPublication`. `build-baseline` run `35407025301` independently fails the native shell build for the same unresolved imports, so this is a source regression rather than a dedicated-workflow artifact.
+- RCA: the warning-gate crate-root edit at `e0ead7d5ed05ed82d337ceee59914d0f0da1b130` did not preserve the already-established source-readmission export contract visible in its parent `a2d8c74b5e7862b42381dbe24c5bfe3c3a659c31`. The intervening API was read and restored; the concurrent history is not treated as a race.
+- GREEN SOURCE `269db5b726bdeb98f08498daae58c62824268d0a`: restores only the existing `re_admit_*` functions and `ReAdmittedLocalAudioPublication` crate-root exports while retaining the feature-gated `deny(warnings)`, migration receipt/preparation exports, private module boundary, and downstream analysis-source contract. No Resource Admission implementation is copied and no visibility is widened.
+- EXACT-HEAD VERDICT: this source repair is not terminal evidence. Windows/macOS warning-gated native jobs, build-baseline, and other applicable gates must materialize and finish on the final descendant; predecessor success is not transferred.
+
 ## Rejected alternatives
 
 `build-baseline` alone is insufficient because it does not execute platform-specific persistence/recovery tests.
@@ -101,6 +108,8 @@ Generating copied test source with a build script/codemod is rejected because it
 Keeping the macOS alias helper alive on Windows merely because `cfg(test)` is set is rejected; the mapping is a macOS policy and has no Windows semantic consumer. Keeping the String-only reader in production merely to silence diagnostics is also rejected; production migration authority is intentionally identity-bearing.
 
 `RUSTFLAGS=-Dwarnings` is rejected because it is process-global to the Cargo invocation and also changes dependency compilation. Grep/log parsing is rejected because it treats rendered output as the contract. The feature-gated crate/harness attributes make warning absence a Rust compile-time property of the owned Project Persistence boundaries instead.
+
+Reintroducing the stale `SourceReadmission*` API names or manufacturing compatibility aliases merely to satisfy `root.rs` is rejected. The actual source-readmission owner and its downstream consumers already use the `re_admit_*` contract; the causal fix is to restore the crate root to that contract, not create a second API surface.
 
 ## Claim boundary
 
