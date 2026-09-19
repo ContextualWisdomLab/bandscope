@@ -657,7 +657,6 @@ fn select_local_audio_source(
         source,
     };
     store_bootstrap_source(&state, summary.clone());
-
     Ok(summary)
 }
 
@@ -784,11 +783,11 @@ fn scores_root_for_project<R: Runtime>(
     Ok(root)
 }
 
-/// Security Notes: the file path comes exclusively from the OS file dialog
-/// (never from JS), is validated (magic bytes, size, extension, no symlink),
-/// and is copied into the app-owned scores directory. The stored copy is named
-/// by a locally minted UUID v4, so no untrusted external path is ever
-/// referenced again after this command returns.
+/// Security Notes: the selected path comes only from the OS file dialog and is
+/// admitted as a bounded, non-symlink PDF before publication. Score Storage
+/// reopens that source once, copies only the descriptor-length snapshot into a
+/// private staging file, rejects growth/truncation, and publishes without
+/// replacing an existing score id. No local path or PDF bytes cross IPC.
 #[tauri::command]
 fn attach_score_pdf(
     project_id: String,
@@ -808,13 +807,11 @@ fn attach_score_pdf(
         .add_filter("PDF Score", &["pdf"])
         .pick_file()
         .ok_or_else(|| "Choose a PDF file to attach as a score.".to_string())?;
-    let (source, file_name, file_size_bytes) = validate_score_pdf_source(&path)?;
+    let (source, file_name, _validated_file_size_bytes) = validate_score_pdf_source(&path)?;
 
     let scores_root = scores_root_for_project(&app, &project_id)?;
     let score_id = uuid::Uuid::new_v4().to_string();
-    let destination = scores_root.join(format!("{score_id}.pdf"));
-    std::fs::copy(&source, &destination)
-        .map_err(|_| "Could not copy the PDF into the project workspace.".to_string())?;
+    let file_size_bytes = publish_score_pdf_attachment(&source, &scores_root, &score_id)?;
 
     Ok(ScoreAttachmentPayload {
         score_id,
@@ -826,7 +823,9 @@ fn attach_score_pdf(
 /// Security Notes: no path crosses the IPC boundary. Both ids are validated
 /// against strict allowlist shapes, the path is rebuilt locally, and the
 /// canonicalize-plus-prefix guard in `resolve_existing_score_pdf` rejects any
-/// escape from the app-owned scores root.
+/// escape from the app-owned scores root. The resolved file is then read
+/// through the bounded core helper so growth after attachment cannot trigger
+/// an allocation beyond the 25 MiB product limit.
 #[tauri::command]
 fn read_score_pdf(
     project_id: String,
@@ -838,12 +837,14 @@ fn read_score_pdf(
     }
     let scores_root = scores_root_for_project(&app, &project_id)?;
     let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
-    std::fs::read(path).map_err(|_| "Could not read the score PDF.".to_string())
+    read_validated_score_pdf(&path)
 }
 
-/// Security Notes: same id validation and traversal guard as `read_score_pdf`;
-/// deletion is scoped to a single validated file inside the app-owned scores
-/// root. Returns `false` when the score does not exist (idempotent removal).
+/// Security Notes: same id validation and traversal guard as `read_score_pdf`.
+/// Score Storage owns the final deletion authority: Windows marks the opened
+/// file object for deletion by handle; Unix pins the parent directory and
+/// revalidates device/inode before descriptor-relative `unlinkat`.
+/// Returns `false` when the score does not exist (idempotent removal).
 #[tauri::command]
 fn remove_score_pdf(
     project_id: String,
@@ -861,7 +862,7 @@ fn remove_score_pdf(
         Ok(path) => path,
         Err(_) => return Ok(false),
     };
-    std::fs::remove_file(path).map_err(|_| "Could not remove the score PDF.".to_string())?;
+    remove_score_pdf_attachment(&path)?;
     Ok(true)
 }
 
