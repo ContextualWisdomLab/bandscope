@@ -13,8 +13,6 @@ const FIRST_SAVE_MAX_PROJECT_FILE_BYTES: usize = 5 * 1024 * 1024;
 const FIRST_SAVE_EXISTS_ERROR: &str = "Project file already exists. Choose a new file name.";
 const FIRST_SAVE_STAGE_ERROR: &str = "Could not stage the project safely.";
 const FIRST_SAVE_PUBLISH_ERROR: &str = "Could not publish the project safely.";
-const RECOVERY_AMBIGUITY_ERROR: &str = "Could not recover the project publication safely.";
-const RECOVERY_JOURNAL_PROBE_MAX_BYTES: usize = 64 * 1024;
 
 fn first_save_parent(target: &Path) -> &Path {
     match target.parent() {
@@ -238,100 +236,6 @@ fn first_save_flush_target(
     _expected: &FirstSaveIdentity,
 ) -> Result<(), String> {
     Ok(())
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
-#[cfg(unix)]
-type RecoveryJournalPathName = Vec<u8>;
-
-#[cfg(windows)]
-type RecoveryJournalPathName = Vec<u16>;
-
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
-#[derive(serde::Deserialize)]
-struct RecoveryAuthorityProbe {
-    version: u8,
-    candidate_name: RecoveryJournalPathName,
-    displaced_name: RecoveryJournalPathName,
-    expected: engine::ProjectFileIdentity,
-    candidate: engine::ProjectFileIdentity,
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn recovery_path_from_name(parent: &Path, name: &RecoveryJournalPathName) -> Option<PathBuf> {
-    #[cfg(unix)]
-    let relative = {
-        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
-        PathBuf::from(OsStr::from_bytes(name))
-    };
-    #[cfg(windows)]
-    let relative = {
-        use std::{ffi::OsString, os::windows::ffi::OsStringExt};
-        PathBuf::from(OsString::from_wide(name))
-    };
-
-    let mut components = relative.components();
-    match (components.next(), components.next()) {
-        (Some(std::path::Component::Normal(_)), None) => Some(parent.join(relative)),
-        _ => None,
-    }
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn prepared_recovery_target_is_ambiguous(target: &Path) -> Result<bool, String> {
-    let parent = first_save_parent(target);
-    let prepared = parent.join(format!(
-        ".bandscope-recovery-{}.prepared.journal",
-        engine::journal_target_key(target).map_err(|_| RECOVERY_AMBIGUITY_ERROR.to_string())?
-    ));
-    match fs::symlink_metadata(&prepared) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(_) => return Err(RECOVERY_AMBIGUITY_ERROR.to_string()),
-        Ok(_) => {}
-    }
-
-    let snapshot = engine::read_project_file_with_identity(&prepared)
-        .map_err(|_| RECOVERY_AMBIGUITY_ERROR.to_string())?;
-    if snapshot.content().len() > RECOVERY_JOURNAL_PROBE_MAX_BYTES {
-        return Err(RECOVERY_AMBIGUITY_ERROR.to_string());
-    }
-    let probe: RecoveryAuthorityProbe = serde_json::from_str(snapshot.content())
-        .map_err(|_| RECOVERY_AMBIGUITY_ERROR.to_string())?;
-    if probe.version != 2 {
-        return Ok(false);
-    }
-    let Some(candidate_path) = recovery_path_from_name(parent, &probe.candidate_name) else {
-        return Ok(false);
-    };
-    let Some(displaced_path) = recovery_path_from_name(parent, &probe.displaced_name) else {
-        return Ok(false);
-    };
-    let Ok(target_identity) = engine::project_file_identity(target) else {
-        return Ok(false);
-    };
-    if target_identity == probe.expected || target_identity == probe.candidate {
-        return Ok(false);
-    }
-    let candidate_is_preserved = engine::project_file_identity(&candidate_path)
-        .is_ok_and(|identity| identity == probe.candidate);
-    if !candidate_is_preserved {
-        return Ok(false);
-    }
-    let rollback_artifact_consumed = displaced_path == candidate_path
-        || matches!(fs::symlink_metadata(&displaced_path), Err(error) if error.kind() == std::io::ErrorKind::NotFound);
-    Ok(rollback_artifact_consumed)
-}
-
-/// Repairs one target-scoped publication journal without treating an unrecorded third target
-/// identity as proof that rollback completed. A concurrent occupant restored by the live writer is
-/// safe to keep, but after a crash the v2 journal does not persist that occupant's native identity;
-/// candidate and journal evidence therefore remain until recovery authority is unambiguous.
-pub(crate) fn recover_project_publication(target: &Path) -> Result<(), String> {
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-    if prepared_recovery_target_is_ambiguous(target)? {
-        return Err(RECOVERY_AMBIGUITY_ERROR.to_string());
-    }
-    engine::recover_project_publication(target)
 }
 
 /// Executes the single first-save publication state machine with injectable native boundaries.
