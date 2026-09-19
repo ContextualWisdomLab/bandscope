@@ -866,7 +866,7 @@ fn start_analysis_job(
         updated_at: requested_at.clone(),
         progress_label: Some("Queued for analysis".into()),
         progress_stage: Some(AnalysisJobStage::Queued),
-        progress_percent: Some(10),
+        progress_percent: Some(0),
         cache_status: Some(AnalysisCacheStatus::Disabled),
         result: None,
         error: None,
