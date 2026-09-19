@@ -423,26 +423,15 @@ pub fn remove_score_pdf_attachment(path: &Path) -> Result<(), String> {
     remove_score_pdf_attachment_with_hook(path, || {})
 }
 
-/// Publish one validated score PDF into the app-owned score workspace.
-///
-/// The source is reopened once and copied from that descriptor with a fixed
-/// 25 MiB ceiling. The descriptor length is snapshotted before copy; early EOF
-/// and an extra byte after the snapshot both fail closed, so truncation or
-/// growth cannot silently change the accepted resource. The staging file is
-/// created with `create_new`; Unix requests mode `0600` at first visibility,
-/// while Windows deliberately inherits the app-owned parent ACL. Publication
-/// uses a hard link so an existing `<score_id>.pdf` is never replaced.
-///
-/// Security Notes: errors never include the source path or PDF bytes. Unix
-/// cleanup compares device/inode identity captured from the open stage. Windows
-/// opens the exact stage object with DELETE authority, verifies its volume plus
-/// 128-bit file id against the captured identity, then marks that same handle
-/// for deletion so a late pathname replacement cannot redirect cleanup.
-pub fn publish_score_pdf_attachment(
+fn publish_score_pdf_attachment_with_hook<F>(
     source: &Path,
     scores_root: &Path,
     score_id: &str,
-) -> Result<u64, String> {
+    after_link: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(&Path, &Path),
+{
     if !is_valid_score_id(score_id) {
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
@@ -497,6 +486,8 @@ pub fn publish_score_pdf_attachment(
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
+    after_link(&stage, &destination);
+
     let destination_metadata =
         fs::metadata(&destination).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
     if !destination_metadata.is_file() || destination_metadata.len() != written {
@@ -508,6 +499,29 @@ pub fn publish_score_pdf_attachment(
 
     remove_owned_stage(&stage, expected_stage)?;
     Ok(written)
+}
+
+/// Publish one validated score PDF into the app-owned score workspace.
+///
+/// The source is reopened once and copied from that descriptor with a fixed
+/// 25 MiB ceiling. The descriptor length is snapshotted before copy; early EOF
+/// and an extra byte after the snapshot both fail closed, so truncation or
+/// growth cannot silently change the accepted resource. The staging file is
+/// created with `create_new`; Unix requests mode `0600` at first visibility,
+/// while Windows deliberately inherits the app-owned parent ACL. Publication
+/// uses a hard link so an existing `<score_id>.pdf` is never replaced.
+///
+/// Security Notes: errors never include the source path or PDF bytes. Unix
+/// cleanup compares device/inode identity captured from the open stage. Windows
+/// opens the exact stage object with DELETE authority, verifies its volume plus
+/// 128-bit file id against the captured identity, then marks that same handle
+/// for deletion so a late pathname replacement cannot redirect cleanup.
+pub fn publish_score_pdf_attachment(
+    source: &Path,
+    scores_root: &Path,
+    score_id: &str,
+) -> Result<u64, String> {
+    publish_score_pdf_attachment_with_hook(source, scores_root, score_id, |_, _| {})
 }
 
 #[cfg(test)]
@@ -576,6 +590,42 @@ mod tests {
         remove_score_pdf_attachment(&target).expect("authorized score should be removed");
 
         assert!(!target.exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn publication_rejects_same_length_foreign_destination_replacement() {
+        const SCORE_ID: &str = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
+
+        let root = unique_test_dir("score-publication-identity");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let source = root.join("selected.pdf");
+        let moved = root.join("owned-published.pdf");
+        fs::write(&source, b"%PDF-owned").expect("score fixture should be written");
+
+        let error = publish_score_pdf_attachment_with_hook(
+            &source,
+            &root,
+            SCORE_ID,
+            |_, destination| {
+                fs::rename(destination, &moved)
+                    .expect("published owned link should move before attestation");
+                fs::write(destination, b"%PDF-other")
+                    .expect("same-length foreign replacement should be written");
+            },
+        )
+        .expect_err("same-length foreign destination must fail identity attestation");
+
+        assert_eq!(error, SCORE_ATTACH_ERROR);
+        assert_eq!(
+            fs::read(root.join(format!("{SCORE_ID}.pdf")))
+                .expect("foreign replacement should remain as evidence"),
+            b"%PDF-other"
+        );
+        assert_eq!(
+            fs::read(&moved).expect("owned publication should remain preserved"),
+            b"%PDF-owned"
+        );
         let _ = fs::remove_dir_all(root);
     }
 
