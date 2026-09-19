@@ -124,6 +124,42 @@ describe("App local-audio save authority", () => {
     promptSpy.mockRestore();
   });
 
+  it("does not let overlapping renderer mutations persist concurrently or overwrite a newer accepted revision", async () => {
+    let releaseFirstPersist: (() => void) | undefined;
+    mockSaveProject.mockImplementationOnce(
+      () => new Promise<void>((resolve) => {
+        releaseFirstPersist = resolve;
+      })
+    );
+    const promptSpy = vi
+      .spyOn(window, "prompt")
+      .mockReturnValueOnce("Dbmaj7")
+      .mockReturnValueOnce("Emaj7");
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText("source.wav")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => expect(screen.getAllByText("C#m7", { selector: "button" }).length).toBeGreaterThan(0));
+
+    const originalChord = screen.getAllByText("C#m7", { selector: "button" })[0]!;
+    fireEvent.click(originalChord);
+    fireEvent.click(originalChord);
+
+    await waitFor(() => expect(mockSaveProject).toHaveBeenCalledTimes(1));
+    expect(screen.queryAllByText("Dbmaj7").length).toBe(0);
+    expect(screen.queryAllByText("Emaj7").length).toBe(0);
+
+    releaseFirstPersist?.();
+    await waitFor(() => expect(screen.getAllByText("Dbmaj7").length).toBeGreaterThan(0));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockSaveProject).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByText("Emaj7").length).toBe(0);
+    promptSpy.mockRestore();
+  });
+
   it("keeps the previously accepted song when workspace persistence fails", async () => {
     mockSaveProject.mockRejectedValueOnce(new Error("Could not prepare the local project workspace."));
     const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
