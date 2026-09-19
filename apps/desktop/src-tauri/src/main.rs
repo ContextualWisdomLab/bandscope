@@ -784,11 +784,11 @@ fn scores_root_for_project<R: Runtime>(
     Ok(root)
 }
 
-/// Security Notes: the file path comes exclusively from the OS file dialog
-/// (never from JS), is validated (magic bytes, size, extension, no symlink),
-/// and is copied into the app-owned scores directory. The stored copy is named
-/// by a locally minted UUID v4, so no untrusted external path is ever
-/// referenced again after this command returns.
+/// Security Notes: the selected path comes only from the OS file dialog and is
+/// admitted as a bounded, non-symlink PDF before publication. Score Storage
+/// reopens that source once, copies only the descriptor-length snapshot into a
+/// private staging file, rejects growth/truncation, and publishes without
+/// replacing an existing score id. No local path or PDF bytes cross IPC.
 #[tauri::command]
 fn attach_score_pdf(
     project_id: String,
@@ -808,13 +808,11 @@ fn attach_score_pdf(
         .add_filter("PDF Score", &["pdf"])
         .pick_file()
         .ok_or_else(|| "Choose a PDF file to attach as a score.".to_string())?;
-    let (source, file_name, file_size_bytes) = validate_score_pdf_source(&path)?;
+    let (source, file_name, _validated_file_size_bytes) = validate_score_pdf_source(&path)?;
 
     let scores_root = scores_root_for_project(&app, &project_id)?;
     let score_id = uuid::Uuid::new_v4().to_string();
-    let destination = scores_root.join(format!("{score_id}.pdf"));
-    std::fs::copy(&source, &destination)
-        .map_err(|_| "Could not copy the PDF into the project workspace.".to_string())?;
+    let file_size_bytes = publish_score_pdf_attachment(&source, &scores_root, &score_id)?;
 
     Ok(ScoreAttachmentPayload {
         score_id,
