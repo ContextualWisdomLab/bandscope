@@ -1,0 +1,63 @@
+name: score-storage-native
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/root.rs"
+      - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/src/score_pdf.rs"
+      - "apps/desktop/core/src/score_storage.rs"
+      - "apps/desktop/core/tests/score_pdf_*.rs"
+      - "apps/desktop/src-tauri/src/main.rs"
+      - "docs/traceability/score-attachment-publication.md"
+      - ".github/workflows/score-storage-native.yml"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/root.rs"
+      - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/src/score_pdf.rs"
+      - "apps/desktop/core/src/score_storage.rs"
+      - "apps/desktop/core/tests/score_pdf_*.rs"
+      - "apps/desktop/src-tauri/src/main.rs"
+      - "docs/traceability/score-attachment-publication.md"
+      - ".github/workflows/score-storage-native.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-score-storage:
+    name: test / score-storage / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-15
+          - platform: windows
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Run score storage regressions
+        run: >-
+          cargo +1.97.1 test
+          --manifest-path apps/desktop/core/Cargo.toml
+          --lib
+          --test score_pdf_attachment_publication
+          --test score_pdf_attachment_wiring
