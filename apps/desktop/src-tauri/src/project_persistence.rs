@@ -619,15 +619,21 @@ fn journal_path_name(path: &Path) -> Result<JournalPathName, String> {
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn path_from_journal_name(parent: &Path, name: &JournalPathName) -> Option<PathBuf> {
     #[cfg(unix)]
-    {
+    let relative = {
         use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
-        Some(parent.join(OsStr::from_bytes(name)))
-    }
+        PathBuf::from(OsStr::from_bytes(name))
+    };
     #[cfg(windows)]
-    {
+    let relative = {
         use std::ffi::OsString;
         use std::os::windows::ffi::OsStringExt;
-        Some(parent.join(OsString::from_wide(name)))
+        PathBuf::from(OsString::from_wide(name))
+    };
+
+    let mut components = relative.components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(_)), None) => Some(parent.join(relative)),
+        _ => None,
     }
 }
 
