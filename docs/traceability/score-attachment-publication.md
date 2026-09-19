@@ -42,15 +42,16 @@ On Windows, cleanup opens the stage with `DELETE | FILE_READ_ATTRIBUTES`, `FILE_
 - Unix pins the parent directory, opens the score basename with `openat(..., O_NOFOLLOW)`, captures device/inode, reopens under the same parent descriptor immediately before `unlinkat`, and fails closed if identity changed.
 - Portable POSIX `unlinkat` removes a directory entry rather than an arbitrary already-open object. Parent pinning removes ancestor substitution but not the final identity-check-to-`unlinkat` basename race.
 
-`resolve_score_pdf_for_removal` now owns the missing-versus-unsafe classification before deletion:
+`resolve_score_pdf_for_removal` owns the missing-versus-unsafe classification before deletion:
 
 - validate the score id before joining a local name;
+- require the supplied scores workspace itself to exist as a directory before interpreting any child `NotFound`; broader app-owned workspace/link authority remains Project Persistence #970;
 - inspect the exact `<score_id>.pdf` directory entry with `symlink_metadata`;
-- return `Ok(None)` only when that lookup itself reports `ErrorKind::NotFound`;
+- return `Ok(None)` only when that child lookup reports `ErrorKind::NotFound` under the existing workspace;
 - once an entry is observed, delegate to the existing `resolve_existing_score_pdf` authority and convert any symlink, non-regular, canonicalization, containment, permission, concurrent-disappearance, or other validation failure into a removal error;
 - return `Some(path)` only for an authorized existing score.
 
-The Tauri command therefore returns `false` only for an observed absent directory entry. Unsafe or indeterminate storage remains an error, so buyer metadata is not silently discarded while the file is still present or unverified. This is an absence observation, not a durable non-existence guarantee: another same-user/local actor can create the pathname after `NotFound` and before metadata changes.
+The Tauri command therefore returns `false` only for an observed absent child under an existing score workspace. Unsafe or indeterminate storage remains an error, so buyer metadata is not silently discarded while the file is still present or unverified. This is an absence observation, not a durable non-existence guarantee: another same-user/local actor can create the pathname after `NotFound` and before metadata changes.
 
 ## Hosted findings and repairs
 
@@ -82,9 +83,11 @@ GREEN `91c240385acdc7ae5dea4a2ebd7c32db0f53953f` added platform object-identity 
 
 ### Missing versus unsafe removal resolution
 
-RED contract commit `9ba8c0b9ceeb8b6b3fbaa33fb858af9db1b9b951` introduced `score_pdf_retention_resolution` with four product states: genuinely absent entry, normal regular score, directory masquerading as a score, and Unix symlink replacement, plus a Tauri wiring assertion forbidding blanket `Err(_) => Ok(false)` handling. The then-current workflow did not execute the new retention test target, and run `35459793839` therefore completed successfully instead of providing a valid hosted RED. That workflow omission is itself repaired rather than misreported as RED evidence.
+Contract commit `9ba8c0b9ceeb8b6b3fbaa33fb858af9db1b9b951` first introduced `score_pdf_retention_resolution` for genuinely absent entries, normal regular scores, directory masquerades, Unix symlink replacement, and Tauri wiring. The workflow at that commit did not execute the new test target; run `35459793839` therefore completed successfully and is not RED evidence. The workflow omission was repaired by adding `score_pdf_retention_resolution` to the owner command and `score_retention.rs` to its path filter.
 
-The causal repair adds `resolve_score_pdf_for_removal`, exports it through the desktop core, and changes the Tauri command so only an observed `NotFound` returns `false`; unsafe or indeterminate resolution propagates an error. `score-storage-native` now explicitly runs `score_pdf_retention_resolution` and its path filter includes `score_retention.rs`, so future changes to this authority cannot silently bypass the owner lane.
+The first implementation then revealed a narrower classification bug: a missing scores workspace caused `symlink_metadata(<missing-root>/<score>.pdf)` to report `NotFound`, which was incorrectly treated as an idempotent missing attachment. RED `22749b83d9c7e6f7e3c0b5986af5802427e98d2a` requires an existing workspace before child absence can produce `None`. Exact `score-storage-native` run `35460119001` failed the retention regression on macOS job `105942349093` and Windows Server 2025 job `105942349170`; the Windows log shows all eight owned unit tests, all three publication regressions, and both existing wiring regressions passing before only `removal_resolution_rejects_a_missing_scores_root` failed.
+
+GREEN `6444f21a158a877ae402fd665469d908f8afa3a2` checks the supplied score workspace with `symlink_metadata` and requires a directory before child lookup. It deliberately does not recreate Project Persistence link/reparse policy; #970 remains the broader workspace authority. Exact run `35460197487` is terminal **SUCCESS** on macOS job `105942555476` and Windows Server 2025 job `105942555631`, including the owner unit suite and publication/retention/wiring regressions.
 
 ## Alternatives rejected
 
@@ -92,7 +95,7 @@ The causal repair adds `resolve_score_pdf_for_removal`, exports it through the d
 
 A second pathname `stat` before deletion was rejected because it only moves the race. Windows has object-bound deletion through a handle with DELETE authority. On Unix, absolute-path reopening was rejected in favor of a pinned parent descriptor plus `openat`/`unlinkat`.
 
-Treating all resolver failures as absence was rejected because filesystem corruption, permission failure, symlink/reparse substitution, containment failure, and concurrent mutation are not evidence that the attachment is gone. Error-message string matching was also rejected: the resolver intentionally uses payload-safe generic messages and strings are not a stable domain discriminator. The selected contract performs the narrow `NotFound` classification at the exact directory-entry lookup and preserves every later failure.
+Treating all resolver failures as absence was rejected because filesystem corruption, permission failure, symlink/reparse substitution, containment failure, missing workspace, and concurrent mutation are not evidence that the attachment is gone. Error-message string matching was also rejected: the resolver intentionally uses payload-safe generic messages and strings are not a stable domain discriminator. The selected contract performs the narrow child-`NotFound` classification only after the score workspace itself has been observed as a directory, then preserves every later failure.
 
 Length-only final publication checks were rejected because a same-length foreign regular file is not the staged score. Path hashing was rejected as the primary identity primitive because it still binds verification to whichever object the pathname resolves to and requires a second full PDF read. The selected contract uses OS object identity plus the descriptor-bound byte count.
 
@@ -102,13 +105,13 @@ Weakening Windows staging share mode was rejected. The write remains non-shareab
 
 **Untrusted input.** Selected PDF bytes/path and any pre-existing score destination, staging, or retention name are untrusted. File-dialog paths and PDF bytes are not echoed to the WebView in errors.
 
-**Trust boundaries.** OS-selected source → source admission → descriptor-bound Score Storage stage → no-clobber, object-identity-attested attachment. Removal is validated score id → exact directory-entry absence classification → existing in-root path authority → Score Storage OS-object deletion boundary.
+**Trust boundaries.** OS-selected source → source admission → descriptor-bound Score Storage stage → no-clobber, object-identity-attested attachment. Removal is validated score id → existing score-workspace precondition → exact child absence classification → existing in-root path authority → Score Storage OS-object deletion boundary.
 
-**Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy/sync failure, reparse/symlink/non-regular object, identity mismatch, unsafe resolution, and indeterminate I/O fail closed with path/payload-safe diagnostics. Foreign replacements are preserved in the covered final-publication, Windows object-bound cleanup, and Unix pre-`unlinkat` replacement cases.
+**Safe failure.** Oversize, truncation, growth, wrong magic, duplicate destination, copy/sync failure, reparse/symlink/non-regular object, identity mismatch, missing workspace, unsafe resolution, and indeterminate I/O fail closed with path/payload-safe diagnostics. Foreign replacements are preserved in the covered final-publication, Windows object-bound cleanup, and Unix pre-`unlinkat` replacement cases.
 
 **Privacy.** Unix publication requests `0600` at first visibility. Windows publication deliberately inherits the app-owned parent DACL and tests that inheritance directly rather than asserting POSIX equivalence.
 
-**Test points.** Native tests cover valid/no-clobber publication, same-length foreign final-destination replacement, permissive-`umask(000)` Unix first visibility, Windows parent-DACL inheritance, source growth/truncation, wrong magic, Tauri publication/deletion wiring, Windows post-close stage replacement, Windows late-stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, Unix replacement before the second descriptor-relative identity check, and removal classification for absent/regular/directory/symlink states.
+**Test points.** Native tests cover valid/no-clobber publication, same-length foreign final-destination replacement, permissive-`umask(000)` Unix first visibility, Windows parent-DACL inheritance, source growth/truncation, wrong magic, Tauri publication/deletion wiring, Windows post-close stage replacement, Windows late-stage replacement after identity acquisition, ordinary authorized deletion, Windows retention replacement after delete-handle acquisition, Unix replacement before the second descriptor-relative identity check, and removal classification for existing-root absent child, missing workspace, regular file, directory, and Unix symlink states.
 
 ## Remaining risk / claim boundary
 
@@ -116,7 +119,7 @@ This work does not prove packaged-app crash or power-loss durability and does no
 
 A successful final publication attests that the pathname resolves to the synchronized stage object at that instant; it does not make the name immutable afterward. A later same-user/local replacement belongs to read/path authority.
 
-Windows explicit removal and stage cleanup are object-bound for the tested local-filesystem contract. Unix explicit removal and Unix stage cleanup retain final basename races unless a stronger platform primitive or storage invariant is adopted. `Ok(None)` from retention resolution is likewise an observed absence, not an atomic reservation preventing subsequent creation.
+Windows explicit removal and stage cleanup are object-bound for the tested local-filesystem contract. Unix explicit removal and Unix stage cleanup retain final basename races unless a stronger platform primitive or storage invariant is adopted. `Ok(None)` from retention resolution is likewise an observed child absence under an existing workspace, not an atomic reservation preventing subsequent creation.
 
 The implementation remains stacked on #865 because write-time publication and read-time bounded validation share the score-native crate surface. #865 must integrate first. Any later restack requires fresh exact-head evidence; predecessor CI is not transferable.
 
