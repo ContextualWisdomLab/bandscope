@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-09-19 - Array.prototype.forEach overhead
+**Learning:** Array.prototype.forEach incurs a performance penalty due to function call overhead compared to standard for...of loops. This is particularly relevant in tight loops or frequently accessed memos.
+**Action:** Use standard for...of loops instead of .forEach() when iterating over arrays in performance-sensitive areas.

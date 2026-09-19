@@ -126,13 +126,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
     const map = new Map<string, RehearsalRole>();
-    song.sections.forEach(section => {
-      section.roles.forEach(role => {
+    // Performance: Avoid overhead of Array.prototype.forEach by using standard for...of loops
+    for (const section of song.sections) {
+      for (const role of section.roles) {
         if (!map.has(role.id)) {
           map.set(role.id, role);
         }
-      });
-    });
+      }
+    }
     return map;
   }, [song]);
 
