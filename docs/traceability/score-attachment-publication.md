@@ -57,6 +57,16 @@ This lease prevents another process that uses the same current Score Storage con
 
 `remove_score_pdf_attachment` then owns final object deletion. Windows marks the exact opened object for deletion with `FileDispositionInfo`. Unix pins the parent directory, opens the basename with `openat(..., O_NOFOLLOW)`, rechecks device/inode and then calls `unlinkat`; the final basename race remains explicit.
 
+## UI/application lifecycle ordering
+
+The Score view is the application-service boundary that coordinates buyer-visible attachment metadata with Score Storage bytes; it does not move either bounded context's lower-level authority into React.
+
+Attachment is necessarily a two-step operation: publish and verify the PDF first, then ask the owning project mutation callback to accept the new attachment metadata. The callback may be asynchronous. A return value of `false` means the owning Project Persistence path did not durably accept that metadata. In that case ScoreView does **not** open or otherwise present the newly published PDF as an accepted attachment, and it deliberately does not delete those bytes: the PDF is a recovery candidate until #970 supplies the durable attachment lifecycle/reconciliation contract. Legacy synchronous callbacks returning `void` remain accepted for the pre-#970 stack.
+
+Detach uses the opposite safety ordering because deletion is destructive. ScoreView first asks the project owner to accept metadata without the attachment. Only after that update is accepted does it call the Score Storage deletion boundary. A rejected metadata update therefore leaves the still-referenced PDF bytes intact. If metadata removal succeeds but byte deletion later fails, the project no longer holds a broken reference to missing bytes; the remaining file is an unreferenced cleanup/recovery candidate and the storage error is surfaced. This is intentionally preferable to deleting buyer bytes first and then discovering that durable metadata still references them.
+
+`ScoreView.persistenceOutcome.test.tsx` covers three application-level invariants: rejected attachment metadata does not trigger PDF read/open acceptance; rejected detach metadata never calls destructive removal; accepted detach invokes metadata acceptance before Score Storage deletion. This is ordering evidence only. It does not claim an atomic filesystem-plus-project transaction, restart reconciliation, multi-window serialization, or packaged crash coverage.
+
 ## Successful-publication restart/readback
 
 `score_pdf_restart_readback` publishes through the production crate-root boundary, starts a fresh native test process, resolves the stored score through `resolve_existing_score_pdf`, reads it through `read_validated_score_pdf` and requires exact bytes. The success path also requires zero `.score-*.stage` aliases after publication.
@@ -92,25 +102,27 @@ Blind `.score-*.stage` glob deletion is rejected because a live concurrent write
 
 Deleting a matching destination while recovering a stage is rejected because filesystem publication is not yet transactionally coupled to the buyer-visible attachment metadata lifecycle. A stage-plus-destination state is ambiguous and is preserved for the later lifecycle/recovery vertical.
 
+Deleting the stored PDF before the owning project accepts attachment removal is rejected because a failed metadata commit can leave a durable project pointing at bytes that the same interaction already destroyed. Detach therefore commits metadata first and treats a later delete failure as an orphan-cleanup problem instead of a broken-reference problem.
+
 `std::fs::copy`, create-then-`chmod`, process-wide `umask` mutation, overwrite publication, length-only destination checks, pathname hashing as primary identity and a second pathname `stat` before deletion remain rejected for the reasons encoded in the corresponding REDs: each leaves visibility, mutation, clobber or pathname/object identity gaps.
 
 ## Security Notes
 
 **Untrusted input.** Selected PDF bytes/path and pre-existing destination, stage, lock and retention names are untrusted. No selected PDF bytes or absolute buyer path are emitted in ordinary errors.
 
-**Trust boundaries.** OS-selected source → source admission → Score Storage workspace lease → reserved-stage recovery → descriptor-bounded private stage → no-clobber/object-identity-attested attachment. Removal remains validated score id → existing workspace precondition → exact child resolution → OS-object deletion. #970 still owns broader app-owned workspace ancestry/link authority.
+**Trust boundaries.** OS-selected source → source admission → Score Storage workspace lease → reserved-stage recovery → descriptor-bounded private stage → no-clobber/object-identity-attested attachment. Removal remains project-metadata acceptance → validated score id → existing workspace precondition → exact child resolution → OS-object deletion. #970 still owns broader app-owned workspace ancestry/link and durable project-metadata authority.
 
-**Safe failure.** Oversize, growth/truncation, wrong magic, duplicate destination, copy/sync failure, suspicious reserved stage, reparse/symlink/non-regular object, identity mismatch, lease acquisition failure, missing/indeterminate workspace, unsafe resolution and stage-plus-destination ambiguity fail closed. Recovery does not turn ambiguous lifecycle state into deletion.
+**Safe failure.** Oversize, growth/truncation, wrong magic, duplicate destination, copy/sync failure, suspicious reserved stage, reparse/symlink/non-regular object, identity mismatch, lease acquisition failure, missing/indeterminate workspace, unsafe resolution and stage-plus-destination ambiguity fail closed. Rejected project-metadata acceptance does not trigger destructive score deletion. Recovery does not turn ambiguous lifecycle state into deletion.
 
 **Privacy.** Unix stage and lock creation request `0600`. Windows deliberately consumes the parent DACL contract. The lock file contains no PDF payload. The native interruption fixture uses generated test PDF bytes only.
 
-**Test points.** Native tests cover valid/no-clobber publication, same-length destination replacement, Unix permissive-umask privacy, Windows parent-DACL inheritance, source growth/truncation, Tauri wiring, Windows handle-bound cleanup/delete replacement cases, Unix pre-`unlinkat` replacement, removal classification, successful fresh-process readback, reserved-stage namespace parsing, and process-terminated stage-only recovery before the next production publication.
+**Test points.** Native tests cover valid/no-clobber publication, same-length destination replacement, Unix permissive-umask privacy, Windows parent-DACL inheritance, source growth/truncation, Tauri wiring, Windows handle-bound cleanup/delete replacement cases, Unix pre-`unlinkat` replacement, removal classification, successful fresh-process readback, reserved-stage namespace parsing, and process-terminated stage-only recovery before the next production publication. Frontend ordering tests cover rejected attach metadata, rejected detach metadata and metadata-before-delete ordering.
 
 ## Remaining risk / claim boundary
 
-Stage-only process-kill recovery is now implemented under the current Score Storage lease contract. Still open are interruption after a destination has been hard-linked, explicit cancellation, disk-full, permission failure, power-loss durability, detach/project-delete/recovery rollback semantics, packaged-app fault evidence, and compatibility with an older concurrently running build that does not acquire the lease.
+Stage-only process-kill recovery is now implemented under the current Score Storage lease contract. UI/application ordering now prevents a rejected metadata detach from deleting referenced bytes, and it refuses to present an asynchronously rejected attachment as accepted. Still open are interruption after a destination has been hard-linked, restart reconciliation of a published attachment whose metadata commit never became durable, explicit cancellation, disk-full, permission failure, power-loss durability, complete project deletion/recovery rollback semantics, packaged-app fault evidence, and compatibility with an older concurrently running build that does not acquire the lease.
 
-The Windows parent-DACL acceptance must be rerun after #970 workspace authority integrates. Parent-directory durability and project lifecycle remain #970 concerns; Score Storage must reconcile without copying that implementation.
+The Windows parent-DACL acceptance must be rerun after #970 workspace authority integrates. Parent-directory durability and project lifecycle remain #970 concerns; Score Storage must reconcile without copying that implementation. The `void` callback compatibility path remains only for the pre-#970 synchronous owner and is not evidence of durable metadata acceptance.
 
 A successful final publication attests object identity at the covered boundary but does not make the pathname immutable afterward. Windows cleanup/delete is object-bound for the tested contract. Unix cleanup/delete retains documented final basename races. A removal `Ok(None)` remains an observed absence, not an atomic reservation.
 
@@ -124,7 +136,7 @@ Microsoft. (2024, February 22). *GetFileInformationByHandleEx function (winbase.
 
 Microsoft. (2024, February 22). *FILE_DISPOSITION_INFO structure (winbase.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_disposition_info
 
-Microsoft. (2024). *SetFileInformationByHandle function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfileinformationbyhandle
+Microsoft. (2024). *SetFileInformationByHandle function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-setfileinformationbyhandle
 
 Microsoft. (n.d.). *CreateFileA function (fileapi.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
 
