@@ -17,6 +17,23 @@ fn fixture_root(label: &str) -> std::path::PathBuf {
     root
 }
 
+#[test]
+fn real_existing_project_root_remains_authorized() {
+    use std::fs;
+
+    let root = fixture_root("project-root-real-chain");
+    let base = root.join("app-local");
+    let project_id = "project-1-1";
+    let expected = base.join(project_id);
+    fs::create_dir_all(&expected).expect("real app-local project directory should be created");
+
+    let resolved = project_root::resolve_existing_project_root(&base, project_id)
+        .expect("a real existing project-root chain should remain authorized");
+    assert_eq!(resolved, expected);
+
+    fs::remove_dir_all(root).expect("test fixture should be removable");
+}
+
 #[cfg(unix)]
 #[test]
 fn refuses_to_publish_through_symlinked_parent_directory() {
