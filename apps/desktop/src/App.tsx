@@ -24,6 +24,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   SUPPORTED_AUDIO_FORMATS,
   type AnalysisJobRequest,
@@ -565,25 +566,43 @@ export function App() {
               const { label, enabled, active, title } = navButtonState(item);
               const { icon: Icon, view } = item;
 
-              return (
+              const buttonClass = `flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                active
+                  ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
+                  : enabled
+                    ? "text-slate-200 hover:bg-white/5"
+                    : "cursor-not-allowed text-slate-500 opacity-70"
+              }`;
+
+              const buttonContent = (
+                <>
+                  <Icon className="size-5" aria-hidden="true" />
+                  {label}
+                </>
+              );
+
+              return enabled ? (
                 <button
                   key={item.labelKey}
                   type="button"
                   aria-current={active ? "page" : undefined}
-                  aria-disabled={enabled ? undefined : true}
-                  title={title}
-                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
-                  className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                    active
-                      ? "bg-blue-600/70 text-white shadow-[0_12px_30px_rgba(37,99,235,0.32)]"
-                      : enabled
-                        ? "text-slate-200 hover:bg-white/5"
-                        : "cursor-not-allowed text-slate-500 opacity-70"
-                  }`}
+                  onClick={view ? () => handleNavSelect(view) : blockInactiveNavActivation}
+                  className={buttonClass}
                 >
-                  <Icon className="size-5" aria-hidden="true" />
-                  {label}
+                  {buttonContent}
                 </button>
+              ) : (
+                <Tooltip key={item.labelKey}>
+                  <TooltipTrigger
+                    type="button"
+                    aria-disabled="true"
+                    onClick={blockInactiveNavActivation}
+                    className={buttonClass}
+                  >
+                    {buttonContent}
+                  </TooltipTrigger>
+                  {title && <TooltipContent>{title}</TooltipContent>}
+                </Tooltip>
               );
             })}
           </nav>
@@ -611,26 +630,30 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <button
-                type="button"
-                aria-disabled={true}
-                aria-label={t("settingsComingSoon")}
-                title={t("settingsComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-              >
-                <Settings className="size-5" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                aria-disabled={true}
-                aria-label={t("helpComingSoon")}
-                title={t("helpComingSoon")}
-                onClick={preventUnavailableAction}
-                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-              >
-                <CircleHelp className="size-5" aria-hidden="true" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  aria-disabled="true"
+                  aria-label={t("settingsComingSoon")}
+                  onClick={preventUnavailableAction}
+                  className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <Settings className="size-5" aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent>{t("settingsComingSoon")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  type="button"
+                  aria-disabled="true"
+                  aria-label={t("helpComingSoon")}
+                  onClick={preventUnavailableAction}
+                  className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <CircleHelp className="size-5" aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent>{t("helpComingSoon")}</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </aside>
@@ -641,26 +664,45 @@ export function App() {
               const { label, enabled, active, title } = navButtonState(item);
               const { icon: Icon, view } = item;
 
-              return (
+              const buttonClass = `inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
+                active
+                  ? "bg-blue-600/70 text-white"
+                  : enabled
+                    ? "text-slate-200 hover:bg-white/5"
+                    : "cursor-not-allowed text-slate-500 opacity-70"
+              }`;
+
+              const buttonContent = (
+                <>
+                  <Icon className="size-4" aria-hidden="true" />
+                  {label}
+                </>
+              );
+
+              return enabled ? (
                 <button
                   key={item.labelKey}
                   type="button"
                   aria-current={active ? "page" : undefined}
                   aria-label={`${label} ${t("compactViewSuffix")}`}
-                  aria-disabled={enabled ? undefined : true}
-                  title={title}
-                  onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
-                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                    active
-                      ? "bg-blue-600/70 text-white"
-                      : enabled
-                        ? "text-slate-200 hover:bg-white/5"
-                        : "cursor-not-allowed text-slate-500 opacity-70"
-                  }`}
+                  onClick={view ? () => handleNavSelect(view) : blockInactiveNavActivation}
+                  className={buttonClass}
                 >
-                  <Icon className="size-4" aria-hidden="true" />
-                  {label}
+                  {buttonContent}
                 </button>
+              ) : (
+                <Tooltip key={item.labelKey}>
+                  <TooltipTrigger
+                    type="button"
+                    aria-label={`${label} ${t("compactViewSuffix")}`}
+                    aria-disabled="true"
+                    onClick={blockInactiveNavActivation}
+                    className={buttonClass}
+                  >
+                    {buttonContent}
+                  </TooltipTrigger>
+                  {title && <TooltipContent>{title}</TooltipContent>}
+                </Tooltip>
               );
             })}
           </nav>
@@ -709,15 +751,17 @@ export function App() {
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
                       {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
-                        <button
-                          type="button"
-                          onClick={handleClearYoutubeUrl}
-                          className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                          aria-label={t("clearYoutubeUrl")}
-                          title={t("clearYoutubeUrl")}
-                        >
-                          <X className="size-4" aria-hidden="true" />
-                        </button>
+                        <Tooltip>
+                          <TooltipTrigger
+                            type="button"
+                            onClick={handleClearYoutubeUrl}
+                            className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                            aria-label={t("clearYoutubeUrl")}
+                          >
+                            <X className="size-4" aria-hidden="true" />
+                          </TooltipTrigger>
+                          <TooltipContent>{t("clearYoutubeUrl")}</TooltipContent>
+                        </Tooltip>
                       ) : null}
                     </div>
                   </div>
