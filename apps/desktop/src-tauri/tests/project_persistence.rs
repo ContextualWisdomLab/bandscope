@@ -65,6 +65,8 @@ mod migration_content_cas;
 mod open_authority;
 #[path = "project_persistence_overwrite.case"]
 mod overwrite;
+#[path = "project_persistence_parent_swap.case"]
+mod parent_swap;
 #[path = "project_persistence_parent_symlink.case"]
 mod parent_symlink;
 #[path = "project_persistence_permissions.case"]
