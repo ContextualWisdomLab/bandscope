@@ -330,6 +330,15 @@ fn existing_project_replacement_rolls_back_when_candidate_flush_fails() {
     assert_eq!(error, "Could not publish the project safely.");
     assert_eq!(flush_calls.get(), 2, "candidate and restored target must both reach the durability boundary");
     assert_eq!(fs::read(&target).expect("known-good target should remain"), known_good);
-    assert!(stage_paths(&root).is_empty(), "rollback cleanup should run only after the restored target is flushed");
+    assert!(!stage.exists(), "candidate rollback artifact should be removed only after restored-target durability succeeds");
+    assert!(stage_paths(&root).is_empty(), "generated rollback artifacts should be retired after restored-target durability succeeds");
+    assert!(
+        fs::read_dir(&root)
+            .expect("test directory should be readable")
+            .filter_map(Result::ok)
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .all(|name| !name.starts_with(".bandscope-recovery-")),
+        "recovery journal should be retired only after restored-target durability succeeds"
+    );
     fs::remove_dir_all(root).expect("test directory should be removable");
 }
