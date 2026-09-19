@@ -525,9 +525,36 @@ export function App() {
     }
   };
 
-  /** Documented. */
-  const handleSongUpdate = (updatedSong: RehearsalSong) => {
-    setJobResult(updatedSong);
+  /**
+   * Accept one rehearsal mutation only after the app-owned project snapshot is durable.
+   *
+   * A local project id represents native Project Persistence authority. Renderer
+   * state is therefore acknowledgement, not the source of truth: when that id
+   * exists, the updated song is serialized and crash-safely published to the
+   * fixed workspace snapshot before React exposes the mutation. Persistence
+   * failure leaves the prior accepted song visible and surfaces a bounded error.
+   */
+  const handleSongUpdate = async (updatedSong: RehearsalSong): Promise<boolean> => {
+    const projectId = jobResultPublicationProjectId;
+    if (!projectId) {
+      setJobResult(updatedSong);
+      return true;
+    }
+
+    try {
+      await saveProject(
+        updatedSong,
+        jobResultSelectedPlaybackSource,
+        projectId,
+        true
+      );
+      setJobResult(updatedSong);
+      setJobError(null);
+      return true;
+    } catch (error) {
+      setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(error, t("saveProjectFailedFallback"))}`);
+      return false;
+    }
   };
 
   /** Documented. */
