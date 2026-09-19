@@ -465,6 +465,35 @@ pub(crate) fn project_file_identity(target: &Path) -> Result<ProjectFileIdentity
     windows_file_identity(&file).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())
 }
 
+#[cfg(windows)]
+fn flush_project_file_with_expected_identity(
+    path: &Path,
+    expected: &ProjectFileIdentity,
+) -> Result<(), String> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .write(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = options
+        .open(path)
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    if !metadata_is_regular_project_file(&metadata) {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    let identity = windows_file_identity(&file).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    if &identity != expected {
+        return Err(PROJECT_PUBLISH_ERROR.to_string());
+    }
+    file.sync_all()
+        .map_err(|_| PROJECT_PUBLISH_ERROR.to_string())
+}
+
 #[cfg(not(any(unix, windows)))]
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct ProjectFileIdentity;
@@ -670,8 +699,9 @@ fn sync_parent_directory(parent: &Path) -> std::io::Result<()> {
 
 #[cfg(windows)]
 fn sync_parent_directory(_parent: &Path) -> std::io::Result<()> {
-    // Windows ReplaceFileW/MoveFileExW provide the native write-through step; directory
-    // handles are not opened here because ordinary directory opens are not portable on Windows.
+    // MoveFileExW no-replace publication uses MOVEFILE_WRITE_THROUGH. ReplaceFileW has no
+    // supported write-through flag, so existing-target commit/rollback and hard-link first-save
+    // durability are established with identity-bound file flushes at their call sites instead.
     Ok(())
 }
 
@@ -922,6 +952,9 @@ fn recover_publication_state(
             return Err(PROJECT_RECOVERY_ERROR.to_string());
         }
         verify_recovery_migration_candidate(target, journal)?;
+        #[cfg(windows)]
+        flush_project_file_with_expected_identity(target, &journal.candidate)
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         if displaced_identity.is_some() {
             verify_recovery_migration_predecessor(displaced, journal)?;
             remove_recovery_artifact(displaced)?;
@@ -952,6 +985,8 @@ fn recover_publication_state(
             if replace_file_with_backup(target, displaced, candidate_stage).is_err() {
                 return Err(PROJECT_RECOVERY_ERROR.to_string());
             }
+            flush_project_file_with_expected_identity(target, &journal.expected)
+                .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         }
         remove_recovery_artifact(candidate_stage)?;
         if displaced != candidate_stage {
@@ -970,6 +1005,9 @@ fn recover_publication_state(
         && (displaced_identity.is_none() || displaced == candidate_stage)
     {
         verify_recovery_migration_predecessor(target, journal)?;
+        #[cfg(windows)]
+        flush_project_file_with_expected_identity(target, &journal.expected)
+            .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
         remove_recovery_artifact(candidate_stage)?;
         sync_parent_directory(project_parent(target))
             .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
@@ -1185,15 +1223,17 @@ pub(crate) fn replace_existing_project_file_for_migration(
 }
 
 #[cfg(windows)]
-fn replace_existing_project_file_with_validation<F>(
+fn replace_existing_project_file_with_validation_and_flush<F, S>(
     stage: &Path,
     target: &Path,
     expected: &ProjectFileIdentity,
     validation: PublicationValidation,
     validate: F,
+    mut flush: S,
 ) -> Result<(), String>
 where
     F: FnOnce(&Path, &Path, &ProjectFileIdentity) -> Result<(), String>,
+    S: FnMut(&Path, &ProjectFileIdentity) -> Result<(), String>,
 {
     let candidate = match project_file_identity(stage) {
         Ok(candidate) => candidate,
@@ -1225,16 +1265,62 @@ where
 
     let displaced = project_file_identity(&backup);
     let displaced_matches = displaced.as_ref().is_ok_and(|identity| identity == expected);
-    if displaced_matches && validate(&backup, target, &candidate).is_ok() {
+    if displaced_matches
+        && validate(&backup, target, &candidate).is_ok()
+        && flush(target, &candidate).is_ok()
+    {
         return finish_successful_publication(&journal, &backup, target);
     }
 
     let target_is_candidate =
         project_file_identity(target).is_ok_and(|identity| identity == candidate);
     if target_is_candidate && replace_file_with_backup(target, &backup, stage).is_ok() {
-        let _ = finish_rolled_back_publication(stage, &journal, target);
+        if flush(target, expected).is_ok() {
+            let _ = finish_rolled_back_publication(stage, &journal, target);
+        }
     }
     Err(PROJECT_PUBLISH_ERROR.to_string())
+}
+
+#[cfg(windows)]
+fn replace_existing_project_file_with_validation<F>(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+    validation: PublicationValidation,
+    validate: F,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &Path, &ProjectFileIdentity) -> Result<(), String>,
+{
+    replace_existing_project_file_with_validation_and_flush(
+        stage,
+        target,
+        expected,
+        validation,
+        validate,
+        flush_project_file_with_expected_identity,
+    )
+}
+
+#[cfg(all(windows, test))]
+pub(crate) fn replace_existing_project_file_with_flush_for_test<S>(
+    stage: &Path,
+    target: &Path,
+    expected: &ProjectFileIdentity,
+    flush: S,
+) -> Result<(), String>
+where
+    S: FnMut(&Path, &ProjectFileIdentity) -> Result<(), String>,
+{
+    replace_existing_project_file_with_validation_and_flush(
+        stage,
+        target,
+        expected,
+        PublicationValidation::IdentityOnly,
+        |_, _, _| Ok(()),
+        flush,
+    )
 }
 
 #[cfg(windows)]
@@ -1473,18 +1559,21 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// Linux and macOS then atomically exchange the synced staging inode with the target and accept the
 /// publication only when the displaced inode still matches that captured identity; a mismatch is
 /// exchanged back before returning an error. Windows uses `ReplaceFileW` with a unique same-directory
-/// backup, validates the displaced file's native identity, and restores it when the snapshot no longer
-/// matches. For a destination that was absent at the snapshot, a hard link is attempted first; Linux
-/// then uses `renameat2(RENAME_NOREPLACE)`, macOS uses `renamex_np(RENAME_EXCL)`, and Windows uses
-/// `MoveFileExW` without `MOVEFILE_REPLACE_EXISTING` so a concurrently appearing destination is not
-/// clobbered. A newly created final directory entry is part of the success contract: Unix fsyncs its
-/// parent before first-save success is acknowledged, while Windows keeps the existing native
-/// write-through publication semantics. If that durability step fails after the complete target is
-/// visible, the target is not deleted or truncated and the caller receives the safe publication error.
-/// Filesystems without the required native primitive fail closed. These checks do not claim
-/// descriptor-bound protection for a parent-chain swap or authority before the first post-dialog
-/// identity snapshot. A durable adjacent journal repairs an interrupted mismatch rollback the next
-/// time the same target is selected; global startup scanning and backup rotation remain #962 work.
+/// backup, validates the displaced file's native identity, flushes the exact published candidate
+/// before retiring rollback material, and restores plus flushes the expected predecessor if validation
+/// or the candidate flush fails. For a destination that was absent at the snapshot, a hard link is
+/// attempted first; Linux then uses `renameat2(RENAME_NOREPLACE)`, macOS uses
+/// `renamex_np(RENAME_EXCL)`, and Windows uses `MoveFileExW` without
+/// `MOVEFILE_REPLACE_EXISTING`. Windows also flushes the exact hard-linked target before removing the
+/// staging name. A newly created final directory entry is part of the success contract: Unix fsyncs
+/// its parent, while Windows requires the identity-bound file flush or `MOVEFILE_WRITE_THROUGH`
+/// before success is acknowledged. If that durability step fails after the complete target is visible,
+/// the caller receives the safe publication error and rollback/recovery material is retained or
+/// restored. Filesystems without the required native primitive fail closed. These checks do not claim
+/// descriptor-bound protection for a parent-chain swap or full-machine power-loss proof; packaged
+/// interruption testing remains required. A durable adjacent journal repairs interrupted replacement
+/// state the next time the same target is selected; global startup scanning and backup rotation remain
+/// #962 work.
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
@@ -1569,6 +1658,9 @@ where
     }
     drop(staged);
 
+    #[cfg(windows)]
+    let staged_identity = project_file_identity(&stage)?;
+
     if let Some((expected, _)) = expected_target {
         return replace_existing_project_file(&stage, target, &expected);
     }
@@ -1582,6 +1674,8 @@ where
         match rename_noreplace(&stage, target) {
             Ok(()) => {
                 sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+                #[cfg(windows)]
+                flush_project_file_with_expected_identity(target, &staged_identity)?;
                 return Ok(());
             }
             Err(publish_error) if publish_error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -1596,6 +1690,8 @@ where
     }
 
     sync_parent(parent).map_err(|_| PROJECT_PUBLISH_ERROR.to_string())?;
+    #[cfg(windows)]
+    flush_project_file_with_expected_identity(target, &staged_identity)?;
     remove_stage(&stage);
     Ok(())
 }
@@ -1789,7 +1885,7 @@ mod tests {
         assert!(!stage.exists(), "the owned candidate should be removed");
         assert!(!displaced.exists(), "the consumed rollback artifact should be absent");
         assert!(!journal.exists(), "the completed rollback journal should be removed");
-        fs::remove_dir_all(root).expect("test directory should be removable");
+        fs::remove_dir_all(root).expect("fixture directory should be removable");
     }
 
     #[test]
