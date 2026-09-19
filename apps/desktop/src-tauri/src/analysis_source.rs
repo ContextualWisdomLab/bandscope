@@ -3,11 +3,7 @@ use bandscope_desktop_core::{
     re_admit_local_audio_publication_from_project_root,
     LocalAudioPublicationIdentity, ProjectBootstrapSummaryPayload,
 };
-use std::{
-    fs::{self, File},
-    io::Read,
-    path::Path,
-};
+use std::{fs::File, io::Read, path::Path};
 
 const ANALYSIS_SOURCE_NOT_FOUND: &str =
     "Analysis job source was not found. Choose local audio again.";
@@ -24,7 +20,7 @@ const ANALYSIS_SOURCE_NOT_FOUND: &str =
 pub(crate) fn create_private_local_audio_stage(path: &Path) -> std::io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
 
-    let mut options = fs::OpenOptions::new();
+    let mut options = std::fs::OpenOptions::new();
     options.write(true).create_new(true).mode(0o600);
     options.open(path)
 }
