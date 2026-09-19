@@ -154,10 +154,24 @@ fn app_owned_root<R: Runtime>(
             .map_err(|_| "Could not prepare the local temp workspace.".to_string())?,
         _ => return Err(format!("Could not prepare the local {kind} workspace.")),
     };
+    if kind == "projects" {
+        return project_root::resolve_existing_project_root(&base_root, project_id);
+    }
     let root = base_root.join(project_id);
     std::fs::create_dir_all(&root)
         .map_err(|_| format!("Could not prepare the local {kind} workspace."))?;
     Ok(root)
+}
+
+fn provision_project_root<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    project_id: &str,
+) -> Result<PathBuf, String> {
+    let base_root = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| "Could not prepare the local project workspace.".to_string())?;
+    project_root::provision_new_project_root(&base_root, project_id)
 }
 
 /// Admit one OS-selected local audio file into a project-owned immutable source artifact.
@@ -923,7 +937,7 @@ fn select_local_audio_source(
         .pick_file()
         .ok_or_else(|| "Choose a WAV, MP3, FLAC, or M4A file to start analysis.".to_string())?;
     let project_id = next_project_id(&state);
-    let project_root = app_owned_root(&app, "projects", &project_id)?;
+    let project_root = provision_project_root(&app, &project_id)?;
     let cache_root = app_owned_root(&app, "cache", &project_id)?;
     let temp_root = app_owned_root(&app, "temp", &project_id)?;
     let (source, publication_identity) =
@@ -954,7 +968,7 @@ async fn import_youtube_url(
     }
 
     let project_id = next_project_id(&state);
-    let project_root = app_owned_root(&app, "projects", &project_id)?;
+    let project_root = provision_project_root(&app, &project_id)?;
     let cache_root = app_owned_root(&app, "cache", &project_id)?;
     let temp_root = app_owned_root(&app, "temp", &project_id)?;
 
