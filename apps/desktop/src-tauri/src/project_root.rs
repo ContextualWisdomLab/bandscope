@@ -74,14 +74,31 @@ fn existing_project_directory_chain_is_safe(path: &Path) -> bool {
         })
 }
 
+/// Create one new app-owned Unix directory without exposing it through a permissive process umask.
+#[cfg(unix)]
+fn create_owned_directory(path: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+
+    let mut builder = fs::DirBuilder::new();
+    builder.mode(0o700).create(path)
+}
+
+/// Preserve native ACL inheritance on non-Unix platforms.
+#[cfg(not(unix))]
+fn create_owned_directory(path: &Path) -> std::io::Result<()> {
+    fs::create_dir(path)
+}
+
 /// Create missing app-owned directory components one at a time without following a stable link.
 ///
 /// Security Notes: unlike `create_dir_all`, each already-existing lexical component is inspected
 /// with `symlink_metadata` before a child component is created. A newly created component is
-/// inspected again immediately and must be a real directory. This closes stable symlink/junction
-/// redirection during provisioning while preserving the narrow root-owned macOS aliases accepted
-/// by reopen. It does not claim descriptor-bound protection against an ancestor replaced between
-/// the metadata check and the following filesystem operation.
+/// inspected again immediately and must be a real directory. Unix creation requests mode `0700`,
+/// so an inherited permissive process umask cannot broaden a new BandScope-owned directory; an
+/// existing directory keeps its deliberate mode. Windows keeps native ACL inheritance. This closes
+/// stable symlink/junction redirection during provisioning while preserving the narrow root-owned
+/// macOS aliases accepted by reopen. It does not claim descriptor-bound protection against an
+/// ancestor replaced between the metadata check and the following filesystem operation.
 fn provision_directory_chain(path: &Path) -> Result<(), String> {
     let mut ancestors: Vec<&Path> = path
         .ancestors()
@@ -97,7 +114,7 @@ fn provision_directory_chain(path: &Path) -> Result<(), String> {
                 }
             }
             Err(error) if error.kind() == ErrorKind::NotFound => {
-                fs::create_dir(ancestor).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
+                create_owned_directory(ancestor).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
                 let metadata = fs::symlink_metadata(ancestor)
                     .map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
                 if !metadata_is_safe_project_directory_component(ancestor, &metadata) {
@@ -116,10 +133,12 @@ fn provision_directory_chain(path: &Path) -> Result<(), String> {
 /// Security Notes: cache, temp, and score workspaces are reusable across operations, so unlike a
 /// newly minted project root this function permits an already-existing final directory. Every
 /// lexical component must still be a real directory rather than a Unix symlink or Windows reparse
-/// point, with only the narrow root-owned macOS system aliases admitted. Missing components are
-/// created one at a time and revalidated immediately. This prevents stable cache/temp/scores
-/// redirection through `create_dir_all`; it does not claim descriptor-bound protection against a
-/// component replaced after validation.
+/// point, with only the narrow root-owned macOS system aliases admitted. Missing Unix components
+/// are created owner-only (`0700`) and revalidated immediately; existing directory modes are not
+/// rewritten. This prevents stable cache/temp/scores redirection through `create_dir_all` and
+/// prevents a permissive inherited umask from making a newly created workspace group/world
+/// accessible. It does not claim descriptor-bound protection against a component replaced after
+/// validation or a Windows ACL policy beyond native inheritance.
 pub(crate) fn ensure_owned_directory(path: &Path) -> Result<PathBuf, String> {
     provision_directory_chain(path)?;
     if !existing_project_directory_chain_is_safe(path) {
@@ -132,10 +151,11 @@ pub(crate) fn ensure_owned_directory(path: &Path) -> Result<PathBuf, String> {
 ///
 /// Security Notes: `project_id` is validated before joining. Missing app-local base components are
 /// created one lexical directory at a time and every existing/new component must be a real
-/// directory rather than a Unix symlink or Windows reparse point. The final project directory uses
-/// single-directory create semantics and therefore refuses to reuse an already-existing target.
-/// This creation-side authority mirrors `resolve_existing_project_root` instead of letting a raw
-/// `create_dir_all` follow a stable link into another filesystem subtree.
+/// directory rather than a Unix symlink or Windows reparse point. New Unix components, including
+/// the final project root, request owner-only mode `0700`; existing directory modes are preserved.
+/// The final project directory uses single-directory create semantics and therefore refuses to reuse
+/// an already-existing target. This creation-side authority mirrors `resolve_existing_project_root`
+/// instead of letting a raw `create_dir_all` follow a stable link into another filesystem subtree.
 pub(crate) fn provision_new_project_root(
     base_root: &Path,
     project_id: &str,
@@ -150,7 +170,7 @@ pub(crate) fn provision_new_project_root(
     }
 
     let project_root = base_root.join(project_id);
-    fs::create_dir(&project_root).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
+    create_owned_directory(&project_root).map_err(|_| PROJECT_ROOT_ERROR.to_string())?;
     if !existing_project_directory_chain_is_safe(&project_root) {
         return Err(PROJECT_ROOT_ERROR.to_string());
     }
