@@ -841,10 +841,11 @@ fn read_score_pdf(
 }
 
 /// Security Notes: same id validation and traversal guard as `read_score_pdf`.
-/// Score Storage owns the final deletion authority: Windows marks the opened
-/// file object for deletion by handle; Unix pins the parent directory and
-/// revalidates device/inode before descriptor-relative `unlinkat`.
-/// Returns `false` when the score does not exist (idempotent removal).
+/// Score Storage distinguishes a genuinely absent directory entry from unsafe
+/// or indeterminate resolution before invoking object-bound deletion. Only the
+/// observed-absent case returns `false`; symlink, non-regular, containment, and
+/// I/O failures remain errors so the UI cannot silently discard attachment
+/// metadata while storage is still present or unverified.
 #[tauri::command]
 fn remove_score_pdf(
     project_id: String,
@@ -858,9 +859,8 @@ fn remove_score_pdf(
         return Err("Invalid score id.".to_string());
     }
     let scores_root = scores_root_for_project(&app, &project_id)?;
-    let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
-        Ok(path) => path,
-        Err(_) => return Ok(false),
+    let Some(path) = resolve_score_pdf_for_removal(&scores_root, &score_id)? else {
+        return Ok(false);
     };
     remove_score_pdf_attachment(&path)?;
     Ok(true)
