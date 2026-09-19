@@ -864,15 +864,37 @@ fn finish_successful_publication(
     target: &Path,
 ) -> Result<(), String> {
     let published = promote_publication_journal(prepared, target)?;
-    remove_stage(stage);
-    if matches!(
-        fs::symlink_metadata(stage),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound
-    ) && sync_parent_directory(project_parent(target)).is_ok()
-    {
-        remove_stage(&published);
-        let _ = sync_parent_directory(project_parent(target));
+    let journal_content = read_project_file_with_opener(
+        &published,
+        open_project_file,
+        MAX_RECOVERY_JOURNAL_BYTES,
+        PROJECT_RECOVERY_ERROR,
+    )
+    .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    let durable_journal: PublicationJournal = serde_json::from_str(&journal_content)
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+
+    let target_identity =
+        project_file_identity(target).map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+    if target_identity != durable_journal.candidate {
+        return Err(PROJECT_RECOVERY_ERROR.to_string());
     }
+    verify_recovery_migration_candidate(target, &durable_journal)?;
+
+    match project_file_identity_if_present(stage)? {
+        Some(identity) if identity == durable_journal.expected => {
+            verify_recovery_migration_predecessor(stage, &durable_journal)?;
+            remove_recovery_artifact(stage)?;
+            sync_parent_directory(project_parent(target))
+                .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
+        }
+        Some(_) => return Err(PROJECT_RECOVERY_ERROR.to_string()),
+        None => {}
+    }
+
+    remove_recovery_artifact(&published)?;
+    sync_parent_directory(project_parent(target))
+        .map_err(|_| PROJECT_RECOVERY_ERROR.to_string())?;
     Ok(())
 }
 
