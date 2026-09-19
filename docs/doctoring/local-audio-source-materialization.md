@@ -126,6 +126,22 @@ Restart must continue to resolve only the app-owned artifact, re-establish regul
 
 When #866 enters #1160 ancestry, the private playable-stem SHA-256 implementation should be deleted in favor of `bandscope_desktop_core::sha256_hex_reader` while preserving stem identity/error tests. YouTube intake still uses its owned cache artifact and needs an explicit durable-source promotion decision. Platform-atomic no-follow acquisition remains open. Issue #1129 remains the commercial decoder-dependency gate.
 
+## Unix local-source stage permission hardening
+
+A later storage-boundary audit found that the production `.source-<uuid>.stage` was created with ambient `OpenOptions::create_new` mode. Under a permissive inherited `umask(000)`, Unix can therefore create the stage as `0666`; the no-replace publication path moves that same inode into buyer-visible `source.<extension>`, so the final app-owned raw rehearsal audio can retain the broad mode. The newly hardened `0700` project directory normally contains that exposure for fresh projects, but file confidentiality must not silently depend on an ancestor mode staying restrictive.
+
+The selected contract is create-private-at-first-visibility, not create-broad-then-`chmod` and not a process-global `umask` mutation. RED `9639876f08e908e8497159e40d235e071d6aa91f` adds an isolated Unix child-process regression that sets `umask(000)`, calls the native production stage-creation boundary, writes/synchronizes real WAV fixture bytes, and requires mode `0600`. Hosted macOS run `35444853322`, job `105901906648`, reached the native Project Persistence regression step on that exact test-only head and failed; checkout, Rust 1.97.1, and the frontend fixture had succeeded. The Windows owner lane on that test-only head remained unaffected because the regression and POSIX mode contract are Unix-only.
+
+`35548eaff7670814924880f049b17799d5713f29` adds a narrow production-wiring contract: the Tauri materializer must call `create_private_local_audio_stage(&stage)` rather than reopening an ambient-mode `create_new` path. Source fix `d2ede94d2633ba88a679a48e0f6aad8c41baa584` adds that boundary in `analysis_source.rs`: Unix uses `OpenOptionsExt::mode(0o600)` at creation, while non-Unix keeps native ACL inheritance. `a984dd5a108737f123c5cae77484546664087012` changes only the Tauri import and stage-construction call site to consume the tested boundary; Resource Admission byte limits, copy/hash receipt semantics, Project Persistence publication semantics, and destination verification remain unchanged.
+
+### Security Notes
+
+The protected object is raw rehearsal audio selected by the user. The stage lives under an app-owned project root, but its own mode is now restrictive by construction on Unix so a permissive launcher `umask` cannot widen it to group/world read/write. Because Project Persistence publishes the synchronized stage itself rather than copying to a fresh destination inode, the buyer-visible `source.<extension>` retains that private Unix mode. Windows continues to use native ACL inheritance; this change does not claim a Windows ACL baseline. No source path, mode, OS error, audio bytes, or new PII is logged or transmitted.
+
+The remaining boundary is explicit: `0600` is the requested Unix creation mode and a more restrictive inherited umask may narrow it; descriptor-bound no-follow acquisition is still open; existing files are not silently chmodded; cache/temp/score child artifacts have separate owners/creation paths; YouTube import does not inherit this local-file claim; and this is not rights-cleared MIR accuracy, packaged interruption, disk-full, permission-failure, cancellation, or power-loss evidence.
+
+The executable acceptance point is the isolated permissive-umask child regression. The source-text wiring contract is only a guard that the buyer path calls the tested native boundary; it is not counted as runtime success by itself. Final acceptance still requires unchanged exact-head macOS/Windows owner workflows and repository/security gates after this documentation commit.
+
 ## References
 
 National Institute of Standards and Technology. (2015). *Secure Hash Standard (SHS)* (FIPS PUB 180-4). https://doi.org/10.6028/NIST.FIPS.180-4
