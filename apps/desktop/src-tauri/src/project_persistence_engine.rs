@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 const MAX_PROJECT_FILE_BYTES: usize = 5 * 1024 * 1024;
 const MAX_RECOVERY_JOURNAL_BYTES: usize = 64 * 1024;
 const PROJECT_EXISTS_ERROR: &str = "Project file already exists. Choose a new file name.";
+#[cfg(test)]
 const PROJECT_STAGE_ERROR: &str = "Could not stage the project safely.";
 const PROJECT_PUBLISH_ERROR: &str = "Could not publish the project safely.";
 const PROJECT_READ_ERROR: &str = "Failed to read file";
@@ -32,6 +33,7 @@ fn project_parent(target: &Path) -> &Path {
     }
 }
 
+#[cfg(any(windows, test))]
 fn staging_path(target: &Path) -> Result<PathBuf, String> {
     let parent = project_parent(target);
     if target.file_name().is_none() {
@@ -1605,12 +1607,14 @@ pub(crate) fn read_project_file(target: &Path) -> Result<String, String> {
 /// interruption testing remains required. A durable adjacent journal repairs interrupted replacement
 /// state the next time the same target is selected; global startup scanning and backup rotation remain
 /// #962 work.
+#[cfg(test)]
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
     publish_new_project_file_with_linker(target, content, |source, destination| {
         fs::hard_link(source, destination)
     })
 }
 
+#[cfg(test)]
 pub(crate) fn publish_new_project_file_with_linker<F>(
     target: &Path,
     content: &[u8],
@@ -1627,6 +1631,7 @@ where
     )
 }
 
+#[cfg(test)]
 pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
     target: &Path,
     content: &[u8],
