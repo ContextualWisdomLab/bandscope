@@ -155,29 +155,31 @@ fn new_project_and_recovery_journal_remain_owner_private_with_permissive_umask()
         "private staging must not silently revoke an existing project's deliberate sharing mode"
     );
 
+    // Force the production replacement state machine to stop after it has durably created the
+    // prepared journal. A pre-existing published marker makes journal promotion fail closed, leaving
+    // the real prepared journal available for permission inspection without a test-only writer seam.
     let existing_target = root.join("existing.bscope");
-    let stage = root.join(format!(
-        ".bandscope-stage-{}.stage",
-        uuid::Uuid::new_v4()
-    ));
     fs::write(&existing_target, br#"{\"id\":\"known-good\"}"#)
         .expect("known-good project should be written");
-    fs::write(&stage, br#"{\"id\":\"candidate\"}"#)
-        .expect("candidate stage should be written");
-    let expected = project_persistence::project_file_identity(&existing_target)
-        .expect("known-good identity should be readable");
-    let candidate = project_persistence::project_file_identity(&stage)
-        .expect("candidate identity should be readable");
-    let journal = project_persistence::create_publication_journal_for_test(
+    let journal_key = project_persistence::journal_target_key(&existing_target)
+        .expect("journal target key should be derivable");
+    let prepared_journal = root.join(format!(
+        ".bandscope-recovery-{journal_key}.prepared.journal"
+    ));
+    let published_blocker = root.join(format!(
+        ".bandscope-recovery-{journal_key}.published.journal"
+    ));
+    fs::write(&published_blocker, b"block journal promotion")
+        .expect("published blocker should be created");
+
+    project_persistence::publish_new_project_file(
         &existing_target,
-        &stage,
-        &stage,
-        &expected,
-        &candidate,
+        br#"{\"id\":\"candidate\"}"#,
     )
-    .expect("recovery journal should be created");
-    let journal_mode = fs::metadata(&journal)
-        .expect("recovery journal should be readable")
+    .expect_err("pre-existing published recovery marker must make replacement fail closed");
+
+    let journal_mode = fs::metadata(&prepared_journal)
+        .expect("production replacement should leave its prepared journal for recovery")
         .permissions()
         .mode()
         & 0o777;
