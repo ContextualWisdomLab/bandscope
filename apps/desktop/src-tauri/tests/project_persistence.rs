@@ -7,42 +7,6 @@
 
 mod project_persistence {
     include!("../src/project_persistence.rs");
-
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-    pub(crate) fn create_publication_journal_for_test(
-        target: &std::path::Path,
-        candidate_stage: &std::path::Path,
-        displaced: &std::path::Path,
-        expected: &ProjectFileIdentity,
-        candidate: &ProjectFileIdentity,
-    ) -> Result<std::path::PathBuf, String> {
-        create_publication_journal(
-            target,
-            candidate_stage,
-            displaced,
-            expected,
-            candidate,
-            PublicationValidation::IdentityOnly,
-        )
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-    pub(crate) fn finish_successful_publication_for_test(
-        journal: &std::path::Path,
-        stage: &std::path::Path,
-        target: &std::path::Path,
-    ) -> Result<(), String> {
-        finish_successful_publication(journal, stage, target)
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-    pub(crate) fn finish_rolled_back_publication_for_test(
-        stage: &std::path::Path,
-        journal: &std::path::Path,
-        target: &std::path::Path,
-    ) -> Result<(), String> {
-        finish_rolled_back_publication(stage, journal, target)
-    }
 }
 
 #[path = "../src/project_load.rs"]
