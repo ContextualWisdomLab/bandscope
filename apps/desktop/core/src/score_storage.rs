@@ -269,4 +269,33 @@ mod tests {
         assert_eq!(error, SCORE_INVALID_PDF_ERROR);
         assert!(!error.contains("PK"));
     }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_cleanup_preserves_replaced_stage_path() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("bandscope-score-stage-identity-{suffix}"));
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join("stage.pdf");
+        let stage_file = create_private_stage(&stage).expect("owned stage should be created");
+        let expected = stage_identity(&stage_file).expect("owned stage identity should be captured");
+        drop(stage_file);
+
+        fs::remove_file(&stage).expect("owned stage should be removable for replacement fixture");
+        fs::write(&stage, b"foreign replacement").expect("foreign replacement should be written");
+
+        let error = remove_owned_stage(&stage, expected)
+            .expect_err("cleanup must reject a replacement that is not the captured stage file");
+        assert_eq!(error, SCORE_ATTACH_ERROR);
+        assert_eq!(
+            fs::read(&stage).expect("foreign replacement must survive failed cleanup"),
+            b"foreign replacement"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
 }
