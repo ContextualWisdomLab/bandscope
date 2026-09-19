@@ -1,0 +1,86 @@
+use crate::project_persistence;
+
+#[cfg(unix)]
+mod unix_parent_swap {
+    use super::project_persistence;
+    use std::{
+        fs::{self, File},
+        os::unix::fs::symlink,
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn test_dir(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after Unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "bandscope-project-parent-swap-{label}-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&path).expect("test directory should be created");
+        path
+    }
+
+    fn owned_stage(parent: &Path) -> PathBuf {
+        fs::read_dir(parent)
+            .expect("parked project directory should be readable")
+            .filter_map(Result::ok)
+            .find_map(|entry| {
+                let name = entry.file_name();
+                let name_text = name.to_string_lossy();
+                (name_text.starts_with(".bandscope-stage-") && name_text.ends_with(".stage"))
+                    .then(|| entry.path())
+            })
+            .expect("the original staged project should remain in the parked directory")
+    }
+
+    #[test]
+    fn first_save_does_not_report_success_after_parent_swap_changes_candidate_identity() {
+        let root = test_dir("first-save");
+        let selected_parent = root.join("projects");
+        let parked_parent = root.join("parked-projects");
+        let redirected_parent = root.join("redirected-projects");
+        fs::create_dir(&selected_parent).expect("selected parent should be created");
+        fs::create_dir(&redirected_parent).expect("redirected parent should be created");
+
+        let target = selected_parent.join("setlist.bscope");
+        let candidate = br#"{"id":"candidate"}"#;
+        let redirected = br#"{"id":"redirected"}"#;
+
+        let result = project_persistence::publish_new_project_file_with_linker_and_directory_sync(
+            &target,
+            candidate,
+            |stage, destination| {
+                let stage_name = stage
+                    .file_name()
+                    .expect("generated stage should have a file name")
+                    .to_owned();
+                fs::rename(&selected_parent, &parked_parent)?;
+                symlink(&redirected_parent, &selected_parent)?;
+                fs::write(redirected_parent.join(stage_name), redirected)?;
+                fs::hard_link(stage, destination)
+            },
+            |parent| File::open(parent)?.sync_all(),
+        );
+
+        assert!(
+            result.is_err(),
+            "publication must not report success when the selected parent is replaced and the published inode is not the staged candidate"
+        );
+        assert_eq!(
+            fs::read(owned_stage(&parked_parent)).expect("original staged bytes should remain readable"),
+            candidate,
+            "the original staged candidate must not be confused with the redirected file"
+        );
+        assert_eq!(
+            fs::read(redirected_parent.join("setlist.bscope"))
+                .expect("redirected fixture target should remain inspectable"),
+            redirected,
+            "the redirected inode demonstrates why publication authority must remain bound to the staged candidate"
+        );
+
+        fs::remove_dir_all(root).expect("test directory should be removable");
+    }
+}
