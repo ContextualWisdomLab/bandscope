@@ -1,0 +1,130 @@
+use crate::project_persistence;
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn test_dir(label: &str) -> PathBuf {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after Unix epoch")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "bandscope-project-journal-path-{label}-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&path).expect("test directory should be created");
+    path
+}
+
+#[cfg(unix)]
+fn journal_name_units(value: &str) -> Vec<u8> {
+    value.as_bytes().to_vec()
+}
+
+#[cfg(windows)]
+fn journal_name_units(value: &str) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+
+    std::ffi::OsStr::new(value).encode_wide().collect()
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+fn rewrite_durable_journal_candidate(
+    journal: &Path,
+    candidate_name: &str,
+    candidate_identity: serde_json::Value,
+) {
+    let mut document: serde_json::Value = serde_json::from_slice(
+        &fs::read(journal).expect("durable recovery journal should be readable"),
+    )
+    .expect("recovery journal should remain valid JSON");
+    document["candidate_name"] = serde_json::to_value(journal_name_units(candidate_name))
+        .expect("journal path units should serialize");
+    document["candidate"] = candidate_identity;
+    let bytes = serde_json::to_vec(&document).expect("tampered recovery journal should serialize");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(journal)
+        .expect("recovery journal should be writable for the hostile-local-state fixture");
+    file.write_all(&bytes)
+        .expect("hostile recovery journal bytes should be written");
+    file.sync_all()
+        .expect("hostile recovery journal fixture should be durable");
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+#[test]
+fn recovery_rejects_parent_traversal_in_serialized_candidate_name() {
+    let root = test_dir("candidate-parent-traversal");
+    let target = root.join("setlist.bscope");
+    let stage = root.join(format!(
+        ".bandscope-stage-{}.stage",
+        uuid::Uuid::new_v4()
+    ));
+    let outside_name = format!(
+        ".bandscope-stage-{}.stage",
+        uuid::Uuid::new_v4()
+    );
+    let outside = root
+        .parent()
+        .expect("test directory should have a parent")
+        .join(&outside_name);
+    let original = br#"{\"id\":\"known-good\"}"#;
+    let candidate = br#"{\"id\":\"candidate\"}"#;
+    let outside_bytes = br#"{\"id\":\"outside-sentinel\"}"#;
+
+    fs::write(&target, original).expect("known-good project should be written");
+    fs::write(&stage, candidate).expect("candidate stage should be written");
+    fs::write(&outside, outside_bytes).expect("outside sentinel should be written");
+
+    let expected = project_persistence::project_file_identity(&target)
+        .expect("known-good project identity should be capturable");
+    let candidate_identity = project_persistence::project_file_identity(&stage)
+        .expect("candidate stage identity should be capturable");
+    let journal = project_persistence::create_publication_journal_for_test(
+        &target,
+        &stage,
+        &stage,
+        &expected,
+        &candidate_identity,
+    )
+    .expect("prepared journal should be durable before hostile mutation");
+
+    fs::remove_file(&stage).expect("legitimate candidate should be absent for the recovery fixture");
+    let outside_identity = project_persistence::project_file_identity(&outside)
+        .expect("outside sentinel identity should be capturable");
+    let traversal = format!("..{}{}", std::path::MAIN_SEPARATOR, outside_name);
+    rewrite_durable_journal_candidate(
+        &journal,
+        &traversal,
+        serde_json::to_value(outside_identity).expect("outside identity should serialize"),
+    );
+
+    let result = project_persistence::recover_project_publication(&target);
+
+    assert!(
+        result.is_err(),
+        "a recovery journal must not resolve candidate names outside the selected project directory"
+    );
+    assert_eq!(
+        fs::read(&outside).expect("outside sentinel should remain readable"),
+        outside_bytes,
+        "hostile recovery metadata must not delete or mutate an external generated-looking file"
+    );
+    assert_eq!(
+        fs::read(&target).expect("known-good project should remain readable"),
+        original,
+        "hostile recovery metadata must not change the selected project"
+    );
+
+    fs::remove_file(&outside).expect("outside sentinel should be removable");
+    fs::remove_file(&journal).expect("hostile journal should be removable after the assertion");
+    fs::remove_dir_all(root).expect("test directory should be removable");
+}
