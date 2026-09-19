@@ -212,9 +212,15 @@ pub fn publish_score_pdf_attachment(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::{
+        process::Command,
+        thread,
+        time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    };
 
     const SCORE_ID: &str = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
+    const LEASE_CHILD_ENV: &str = "BANDSCOPE_SCORE_LEASE_CHILD";
+    const LEASE_ROOT_ENV: &str = "BANDSCOPE_SCORE_LEASE_ROOT";
 
     fn unique_test_dir(name: &str) -> PathBuf {
         let suffix = SystemTime::now()
@@ -236,16 +242,52 @@ mod tests {
     }
 
     #[test]
-    fn workspace_lease_rejects_a_second_live_writer() {
+    fn workspace_lease_child() {
+        if std::env::var_os(LEASE_CHILD_ENV).is_none() {
+            return;
+        }
+        let root = PathBuf::from(
+            std::env::var_os(LEASE_ROOT_ENV).expect("lease child root should be supplied"),
+        );
+        let _lease = acquire_score_workspace_lease(&root).expect("lease child should acquire lease");
+        fs::write(root.join("lease-ready"), b"ready")
+            .expect("lease child readiness marker should be written");
+        loop {
+            thread::sleep(Duration::from_secs(60));
+        }
+    }
+
+    #[test]
+    fn workspace_lease_rejects_a_live_process_and_releases_after_kill() {
         let root = unique_test_dir("lease-contention");
         fs::create_dir_all(&root).expect("score root should be created");
-        let first = acquire_score_workspace_lease(&root).expect("first writer should acquire lease");
+        let test_binary = std::env::current_exe().expect("unit test binary should resolve");
+        let mut child = Command::new(test_binary)
+            .arg("--exact")
+            .arg("score_recovery::tests::workspace_lease_child")
+            .arg("--nocapture")
+            .env(LEASE_CHILD_ENV, "1")
+            .env(LEASE_ROOT_ENV, &root)
+            .spawn()
+            .expect("lease child should start");
 
-        let second = acquire_score_workspace_lease(&root);
+        let marker = root.join("lease-ready");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !marker.exists() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert!(marker.exists(), "child should hold the workspace lease");
+        assert_eq!(
+            acquire_score_workspace_lease(&root).err().as_deref(),
+            Some(SCORE_RECOVERY_ERROR),
+            "a second process must not enter recovery while the first writer is live"
+        );
 
-        assert_eq!(second.err().as_deref(), Some(SCORE_RECOVERY_ERROR));
-        drop(first);
-        acquire_score_workspace_lease(&root).expect("lease should release when the first owner drops");
+        child.kill().expect("lease child should terminate");
+        let status = child.wait().expect("lease child should be reaped");
+        assert!(!status.success(), "lease child should end by termination");
+        acquire_score_workspace_lease(&root)
+            .expect("the OS lease should become available after process termination");
         let _ = fs::remove_dir_all(root);
     }
 
