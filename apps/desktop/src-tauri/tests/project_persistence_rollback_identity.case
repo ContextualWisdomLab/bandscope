@@ -3,7 +3,8 @@ mod rollback_identity {
     use crate::project_persistence;
     use std::{
         fs,
-        path::PathBuf,
+        io::Write,
+        path::{Path, PathBuf},
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -20,7 +21,63 @@ mod rollback_identity {
         path
     }
 
-    fn has_published_journal(root: &std::path::Path) -> bool {
+    fn journal_path(target: &Path, published: bool) -> PathBuf {
+        let phase = if published { "published" } else { "prepared" };
+        target.parent().expect("fixture target should have a parent").join(format!(
+            ".bandscope-recovery-{}.{phase}.journal",
+            project_persistence::journal_target_key(target)
+                .expect("fixture target key should be derivable")
+        ))
+    }
+
+    #[cfg(unix)]
+    fn journal_name(path: &Path) -> Vec<u8> {
+        use std::os::unix::ffi::OsStrExt;
+
+        path.file_name()
+            .expect("fixture path should have a file name")
+            .as_bytes()
+            .to_vec()
+    }
+
+    #[cfg(windows)]
+    fn journal_name(path: &Path) -> Vec<u16> {
+        use std::os::windows::ffi::OsStrExt;
+
+        path.file_name()
+            .expect("fixture path should have a file name")
+            .encode_wide()
+            .collect()
+    }
+
+    fn write_identity_journal(
+        target: &Path,
+        candidate_stage: &Path,
+        displaced: &Path,
+        expected: &project_persistence::ProjectFileIdentity,
+        candidate: &project_persistence::ProjectFileIdentity,
+        published: bool,
+    ) -> PathBuf {
+        let journal = journal_path(target, published);
+        let record = serde_json::json!({
+            "version": 2,
+            "target_name": journal_name(target),
+            "candidate_name": journal_name(candidate_stage),
+            "displaced_name": journal_name(displaced),
+            "expected": expected,
+            "candidate": candidate,
+            "validation": { "kind": "identity_only" },
+        });
+        let bytes = serde_json::to_vec(&record).expect("recovery journal fixture should serialize");
+        let mut file = fs::File::create_new(&journal).expect("recovery journal fixture should be created");
+        file.write_all(&bytes)
+            .expect("recovery journal fixture should be written");
+        file.sync_all()
+            .expect("recovery journal fixture should be synchronized");
+        journal
+    }
+
+    fn has_published_journal(root: &Path) -> bool {
         root.read_dir()
             .expect("test directory should remain readable")
             .filter_map(Result::ok)
@@ -48,25 +105,20 @@ mod rollback_identity {
             .expect("predecessor identity should be capturable");
         let candidate_identity = project_persistence::project_file_identity(&target)
             .expect("candidate identity should be capturable");
-        let journal = project_persistence::create_publication_journal_for_test(
+        let journal = write_identity_journal(
             &target,
             &stage,
             &stage,
             &expected,
             &candidate_identity,
-        )
-        .expect("prepared publication journal should be durable");
+            true,
+        );
 
         fs::remove_file(&stage).expect("predecessor pathname should be replaceable by the race fixture");
         fs::write(&stage, foreign).expect("foreign displaced-path occupant should be written");
 
-        let error = project_persistence::finish_successful_publication_for_test(
-            &journal,
-            &stage,
-            &target,
-        )
-        .expect_err(
-            "successful cleanup must fail closed rather than delete a displaced pathname whose identity changed",
+        let error = project_persistence::recover_project_publication(&target).expect_err(
+            "published recovery must fail closed rather than delete a displaced pathname whose identity changed",
         );
 
         assert_eq!(error, "Could not recover the project publication safely.");
@@ -78,10 +130,8 @@ mod rollback_identity {
             fs::read(&target).expect("published candidate must remain intact"),
             candidate
         );
-        assert!(
-            has_published_journal(&root),
-            "published recovery evidence must remain when cleanup authority is ambiguous"
-        );
+        assert!(journal.exists(), "published recovery evidence must remain");
+        assert!(has_published_journal(&root));
 
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
@@ -102,25 +152,20 @@ mod rollback_identity {
             .expect("predecessor identity should be capturable");
         let candidate_identity = project_persistence::project_file_identity(&target)
             .expect("candidate identity should be capturable");
-        let journal = project_persistence::create_publication_journal_for_test(
+        let journal = write_identity_journal(
             &target,
             &stage,
             &stage,
             &expected,
             &candidate_identity,
-        )
-        .expect("prepared publication journal should be durable");
+            true,
+        );
 
         fs::remove_file(&target).expect("published target should be replaceable by the race fixture");
         fs::write(&target, foreign).expect("foreign target occupant should be written");
 
-        let error = project_persistence::finish_successful_publication_for_test(
-            &journal,
-            &stage,
-            &target,
-        )
-        .expect_err(
-            "successful cleanup must fail closed when the target no longer denotes the published candidate",
+        let error = project_persistence::recover_project_publication(&target).expect_err(
+            "published recovery must fail closed when the target no longer denotes the published candidate",
         );
 
         assert_eq!(error, "Could not recover the project publication safely.");
@@ -132,10 +177,8 @@ mod rollback_identity {
             fs::read(&target).expect("foreign target occupant must not be clobbered"),
             foreign
         );
-        assert!(
-            has_published_journal(&root),
-            "published recovery evidence must remain when target authority changes before cleanup"
-        );
+        assert!(journal.exists(), "published recovery evidence must remain");
+        assert!(has_published_journal(&root));
 
         fs::remove_dir_all(root).expect("test directory should be removable");
     }
@@ -155,25 +198,20 @@ mod rollback_identity {
             .expect("original identity should be capturable");
         let candidate_identity = project_persistence::project_file_identity(&stage)
             .expect("candidate identity should be capturable");
-        let journal = project_persistence::create_publication_journal_for_test(
+        let journal = write_identity_journal(
             &target,
             &stage,
             &stage,
             &expected,
             &candidate_identity,
-        )
-        .expect("prepared rollback journal should be durable");
+            false,
+        );
 
         fs::remove_file(&stage).expect("candidate pathname should be replaceable by the race fixture");
         fs::write(&stage, foreign).expect("foreign rollback artifact should be written");
 
-        let error = project_persistence::finish_rolled_back_publication_for_test(
-            &stage,
-            &journal,
-            &target,
-        )
-        .expect_err(
-            "rollback cleanup must not delete a stage whose identity no longer matches the candidate",
+        let error = project_persistence::recover_project_publication(&target).expect_err(
+            "prepared recovery must not delete a stage whose identity no longer matches the candidate",
         );
 
         assert_eq!(error, "Could not recover the project publication safely.");
@@ -181,10 +219,7 @@ mod rollback_identity {
             fs::read(&stage).expect("foreign artifact must remain for recovery"),
             foreign
         );
-        assert!(
-            journal.exists(),
-            "the journal must remain when rollback identity is ambiguous"
-        );
+        assert!(journal.exists(), "the journal must remain when rollback identity is ambiguous");
         assert_eq!(
             fs::read(&target).expect("target must remain untouched"),
             original
