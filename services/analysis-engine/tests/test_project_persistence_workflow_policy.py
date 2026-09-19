@@ -17,6 +17,10 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/tests/project_persistence*.rs"',
     '"apps/desktop/core/tests/project_format*.rs"',
     '"apps/desktop/core/testdata/project-*.json"',
+    '"apps/desktop/src/App.tsx"',
+    '"apps/desktop/src/App.project-save-source-authority.test.tsx"',
+    '"apps/desktop/src/lib/analysis.ts"',
+    '"apps/desktop/src/lib/projectDocumentSaveAuthority.test.ts"',
     '"apps/desktop/src-tauri/Cargo.toml"',
     '"apps/desktop/src-tauri/Cargo.lock"',
     '"apps/desktop/src-tauri/src/main.rs"',
@@ -27,6 +31,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/src-tauri/tests/project_persistence*.rs"',
     '"apps/desktop/src-tauri/tests/project_persistence*.case"',
     '"docs/traceability/project-persistence-native-ci.md"',
+    '"docs/traceability/project-persistence-shared-song-contract.md"',
     '"services/analysis-engine/tests/test_project_persistence_workflow_policy.py"',
 )
 
