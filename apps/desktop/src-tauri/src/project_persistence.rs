@@ -359,6 +359,7 @@ pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<
     )
 }
 
+#[cfg(test)]
 pub(crate) fn publish_new_project_file_with_linker<F>(
     target: &Path,
     content: &[u8],
@@ -375,6 +376,7 @@ where
     )
 }
 
+#[cfg(test)]
 pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
     target: &Path,
     content: &[u8],
