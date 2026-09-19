@@ -22,6 +22,27 @@ fn ordinary_app_local_base_provisions_one_new_project_root_without_reuse() {
     fs::remove_dir_all(&test_root).expect("test directory should be removable");
 }
 
+#[test]
+fn ordinary_owned_workspace_directory_can_be_provisioned_and_reused() {
+    use std::fs;
+
+    let test_root = std::env::temp_dir().join(format!(
+        "bandscope-owned-workspace-positive-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let workspace = test_root.join("cache").join("project-1-1");
+
+    let created = crate::project_root::ensure_owned_directory(&workspace)
+        .expect("ordinary app-owned workspace should be provisioned");
+    assert_eq!(created, workspace);
+    let reopened = crate::project_root::ensure_owned_directory(&workspace)
+        .expect("an existing ordinary app-owned workspace should be reusable");
+    assert_eq!(reopened, workspace);
+
+    fs::remove_dir_all(&test_root).expect("test directory should be removable");
+}
+
 #[cfg(unix)]
 #[test]
 fn linked_app_local_base_cannot_authorize_a_project_root() {
@@ -75,6 +96,61 @@ fn linked_app_local_base_cannot_provision_a_new_project_root() {
     assert!(
         !real_app_local_base.join(project_id).exists(),
         "rejected provisioning must not create a project through the linked base"
+    );
+
+    fs::remove_dir_all(&test_root).expect("test directory should be removable");
+}
+
+#[cfg(unix)]
+#[test]
+fn linked_owned_workspace_ancestor_cannot_redirect_app_owned_storage() {
+    use std::{fs, os::unix::fs::symlink};
+
+    let test_root = std::env::temp_dir().join(format!(
+        "bandscope-owned-workspace-authority-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let real_base = test_root.join("real-cache");
+    let linked_base = test_root.join("linked-cache");
+    let redirected_workspace = real_base.join("project-1-1");
+
+    fs::create_dir_all(&real_base).expect("real cache base should be created");
+    symlink(&real_base, &linked_base).expect("linked cache base should be created");
+
+    assert!(
+        crate::project_root::ensure_owned_directory(&linked_base.join("project-1-1")).is_err(),
+        "a linked cache/temp ancestor must not redirect app-owned workspace provisioning"
+    );
+    assert!(
+        !redirected_workspace.exists(),
+        "rejected workspace provisioning must not create a directory through a linked ancestor"
+    );
+
+    fs::remove_dir_all(&test_root).expect("test directory should be removable");
+}
+
+#[cfg(unix)]
+#[test]
+fn linked_scores_directory_cannot_be_reused_as_owned_storage() {
+    use std::{fs, os::unix::fs::symlink};
+
+    let test_root = std::env::temp_dir().join(format!(
+        "bandscope-scores-authority-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let project_root = test_root.join("project-1-1");
+    let external_scores = test_root.join("external-scores");
+    let scores = project_root.join("scores");
+
+    fs::create_dir_all(&project_root).expect("project root should be created");
+    fs::create_dir_all(&external_scores).expect("external scores target should be created");
+    symlink(&external_scores, &scores).expect("linked scores directory should be created");
+
+    assert!(
+        crate::project_root::ensure_owned_directory(&scores).is_err(),
+        "a linked scores directory must not become app-owned storage authority"
     );
 
     fs::remove_dir_all(&test_root).expect("test directory should be removable");
@@ -147,5 +223,74 @@ fn reparse_app_local_base_cannot_provision_a_new_project_root() {
     );
 
     fs::remove_dir(&linked_app_local_base).expect("junction should be removable");
+    fs::remove_dir_all(&test_root).expect("test directory should be removable");
+}
+
+#[cfg(windows)]
+#[test]
+fn reparse_owned_workspace_ancestor_cannot_redirect_app_owned_storage() {
+    use std::{fs, process::Command};
+
+    let test_root = std::env::temp_dir().join(format!(
+        "bandscope-owned-workspace-authority-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let real_base = test_root.join("real-cache");
+    let linked_base = test_root.join("linked-cache");
+    let redirected_workspace = real_base.join("project-1-1");
+
+    fs::create_dir_all(&real_base).expect("real cache base should be created");
+    let junction = Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&linked_base)
+        .arg(&real_base)
+        .status()
+        .expect("junction command should start");
+    assert!(junction.success(), "junction fixture should be created");
+
+    assert!(
+        crate::project_root::ensure_owned_directory(&linked_base.join("project-1-1")).is_err(),
+        "a reparse cache/temp ancestor must not redirect app-owned workspace provisioning"
+    );
+    assert!(
+        !redirected_workspace.exists(),
+        "rejected workspace provisioning must not create a directory through a reparse ancestor"
+    );
+
+    fs::remove_dir(&linked_base).expect("junction should be removable");
+    fs::remove_dir_all(&test_root).expect("test directory should be removable");
+}
+
+#[cfg(windows)]
+#[test]
+fn reparse_scores_directory_cannot_be_reused_as_owned_storage() {
+    use std::{fs, process::Command};
+
+    let test_root = std::env::temp_dir().join(format!(
+        "bandscope-scores-authority-{}-{}",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    let project_root = test_root.join("project-1-1");
+    let external_scores = test_root.join("external-scores");
+    let scores = project_root.join("scores");
+
+    fs::create_dir_all(&project_root).expect("project root should be created");
+    fs::create_dir_all(&external_scores).expect("external scores target should be created");
+    let junction = Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&scores)
+        .arg(&external_scores)
+        .status()
+        .expect("junction command should start");
+    assert!(junction.success(), "junction fixture should be created");
+
+    assert!(
+        crate::project_root::ensure_owned_directory(&scores).is_err(),
+        "a reparse scores directory must not become app-owned storage authority"
+    );
+
+    fs::remove_dir(&scores).expect("scores junction should be removable");
     fs::remove_dir_all(&test_root).expect("test directory should be removable");
 }
