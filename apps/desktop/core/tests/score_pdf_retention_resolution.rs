@@ -25,6 +25,16 @@ fn removal_resolution_returns_none_only_for_an_absent_entry() {
 }
 
 #[test]
+fn removal_resolution_rejects_a_missing_scores_root() {
+    let parent = unique_temp_dir("missing-root");
+    let scores_root = parent.join("scores-not-created");
+    let score_id = "55555555-5555-4555-8555-555555555555";
+
+    assert!(resolve_score_pdf_for_removal(&scores_root, score_id).is_err());
+    fs::remove_dir_all(parent).expect("retention test parent should be removed");
+}
+
+#[test]
 fn removal_resolution_returns_the_existing_regular_score() {
     let scores_root = unique_temp_dir("regular");
     let score_id = "22222222-2222-4222-8222-222222222222";
