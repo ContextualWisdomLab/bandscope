@@ -2,6 +2,8 @@ use bandscope_desktop_core::publish_score_pdf_attachment;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const SCORE_ID: &str = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
+
 fn unique_test_dir(name: &str) -> PathBuf {
     let suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -17,18 +19,17 @@ fn score_attachment_publication_writes_complete_pdf_without_leaking_stage() {
     let source = root.join("selected.pdf");
     let expected = b"%PDF-1.7\nrehearsal score";
     std::fs::write(&source, expected).expect("score fixture should be written");
-    let score_id = "6fa459ea-ee8a-3ca4-894e-db77e160355e";
 
-    let bytes = publish_score_pdf_attachment(&source, &root, score_id)
+    let bytes = publish_score_pdf_attachment(&source, &root, SCORE_ID)
         .expect("validated score should publish");
 
     assert_eq!(bytes, expected.len() as u64);
     assert_eq!(
-        std::fs::read(root.join(format!("{score_id}.pdf")))
+        std::fs::read(root.join(format!("{SCORE_ID}.pdf")))
             .expect("published score should be readable"),
         expected
     );
-    assert!(!root.join(format!(".score-{score_id}.stage")).exists());
+    assert!(!root.join(format!(".score-{SCORE_ID}.stage")).exists());
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -38,12 +39,11 @@ fn score_attachment_publication_never_clobbers_existing_score_id() {
     std::fs::create_dir_all(&root).expect("score root should be created");
     let source = root.join("selected.pdf");
     std::fs::write(&source, b"%PDF-1.7\nnew bytes").expect("score fixture should be written");
-    let score_id = "6fa459ea-ee8a-3ca4-894e-db77e160355e";
-    let destination = root.join(format!("{score_id}.pdf"));
+    let destination = root.join(format!("{SCORE_ID}.pdf"));
     std::fs::write(&destination, b"%PDF-1.7\nexisting bytes")
         .expect("existing attachment should be written");
 
-    let error = publish_score_pdf_attachment(&source, &root, score_id)
+    let error = publish_score_pdf_attachment(&source, &root, SCORE_ID)
         .expect_err("publication must not replace an existing attachment");
 
     assert_eq!(error, "Could not attach the score PDF.");
@@ -51,7 +51,7 @@ fn score_attachment_publication_never_clobbers_existing_score_id() {
         std::fs::read(&destination).expect("existing attachment should remain readable"),
         b"%PDF-1.7\nexisting bytes"
     );
-    assert!(!root.join(format!(".score-{score_id}.stage")).exists());
+    assert!(!root.join(format!(".score-{SCORE_ID}.stage")).exists());
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -70,10 +70,9 @@ fn score_attachment_publication_is_private_under_permissive_umask() {
         let source = root.join("selected.pdf");
         std::fs::write(&source, b"%PDF-1.7\nprivate score")
             .expect("score fixture should be written");
-        let score_id = "6fa459ea-ee8a-3ca4-894e-db77e160355e";
-        publish_score_pdf_attachment(&source, &root, score_id)
+        publish_score_pdf_attachment(&source, &root, SCORE_ID)
             .expect("score publication should succeed under permissive umask");
-        let mode = std::fs::metadata(root.join(format!("{score_id}.pdf")))
+        let mode = std::fs::metadata(root.join(format!("{SCORE_ID}.pdf")))
             .expect("published score metadata should be readable")
             .mode()
             & 0o777;
