@@ -3,9 +3,10 @@ import { createDemoRehearsalSong } from "@bandscope/shared-types";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
-const { mockLoadProject, mockLoadProjectDocument, mockSaveProject } = vi.hoisted(() => ({
+const { mockLoadProject, mockLoadProjectDocument, mockPersistProject, mockSaveProject } = vi.hoisted(() => ({
   mockLoadProject: vi.fn(),
   mockLoadProjectDocument: vi.fn(),
+  mockPersistProject: vi.fn().mockResolvedValue(undefined),
   mockSaveProject: vi.fn().mockResolvedValue(undefined)
 }));
 
@@ -55,6 +56,7 @@ vi.mock("./lib/analysis", async (importActual) => {
     subscribeToAnalysisJobUpdates: async () => () => undefined,
     loadProject: (...args: unknown[]) => mockLoadProject(...args),
     loadProjectDocument: (...args: unknown[]) => mockLoadProjectDocument(...args),
+    persistProject: (...args: unknown[]) => mockPersistProject(...args),
     saveProject: (...args: unknown[]) => mockSaveProject(...args)
   };
 });
@@ -63,6 +65,8 @@ describe("App local-audio save authority", () => {
   beforeEach(() => {
     mockLoadProject.mockReset();
     mockLoadProjectDocument.mockReset();
+    mockPersistProject.mockReset();
+    mockPersistProject.mockResolvedValue(undefined);
     mockSaveProject.mockClear();
   });
 
@@ -84,6 +88,42 @@ describe("App local-audio save authority", () => {
         "project-400-4"
       );
     });
+  });
+
+  it("persists a local-project mutation before exposing it as accepted renderer state", async () => {
+    let releasePersist: (() => void) | undefined;
+    mockPersistProject.mockImplementationOnce(
+      () => new Promise<void>((resolve) => {
+        releasePersist = resolve;
+      })
+    );
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Dbmaj7");
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText("source.wav")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() => expect(screen.getAllByText("C#m7", { selector: "button" }).length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getAllByText("C#m7", { selector: "button" })[0]!);
+
+    await waitFor(() => {
+      expect(mockPersistProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sections: expect.arrayContaining([
+            expect.objectContaining({ chords: expect.arrayContaining(["Dbmaj7"]) })
+          ])
+        }),
+        "full_mix",
+        "project-400-4"
+      );
+    });
+    expect(screen.queryAllByText("Dbmaj7").length).toBe(0);
+
+    releasePersist?.();
+    await waitFor(() => expect(screen.getAllByText("Dbmaj7").length).toBeGreaterThan(0));
+    promptSpy.mockRestore();
   });
 
   it("preserves reopened source identity and playback-source intent on resave", async () => {
