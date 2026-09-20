@@ -59,6 +59,8 @@ A second source-level RED, `25a3e6c93db2464de90063910ae0de58aa8e7f05`, requires 
 
 `93a2e9ce313db949eda2fa5ee4535feb3c26af78` adds the authorization contract and opaque proof type; `9147521985c4bd8fe924c827776465d592fa1bdc` exports it from the canonical desktop-core root. `59f4c153b20aaab2d23dbe1aaad4a43ff378be60` is a no-semantics-change cleanup of the set-overlap checks before hosted settlement.
 
+The first exact-head macOS owner run after that repair succeeded, but self-review found an evidence-ownership defect before treating it as contract GREEN: both native workflows tracked `apps/desktop/core/tests/project_persistence*.rs` yet executed only the `apps/desktop/src-tauri` integration manifest. Cargo does not execute a dependency crate's integration tests merely because the dependency compiles, so the new `project_persistence_score_recovery.rs` assertions were not owned by those native jobs. Source-level CI RED `6611511e1a5f0c135b4f91075c0e5fd774d27a23` updates the workflow-policy regression to require the desktop-core owner suite explicitly. `7ef92d833052ab5476aab37c4f38f70ce136d00f` repairs macOS and `24bc2355ac2a9b2c6ee5c6f074d029e1ffc70516` repairs Windows by running `cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features persistence_warning_gate --all-targets` before the existing native Tauri suite. No predecessor native success is transferred to the repaired workflows.
+
 Exact-head hosted evidence must be taken only from the final unchanged head.
 
 ## Remaining integration
