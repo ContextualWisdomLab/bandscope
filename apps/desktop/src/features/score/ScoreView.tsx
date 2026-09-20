@@ -56,10 +56,12 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const [error, setError] = useState<string | null>(null);
   const readRequestRef = useRef(0);
   const selectedRef = useRef<ScoreAttachment | null>(selected);
+  const songRef = useRef(song);
   const contextKey = `${projectId ?? ""}\u0000${song.id}`;
   const contextKeyRef = useRef(contextKey);
   const previousContextKeyRef = useRef(contextKey);
   selectedRef.current = selected;
+  songRef.current = song;
   contextKeyRef.current = contextKey;
 
   /** Return whether an async operation still belongs to the rendered project/song context. */
@@ -119,7 +121,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
    * Attach a new score PDF via the native picker and open it only after the
    * owning project metadata accepts the attachment. A completed publication
    * whose project context has since changed is left as a recovery candidate;
-   * stale UI intent never mutates the newly active project.
+   * stale UI intent never mutates the newly active project. Within the same
+   * project/song, metadata is based on the latest rendered song snapshot before
+   * persistence; durable concurrent-writer arbitration remains Project
+   * Persistence/CAS authority.
    */
   const handleAttach = async (activeProjectId: string) => {
     const expectedContextKey = contextKeyRef.current;
@@ -131,9 +136,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
         return;
       }
       const attachment: ScoreAttachment = { id: result.id, fileName: result.fileName };
+      const currentSong = songRef.current;
+      const currentAttachments = currentSong.scoreAttachments ?? [];
       const accepted = await onSongUpdate({
-        ...song,
-        scoreAttachments: [...attachments, attachment]
+        ...currentSong,
+        scoreAttachments: [...currentAttachments, attachment]
       });
       if (!isCurrentContext(expectedContextKey) || accepted === false) {
         return;
@@ -155,9 +162,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
    * project metadata, then delete bytes only if that same receipt is still
    * current after metadata detachment. The project/song context is also
    * revalidated before metadata mutation and again before storage deletion, so
-   * an async detach cannot cross a project switch. Selection freshness is read
-   * at acceptance time so a score opened while receipt/persistence work is in
-   * flight cannot remain visible after its metadata is detached.
+   * an async detach cannot cross a project switch. Selection freshness and the
+   * latest rendered same-song snapshot are read at acceptance time so receipt
+   * latency cannot leave a detached score visible or overwrite newer visible
+   * metadata. Durable concurrent-writer arbitration remains Project
+   * Persistence/CAS authority.
    */
   const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
     const expectedContextKey = contextKeyRef.current;
@@ -173,9 +182,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
       if (!isCurrentContext(expectedContextKey)) {
         return;
       }
+      const currentSong = songRef.current;
+      const currentAttachments = currentSong.scoreAttachments ?? [];
       const accepted = await onSongUpdate({
-        ...song,
-        scoreAttachments: attachments.filter((entry) => entry.id !== attachment.id)
+        ...currentSong,
+        scoreAttachments: currentAttachments.filter((entry) => entry.id !== attachment.id)
       });
       if (!isCurrentContext(expectedContextKey) || accepted === false) {
         return;
