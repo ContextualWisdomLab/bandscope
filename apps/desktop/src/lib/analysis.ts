@@ -57,6 +57,8 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 ]);
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
+const WORKSPACE_SAVE_IN_FLIGHT_MESSAGE = "Project update is already being saved.";
+const workspaceSaveInFlight = new Set<string>();
 
 export { MAX_LOCAL_AUDIO_FILE_BYTES, MAX_YOUTUBE_URL_LENGTH };
 
@@ -388,7 +390,9 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
  * minted project aggregate, it may pass only that project id; Tauri resolves the
  * retained publication identity and injects the path-free reference natively.
  * `workspace=true` selects the app-owned crash-safe snapshot instead of opening
- * a user-facing Save As dialog.
+ * a user-facing Save As dialog. Workspace writes are single-flight per project:
+ * a second full-song snapshot is rejected while the first durability decision
+ * is unresolved, so a stale renderer snapshot cannot overwrite it silently.
  */
 export async function saveProjectDocument(
   projectDocument: ProjectDocument,
@@ -399,11 +403,29 @@ export async function saveProjectDocument(
   if (parsedDocument.sourceReference) {
     throw new Error("Invalid project document");
   }
-  await invokeAnalysis("save_project", {
-    payload: parsedDocument,
-    ...(projectId === undefined ? {} : { projectId }),
-    ...(workspace ? { workspace: true } : {})
-  });
+
+  const workspaceLeaseKey = workspace ? projectId : undefined;
+  if (workspace && workspaceLeaseKey === undefined) {
+    throw new Error("Workspace project id is required.");
+  }
+  if (workspaceLeaseKey !== undefined && workspaceSaveInFlight.has(workspaceLeaseKey)) {
+    throw new Error(WORKSPACE_SAVE_IN_FLIGHT_MESSAGE);
+  }
+  if (workspaceLeaseKey !== undefined) {
+    workspaceSaveInFlight.add(workspaceLeaseKey);
+  }
+
+  try {
+    await invokeAnalysis("save_project", {
+      payload: parsedDocument,
+      ...(projectId === undefined ? {} : { projectId }),
+      ...(workspace ? { workspace: true } : {})
+    });
+  } finally {
+    if (workspaceLeaseKey !== undefined) {
+      workspaceSaveInFlight.delete(workspaceLeaseKey);
+    }
+  }
 }
 
 /** Reopen one current versioned project document, including durable Project Persistence state. */
