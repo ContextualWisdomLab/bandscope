@@ -17,6 +17,7 @@ on:
       - "apps/desktop/core/src/score_storage.rs"
       - "apps/desktop/core/tests/content_sha256_shared_kernel.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
+      - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/src/main.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
@@ -43,6 +44,7 @@ on:
       - "apps/desktop/core/src/score_storage.rs"
       - "apps/desktop/core/tests/content_sha256_shared_kernel.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
+      - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/src/main.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
@@ -93,6 +95,24 @@ jobs:
           cargo +1.97.1 test \
             --manifest-path apps/desktop/core/Cargo.toml \
             --test content_sha256_shared_kernel
+      - name: Verify shipped desktop excludes Score Storage fault injection
+        shell: bash
+        run: |
+          feature_tree="$(cargo +1.97.1 tree \
+            --manifest-path apps/desktop/src-tauri/Cargo.toml \
+            -e features \
+            -i bandscope-desktop-core)"
+          if printf '%s\n' "$feature_tree" | grep -F 'score-storage-fault-injection'; then
+            echo "::error::The shipped desktop dependency graph enables score-storage-fault-injection."
+            exit 1
+          fi
+          if cargo +1.97.1 check \
+            --release \
+            --manifest-path apps/desktop/core/Cargo.toml \
+            --features score-storage-fault-injection; then
+            echo "::error::A release build accepted the owner-only fault-injection feature."
+            exit 1
+          fi
       - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, durability, fault-recovery, write-failure, capacity-exhaustion, Windows ACL, Unix cleanup, and wiring regressions
         run: >-
           cargo +1.97.1 test
