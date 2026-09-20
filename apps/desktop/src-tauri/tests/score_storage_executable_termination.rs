@@ -17,7 +17,7 @@ const MARKER_ENV: &str = "BANDSCOPE_SCORE_STORAGE_FAULT_MARKER";
 const AFTER_STAGE_SYNC_BEFORE_LINK: &str = "after-stage-sync-before-link";
 const AFTER_LINK_BEFORE_STAGE_RETIREMENT: &str = "after-link-before-stage-retirement";
 const BEFORE_METADATA_BARRIER: &str = "before-metadata-barrier";
-const EXPECTED: &[u8] = b"%PDF-1.7\ndesktop executable termination fixture";
+const EXPECTED: &[u8] = b"%PDF-1.7\ndesktop package executable termination fixture";
 
 fn unique_test_dir(name: &str) -> PathBuf {
     let suffix = SystemTime::now()
@@ -31,24 +31,24 @@ fn fixture(name: &str) -> (PathBuf, PathBuf, PathBuf, PathBuf) {
     let base = unique_test_dir(name);
     let scores_root = base.join("scores");
     let source = base.join("selected.pdf");
-    let marker = base.join("desktop-publisher-checkpoint-ready");
+    let marker = base.join("desktop-package-publisher-checkpoint-ready");
     std::fs::create_dir_all(&scores_root).expect("score root should be created");
     std::fs::write(&source, EXPECTED).expect("score fixture should be written");
     (base, scores_root, source, marker)
 }
 
-fn desktop_binary() -> &'static str {
-    env!("CARGO_BIN_EXE_bandscope-desktop")
+fn package_fault_harness() -> &'static str {
+    env!("CARGO_BIN_EXE_score-storage-fault-harness")
 }
 
-fn spawn_desktop_publisher(
+fn spawn_desktop_package_publisher(
     checkpoint: &str,
     scores_root: &Path,
     source: &Path,
     score_id: &str,
     marker: &Path,
 ) -> Child {
-    Command::new(desktop_binary())
+    Command::new(package_fault_harness())
         .env(CHILD_MODE_ENV, "1")
         .env(ROOT_ENV, scores_root)
         .env(SOURCE_ENV, source)
@@ -56,7 +56,7 @@ fn spawn_desktop_publisher(
         .env(CHECKPOINT_ENV, checkpoint)
         .env(MARKER_ENV, marker)
         .spawn()
-        .expect("desktop publisher child should start")
+        .expect("desktop-package publisher child should start")
 }
 
 fn wait_for_checkpoint(child: &mut Child, marker: &Path, checkpoint: &str) {
@@ -64,47 +64,47 @@ fn wait_for_checkpoint(child: &mut Child, marker: &Path, checkpoint: &str) {
     while !marker.exists() && Instant::now() < deadline {
         if let Some(status) = child
             .try_wait()
-            .expect("desktop publisher child status should be observable")
+            .expect("desktop-package publisher child status should be observable")
         {
-            panic!("desktop publisher child exited before {checkpoint}: {status}");
+            panic!("desktop-package publisher child exited before {checkpoint}: {status}");
         }
         thread::sleep(Duration::from_millis(20));
     }
     if !marker.exists() {
         let _ = child.kill();
         let _ = child.wait();
-        panic!("desktop publisher child did not expose {checkpoint}");
+        panic!("desktop-package publisher child did not expose {checkpoint}");
     }
     assert_eq!(
         std::fs::read_to_string(marker).expect("checkpoint marker should be readable"),
         checkpoint,
-        "the desktop child must expose the requested publication boundary"
+        "the desktop-package child must expose the requested publication boundary"
     );
 }
 
 fn terminate_and_reap(child: &mut Child) {
     child
         .kill()
-        .expect("desktop publisher child should terminate at the requested boundary");
-    let status = child.wait().expect("desktop publisher child should be reaped");
+        .expect("desktop-package publisher child should terminate at the requested boundary");
+    let status = child.wait().expect("desktop-package publisher child should be reaped");
     assert!(
         !status.success(),
-        "the desktop publisher must end by process termination, not successful return"
+        "the desktop-package publisher must end by process termination, not successful return"
     );
 }
 
 fn assert_live_lease(scores_root: &Path) {
     assert!(
         inventory_published_score_pdf_receipts(scores_root).is_err(),
-        "the running desktop executable must still own the Score Storage lease"
+        "the running desktop-package executable must still own the Score Storage lease"
     );
 }
 
 #[test]
-fn desktop_executable_termination_after_stage_sync_recovers_stage_only() {
+fn desktop_package_executable_termination_after_stage_sync_recovers_stage_only() {
     let score_id = "21b419e4-f604-4c04-b57e-8c589751a101";
-    let (base, scores_root, source, marker) = fixture("desktop-stage-sync-termination");
-    let mut child = spawn_desktop_publisher(
+    let (base, scores_root, source, marker) = fixture("desktop-package-stage-sync-termination");
+    let mut child = spawn_desktop_package_publisher(
         AFTER_STAGE_SYNC_BEFORE_LINK,
         &scores_root,
         &source,
@@ -131,10 +131,10 @@ fn desktop_executable_termination_after_stage_sync_recovers_stage_only() {
 }
 
 #[test]
-fn desktop_executable_termination_after_link_recovers_equal_aliases() {
+fn desktop_package_executable_termination_after_link_recovers_equal_aliases() {
     let score_id = "21b419e4-f604-4c04-b57e-8c589751a102";
-    let (base, scores_root, source, marker) = fixture("desktop-post-link-termination");
-    let mut child = spawn_desktop_publisher(
+    let (base, scores_root, source, marker) = fixture("desktop-package-post-link-termination");
+    let mut child = spawn_desktop_package_publisher(
         AFTER_LINK_BEFORE_STAGE_RETIREMENT,
         &scores_root,
         &source,
@@ -163,10 +163,10 @@ fn desktop_executable_termination_after_link_recovers_equal_aliases() {
 }
 
 #[test]
-fn desktop_executable_termination_before_metadata_barrier_is_recoverable() {
+fn desktop_package_executable_termination_before_metadata_barrier_is_recoverable() {
     let score_id = "21b419e4-f604-4c04-b57e-8c589751a103";
-    let (base, scores_root, source, marker) = fixture("desktop-pre-barrier-termination");
-    let mut child = spawn_desktop_publisher(
+    let (base, scores_root, source, marker) = fixture("desktop-package-pre-barrier-termination");
+    let mut child = spawn_desktop_package_publisher(
         BEFORE_METADATA_BARRIER,
         &scores_root,
         &source,
@@ -185,7 +185,7 @@ fn desktop_executable_termination_before_metadata_barrier_is_recoverable() {
     terminate_and_reap(&mut child);
 
     let receipts = inventory_published_score_pdf_receipts(&scores_root)
-        .expect("restart recovery should retain the published object after desktop termination");
+        .expect("restart recovery should retain the published object after desktop-package termination");
     assert_eq!(receipts.len(), 1);
     assert_eq!(receipts[0].score_id(), score_id);
     assert!(!stage.exists(), "restart recovery must not recreate a retired stage alias");
