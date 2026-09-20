@@ -1,14 +1,16 @@
 """Regression coverage for native Project Persistence evidence lanes."""
 
+import re
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+CORE_TEST_ROOT = REPO_ROOT / "apps/desktop/core/tests"
 WINDOWS_WORKFLOW = "project-persistence-windows-native.yml"
 LEGACY_WINDOWS_WORKFLOW = "project-persistence-windows.yml"
 WARNING_GATE_FEATURE = "persistence_warning_gate"
 EXACT_SOURCE_REF = "ref: ${{ github.event.pull_request.head.sha || github.sha }}"
-CORE_OWNER_TEST_COMMANDS = (
+CORE_OWNER_MODULE_COMMANDS = (
     (
         "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
         "--features persistence_warning_gate --lib score_attachment_recovery::tests::"
@@ -17,24 +19,17 @@ CORE_OWNER_TEST_COMMANDS = (
         "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
         "--features persistence_warning_gate --lib content_sha256::tests::"
     ),
-    (
-        "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
-        "--features persistence_warning_gate "
-        "--test content_sha256_shared_kernel "
-        "--test project_format_resource_admission_handoff "
-        "--test project_format_v2_fixture "
-        "--test project_format_v2_playback_preference "
-        "--test project_format_v3_renderer_source_authority "
-        "--test project_format_v3_source_reference "
-        "--test project_migration_receipt_input_binding "
-        "--test project_persistence_contract "
-        "--test project_persistence_score_recovery"
-    ),
 )
 TAURI_OWNER_TEST_COMMAND = (
     "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
     "--no-default-features --features persistence_warning_gate --tests"
 )
+CORE_OWNER_TEST_PATTERNS = (
+    "project_persistence*.rs",
+    "project_format*.rs",
+    "project_migration*.rs",
+)
+CORE_OWNER_EXACT_TESTS = ("content_sha256_shared_kernel.rs",)
 REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/root.rs"',
@@ -46,6 +41,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/tests/content_sha256_shared_kernel.rs"',
     '"apps/desktop/core/tests/project_persistence*.rs"',
     '"apps/desktop/core/tests/project_format*.rs"',
+    '"apps/desktop/core/tests/project_migration*.rs"',
     '"apps/desktop/core/testdata/project-*.json"',
     '"apps/desktop/src/App.tsx"',
     '"apps/desktop/src/App.project-save-source-authority.test.tsx"',
@@ -77,6 +73,29 @@ def _workflow_text(name: str) -> str:
     return (REPO_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
 
 
+def _discovered_core_owner_targets() -> set[str]:
+    targets = {path.stem for pattern in CORE_OWNER_TEST_PATTERNS for path in CORE_TEST_ROOT.glob(pattern)}
+    targets.update((CORE_TEST_ROOT / name).stem for name in CORE_OWNER_EXACT_TESTS)
+    return targets
+
+
+def _executed_core_integration_targets(workflow: str) -> set[str]:
+    return set(re.findall(r"(?:^|\s)--test\s+([A-Za-z0-9_-]+)", workflow))
+
+
+def _assert_exact_core_integration_targets(
+    workflow: str,
+    lane: str,
+    expected_targets: set[str] | None = None,
+) -> None:
+    expected = expected_targets if expected_targets is not None else _discovered_core_owner_targets()
+    executed = _executed_core_integration_targets(workflow)
+    assert executed == expected, (
+        f"{lane} persistence workflow core owner drift: "
+        f"missing={sorted(expected - executed)}, extra={sorted(executed - expected)}"
+    )
+
+
 def _assert_tracks_native_persistence_inputs(workflow: str, lane: str) -> None:
     for required_path in REQUIRED_NATIVE_PERSISTENCE_PATHS:
         assert required_path in workflow, f"{lane} persistence workflow misses {required_path}"
@@ -89,8 +108,9 @@ def _assert_enforces_owned_rust_warnings(workflow: str, lane: str) -> None:
 
 
 def _assert_runs_core_owner_contracts(workflow: str, lane: str) -> None:
-    for command in CORE_OWNER_TEST_COMMANDS:
+    for command in CORE_OWNER_MODULE_COMMANDS:
         assert command in workflow, f"{lane} persistence workflow misses owner command: {command}"
+    _assert_exact_core_integration_targets(workflow, lane)
     assert "--all-targets" not in workflow, (
         f"{lane} persistence workflow must not turn unrelated desktop-core domains into "
         "Project Persistence gate ownership"
@@ -101,6 +121,19 @@ def _assert_checks_out_exact_source_identity(workflow: str, lane: str) -> None:
     assert (
         EXACT_SOURCE_REF in workflow
     ), f"{lane} persistence workflow must test the exact PR source head rather than GitHub's merge ref"
+
+
+def test_owner_target_drift_guard_rejects_an_unexecuted_future_contract() -> None:
+    """A newly discovered owner test must fail policy until the workflow executes it."""
+    fixture_workflow = "run: cargo test --test project_persistence_contract"
+    expected = {"project_persistence_contract", "project_persistence_future_contract"}
+
+    try:
+        _assert_exact_core_integration_targets(fixture_workflow, "hostile-fixture", expected)
+    except AssertionError as error:
+        assert "project_persistence_future_contract" in str(error)
+    else:
+        raise AssertionError("owner-target drift guard accepted an unexecuted future contract")
 
 
 def test_windows_project_persistence_gate_tracks_contract_inputs() -> None:
@@ -127,6 +160,13 @@ def test_macos_project_persistence_gate_tracks_contract_inputs() -> None:
     _assert_checks_out_exact_source_identity(workflow, "macOS")
     assert "runs-on: macos-15" in workflow
     assert TAURI_OWNER_TEST_COMMAND in workflow
+
+
+def test_macos_and_windows_execute_the_same_core_owner_targets() -> None:
+    """Platform-specific native lanes must not silently diverge in core owner coverage."""
+    macos_targets = _executed_core_integration_targets(_workflow_text("project-persistence-macos.yml"))
+    windows_targets = _executed_core_integration_targets(_workflow_text(WINDOWS_WORKFLOW))
+    assert macos_targets == windows_targets == _discovered_core_owner_targets()
 
 
 def test_native_warning_gate_is_owned_by_core_and_the_persistence_harness() -> None:
