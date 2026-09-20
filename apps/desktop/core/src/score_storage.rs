@@ -326,14 +326,61 @@ fn stage_identity(_file: &File) -> Result<StageIdentity, String> {
 }
 
 #[cfg(unix)]
-fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String> {
-    use std::os::unix::fs::MetadataExt;
+fn remove_owned_stage_with_hook<F>(
+    path: &Path,
+    expected: StageIdentity,
+    before_unlink: F,
+) -> Result<(), String>
+where
+    F: FnOnce(),
+{
+    use std::{ffi::CString, os::fd::AsRawFd, os::unix::ffi::OsStrExt};
 
-    let current = fs::symlink_metadata(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
-    if !current.is_file() || expected.device != current.dev() || expected.inode != current.ino() {
+    let parent = path
+        .parent()
+        .ok_or_else(|| SCORE_ATTACH_ERROR.to_string())?;
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| SCORE_ATTACH_ERROR.to_string())?;
+    let parent_file = File::open(parent).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if !parent_file
+        .metadata()
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?
+        .is_dir()
+    {
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
-    fs::remove_file(path).map_err(|_| SCORE_ATTACH_ERROR.to_string())
+    let name = CString::new(file_name.as_bytes()).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let target_file =
+        open_score_entry_at(&parent_file, &name).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let target_metadata = target_file
+        .metadata()
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if !target_metadata.is_file() || stage_identity(&target_file)? != expected {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+
+    before_unlink();
+
+    let current_file =
+        open_score_entry_at(&parent_file, &name).map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    let current_metadata = current_file
+        .metadata()
+        .map_err(|_| SCORE_ATTACH_ERROR.to_string())?;
+    if !current_metadata.is_file() || stage_identity(&current_file)? != expected {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+
+    let result = unsafe { unlinkat(parent_file.as_raw_fd(), name.as_ptr(), 0) };
+    if result != 0 {
+        return Err(SCORE_ATTACH_ERROR.to_string());
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn remove_owned_stage(path: &Path, expected: StageIdentity) -> Result<(), String> {
+    remove_owned_stage_with_hook(path, expected, || {})
 }
 
 #[cfg(windows)]
@@ -596,7 +643,9 @@ where
 /// Windows, with a second check after the temporary stage alias is retired.
 ///
 /// Security Notes: errors never include the source path or PDF bytes. Unix
-/// cleanup compares device/inode identity captured from the open stage. Windows
+/// stage cleanup pins the parent directory, opens the reserved basename with
+/// `O_NOFOLLOW`, rechecks device/inode identity, and unlinks through `unlinkat`;
+/// the narrow final identity-check-to-`unlinkat` race remains explicit. Windows
 /// opens the exact stage object with DELETE authority, verifies its volume plus
 /// 128-bit file id against the captured identity, then marks that same handle
 /// for deletion so a late pathname replacement cannot redirect cleanup. Final
@@ -739,6 +788,35 @@ mod tests {
         assert_eq!(
             fs::read(&moved).expect("owned file should survive failed deletion"),
             b"%PDF-owned"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_stage_cleanup_preserves_replacement_before_descriptor_relative_unlink() {
+        let root = unique_test_dir("score-stage-cleanup-unix-replacement");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join("stage.pdf");
+        let moved = root.join("owned-before-replacement.pdf");
+        let stage_file = create_private_stage(&stage).expect("owned stage should be created");
+        let expected = stage_identity(&stage_file).expect("owned stage identity should be captured");
+        drop(stage_file);
+
+        let error = remove_owned_stage_with_hook(&stage, expected, || {
+            fs::rename(&stage, &moved).expect("owned stage should move after identity check");
+            fs::write(&stage, b"foreign replacement").expect("foreign replacement should be written");
+        })
+        .expect_err("identity mismatch must fail closed before stage unlinkat");
+
+        assert_eq!(error, SCORE_ATTACH_ERROR);
+        assert_eq!(
+            fs::read(&stage).expect("foreign replacement must survive cleanup"),
+            b"foreign replacement"
+        );
+        assert_eq!(
+            fs::read(&moved).expect("owned stage must survive failed cleanup"),
+            b""
         );
         let _ = fs::remove_dir_all(root);
     }
