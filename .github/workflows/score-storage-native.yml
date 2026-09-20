@@ -20,6 +20,7 @@ on:
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
+      - "docs/traceability/score-attachment-post-link-recovery.md"
       - ".github/workflows/score-storage-native.yml"
   push:
     branches:
@@ -40,6 +41,7 @@ on:
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
+      - "docs/traceability/score-attachment-post-link-recovery.md"
       - ".github/workflows/score-storage-native.yml"
 
 permissions:
