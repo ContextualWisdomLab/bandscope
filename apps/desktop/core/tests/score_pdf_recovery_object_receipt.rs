@@ -44,10 +44,8 @@ fn stale_receipt_cannot_remove_same_id_republished_bytes() {
         .find(|receipt| receipt.score_id() == SCORE_ID)
         .expect("first published object should have a receipt");
 
-    assert!(
-        remove_score_pdf_attachment(&scores_root, SCORE_ID)
-            .expect("explicit owner removal should remove first object")
-    );
+    remove_score_pdf_attachment(&scores_root.join(format!("{SCORE_ID}.pdf")))
+        .expect("explicit owner removal should remove first object");
     publish_score_pdf_attachment(&source_b, &scores_root, SCORE_ID)
         .expect("same id may currently be republished with different bytes");
 
