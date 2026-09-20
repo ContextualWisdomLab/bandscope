@@ -109,7 +109,7 @@ fn acquire_project_write_admission(target: &Path) -> Result<ProjectWriteAdmissio
 
     let parent = first_save_parent(target);
     if target.file_name().is_none() || !first_save_parent_chain_is_safe(parent) {
-        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+        return Err(FIRST_SAVE_STAGE_ERROR.to_string());
     }
     let directory = File::open(parent).map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
     let result = unsafe { flock(directory.as_raw_fd(), LOCK_EX | LOCK_NB) };
@@ -165,10 +165,10 @@ fn windows_project_write_admission_name(target: &Path) -> Result<Vec<u16>, Strin
 
     let parent = first_save_parent(target);
     let Some(file_name) = target.file_name() else {
-        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+        return Err(FIRST_SAVE_STAGE_ERROR.to_string());
     };
     if !first_save_parent_chain_is_safe(parent) {
-        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+        return Err(FIRST_SAVE_STAGE_ERROR.to_string());
     }
     let canonical_parent =
         fs::canonicalize(parent).map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
