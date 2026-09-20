@@ -155,4 +155,33 @@ describe("ScoreView project-context invalidation", () => {
       expect.anything()
     );
   });
+
+  it("clears a score opened while detach waits for its receipt once metadata detachment is accepted", async () => {
+    let resolveReceipt!: (value: unknown) => void;
+    mockInvoke
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveReceipt = resolve; }))
+      .mockResolvedValueOnce([1, 2, 3])
+      .mockResolvedValueOnce(true);
+    const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
+    const onSongUpdate = vi.fn(() => true);
+    render(<ScoreView song={song} projectId="project-a" onSongUpdate={onSongUpdate} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+    await waitFor(() => expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:3:opener.pdf"));
+
+    await act(async () => {
+      resolveReceipt({ scoreId: SCORE_ID, contentSha256: SCORE_DIGEST });
+    });
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("remove_score_pdf_if_receipt_matches", {
+        projectId: "project-a",
+        scoreId: SCORE_ID,
+        contentSha256: SCORE_DIGEST
+      });
+    });
+
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
+  });
 });
