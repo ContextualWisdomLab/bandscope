@@ -1,4 +1,6 @@
 const TAURI_MAIN: &str = include_str!("../../src-tauri/src/main.rs");
+const TAURI_BUILD: &str = include_str!("../../src-tauri/build.rs");
+const TAURI_CAPABILITY: &str = include_str!("../../src-tauri/capabilities/main.json");
 const SCORE_STORAGE_BRIDGE: &str = include_str!("../../src/features/score/scoreStorage.ts");
 const SCORE_VIEW: &str = include_str!("../../src/features/score/ScoreView.tsx");
 
@@ -38,6 +40,17 @@ fn tauri_remove_command_requires_a_fresh_content_receipt() {
     assert!(remove_source.contains("remove_score_pdf_attachment_if_receipt_matches("));
     assert!(!remove_source.contains("remove_score_pdf_attachment("));
     assert!(!TAURI_MAIN.contains("fn remove_score_pdf("));
+}
+
+#[test]
+fn tauri_manifest_and_capability_expose_only_receipt_bound_detach_commands() {
+    assert!(TAURI_BUILD.contains("\"get_score_pdf_receipt\""));
+    assert!(TAURI_BUILD.contains("\"remove_score_pdf_if_receipt_matches\""));
+    assert!(!TAURI_BUILD.contains("\"remove_score_pdf\""));
+
+    assert!(TAURI_CAPABILITY.contains("\"allow-get-score-pdf-receipt\""));
+    assert!(TAURI_CAPABILITY.contains("\"allow-remove-score-pdf-if-receipt-matches\""));
+    assert!(!TAURI_CAPABILITY.contains("\"allow-remove-score-pdf\""));
 }
 
 #[test]
