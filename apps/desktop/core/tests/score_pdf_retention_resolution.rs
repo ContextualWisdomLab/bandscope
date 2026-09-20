@@ -79,16 +79,18 @@ fn removal_resolution_rejects_a_symlink_instead_of_reporting_absent() {
 const TAURI_MAIN: &str = include_str!("../../src-tauri/src/main.rs");
 
 #[test]
-fn tauri_removal_preserves_unsafe_resolution_errors() {
+fn tauri_receipt_bound_removal_preserves_unsafe_workspace_errors() {
     let remove_start = TAURI_MAIN
-        .find("fn remove_score_pdf(")
-        .expect("remove_score_pdf command should exist");
+        .find("fn remove_score_pdf_if_receipt_matches(")
+        .expect("receipt-bound remove command should exist");
     let main_start = TAURI_MAIN[remove_start..]
         .find("fn main()")
         .map(|offset| remove_start + offset)
-        .expect("main should follow remove_score_pdf command");
+        .expect("main should follow receipt-bound remove command");
     let remove_source = &TAURI_MAIN[remove_start..main_start];
 
-    assert!(remove_source.contains("resolve_score_pdf_for_removal("));
+    assert!(remove_source.contains("published_score_pdf_receipt(&scores_root, &score_id)?"));
+    assert!(remove_source.contains("remove_score_pdf_attachment_if_receipt_matches("));
     assert!(!remove_source.contains("Err(_) => return Ok(false)"));
+    assert!(!remove_source.contains("remove_score_pdf_attachment(&"));
 }
