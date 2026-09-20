@@ -55,21 +55,27 @@ fn write_allocated_file(path: &Path, bytes: usize) {
 }
 
 #[cfg(target_os = "macos")]
+fn assert_enospc(error: &std::io::Error) {
+    assert_eq!(
+        error.raw_os_error(),
+        Some(ENOSPC),
+        "the isolated filesystem must fail from real capacity exhaustion"
+    );
+}
+
+#[cfg(target_os = "macos")]
 fn fill_until_enospc(path: &Path) {
     let mut filler = File::create(path).expect("capacity filler should be created");
     let block = vec![0_u8; FILL_BLOCK_BYTES];
 
     for _ in 0..1024 {
-        match filler.write_all(&block) {
-            Ok(()) => continue,
-            Err(error) => {
-                assert_eq!(
-                    error.raw_os_error(),
-                    Some(ENOSPC),
-                    "the isolated filesystem must fail from real capacity exhaustion"
-                );
-                return;
-            }
+        if let Err(error) = filler.write_all(&block) {
+            assert_enospc(&error);
+            return;
+        }
+        if let Err(error) = filler.sync_data() {
+            assert_enospc(&error);
+            return;
         }
     }
 
