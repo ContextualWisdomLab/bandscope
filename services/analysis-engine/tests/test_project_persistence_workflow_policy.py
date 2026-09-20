@@ -35,6 +35,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/src-tauri/tests/project_persistence*.rs"',
     '"apps/desktop/src-tauri/tests/project_persistence*.case"',
     '"docs/traceability/project-persistence-native-ci.md"',
+    '"docs/traceability/project-persistence-score-publication-identity.md"',
     '"docs/traceability/project-persistence-shared-song-contract.md"',
     '"docs/traceability/project-persistence-workspace-mutation-admission.md"',
     '"services/analysis-engine/tests/test_project_persistence_workflow_policy.py"',
