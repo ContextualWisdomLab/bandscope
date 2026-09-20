@@ -40,7 +40,9 @@ pub use publication_identity::{
 };
 pub use runtime_core::*;
 pub use score_attachment_recovery::{
-    derive_score_attachment_recovery_candidates, ScoreAttachmentRecoveryReconciliation,
+    authorize_unreferenced_score_recovery_action, derive_score_attachment_recovery_candidates,
+    AuthorizedUnreferencedScoreRecoveryAction, ScoreAttachmentRecoveryReconciliation,
+    UnreferencedScoreRecoveryDecision,
 };
 pub use score_pdf::read_validated_score_pdf;
 pub use source_readmission::{
