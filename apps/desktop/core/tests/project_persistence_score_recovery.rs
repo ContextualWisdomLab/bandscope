@@ -52,7 +52,7 @@ fn reconciliation_rejects_duplicate_or_malformed_owner_identities() {
         &[REFERENCED_ID.to_string()],
     );
     assert_eq!(
-        duplicate.as_deref().err(),
+        duplicate.err().as_deref(),
         Some("Could not reconcile score attachments.")
     );
 
@@ -61,7 +61,7 @@ fn reconciliation_rejects_duplicate_or_malformed_owner_identities() {
         &[REFERENCED_ID.to_string()],
     );
     assert_eq!(
-        malformed.as_deref().err(),
+        malformed.err().as_deref(),
         Some("Could not reconcile score attachments.")
     );
 }
