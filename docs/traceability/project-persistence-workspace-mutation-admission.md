@@ -10,6 +10,8 @@ Process-external admission alone is still insufficient. A second process can der
 
 A restart introduced one more authority gap. Renderer revision receipts are intentionally process-local. After reopening a project, `load_project` can restore a native `sourceReference`, but the renderer no longer possesses the SHA-256 receipt from the last workspace save. Reusing the hash of an OS-file-selected import would be unsafe because that selected file is not necessarily the app-owned workspace target. Without an explicit native bind, the next workspace mutation either fails because an existing target has no expected revision or is tempted to invent authority from the wrong file.
 
+A failed reopen has a related session-liveness risk. The renderer must temporarily remove a prior receipt for the selected project id so native Project Persistence can perform restart equality binding with no claimed predecessor. If the selected document conflicts with durable workspace bytes, that bind is rejected before renderer acceptance. Permanently discarding the prior receipt at that point would also revoke CAS authority from an already active, previously accepted project in the same renderer session even though the attempted reopen never replaced it.
+
 ## Constraints
 
 - #970/#962 remains the canonical Project Persistence owner.
@@ -23,6 +25,7 @@ A restart introduced one more authority gap. Renderer revision receipts are inte
 - Restart/reopen binding may use only the exact app-owned workspace target resolved from the native project id. A selected export/import path is never revision authority.
 - An absent renderer receipt may bind to an existing workspace only when the canonical candidate bytes exactly equal the current durable workspace bytes. Equality binding must not stage or replace the target.
 - Equality binding does not relax ordinary workspace content admission: empty snapshots and snapshots above the 5 MiB bound remain rejected before revision binding.
+- A rejected reopen must not revoke the prior accepted renderer-session revision receipt for the project that remains active. Restoration may not overwrite a newer receipt accepted concurrently.
 - The native warning-gated Project Persistence harness remains the single compile authority for crate-private production code. A new integration case must join that harness rather than recompiling the owner as an independent test crate and thereby manufacturing dead-code warnings.
 
 ## Renderer RED → fix evidence
@@ -75,11 +78,17 @@ The first exact `b0962e...` macOS owner run `35483630066` / job `106005815303` f
 
 `295ab97b968328b9b72d6c64cb386631b918a492` adds the renderer reopen contract regression. A loaded document carrying a native `sourceReference` must perform a second native workspace call with a source-free canonical payload and the BandScope-minted project id before `loadProjectDocument()` resolves. A native workspace conflict rejects the reopen. A portable project with no app-owned source performs no workspace bind.
 
-`c82c560bbf38e17d7e0d2970eb125211c33e7eef` implements that renderer boundary. The bridge discards any process-local receipt for the reopened project id, rebuilds the source-free canonical payload, and invokes the workspace persistence path. Native Project Persistence independently resolves the exact app-owned workspace target, so the OS-file-selected import path never becomes CAS authority. The native receipt returned by the equality bind is retained for subsequent mutations before the reopened document reaches renderer state.
+`c82c560bbf38e17d7e0d2970eb125211c33e7eef` implements that renderer boundary. The bridge temporarily withdraws any process-local receipt for the reopened project id, rebuilds the source-free canonical payload, and invokes the workspace persistence path. Native Project Persistence independently resolves the exact app-owned workspace target, so the OS-file-selected import path never becomes CAS authority. A successful equality bind replaces the temporary absence with the native receipt before the reopened document reaches renderer state.
 
 `10a5076113fea4e83d0e96bfd426c63572d20cec`, `95726d517fbb8867de814abca343d158d825d115`, and `186e21871e2330c09bfc045a6ce1ce8e19866f33` repair CI ownership by adding `projectDocumentBridge.test.ts` to both native owner workflow trigger sets and to the workflow-policy contract. Native owner lanes still execute Rust persistence regressions; repository CI remains the execution authority for the TypeScript bridge test.
 
 `456400b77ea2e9ef7f91d3a4c49c75e32fb7f773` adds an edge regression for the equality shortcut itself: an existing empty file and an empty candidate must not become accepted merely because their SHA-256 digests match. `c2a3d46881e0b60a048d77b99fe350ed53d22f48` restores the ordinary workspace content admission in front of digest binding, so empty snapshots and snapshots above 5 MiB fail before recovery/binding and the equality path cannot bypass the established publication bounds.
+
+## Failed-reopen receipt preservation RED → fix evidence
+
+`afd03ea5583a6afaeabbdc5aa4a4b329a8bd5d9e` adds a renderer regression for an already active project whose next Open attempt resolves to the same BandScope project id but conflicts with current durable workspace bytes. The regression first establishes a valid native revision receipt, requires the reopen bind to fail, then performs another mutation of the still-active project and requires that mutation to forward the original `expectedContentSha256`. Pre-fix `loadProjectDocument()` deletes the receipt before binding and never restores it after rejection, so that final mutation crosses the native boundary without its predecessor revision. A descendant repair was pushed before repository CI could reach a terminal RED verdict; this commit is therefore source-level RED evidence, not hosted RED.
+
+`b0beeb2f230ecd446ae1caeaff91b081950e6210` is the minimal renderer repair. Reopen still removes the receipt before equality binding so restart semantics do not claim an unverified predecessor. It now snapshots the prior session receipt and, if binding fails, restores that receipt only when no newer receipt has appeared for the project id in the meantime. A concurrent successful persistence therefore cannot be rolled back to older renderer authority. Successful reopen continues to keep only the native receipt returned by Project Persistence.
 
 ## Decision
 
@@ -89,19 +98,19 @@ The native owner adds a process-external admission boundary around publication a
 
 A SHA-256 receipt was chosen instead of a renderer-authored monotonic integer because Project Persistence already has canonical serialized bytes and a shared streaming SHA-256 implementation, while introducing a sidecar revision counter would add another crash-consistency object that must itself be recovered atomically. The digest is used as content identity, not as authentication or secret material.
 
-Restart authority is rebound by proving canonical candidate equality against the exact native workspace, not by trusting the selected file. This makes equality binding an idempotent read/receipt operation: it returns without publication when bytes already match. A different workspace revision is a conflict, not an invitation to overwrite, retry, or silently adopt the selected file.
+Restart authority is rebound by proving canonical candidate equality against the exact native workspace, not by trusting the selected file. This makes equality binding an idempotent read/receipt operation: it returns without publication when bytes already match. A different workspace revision is a conflict, not an invitation to overwrite, retry, or silently adopt the selected file. If that conflict rejects an Open attempt, the previously accepted renderer session keeps its prior CAS receipt unless a newer accepted receipt has already superseded it.
 
 ## Security Notes
 
 ### Attack surface
 
-Renderer mutation payloads, project identifiers, and opaque revision receipts cross the Tauri boundary into app-owned `project.bscope` persistence. The concurrency risk is integrity loss rather than confidentiality loss: two valid payloads can be individually well-formed while their ordering silently discards buyer work. Reopen adds an authority-confusion risk because the user-selected project path and the app-owned workspace are distinct storage contracts.
+Renderer mutation payloads, project identifiers, and opaque revision receipts cross the Tauri boundary into app-owned `project.bscope` persistence. The concurrency risk is integrity loss rather than confidentiality loss: two valid payloads can be individually well-formed while their ordering silently discards buyer work. Reopen adds an authority-confusion risk because the user-selected project path and the app-owned workspace are distinct storage contracts. A rejected reopen also creates an availability risk if it can erase the revision receipt required for the still-active project to mutate safely.
 
 ### Trust boundary
 
 Native Project Persistence remains the durable storage authority. The TypeScript bridge owns only one-renderer admission plus retention of the last native content receipt. Native publication owns process-external writer admission, recovery, current-file identity validation, digest comparison, and replacement. Neither layer accepts a renderer filesystem path, and neither replaces native project-id validation, target identity, crash-safe publication, recovery, or migration checks.
 
-On reopen, `load_project` may read a manual/exported file, but revision binding resolves the workspace again from the native retained project identity. The selected path and its raw content hash never authorize workspace replacement.
+On reopen, `load_project` may read a manual/exported file, but revision binding resolves the workspace again from the native retained project identity. The selected path and its raw content hash never authorize workspace replacement. A renderer receipt restored after failed binding is only the receipt that had already been returned by an earlier successful native workspace transaction in the same process.
 
 ### Mitigations
 
@@ -109,24 +118,26 @@ Renderer admission is keyed by the BandScope-minted project id and released in `
 
 The current durable target is opened through the Project Persistence no-follow/reparse-safe opener and bounded before hashing. Descriptor identity is checked against the path before and after digest calculation. A stale or presence-mismatched receipt fails before staging or replacement. Revision text is validated as lowercase 64-hex SHA-256 before comparison. An absent receipt with an existing target can only bind when the target digest equals the canonical candidate digest, and that path returns without staging or replacement. Empty and over-limit candidates are rejected before equality comparison.
 
+Failed reopen binding restores a prior renderer-session receipt only if that receipt existed before the attempted bind and the project id still has no newer receipt. This prevents the failure path from revoking a still-active aggregate while also preventing stale restoration from overwriting a concurrent native success.
+
 The Unix parent-directory lock is intentionally scoped to the containing directory. App-owned BandScope aggregates live in separate project roots, so their workspace transactions remain independent. Manual exports into the same arbitrary user directory can serialize briefly on Unix; this is a conservative integrity trade-off and does not make manual exports participants in the app-owned revision contract.
 
 ### Safe failure and logging/privacy
 
-Rejection exposes no filesystem path, project content, score data, revision value, or secret-shaped value. A rejected overlap, stale revision, or reopen conflict does not stage or replace buyer project bytes. Native failure releases process ownership automatically, so a later user action can retry after reloading/reconciling current durable state rather than inheriting a stale software-owned lock.
+Rejection exposes no filesystem path, project content, score data, revision value, or secret-shaped value. A rejected overlap, stale revision, or reopen conflict does not stage or replace buyer project bytes. A rejected Open attempt also leaves the prior accepted session capable of forwarding its last verified revision. Native failure releases process ownership automatically, so a later user action can retry after reloading/reconciling current durable state rather than inheriting a stale software-owned lock.
 
 ### Test points
 
 - `analysis.workspace-single-flight.test.ts` covers same-renderer overlap rejection, different-project concurrency, release after native failure, and missing workspace project-id rejection.
 - `projectDocumentSaveAuthority.test.ts` covers native revision-receipt retention/forwarding and malformed receipt rejection at the renderer boundary.
-- `projectDocumentBridge.test.ts` covers app-owned reopen binding before renderer acceptance, conflict rejection, and the portable-document no-bind boundary.
+- `projectDocumentBridge.test.ts` covers app-owned reopen binding before renderer acceptance, conflict rejection, preservation of the prior active revision after a rejected reopen, and the portable-document no-bind boundary.
 - `project_persistence_native_write_admission.case` uses a real child process, pauses it only after the first target is published, proves a concurrent production write fails before replacement, terminates the first writer, and proves a later production write succeeds after OS ownership is released.
 - `project_persistence_workspace_revision.case` is part of the canonical warning-gated native harness and covers first publication, current-revision replacement, stale-revision rejection, restart equality binding without a stage, equality-path content admission, and target/revision mismatch without changing accepted bytes.
 - macOS and Windows Project Persistence native workflows are the exact-head execution authority for native admission/CAS. Repository CI is the execution authority for the TypeScript bridge regressions.
 
 ## Remaining risk
 
-The restart/reopen binding closes the authority gap only when the loaded project carries a valid native `sourceReference` and the canonical reopened payload is identical to the exact app-owned workspace, or when that workspace does not yet exist and can be created as the first app-owned snapshot. A differing workspace fails closed before renderer acceptance. This is integrity-safe but still not release-quality interaction design: the user currently receives a generic load/save failure rather than a conflict surface explaining the durable and selected states.
+The restart/reopen binding closes the authority gap only when the loaded project carries a valid native `sourceReference` and the canonical reopened payload is identical to the exact app-owned workspace, or when that workspace does not yet exist and can be created as the first app-owned snapshot. A differing workspace fails closed before renderer acceptance. The previous active session now retains its own verified receipt after such a rejection, but this is integrity-safe plumbing rather than release-quality interaction design: the user still receives a generic load/save failure rather than a conflict surface explaining the durable and selected states.
 
 The next Project Persistence slice is buyer-visible revision conflict handling. It must not automatically retry, replay, or semantically merge a stale full snapshot. A bounded Reload / Compare / Recover / Discard or equivalent contract must define which durable state wins, what can be inspected without exposing local paths, and how keyboard/screen-reader users resolve the conflict.
 
