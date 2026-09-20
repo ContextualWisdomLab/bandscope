@@ -1,6 +1,6 @@
 use crate::{
-    is_valid_score_id, read_validated_score_pdf, resolve_existing_score_pdf, score_storage,
-    score_storage::remove_score_pdf_attachment, sha256_hex_reader,
+    is_valid_score_id, read_validated_score_pdf, resolve_existing_score_pdf, score_publication,
+    score_storage, score_storage::remove_score_pdf_attachment, sha256_hex_reader,
 };
 use std::{
     fs::{self, File, OpenOptions},
@@ -361,38 +361,61 @@ pub fn remove_score_pdf_attachment_if_receipt_matches(
     Ok(true)
 }
 
-/// Publish one score attachment after recovering process-abandoned staging.
-///
-/// The workspace lease spans recovery and the complete lower-level publication
-/// so another BandScope process using this contract cannot have a live writer
-/// mistaken for stale staging. A crash releases the OS lease automatically;
-/// the next operation removes a reserved `.score-<uuid>.stage` regular file
-/// when no destination exists. If a synchronized destination also exists and
-/// both names contain the same validated bytes, recovery retires only the stage
-/// alias and keeps the destination as a recovery candidate for Project
-/// Persistence. Different stage/destination bytes remain ambiguous and fail
-/// closed.
-///
-/// Security Notes: malformed names are ignored because they are outside the
-/// owned staging namespace. Reserved symlink/reparse/non-regular entries,
-/// lock acquisition failure, unreadable directory state, or a stage plus a
-/// content-different destination fail closed. Errors contain neither absolute
-/// paths nor PDF bytes. This recovery covers current-contract stage-only and
-/// verified post-link interruption states; it does not claim compatibility
-/// with an older concurrently running BandScope build that never acquired the
-/// lease.
-pub fn publish_score_pdf_attachment(
+fn publish_score_pdf_attachment_with_metadata_sync<F>(
     source: &Path,
     scores_root: &Path,
     score_id: &str,
-) -> Result<u64, String> {
+    sync_metadata: F,
+) -> Result<u64, String>
+where
+    F: FnOnce(&Path) -> Result<(), String>,
+{
     if !is_valid_score_id(score_id) {
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
     let lease = acquire_score_workspace_lease(scores_root)?;
     recover_abandoned_score_stages(scores_root, &lease)?;
-    score_storage::publish_score_pdf_attachment(source, scores_root, score_id)
+    let written = score_storage::publish_score_pdf_attachment(source, scores_root, score_id)?;
+    sync_metadata(scores_root)?;
+    Ok(written)
+}
+
+/// Publish one score attachment after recovering process-abandoned staging.
+///
+/// The workspace lease spans recovery, the complete lower-level publication,
+/// and the supported-platform successful-return metadata durability barrier.
+/// Another BandScope process using this contract therefore cannot mutate the
+/// score workspace between destination publication and that barrier. A crash
+/// releases the OS lease automatically; the next operation removes a reserved
+/// `.score-<uuid>.stage` regular file when no destination exists. If a
+/// synchronized destination also exists and both names contain the same
+/// validated bytes, recovery retires only the stage alias and keeps the
+/// destination as a recovery candidate for Project Persistence. Different
+/// stage/destination bytes remain ambiguous and fail closed.
+///
+/// Security Notes: malformed names are ignored because they are outside the
+/// owned staging namespace. Reserved symlink/reparse/non-regular entries, lock
+/// acquisition failure, unreadable directory state, a stage plus a
+/// content-different destination, or a supported-platform metadata barrier
+/// failure fail closed. Errors contain neither absolute paths nor PDF bytes. A
+/// barrier failure after publication does not guess-delete the object; later
+/// inventory/recovery determines actual storage truth. Windows retains the
+/// staged-file sync contract but does not yet claim directory-entry power-loss
+/// durability. This recovery covers current-contract interruption states and
+/// does not claim compatibility with an older concurrently running BandScope
+/// build that never acquired the lease.
+pub fn publish_score_pdf_attachment(
+    source: &Path,
+    scores_root: &Path,
+    score_id: &str,
+) -> Result<u64, String> {
+    publish_score_pdf_attachment_with_metadata_sync(
+        source,
+        scores_root,
+        score_id,
+        score_publication::sync_successful_publication_metadata,
+    )
 }
 
 #[cfg(test)]
@@ -436,6 +459,37 @@ mod tests {
         assert_eq!(published_score_id("notes.pdf"), None);
         assert_eq!(published_score_id("../escape.pdf"), None);
         assert_eq!(published_score_id("6fa459ea-ee8a-4ca4-894e-db77e160355e.PDF"), None);
+    }
+
+    #[test]
+    fn publication_metadata_barrier_runs_while_workspace_lease_is_held() {
+        let root = unique_test_dir("publication-barrier-lease");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let source = root.join("selected.pdf");
+        fs::write(&source, b"%PDF-1.7\nlease-bound-barrier")
+            .expect("score fixture should be written");
+        let mut barrier_called = false;
+
+        let written = publish_score_pdf_attachment_with_metadata_sync(
+            &source,
+            &root,
+            SCORE_ID,
+            |scores_root| {
+                barrier_called = true;
+                assert_eq!(
+                    acquire_score_workspace_lease(scores_root).err().as_deref(),
+                    Some(SCORE_RECOVERY_ERROR),
+                    "metadata sync must execute before the publication lease is released"
+                );
+                Ok(())
+            },
+        )
+        .expect("lease-bound publication should succeed");
+
+        assert!(barrier_called);
+        assert_eq!(written, b"%PDF-1.7\nlease-bound-barrier".len() as u64);
+        assert!(root.join(format!("{SCORE_ID}.pdf")).exists());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
