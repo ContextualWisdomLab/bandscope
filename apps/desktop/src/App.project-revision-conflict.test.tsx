@@ -122,4 +122,23 @@ describe("App project revision conflict", () => {
     expect(screen.queryAllByText("Dbmaj7").length).toBe(0);
     promptSpy.mockRestore();
   });
+
+  it("keeps the conflict notice visible while the score view is active", async () => {
+    mockLoadProjectDocument.mockRejectedValueOnce(new Error(PROJECT_REVISION_CONFLICT));
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+    await waitFor(() => expect(screen.getByText("source.wav")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: /^score$/i }).length).toBeGreaterThan(0)
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /^score$/i })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/project changed elsewhere/i);
+  });
 });
