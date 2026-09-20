@@ -32,7 +32,7 @@ fn stale_receipt_cannot_remove_same_id_republished_bytes() {
     let scores_root = root.join("scores");
     let source_a = root.join("a.pdf");
     let source_b = root.join("b.pdf");
-    fs::create_dir_all(&root).expect("fixture root should be creatable");
+    fs::create_dir_all(&scores_root).expect("score workspace should be creatable");
     write_pdf(&source_a, b"first durable score bytes");
     write_pdf(&source_b, b"replacement durable score bytes");
 
