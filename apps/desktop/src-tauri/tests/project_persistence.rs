@@ -49,6 +49,8 @@ mod read_identity;
 mod recovery_cleanup;
 #[path = "project_persistence_rollback_identity.case"]
 mod rollback_identity;
+#[path = "project_persistence_workspace_revision.case"]
+mod workspace_revision;
 #[cfg(windows)]
 #[path = "project_persistence_windows_identity.case"]
 mod windows_identity;
