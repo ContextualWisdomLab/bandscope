@@ -8,6 +8,14 @@ WINDOWS_WORKFLOW = "project-persistence-windows-native.yml"
 LEGACY_WINDOWS_WORKFLOW = "project-persistence-windows.yml"
 WARNING_GATE_FEATURE = "persistence_warning_gate"
 EXACT_SOURCE_REF = "ref: ${{ github.event.pull_request.head.sha || github.sha }}"
+CORE_OWNER_TEST_COMMAND = (
+    "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
+    "--features persistence_warning_gate --all-targets"
+)
+TAURI_OWNER_TEST_COMMAND = (
+    "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
+    "--no-default-features --features persistence_warning_gate --tests"
+)
 REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/root.rs"',
@@ -59,6 +67,12 @@ def _assert_enforces_owned_rust_warnings(workflow: str, lane: str) -> None:
     ), f"{lane} persistence workflow must compile owned Rust with the warning gate feature"
 
 
+def _assert_runs_core_owner_contracts(workflow: str, lane: str) -> None:
+    assert (
+        CORE_OWNER_TEST_COMMAND in workflow
+    ), f"{lane} persistence workflow must execute desktop-core Project Persistence tests"
+
+
 def _assert_checks_out_exact_source_identity(workflow: str, lane: str) -> None:
     assert (
         EXACT_SOURCE_REF in workflow
@@ -71,14 +85,12 @@ def test_windows_project_persistence_gate_tracks_contract_inputs() -> None:
 
     _assert_tracks_native_persistence_inputs(workflow, "Windows")
     _assert_enforces_owned_rust_warnings(workflow, "Windows")
+    _assert_runs_core_owner_contracts(workflow, "Windows")
     _assert_checks_out_exact_source_identity(workflow, "Windows")
     assert f'".github/workflows/{WINDOWS_WORKFLOW}"' in workflow
     assert not (REPO_ROOT / ".github" / "workflows" / LEGACY_WINDOWS_WORKFLOW).exists()
     assert "runs-on: windows-2025" in workflow
-    assert (
-        "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
-        "--no-default-features --features persistence_warning_gate --tests"
-    ) in workflow
+    assert TAURI_OWNER_TEST_COMMAND in workflow
 
 
 def test_macos_project_persistence_gate_tracks_contract_inputs() -> None:
@@ -87,12 +99,10 @@ def test_macos_project_persistence_gate_tracks_contract_inputs() -> None:
 
     _assert_tracks_native_persistence_inputs(workflow, "macOS")
     _assert_enforces_owned_rust_warnings(workflow, "macOS")
+    _assert_runs_core_owner_contracts(workflow, "macOS")
     _assert_checks_out_exact_source_identity(workflow, "macOS")
     assert "runs-on: macos-15" in workflow
-    assert (
-        "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
-        "--no-default-features --features persistence_warning_gate --tests"
-    ) in workflow
+    assert TAURI_OWNER_TEST_COMMAND in workflow
 
 
 def test_native_warning_gate_is_owned_by_core_and_the_persistence_harness() -> None:
