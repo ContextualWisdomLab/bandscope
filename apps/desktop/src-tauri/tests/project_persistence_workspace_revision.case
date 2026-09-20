@@ -52,6 +52,37 @@ fn first_workspace_publication_returns_revision_and_stale_revision_fails_closed(
 }
 
 #[test]
+fn existing_workspace_can_bind_an_absent_renderer_revision_only_when_content_is_identical() {
+    let root = test_dir("restart-bind");
+    let target = root.join("project.bscope");
+    let content = br#"{"version":1,"song":{"id":"restart"}}"#;
+    fs::write(&target, content).expect("existing workspace fixture should be written");
+
+    let revision = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        content,
+        None,
+    )
+    .expect("byte-identical reopen should bind the durable workspace revision");
+
+    assert_eq!(revision, digest(content));
+    assert_eq!(fs::read(&target).expect("bound project should remain readable"), content);
+    let stage_count = fs::read_dir(&root)
+        .expect("workspace directory should remain readable")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".bandscope-stage-")
+        })
+        .count();
+    assert_eq!(stage_count, 0, "revision binding must not stage replacement bytes");
+
+    fs::remove_dir_all(root).expect("revision fixture should be removed");
+}
+
+#[test]
 fn workspace_revision_presence_must_match_target_presence() {
     let root = test_dir("presence");
     let target = root.join("project.bscope");
@@ -72,7 +103,7 @@ fn workspace_revision_presence_must_match_target_presence() {
         br#"{"version":1,"song":{"id":"replacement"}}"#,
         None,
     )
-    .expect_err("an existing target requires an expected durable revision");
+    .expect_err("different existing workspace bytes require an expected durable revision");
     assert_eq!(existing_error, "Project changed since it was opened.");
     assert_eq!(fs::read(&target).expect("existing project should remain readable"), content);
 
