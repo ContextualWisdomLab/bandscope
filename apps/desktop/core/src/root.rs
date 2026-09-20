@@ -5,6 +5,11 @@
 //! modules. Public symbols are re-exported so downstream callers keep the same
 //! crate-root API.
 
+#[cfg(all(feature = "score-storage-fault-injection", not(debug_assertions)))]
+compile_error!(
+    "score-storage-fault-injection is owner-test instrumentation and must not be enabled in release builds"
+);
+
 #[path = "lib.rs"]
 mod runtime_core;
 mod content_sha256;
