@@ -28,3 +28,9 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+
+## 2026-09-20 - Prevent Log Forging / Log Injection (CWE-117) via Unsanitized Input in Python Logging
+**Vulnerability:** Found unsanitized untrusted user input (`path_str`) logged directly via f-strings (`logger.info(f"Loading and decoding audio: {path_str}")`), allowing attackers to inject newline characters (`
+`) to forge fake log entries or exploit log viewers.
+**Learning:** Python logging standard practices require using deferred string interpolation (e.g. `logger.info("msg %s", var)`) rather than f-strings to prevent interpolation performance overhead and align with log parsers. However, using `%s` alone does not escape control characters. To prevent Log Forging / CWE-117, untrusted input must be wrapped in `repr()` before passing to the logger.
+**Prevention:** When logging untrusted user input in Python, always use deferred interpolation (`%s`) AND wrap the untrusted input in `repr()` (e.g., `logger.info("msg %s", repr(untrusted_input))`) to escape control characters.
