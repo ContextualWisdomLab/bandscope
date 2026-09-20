@@ -8,6 +8,10 @@ type TauriWindow = Window & {
 };
 
 const tauriWindow = window as TauriWindow;
+const REVISION_A =
+  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const REVISION_B =
+  "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
 describe("Project Persistence workspace mutation admission", () => {
   beforeEach(() => {
@@ -21,11 +25,11 @@ describe("Project Persistence workspace mutation admission", () => {
       .fn()
       .mockImplementationOnce(
         () =>
-          new Promise<void>((resolve) => {
-            releaseFirstSave = resolve;
+          new Promise<string>((resolve) => {
+            releaseFirstSave = () => resolve(REVISION_A);
           })
       )
-      .mockResolvedValue(undefined);
+      .mockResolvedValue(REVISION_B);
     tauriWindow.__TAURI_INVOKE__ = invoke;
 
     const firstSong = createDemoRehearsalSong();
@@ -52,11 +56,11 @@ describe("Project Persistence workspace mutation admission", () => {
       .fn()
       .mockImplementationOnce(
         () =>
-          new Promise<void>((resolve) => {
-            releaseFirstSave = resolve;
+          new Promise<string>((resolve) => {
+            releaseFirstSave = () => resolve(REVISION_A);
           })
       )
-      .mockResolvedValue(undefined);
+      .mockResolvedValue(REVISION_B);
     tauriWindow.__TAURI_INVOKE__ = invoke;
 
     const song = createDemoRehearsalSong();
@@ -74,7 +78,7 @@ describe("Project Persistence workspace mutation admission", () => {
     const invoke = vi
       .fn()
       .mockRejectedValueOnce(new Error("native persistence failed"))
-      .mockResolvedValue(undefined);
+      .mockResolvedValue(REVISION_A);
     tauriWindow.__TAURI_INVOKE__ = invoke;
 
     const song = createDemoRehearsalSong();
@@ -86,7 +90,7 @@ describe("Project Persistence workspace mutation admission", () => {
   });
 
   it("requires an app-owned project id before taking workspace mutation authority", async () => {
-    const invoke = vi.fn().mockResolvedValue(undefined);
+    const invoke = vi.fn().mockResolvedValue(REVISION_A);
     tauriWindow.__TAURI_INVOKE__ = invoke;
 
     await expect(saveProject(createDemoRehearsalSong(), "full_mix", undefined, true)).rejects.toThrow(
