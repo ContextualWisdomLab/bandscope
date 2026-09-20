@@ -1,15 +1,39 @@
 use crate::{
-    is_valid_score_id, resolve_existing_score_pdf, score_storage,
-    score_storage::remove_score_pdf_attachment,
+    is_valid_score_id, read_validated_score_pdf, resolve_existing_score_pdf, score_storage,
+    score_storage::remove_score_pdf_attachment, sha256_hex_reader,
 };
 use std::{
     fs::{self, File, OpenOptions},
+    io::Cursor,
     path::{Path, PathBuf},
 };
 
 const SCORE_ATTACH_ERROR: &str = "Could not attach the score PDF.";
 const SCORE_RECOVERY_ERROR: &str = "Could not recover the score workspace.";
 const SCORE_WORKSPACE_LOCK: &str = ".score-storage.lock";
+
+/// Opaque, path-free identity for one validated published Score Storage object.
+///
+/// The receipt binds the logical score id to the SHA-256 of the bounded PDF bytes
+/// observed while the Score Storage workspace lease is held. It is content
+/// identity for stale-intent detection, not an authenticity or provenance claim.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublishedScorePdfReceipt {
+    score_id: String,
+    content_sha256: String,
+}
+
+impl PublishedScorePdfReceipt {
+    /// Return the validated BandScope score id bound into this receipt.
+    pub fn score_id(&self) -> &str {
+        &self.score_id
+    }
+
+    /// Return the canonical lowercase SHA-256 bound into this receipt.
+    pub fn content_sha256(&self) -> &str {
+        &self.content_sha256
+    }
+}
 
 /// Cross-process lease for Score Storage mutation and recovery.
 ///
@@ -186,6 +210,52 @@ fn recover_abandoned_score_stages(
     Ok(removed)
 }
 
+fn inventory_published_score_pdf_ids_under_lease(
+    scores_root: &Path,
+    lease: &ScoreWorkspaceLease,
+) -> Result<Vec<String>, String> {
+    if lease.root != scores_root {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
+    }
+
+    let mut score_ids = Vec::new();
+    let entries = fs::read_dir(scores_root).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(score_id) = published_score_id(name) else {
+            continue;
+        };
+        resolve_existing_score_pdf(scores_root, score_id)
+            .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+        score_ids.push(score_id.to_string());
+    }
+    score_ids.sort_unstable();
+    Ok(score_ids)
+}
+
+fn receipt_for_score_id(
+    scores_root: &Path,
+    score_id: &str,
+    lease: &ScoreWorkspaceLease,
+) -> Result<PublishedScorePdfReceipt, String> {
+    if lease.root != scores_root || !is_valid_score_id(score_id) {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
+    }
+    let path = resolve_existing_score_pdf(scores_root, score_id)
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    let bytes = read_validated_score_pdf(&path).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    let content_sha256 = sha256_hex_reader(Cursor::new(bytes))
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    Ok(PublishedScorePdfReceipt {
+        score_id: score_id.to_string(),
+        content_sha256,
+    })
+}
+
 /// Return a deterministic inventory of safely published Score Storage objects.
 ///
 /// The inventory is intentionally only byte/object truth. It does not claim
@@ -206,24 +276,73 @@ fn recover_abandoned_score_stages(
 pub fn inventory_published_score_pdf_ids(scores_root: &Path) -> Result<Vec<String>, String> {
     let lease = acquire_score_workspace_lease(scores_root)?;
     recover_abandoned_score_stages(scores_root, &lease)?;
+    inventory_published_score_pdf_ids_under_lease(scores_root, &lease)
+}
 
-    let mut score_ids = Vec::new();
-    let entries = fs::read_dir(scores_root).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
-    for entry in entries {
-        let entry = entry.map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
-            continue;
-        };
-        let Some(score_id) = published_score_id(name) else {
-            continue;
-        };
-        resolve_existing_score_pdf(scores_root, score_id)
-            .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
-        score_ids.push(score_id.to_string());
+/// Return content-bound receipts for safely published Score Storage objects.
+///
+/// Each receipt binds one validated score id to the SHA-256 of the current
+/// bounded PDF bytes while the existing cross-process workspace lease is held.
+/// The receipt is deliberately path-free and exposes neither the selected source
+/// filename nor PDF bytes. It gives recovery orchestration an object identity
+/// that changes when the same score id is removed and later republished with
+/// different bytes.
+///
+/// Security Notes: discovery, abandoned-stage recovery, containment validation,
+/// bounded PDF validation and hashing all occur under the Score Storage lease.
+/// The digest is an equality receipt only; it is not a signature, authenticity
+/// proof or durable lifecycle decision.
+pub fn inventory_published_score_pdf_receipts(
+    scores_root: &Path,
+) -> Result<Vec<PublishedScorePdfReceipt>, String> {
+    let lease = acquire_score_workspace_lease(scores_root)?;
+    recover_abandoned_score_stages(scores_root, &lease)?;
+    let score_ids = inventory_published_score_pdf_ids_under_lease(scores_root, &lease)?;
+    score_ids
+        .iter()
+        .map(|score_id| receipt_for_score_id(scores_root, score_id, &lease))
+        .collect()
+}
+
+/// Remove a published score only when a fresh content receipt still matches.
+///
+/// The workspace lease spans abandoned-stage recovery, current-object receipt
+/// calculation, equality comparison and identity-safe deletion. This closes the
+/// same-id ABA window for recovery `Discard`: a decision authorized for object A
+/// cannot delete replacement object B merely because B reused the same score id.
+/// A missing object or a content mismatch is a safe `Ok(false)` non-removal;
+/// unsafe or indeterminate filesystem state remains an error.
+///
+/// Security Notes: the receipt is path-free, and errors expose neither paths nor
+/// bytes. The lower-level remover still performs its native identity checks
+/// immediately before deletion. This function does not decide *whether* a score
+/// should be discarded; it only enforces object freshness for an already
+/// authorized Score Storage mutation.
+pub fn remove_score_pdf_attachment_if_receipt_matches(
+    scores_root: &Path,
+    receipt: &PublishedScorePdfReceipt,
+) -> Result<bool, String> {
+    if !is_valid_score_id(receipt.score_id()) {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
     }
-    score_ids.sort_unstable();
-    Ok(score_ids)
+
+    let lease = acquire_score_workspace_lease(scores_root)?;
+    recover_abandoned_score_stages(scores_root, &lease)?;
+    let path = scores_root.join(format!("{}.pdf", receipt.score_id()));
+    match fs::symlink_metadata(&path) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(_) => return Err(SCORE_RECOVERY_ERROR.to_string()),
+    }
+
+    let current = receipt_for_score_id(scores_root, receipt.score_id(), &lease)?;
+    if current.content_sha256 != receipt.content_sha256 {
+        return Ok(false);
+    }
+
+    score_storage::remove_score_pdf_attachment(&path)
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    Ok(true)
 }
 
 /// Publish one score attachment after recovering process-abandoned staging.
