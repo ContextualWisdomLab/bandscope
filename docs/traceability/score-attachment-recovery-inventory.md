@@ -24,15 +24,18 @@ The id-only inventory was later found insufficient as destructive mutation autho
 
 Post-link source RED `1ce4bb86864ef845d39f7cb80614a2b686213499` then established a process-death state where synchronized `.score-<uuid>.stage` and hard-linked `<uuid>.pdf` both survive. Causal repair `48a7ccfab996330fa415e68afaabc34782d62ad4` makes equal validated stage/destination bytes recoverable by retiring only the temporary stage alias while preserving the destination as a published recovery candidate. Content-different or indeterminate pairs still preserve both and fail closed. See `score-attachment-post-link-recovery.md`.
 
+Fresh review then found an admission-to-cleanup discontinuity: recovery inspected a reserved stage, performed later validation, and finally called the generic score remover, which captured deletion authority only at deletion time. An old unleased writer or same-user filesystem mutation could therefore substitute a different stage during that longer interval and have the replacement recaptured as cleanup authority. Source RED `aa3b05ff110503eec4f98349f917593c6f28705a` added an owned recovery contract that rejects the generic stage deletion path. Causal repair `a0e4f6285c2355c09800b09343f2b7bcab96d460` admits the bounded stage through a no-follow native open, binds that admitted content to SHA-256, and requires the same bounded content immediately before lower identity-safe deletion. `c2634de780a1ddf79c0d2b6fbda90898cd05daa0` corrected the source-contract assertion to the actual borrowed call signature. The superseded test-only head did not receive a terminal hosted verdict, so this is source-level RED only.
+
 ## Inventory contract
 
 Before returning published-object truth, the owner:
 
 - validates and acquires the cross-process Score Storage workspace lease;
 - runs abandoned-stage recovery while that lease is held;
-- removes a stage-only orphan through the existing object-deletion boundary;
-- for stage plus destination, validates both bounded PDF byte streams and retires only the stage alias when their shared-kernel SHA-256 identities are equal;
-- preserves both and fails closed when stage/destination bytes differ or validation is indeterminate;
+- admits each reserved stage through a native no-follow open and captures a bounded SHA-256 content receipt before later validation or cleanup;
+- removes a stage-only orphan only when the current bounded stage content still matches that admitted receipt;
+- for stage plus destination, validates both bounded PDF byte streams and retires only the stage alias when their shared-kernel SHA-256 identities are equal and the stage still matches its admitted receipt;
+- preserves evidence and fails closed when admitted/current stage content changes, stage/destination bytes differ, or validation is indeterminate;
 - enumerates only exact `<valid-score-id>.pdf` names;
 - resolves every matching owned name through the existing native containment/symlink guard;
 - ignores unrelated filenames instead of broadening Score Storage ownership;
@@ -41,7 +44,7 @@ Before returning published-object truth, the owner:
 
 `inventory_published_score_pdf_ids` remains discovery-only compatibility surface. `inventory_published_score_pdf_receipts` is the mutation-freshness observation surface: each receipt binds the validated logical id to the SHA-256 of the current bounded PDF bytes while the lease is held. The digest is equality/content identity only, not authenticity, provenance or durable project acceptance.
 
-The lease makes inventory stable with respect to another writer using the current contract. It does not make an older build that never takes the lease compatible.
+The lease makes inventory stable with respect to another writer using the current contract. It does not make an older build that never takes the lease compatible. The admitted-stage receipt narrows that old-build/replacement exposure by preventing a different bounded stage from being recaptured over the full recovery transaction, but it does not turn the remaining Unix identity-check-to-`unlinkat` interval into an object-handle deletion primitive.
 
 ## Mutation freshness
 
@@ -55,26 +58,28 @@ Scanning the scores directory from React is rejected because it exports filesyst
 
 Automatic attachment or deletion of unreferenced ids is rejected because byte existence cannot reveal durable project intent. Id-only destructive authority is rejected because same-id ABA can apply stale intent to replacement bytes. Blind deletion of either side of stage-plus-destination is rejected because one side may be the only durable buyer copy; permanent rejection of every equal-content post-link state is also rejected because a valid current-contract crash would wedge the workspace indefinitely.
 
-A mutable sidecar lifecycle ledger is not introduced in this slice. It would create a second persistence protocol whose crash semantics would themselves need reconciliation with the project document.
+Treating the reserved stage pathname itself as durable recovery authority is rejected because pathname lookup can observe a replacement object after admission. Content binding is used here because the recovery action is retiring a temporary alias, not proving provenance: a same-content replacement remains equivalent for buyer-byte preservation, while a different-content replacement fails closed. A mutable sidecar lifecycle ledger is not introduced in this slice because it would create a second persistence protocol whose crash semantics would themselves need reconciliation with the project document.
 
 ## Security Notes
 
 **Untrusted input.** Every directory entry under the score workspace is untrusted. Only exact reserved stage names and exact valid score-id PDF names enter the owned recovery/inventory namespace.
 
-**Trust boundary.** App-owned score workspace → OS-held Score Storage lease → abandoned/publication recovery → exact owned-name parsing → existing native containment resolver and bounded PDF validator → id inventory or content receipt.
+**Trust boundary.** App-owned score workspace → OS-held Score Storage lease → native no-follow stage admission → bounded content identity → abandoned/publication recovery → exact owned-name parsing → existing native containment resolver and bounded PDF validator → id inventory or content receipt.
 
-**Safe failure.** Lease contention, unreadable directory state, suspicious matching objects, unsafe resolution, content-different stage/destination state and stale receipt mismatch do not fall back to destructive guessing. Equal-content post-link recovery removes only the temporary stage alias and preserves published bytes.
+**Safe failure.** Lease contention, unreadable directory state, suspicious matching objects, admitted/current stage mismatch, unsafe resolution, content-different stage/destination state and stale receipt mismatch do not fall back to destructive guessing. Equal-content post-link recovery removes only the temporary stage alias and preserves published bytes.
 
 **Privacy.** The APIs expose BandScope-generated score ids and, for receipts, lowercase SHA-256 content identity. They do not return local paths, original selected filenames or PDF bytes.
 
 ## Test points
 
-`score_pdf_recovery_inventory` covers fresh-process rediscovery of production-published objects, deterministic ordering, unrelated-file exclusion and stage recovery before listing. `score_pdf_interruption_recovery` covers stage-only process termination and post-link process termination. `score_pdf_recovery_object_receipt` covers same-id remove/republish ABA and fresh receipt-bound deletion. Existing publication/retention/restart/wiring regressions remain in the same owner workflow.
+`score_pdf_recovery_inventory` covers fresh-process rediscovery of production-published objects, deterministic ordering, unrelated-file exclusion, stage recovery before listing, and the source-level requirement that recovery uses admitted-stage cleanup rather than generic pathname-time deletion. The owner unit suite additionally replaces an admitted stage with different content and requires both the replacement and the originally admitted bytes to survive the fail-closed result. `score_pdf_interruption_recovery` covers stage-only process termination and post-link process termination. `score_pdf_recovery_object_receipt` covers same-id remove/republish ABA and fresh receipt-bound deletion. Existing publication/retention/restart/wiring regressions remain in the same owner workflow.
 
 ## Claim boundary and next step
 
-Score Storage now provides restart object discovery, content-bound mutation freshness and non-destructive recovery for current-contract stage-only and equal-content post-link process death. It still does **not** identify which objects are referenced by the durable project document, infer original display filenames, decide Recover / Preserve / Discard, or provide buyer-visible recovery UX.
+Score Storage now provides restart object discovery, content-bound mutation freshness and non-destructive recovery for current-contract stage-only and equal-content post-link process death. It also binds recovery cleanup to the bounded stage content admitted earlier in the transaction, so a different replacement cannot be silently recaptured over the long recovery interval. This does **not** claim provenance, exact-object authenticity, or elimination of the already documented final Unix identity-check-to-`unlinkat` micro-race.
+
+Score Storage still does not identify which objects are referenced by the durable project document, infer original display filenames, decide Recover / Preserve / Discard, or provide buyer-visible recovery UX.
 
 Until #865 and #1241 integrate and #970 consumes a protected/released Score Storage contract, `PDF durable -> metadata not durable` remains an open commercial gap. The consumer flow must combine durable project attachment ids, active project identity and fresh Score Storage receipts, then re-read both owner truths immediately before a mutation. `missing_referenced_score_ids` remains a broken-reference condition rather than cleanup authority.
 
-Still open at the Score Storage owner: old unleased-build compatibility, explicit cancellation, disk-full, permission failure, power-loss durability, complete project deletion/recovery rollback, the remaining Unix final basename race, packaged fault evidence and release/signing settlement.
+Still open at the Score Storage owner: old unleased-build compatibility beyond the admitted-content guard, explicit cancellation, disk-full, permission failure, power-loss durability, complete project deletion/recovery rollback, the remaining Unix final basename race, packaged fault evidence and release/signing settlement.
