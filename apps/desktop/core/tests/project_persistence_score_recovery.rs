@@ -1,12 +1,14 @@
 use bandscope_desktop_core::{
-    authorize_unreferenced_score_recovery_action,
+    authorize_project_scoped_score_recovery_action,
     derive_score_attachment_recovery_candidates,
-    recovery_attachment_metadata_for_action,
-    revalidate_unreferenced_score_recovery_action,
+    recovery_attachment_metadata_for_project_action,
+    revalidate_project_scoped_score_recovery_action,
     ScoreAttachmentRecoveryReconciliation,
     UnreferencedScoreRecoveryDecision,
 };
 
+const PROJECT_ID: &str = "project-1700000000000000000-1";
+const OTHER_PROJECT_ID: &str = "project-1700000000000000001-2";
 const REFERENCED_ID: &str = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
 const PUBLISHED_ONLY_ID: &str = "3f2c8f0e-1a2b-4c3d-8e9f-001122334455";
 const MISSING_ID: &str = "7a0f4b3d-f83d-4b5c-8b6e-2e2f1cf2a901";
@@ -81,36 +83,42 @@ fn unreferenced_published_score_requires_an_explicit_preserve_recover_or_discard
     )
     .expect("valid owner identities should reconcile");
 
-    let preserve = authorize_unreferenced_score_recovery_action(
+    let preserve = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &reconciliation,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Preserve,
     )
     .expect("buyer may explicitly preserve an unreferenced published object");
+    assert_eq!(preserve.project_id(), PROJECT_ID);
     assert_eq!(preserve.score_id(), PUBLISHED_ONLY_ID);
     assert_eq!(
         preserve.decision(),
         UnreferencedScoreRecoveryDecision::Preserve
     );
 
-    let recover = authorize_unreferenced_score_recovery_action(
+    let recover = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &reconciliation,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Recover,
     )
     .expect("buyer may explicitly recover an unreferenced published object");
+    assert_eq!(recover.project_id(), PROJECT_ID);
     assert_eq!(recover.score_id(), PUBLISHED_ONLY_ID);
     assert_eq!(
         recover.decision(),
         UnreferencedScoreRecoveryDecision::Recover
     );
 
-    let discard = authorize_unreferenced_score_recovery_action(
+    let discard = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &reconciliation,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Discard,
     )
     .expect("buyer may explicitly discard an unreferenced published object");
+    assert_eq!(discard.project_id(), PROJECT_ID);
     assert_eq!(discard.score_id(), PUBLISHED_ONLY_ID);
     assert_eq!(
         discard.decision(),
@@ -125,15 +133,20 @@ fn recover_action_produces_truthful_generated_metadata_without_claiming_original
         &[PUBLISHED_ONLY_ID.to_string()],
     )
     .expect("published-only score should be a recovery candidate");
-    let recover = authorize_unreferenced_score_recovery_action(
+    let recover = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &reconciliation,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Recover,
     )
     .expect("buyer recovery decision should be authorized");
 
-    let metadata = recovery_attachment_metadata_for_action(&reconciliation, &recover)
-        .expect("authorized recovery should produce durable presentation metadata");
+    let metadata = recovery_attachment_metadata_for_project_action(
+        PROJECT_ID,
+        &reconciliation,
+        &recover,
+    )
+    .expect("authorized recovery should produce durable presentation metadata");
 
     assert_eq!(metadata.score_id(), PUBLISHED_ONLY_ID);
     assert_eq!(
@@ -155,16 +168,21 @@ fn preserve_or_discard_actions_cannot_become_recovered_attachment_metadata() {
         UnreferencedScoreRecoveryDecision::Preserve,
         UnreferencedScoreRecoveryDecision::Discard,
     ] {
-        let action = authorize_unreferenced_score_recovery_action(
+        let action = authorize_project_scoped_score_recovery_action(
+            PROJECT_ID,
             &reconciliation,
             PUBLISHED_ONLY_ID,
             decision,
         )
         .expect("non-recovery disposition should still be authorizable");
         assert_eq!(
-            recovery_attachment_metadata_for_action(&reconciliation, &action)
-                .err()
-                .as_deref(),
+            recovery_attachment_metadata_for_project_action(
+                PROJECT_ID,
+                &reconciliation,
+                &action,
+            )
+            .err()
+            .as_deref(),
             Some("Could not prepare recovered score attachment metadata.")
         );
     }
@@ -184,7 +202,8 @@ fn recovery_action_never_authorizes_referenced_missing_or_unknown_score_ids() {
         "11111111-1111-4111-8111-111111111111",
         "../escape",
     ] {
-        let result = authorize_unreferenced_score_recovery_action(
+        let result = authorize_project_scoped_score_recovery_action(
+            PROJECT_ID,
             &reconciliation,
             score_id,
             UnreferencedScoreRecoveryDecision::Discard,
@@ -198,6 +217,27 @@ fn recovery_action_never_authorizes_referenced_missing_or_unknown_score_ids() {
 }
 
 #[test]
+fn malformed_project_identity_cannot_authorize_recovery() {
+    let reconciliation = derive_score_attachment_recovery_candidates(
+        &[],
+        &[PUBLISHED_ONLY_ID.to_string()],
+    )
+    .expect("published-only score should be a recovery candidate");
+
+    let result = authorize_project_scoped_score_recovery_action(
+        "../project-escape",
+        &reconciliation,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Recover,
+    );
+
+    assert_eq!(
+        result.err().as_deref(),
+        Some("Could not authorize score attachment recovery action.")
+    );
+}
+
+#[test]
 fn forged_overlapping_reconciliation_cannot_authorize_destructive_cleanup() {
     let forged = ScoreAttachmentRecoveryReconciliation {
         referenced_and_published_score_ids: vec![PUBLISHED_ONLY_ID.to_string()],
@@ -205,7 +245,8 @@ fn forged_overlapping_reconciliation_cannot_authorize_destructive_cleanup() {
         missing_referenced_score_ids: Vec::new(),
     };
 
-    let result = authorize_unreferenced_score_recovery_action(
+    let result = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &forged,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Discard,
@@ -223,13 +264,15 @@ fn stale_recovery_authorization_cannot_cross_a_changed_reconciliation() {
         &[PUBLISHED_ONLY_ID.to_string()],
     )
     .expect("published-only score should initially be recoverable");
-    let recover = authorize_unreferenced_score_recovery_action(
+    let recover = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &initial,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Recover,
     )
     .expect("initial recovery decision should be authorized");
-    let discard = authorize_unreferenced_score_recovery_action(
+    let discard = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
         &initial,
         PUBLISHED_ONLY_ID,
         UnreferencedScoreRecoveryDecision::Discard,
@@ -244,7 +287,7 @@ fn stale_recovery_authorization_cannot_cross_a_changed_reconciliation() {
 
     for action in [&recover, &discard] {
         assert_eq!(
-            revalidate_unreferenced_score_recovery_action(&current, action)
+            revalidate_project_scoped_score_recovery_action(PROJECT_ID, &current, action)
                 .err()
                 .as_deref(),
             Some("Could not authorize score attachment recovery action."),
@@ -252,10 +295,49 @@ fn stale_recovery_authorization_cannot_cross_a_changed_reconciliation() {
         );
     }
     assert_eq!(
-        recovery_attachment_metadata_for_action(&current, &recover)
+        recovery_attachment_metadata_for_project_action(PROJECT_ID, &current, &recover)
             .err()
             .as_deref(),
         Some("Could not prepare recovered score attachment metadata."),
         "stale recovery authority must not become durable metadata"
+    );
+}
+
+#[test]
+fn recovery_authorization_cannot_cross_project_identity_even_when_candidate_sets_match() {
+    let reconciliation = derive_score_attachment_recovery_candidates(
+        &[],
+        &[PUBLISHED_ONLY_ID.to_string()],
+    )
+    .expect("published-only score should be a recovery candidate");
+    let recover = authorize_project_scoped_score_recovery_action(
+        PROJECT_ID,
+        &reconciliation,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Recover,
+    )
+    .expect("initial project should authorize recovery");
+
+    assert_eq!(
+        revalidate_project_scoped_score_recovery_action(
+            OTHER_PROJECT_ID,
+            &reconciliation,
+            &recover,
+        )
+        .err()
+        .as_deref(),
+        Some("Could not authorize score attachment recovery action."),
+        "a recovery decision must not survive a project switch merely because score sets match"
+    );
+    assert_eq!(
+        recovery_attachment_metadata_for_project_action(
+            OTHER_PROJECT_ID,
+            &reconciliation,
+            &recover,
+        )
+        .err()
+        .as_deref(),
+        Some("Could not prepare recovered score attachment metadata."),
+        "cross-project recovery authority must not become durable metadata"
     );
 }
