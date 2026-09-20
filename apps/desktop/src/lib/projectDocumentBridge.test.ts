@@ -132,6 +132,56 @@ describe("project document bridge", () => {
     await expect(loadProjectDocument()).rejects.toThrow("Project changed since it was opened.");
   });
 
+  it("preserves the active workspace revision when a conflicting reopen is rejected", async () => {
+    const projectId = "project-400-77";
+    const song = createDemoRehearsalSong();
+    const invoke = vi
+      .fn()
+      .mockResolvedValueOnce(CONTENT_SHA256)
+      .mockResolvedValueOnce({
+        song,
+        preferences: { selectedPlaybackSource: "full_mix" },
+        sourceReference: {
+          projectId,
+          artifactName: "source.wav",
+          extension: "wav",
+          fileSizeBytes: 4096,
+          contentSha256: CONTENT_SHA256
+        }
+      })
+      .mockRejectedValueOnce(new Error("Project changed since it was opened."))
+      .mockResolvedValueOnce(CONTENT_SHA256);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+
+    await saveProjectDocument(
+      {
+        song,
+        preferences: { selectedPlaybackSource: "full_mix" }
+      },
+      projectId,
+      true
+    );
+    await expect(loadProjectDocument()).rejects.toThrow("Project changed since it was opened.");
+    await saveProjectDocument(
+      {
+        song,
+        preferences: { selectedPlaybackSource: "full_mix" }
+      },
+      projectId,
+      true
+    );
+
+    expect(invoke).toHaveBeenNthCalledWith(4, "save_project", {
+      payload: {
+        song,
+        preferences: { selectedPlaybackSource: "full_mix" }
+      },
+      projectId,
+      workspace: true,
+      expectedContentSha256: CONTENT_SHA256
+    });
+  });
+
   it("does not manufacture workspace authority for a portable document without an app-owned source", async () => {
     const song = createDemoRehearsalSong();
     const invoke = vi.fn().mockResolvedValue({
