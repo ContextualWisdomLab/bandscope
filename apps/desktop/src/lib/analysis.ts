@@ -443,12 +443,29 @@ export async function saveProjectDocument(
   }
 }
 
-/** Reopen one current versioned project document, including durable Project Persistence state. */
+/**
+ * Reopen one current versioned project document and bind app-owned workspace revision authority
+ * before returning it to renderer state.
+ *
+ * A loaded document with a native `sourceReference` names an existing BandScope project aggregate.
+ * The renderer clears any prior in-memory receipt and asks native Project Persistence to bind the
+ * canonical source-free candidate to that exact app-owned workspace. Native code accepts an absent
+ * receipt only when workspace bytes are absent (first publication) or byte-identical to the
+ * canonical candidate; differing durable bytes fail closed before the document becomes UI state.
+ * Portable documents without an app-owned source remain load-only and do not manufacture workspace
+ * authority.
+ */
 export async function loadProjectDocument(): Promise<ProjectDocument> {
   const response = await invokeAnalysis("load_project");
   const document = parseProjectDocument(response);
   if (document.sourceReference) {
-    workspaceContentRevisionByProject.delete(document.sourceReference.projectId);
+    const projectId = document.sourceReference.projectId;
+    workspaceContentRevisionByProject.delete(projectId);
+    await saveProjectDocument(
+      createProjectDocument(document.song, document.preferences.selectedPlaybackSource),
+      projectId,
+      true
+    );
   }
   return document;
 }
