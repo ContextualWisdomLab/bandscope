@@ -101,6 +101,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install Rust 1.97.1
         run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Run desktop-core Project Persistence contract tests
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features persistence_warning_gate --all-targets
       - name: Prepare compile-only frontendDist fixture
         run: |
           mkdir -p apps/desktop/dist
