@@ -41,9 +41,9 @@ pub use publication_identity::{
 pub use runtime_core::*;
 pub use score_attachment_recovery::{
     authorize_unreferenced_score_recovery_action, derive_score_attachment_recovery_candidates,
-    recovery_attachment_metadata_for_action, AuthorizedUnreferencedScoreRecoveryAction,
-    RecoveredScoreAttachmentMetadata, ScoreAttachmentRecoveryReconciliation,
-    UnreferencedScoreRecoveryDecision,
+    recovery_attachment_metadata_for_action, revalidate_unreferenced_score_recovery_action,
+    AuthorizedUnreferencedScoreRecoveryAction, RecoveredScoreAttachmentMetadata,
+    ScoreAttachmentRecoveryReconciliation, UnreferencedScoreRecoveryDecision,
 };
 pub use score_pdf::read_validated_score_pdf;
 pub use source_readmission::{
