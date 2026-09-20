@@ -22,6 +22,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/src/features/workspace/SectionRoadmap.tsx"',
     '"apps/desktop/src/lib/analysis.ts"',
     '"apps/desktop/src/lib/analysis.workspace-single-flight.test.ts"',
+    '"apps/desktop/src/lib/projectDocumentBridge.test.ts"',
     '"apps/desktop/src/lib/projectDocumentSaveAuthority.test.ts"',
     '"apps/desktop/src-tauri/Cargo.toml"',
     '"apps/desktop/src-tauri/Cargo.lock"',
