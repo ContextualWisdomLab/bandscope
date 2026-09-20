@@ -990,7 +990,7 @@ export function App() {
             {currentView === "score" && jobResult ? (
               <ScoreView
                 song={jobResult}
-                projectId={jobResultBootstrap?.projectId ?? null}
+                projectId={jobResultPublicationProjectId}
                 onSongUpdate={handleSongUpdate}
               />
             ) : (
