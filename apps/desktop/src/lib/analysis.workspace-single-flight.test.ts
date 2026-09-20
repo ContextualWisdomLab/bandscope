@@ -45,4 +45,53 @@ describe("Project Persistence workspace mutation admission", () => {
     releaseFirstSave?.();
     await firstSave;
   });
+
+  it("allows independent workspace saves for different project aggregates", async () => {
+    let releaseFirstSave: (() => void) | undefined;
+    const invoke = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseFirstSave = resolve;
+          })
+      )
+      .mockResolvedValue(undefined);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+
+    const song = createDemoRehearsalSong();
+    const firstSave = saveProject(song, "full_mix", "project-401-4", true);
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+
+    await expect(saveProject(song, "full_mix", "project-402-4", true)).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledTimes(2);
+
+    releaseFirstSave?.();
+    await firstSave;
+  });
+
+  it("releases workspace admission after a failed native durability decision", async () => {
+    const invoke = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("native persistence failed"))
+      .mockResolvedValue(undefined);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+
+    const song = createDemoRehearsalSong();
+    await expect(saveProject(song, "full_mix", "project-403-4", true)).rejects.toThrow(
+      "native persistence failed"
+    );
+    await expect(saveProject(song, "full_mix", "project-403-4", true)).resolves.toBeUndefined();
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires an app-owned project id before taking workspace mutation authority", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+
+    await expect(saveProject(createDemoRehearsalSong(), "full_mix", undefined, true)).rejects.toThrow(
+      "Workspace project id is required."
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });
