@@ -9,14 +9,17 @@ on:
       - "apps/desktop/core/Cargo.toml"
       - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/src/content_sha256.rs"
       - "apps/desktop/core/src/score_pdf.rs"
       - "apps/desktop/core/src/score_recovery.rs"
       - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_storage.rs"
+      - "apps/desktop/core/tests/content_sha256_shared_kernel.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
+      - "docs/traceability/score-attachment-recovery-object-receipt.md"
       - ".github/workflows/score-storage-native.yml"
   push:
     branches:
@@ -26,14 +29,17 @@ on:
       - "apps/desktop/core/Cargo.toml"
       - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/src/content_sha256.rs"
       - "apps/desktop/core/src/score_pdf.rs"
       - "apps/desktop/core/src/score_recovery.rs"
       - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_storage.rs"
+      - "apps/desktop/core/tests/content_sha256_shared_kernel.rs"
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
+      - "docs/traceability/score-attachment-recovery-object-receipt.md"
       - ".github/workflows/score-storage-native.yml"
 
 permissions:
@@ -69,7 +75,10 @@ jobs:
           cargo +1.97.1 test \
             --manifest-path apps/desktop/core/Cargo.toml \
             --lib score_recovery::tests::
-      - name: Run Score Storage publication, retention, interruption, restart, inventory, and wiring regressions
+          cargo +1.97.1 test \
+            --manifest-path apps/desktop/core/Cargo.toml \
+            --test content_sha256_shared_kernel
+      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, and wiring regressions
         run: >-
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
@@ -78,4 +87,5 @@ jobs:
           --test score_pdf_interruption_recovery
           --test score_pdf_restart_readback
           --test score_pdf_recovery_inventory
+          --test score_pdf_recovery_object_receipt
           --test score_pdf_attachment_wiring
