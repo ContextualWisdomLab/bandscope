@@ -100,7 +100,6 @@ impl MountedImage {
         let create = Command::new("hdiutil")
             .arg("create")
             .args(["-size", "16m", "-fs", "HFS+", "-volname", "BandScopeENOSPC"])
-            .args(["-format", "UDRW"])
             .arg(&image)
             .status()
             .expect("hdiutil create should launch");
