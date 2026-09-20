@@ -1,4 +1,6 @@
 const TAURI_MAIN: &str = include_str!("../../src-tauri/src/main.rs");
+const SCORE_STORAGE_BRIDGE: &str = include_str!("../../src/features/score/scoreStorage.ts");
+const SCORE_VIEW: &str = include_str!("../../src/features/score/ScoreView.tsx");
 
 #[test]
 fn tauri_attachment_command_uses_score_storage_publication_boundary() {
@@ -16,16 +18,52 @@ fn tauri_attachment_command_uses_score_storage_publication_boundary() {
 }
 
 #[test]
-fn tauri_remove_command_uses_score_storage_deletion_boundary() {
-    let remove_start = TAURI_MAIN
-        .find("fn remove_score_pdf(")
-        .expect("remove_score_pdf command should exist");
+fn tauri_remove_command_requires_a_fresh_content_receipt() {
+    let receipt_start = TAURI_MAIN
+        .find("fn get_score_pdf_receipt(")
+        .expect("get_score_pdf_receipt command should expose path-free object freshness");
+    let remove_start = TAURI_MAIN[receipt_start..]
+        .find("fn remove_score_pdf_if_receipt_matches(")
+        .map(|offset| receipt_start + offset)
+        .expect("receipt-bound remove command should follow receipt lookup");
     let main_start = TAURI_MAIN[remove_start..]
         .find("fn main()")
         .map(|offset| remove_start + offset)
-        .expect("main should follow remove_score_pdf command");
+        .expect("main should follow receipt-bound remove command");
+    let receipt_source = &TAURI_MAIN[receipt_start..remove_start];
     let remove_source = &TAURI_MAIN[remove_start..main_start];
 
-    assert!(remove_source.contains("remove_score_pdf_attachment("));
-    assert!(!remove_source.contains("std::fs::remove_file("));
+    assert!(receipt_source.contains("published_score_pdf_receipt("));
+    assert!(remove_source.contains("published_score_pdf_receipt("));
+    assert!(remove_source.contains("remove_score_pdf_attachment_if_receipt_matches("));
+    assert!(!remove_source.contains("remove_score_pdf_attachment("));
+    assert!(!TAURI_MAIN.contains("fn remove_score_pdf("));
+}
+
+#[test]
+fn score_view_detach_reads_receipt_before_metadata_and_deletes_only_by_receipt() {
+    let remove_start = SCORE_VIEW
+        .find("const handleRemove = async")
+        .expect("ScoreView should define the detach interaction");
+    let render_start = SCORE_VIEW[remove_start..]
+        .find("\n  return (")
+        .map(|offset| remove_start + offset)
+        .expect("ScoreView render should follow detach interaction");
+    let remove_source = &SCORE_VIEW[remove_start..render_start];
+
+    let receipt = remove_source
+        .find("getScorePdfReceipt(")
+        .expect("detach should capture current storage identity before metadata mutation");
+    let metadata = remove_source
+        .find("onSongUpdate(")
+        .expect("detach should persist metadata removal");
+    let deletion = remove_source
+        .find("removeScorePdfIfReceiptMatches(")
+        .expect("detach should delete only through receipt-bound storage authority");
+
+    assert!(receipt < metadata, "storage identity must be captured before durable metadata detachment");
+    assert!(metadata < deletion, "buyer metadata must be detached before destructive byte deletion");
+    assert!(SCORE_STORAGE_BRIDGE.contains("get_score_pdf_receipt"));
+    assert!(SCORE_STORAGE_BRIDGE.contains("remove_score_pdf_if_receipt_matches"));
+    assert!(!SCORE_STORAGE_BRIDGE.contains("\"remove_score_pdf\""));
 }
