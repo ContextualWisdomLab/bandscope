@@ -108,7 +108,7 @@ fn recovery_binds_admitted_stage_identity_to_cleanup() {
         "recovery must capture the admitted stage object before later validation and cleanup"
     );
     assert!(
-        source.contains("remove_admitted_score_stage(&stage, admitted_stage)"),
+        source.contains("remove_admitted_score_stage(&stage, &admitted_stage)"),
         "recovery cleanup must remain bound to the stage object admitted earlier in the transaction"
     );
     assert!(
