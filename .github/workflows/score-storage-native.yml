@@ -87,7 +87,7 @@ jobs:
           cargo +1.97.1 test \
             --manifest-path apps/desktop/core/Cargo.toml \
             --test content_sha256_shared_kernel
-      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, durability, and wiring regressions
+      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, durability, Unix cleanup, and wiring regressions
         run: >-
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
@@ -98,4 +98,5 @@ jobs:
           --test score_pdf_recovery_inventory
           --test score_pdf_recovery_object_receipt
           --test score_pdf_success_durability
+          --test score_pdf_unix_stage_cleanup_contract
           --test score_pdf_attachment_wiring
