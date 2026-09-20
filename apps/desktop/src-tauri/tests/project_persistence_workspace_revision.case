@@ -83,6 +83,25 @@ fn existing_workspace_can_bind_an_absent_renderer_revision_only_when_content_is_
 }
 
 #[test]
+fn restart_binding_does_not_bypass_workspace_content_admission() {
+    let root = test_dir("restart-bind-empty");
+    let target = root.join("project.bscope");
+    fs::write(&target, b"").expect("empty existing fixture should be written");
+
+    let error = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        b"",
+        None,
+    )
+    .expect_err("restart equality must not turn an empty snapshot into accepted project state");
+
+    assert_eq!(error, "Could not stage the project safely.");
+    assert_eq!(fs::read(&target).expect("existing empty fixture should remain readable"), b"");
+
+    fs::remove_dir_all(root).expect("revision fixture should be removed");
+}
+
+#[test]
 fn workspace_revision_presence_must_match_target_presence() {
     let root = test_dir("presence");
     let target = root.join("project.bscope");
