@@ -37,6 +37,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/src/crate_root.rs"',
     '"apps/desktop/core/src/content_sha256.rs"',
     '"apps/desktop/core/src/project_format.rs"',
+    '"apps/desktop/core/src/project_scoped_score_recovery.rs"',
     '"apps/desktop/core/src/score_attachment_recovery.rs"',
     '"apps/desktop/core/tests/content_sha256_shared_kernel.rs"',
     '"apps/desktop/core/tests/project_persistence*.rs"',
