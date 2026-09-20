@@ -47,6 +47,7 @@ const tauriWindow = window as TauriWindow;
 const mockInvoke = vi.mocked(invoke);
 
 const SCORE_ID = "3f2c8f0e-1a2b-4c3d-8e9f-001122334455";
+const SCORE_DIGEST = "ab".repeat(32);
 
 function makeSong(scoreAttachments?: ScoreAttachment[]): RehearsalSong {
   return {
@@ -223,6 +224,7 @@ describe("ScoreView", () => {
   it("removes an attachment after confirmation and resets the open viewer", async () => {
     mockInvoke
       .mockResolvedValueOnce([1, 2])
+      .mockResolvedValueOnce({ scoreId: SCORE_ID, contentSha256: SCORE_DIGEST })
       .mockResolvedValueOnce(true);
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onSongUpdate = vi.fn();
@@ -241,9 +243,14 @@ describe("ScoreView", () => {
       expect(onSongUpdate).toHaveBeenCalledWith({ ...song, scoreAttachments: [] });
     });
     expect(window.confirm).toHaveBeenCalledWith("Remove opener.pdf from this song?");
-    expect(mockInvoke).toHaveBeenCalledWith("remove_score_pdf", {
+    expect(mockInvoke).toHaveBeenCalledWith("get_score_pdf_receipt", {
       projectId: "project-1-2",
       scoreId: SCORE_ID
+    });
+    expect(mockInvoke).toHaveBeenCalledWith("remove_score_pdf_if_receipt_matches", {
+      projectId: "project-1-2",
+      scoreId: SCORE_ID,
+      contentSha256: SCORE_DIGEST
     });
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
   });
@@ -261,8 +268,8 @@ describe("ScoreView", () => {
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("reports removal failures without dropping the metadata", async () => {
-    mockInvoke.mockRejectedValueOnce(new Error("Could not remove the score PDF."));
+  it("reports receipt lookup failures without dropping the metadata", async () => {
+    mockInvoke.mockRejectedValueOnce(new Error("Could not inspect the score PDF."));
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onSongUpdate = vi.fn();
     const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
@@ -271,25 +278,27 @@ describe("ScoreView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not remove the score PDF.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not inspect the score PDF.");
     expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects malformed removal responses", async () => {
+  it("rejects malformed receipt responses before metadata removal", async () => {
     mockInvoke.mockResolvedValueOnce("done");
     vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onSongUpdate = vi.fn();
 
     render(
       <ScoreView
         song={makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }])}
         projectId="project-1-2"
-        onSongUpdate={vi.fn()}
+        onSongUpdate={onSongUpdate}
       />
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Invalid score bridge response");
+    expect(onSongUpdate).not.toHaveBeenCalled();
   });
 
   it("fails closed when no desktop bridge is available", async () => {
@@ -397,9 +406,11 @@ describe("ScoreView", () => {
   });
 
   it("removes a score that is not currently open without resetting the viewer", async () => {
-    // With nothing open, removal updates metadata but must leave the (empty)
-    // viewer state untouched.
-    mockInvoke.mockResolvedValueOnce(true);
+    // With nothing open, receipt-bound removal updates metadata but must leave
+    // the (empty) viewer state untouched.
+    mockInvoke
+      .mockResolvedValueOnce({ scoreId: SCORE_ID, contentSha256: SCORE_DIGEST })
+      .mockResolvedValueOnce(true);
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const onSongUpdate = vi.fn();
     const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
@@ -410,6 +421,11 @@ describe("ScoreView", () => {
 
     await waitFor(() => {
       expect(onSongUpdate).toHaveBeenCalledWith({ ...song, scoreAttachments: [] });
+    });
+    expect(mockInvoke).toHaveBeenCalledWith("remove_score_pdf_if_receipt_matches", {
+      projectId: "project-1-2",
+      scoreId: SCORE_ID,
+      contentSha256: SCORE_DIGEST
     });
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
   });

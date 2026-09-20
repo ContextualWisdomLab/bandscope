@@ -14,6 +14,7 @@
     "allow-load-project",
     "allow-attach-score-pdf",
     "allow-read-score-pdf",
-    "allow-remove-score-pdf"
+    "allow-get-score-pdf-receipt",
+    "allow-remove-score-pdf-if-receipt-matches"
   ]
 }
