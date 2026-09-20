@@ -13,6 +13,7 @@ const FIRST_SAVE_MAX_PROJECT_FILE_BYTES: usize = 5 * 1024 * 1024;
 const FIRST_SAVE_EXISTS_ERROR: &str = "Project file already exists. Choose a new file name.";
 const FIRST_SAVE_STAGE_ERROR: &str = "Could not stage the project safely.";
 const FIRST_SAVE_PUBLISH_ERROR: &str = "Could not publish the project safely.";
+const PROJECT_WRITE_BUSY_ERROR: &str = "Project update is already being saved.";
 
 fn first_save_parent(target: &Path) -> &Path {
     match target.parent() {
@@ -88,6 +89,140 @@ fn first_save_parent_chain_is_safe(parent: &Path) -> bool {
                     || first_save_is_trusted_macos_root_alias(ancestor, &metadata)
             })
         })
+}
+
+#[cfg(unix)]
+struct ProjectWriteAdmission {
+    _directory: File,
+}
+
+#[cfg(unix)]
+fn acquire_project_write_admission(target: &Path) -> Result<ProjectWriteAdmission, String> {
+    use std::os::fd::AsRawFd;
+
+    const LOCK_EX: i32 = 2;
+    const LOCK_NB: i32 = 4;
+
+    extern "C" {
+        fn flock(fd: i32, operation: i32) -> i32;
+    }
+
+    let parent = first_save_parent(target);
+    if target.file_name().is_none() || !first_save_parent_chain_is_safe(parent) {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    }
+    let directory = File::open(parent).map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
+    let result = unsafe { flock(directory.as_raw_fd(), LOCK_EX | LOCK_NB) };
+    if result == 0 {
+        return Ok(ProjectWriteAdmission {
+            _directory: directory,
+        });
+    }
+
+    let error = std::io::Error::last_os_error();
+    if error.kind() == std::io::ErrorKind::WouldBlock {
+        Err(PROJECT_WRITE_BUSY_ERROR.to_string())
+    } else {
+        Err(FIRST_SAVE_PUBLISH_ERROR.to_string())
+    }
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+extern "system" {
+    #[link_name = "CreateMutexW"]
+    fn create_mutex_w(
+        mutex_attributes: *mut std::ffi::c_void,
+        initial_owner: i32,
+        name: *const u16,
+    ) -> *mut std::ffi::c_void;
+    #[link_name = "WaitForSingleObject"]
+    fn wait_for_single_object(handle: *mut std::ffi::c_void, milliseconds: u32) -> u32;
+    #[link_name = "ReleaseMutex"]
+    fn release_mutex(handle: *mut std::ffi::c_void) -> i32;
+    #[link_name = "CloseHandle"]
+    fn close_handle(handle: *mut std::ffi::c_void) -> i32;
+}
+
+#[cfg(windows)]
+struct ProjectWriteAdmission {
+    handle: *mut std::ffi::c_void,
+}
+
+#[cfg(windows)]
+impl Drop for ProjectWriteAdmission {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = release_mutex(self.handle);
+            let _ = close_handle(self.handle);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn windows_project_write_admission_name(target: &Path) -> Result<Vec<u16>, String> {
+    use std::os::windows::ffi::OsStrExt;
+
+    let parent = first_save_parent(target);
+    let Some(file_name) = target.file_name() else {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    };
+    if !first_save_parent_chain_is_safe(parent) {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    }
+    let canonical_parent =
+        fs::canonicalize(parent).map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
+    let canonical_target = canonical_parent.join(file_name);
+
+    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+    for unit in canonical_target.as_os_str().encode_wide() {
+        for byte in unit.to_le_bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
+    Ok(format!("Local\\BandScopeProjectWrite-{hash:016x}")
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect())
+}
+
+#[cfg(windows)]
+fn acquire_project_write_admission(target: &Path) -> Result<ProjectWriteAdmission, String> {
+    const WAIT_OBJECT_0: u32 = 0x0000_0000;
+    const WAIT_ABANDONED: u32 = 0x0000_0080;
+    const WAIT_TIMEOUT: u32 = 0x0000_0102;
+
+    let name = windows_project_write_admission_name(target)?;
+    let handle = unsafe { create_mutex_w(std::ptr::null_mut(), 0, name.as_ptr()) };
+    if handle.is_null() {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    }
+
+    match unsafe { wait_for_single_object(handle, 0) } {
+        WAIT_OBJECT_0 | WAIT_ABANDONED => Ok(ProjectWriteAdmission { handle }),
+        WAIT_TIMEOUT => {
+            unsafe {
+                let _ = close_handle(handle);
+            }
+            Err(PROJECT_WRITE_BUSY_ERROR.to_string())
+        }
+        _ => {
+            unsafe {
+                let _ = close_handle(handle);
+            }
+            Err(FIRST_SAVE_PUBLISH_ERROR.to_string())
+        }
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+struct ProjectWriteAdmission;
+
+#[cfg(not(any(unix, windows)))]
+fn acquire_project_write_admission(_target: &Path) -> Result<ProjectWriteAdmission, String> {
+    Err(FIRST_SAVE_PUBLISH_ERROR.to_string())
 }
 
 #[cfg(unix)]
@@ -242,7 +377,8 @@ fn first_save_flush_target(
 ///
 /// Production passes the real hard-link and parent-durability operations. Native persistence tests
 /// replace only those two boundaries to exercise failure ordering while preserving the identical
-/// staging, identity, no-clobber, permission, replacement, cleanup, and durability implementation.
+/// staging, identity, no-clobber, permission, replacement, cleanup, durability, and native
+/// cross-process admission implementation.
 pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
     target: &Path,
     content: &[u8],
@@ -253,6 +389,8 @@ where
     F: FnOnce(&Path, &Path) -> std::io::Result<()>,
     S: FnMut(&Path) -> std::io::Result<()>,
 {
+    let _write_admission = acquire_project_write_admission(target)?;
+
     if content.is_empty() {
         return Err(FIRST_SAVE_STAGE_ERROR.to_string());
     }
