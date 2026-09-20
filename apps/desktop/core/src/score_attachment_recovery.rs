@@ -10,6 +10,8 @@ use crate::is_valid_score_id;
 
 const SCORE_RECONCILIATION_ERROR: &str = "Could not reconcile score attachments.";
 const SCORE_RECOVERY_ACTION_ERROR: &str = "Could not authorize score attachment recovery action.";
+const SCORE_RECOVERED_METADATA_ERROR: &str =
+    "Could not prepare recovered score attachment metadata.";
 
 /// Path-free reconciliation result between durable project references and published score objects.
 ///
@@ -29,21 +31,23 @@ pub struct ScoreAttachmentRecoveryReconciliation {
 
 /// Buyer-selected disposition for a published score object that has no durable project reference.
 ///
-/// `Preserve` deliberately performs no storage mutation. `Discard` expresses explicit cleanup intent,
-/// but this domain type does not delete bytes itself; the caller must pass an authorized action to the
-/// Score Storage owner after the relevant owner contracts are integrated.
+/// `Preserve` deliberately performs no storage mutation. `Recover` expresses explicit intent to
+/// reattach the current published object using truthful generated presentation metadata. `Discard`
+/// expresses explicit cleanup intent. This domain type performs none of those mutations itself.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UnreferencedScoreRecoveryDecision {
     /// Leave the published object intact for later inspection or recovery.
     Preserve,
+    /// Permit a later Project Persistence transaction to reattach this current published object.
+    Recover,
     /// Permit cleanup of this one unreferenced published object.
     Discard,
 }
 
 /// Opaque authorization proving that one explicit buyer decision targeted a current unreferenced object.
 ///
-/// Fields are private so callers cannot manufacture destructive cleanup authority without passing the
-/// reconciliation checks in [`authorize_unreferenced_score_recovery_action`].
+/// Fields are private so callers cannot manufacture destructive cleanup or reattachment authority without
+/// passing the reconciliation checks in [`authorize_unreferenced_score_recovery_action`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthorizedUnreferencedScoreRecoveryAction {
     score_id: String,
@@ -59,6 +63,30 @@ impl AuthorizedUnreferencedScoreRecoveryAction {
     /// Return the explicit buyer-selected disposition.
     pub fn decision(&self) -> UnreferencedScoreRecoveryDecision {
         self.decision
+    }
+}
+
+/// Path-free attachment metadata for a buyer-authorized recovery.
+///
+/// The generated file name is intentionally not the original selected filename. That filename is absent
+/// from the restart inventory contract after `PDF durable -> project metadata not durable`. Persisting a
+/// generated recovery label avoids inventing provenance while giving Project Persistence a stable display
+/// value that can survive the next project save.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecoveredScoreAttachmentMetadata {
+    score_id: String,
+    file_name: String,
+}
+
+impl RecoveredScoreAttachmentMetadata {
+    /// Return the validated score identity to reattach.
+    pub fn score_id(&self) -> &str {
+        &self.score_id
+    }
+
+    /// Return the deterministic generated display filename.
+    pub fn file_name(&self) -> &str {
+        &self.file_name
     }
 }
 
@@ -145,11 +173,12 @@ pub fn derive_score_attachment_recovery_candidates(
 /// The supplied reconciliation may originate outside this module because its classification fields are
 /// public for IPC/application consumption. This function therefore revalidates every identity and the
 /// mutual-exclusion invariant before issuing authorization. Referenced-and-published, missing-reference,
-/// malformed, unknown, duplicated, or cross-set-overlapping identities can never become cleanup authority.
+/// malformed, unknown, duplicated, or cross-set-overlapping identities can never become cleanup or
+/// reattachment authority.
 ///
-/// `Preserve` and `Discard` are both explicit buyer decisions. Neither action mutates storage here.
-/// Project Persistence therefore remains unable to delete Score Storage bytes on classification alone,
-/// while a later integration can require this opaque authorization before destructive cleanup.
+/// `Preserve`, `Recover`, and `Discard` are all explicit buyer decisions. No action mutates storage here.
+/// Project Persistence therefore remains unable to delete Score Storage bytes or alter durable attachment
+/// metadata on classification alone.
 ///
 /// # Errors
 ///
@@ -172,6 +201,30 @@ pub fn authorize_unreferenced_score_recovery_action(
     Ok(AuthorizedUnreferencedScoreRecoveryAction {
         score_id: score_id.to_string(),
         decision,
+    })
+}
+
+/// Build truthful durable presentation metadata for one authorized recovery action.
+///
+/// The restart inventory carries no original selected filename. A `Recover` action therefore uses a
+/// deterministic generated label, `recovered-score-<score-id>.pdf`, rather than claiming the original
+/// filename was restored. `Preserve` and `Discard` actions cannot be converted into attachment metadata.
+/// This function performs no filesystem or project mutation; the application must still persist the
+/// returned metadata through Project Persistence before presenting the attachment as accepted.
+///
+/// # Errors
+///
+/// Returns a bounded generic error when the authorized action is not an explicit `Recover` decision.
+pub fn recovery_attachment_metadata_for_action(
+    action: &AuthorizedUnreferencedScoreRecoveryAction,
+) -> Result<RecoveredScoreAttachmentMetadata, String> {
+    if action.decision != UnreferencedScoreRecoveryDecision::Recover {
+        return Err(SCORE_RECOVERED_METADATA_ERROR.to_string());
+    }
+
+    Ok(RecoveredScoreAttachmentMetadata {
+        score_id: action.score_id.clone(),
+        file_name: format!("recovered-score-{}.pdf", action.score_id),
     })
 }
 
@@ -216,6 +269,41 @@ mod tests {
             .err()
             .as_deref(),
             Some(SCORE_RECOVERY_ACTION_ERROR)
+        );
+    }
+
+    #[test]
+    fn generated_recovery_metadata_requires_recover_authorization() {
+        let reconciliation = ScoreAttachmentRecoveryReconciliation {
+            referenced_and_published_score_ids: Vec::new(),
+            unreferenced_published_score_ids: vec![SCORE_ID.to_string()],
+            missing_referenced_score_ids: Vec::new(),
+        };
+        let recover = authorize_unreferenced_score_recovery_action(
+            &reconciliation,
+            SCORE_ID,
+            UnreferencedScoreRecoveryDecision::Recover,
+        )
+        .expect("recovery candidate should authorize explicit recovery");
+        let metadata = recovery_attachment_metadata_for_action(&recover)
+            .expect("authorized recovery should produce generated metadata");
+        assert_eq!(metadata.score_id(), SCORE_ID);
+        assert_eq!(
+            metadata.file_name(),
+            "recovered-score-6fa459ea-ee8a-4ca4-894e-db77e160355e.pdf"
+        );
+
+        let preserve = authorize_unreferenced_score_recovery_action(
+            &reconciliation,
+            SCORE_ID,
+            UnreferencedScoreRecoveryDecision::Preserve,
+        )
+        .expect("candidate should authorize preserve");
+        assert_eq!(
+            recovery_attachment_metadata_for_action(&preserve)
+                .err()
+                .as_deref(),
+            Some(SCORE_RECOVERED_METADATA_ERROR)
         );
     }
 }
