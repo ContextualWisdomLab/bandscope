@@ -93,7 +93,7 @@ jobs:
           cargo +1.97.1 test \
             --manifest-path apps/desktop/core/Cargo.toml \
             --test content_sha256_shared_kernel
-      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, durability, fault-recovery, write-failure, Windows ACL, Unix cleanup, and wiring regressions
+      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, durability, fault-recovery, write-failure, capacity-exhaustion, Windows ACL, Unix cleanup, and wiring regressions
         run: >-
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
@@ -106,6 +106,7 @@ jobs:
           --test score_pdf_success_durability
           --test score_pdf_fault_recovery
           --test score_pdf_write_failure_recovery
+          --test score_pdf_capacity_exhaustion_recovery
           --test score_pdf_windows_acl_recovery
           --test score_pdf_unix_stage_cleanup_contract
           --test score_pdf_attachment_wiring
