@@ -90,6 +90,6 @@ mod tests {
             &[SCORE_ID.to_string()],
             &[SCORE_ID.to_string(), SCORE_ID.to_string()],
         );
-        assert_eq!(result.as_deref().err(), Some(SCORE_RECONCILIATION_ERROR));
+        assert_eq!(result.err().as_deref(), Some(SCORE_RECONCILIATION_ERROR));
     }
 }
