@@ -5,7 +5,7 @@ pub(crate) use engine::*;
 
 use std::{
     fs::{self, File},
-    io::Write,
+    io::{Cursor, Write},
     path::{Path, PathBuf},
 };
 
@@ -14,6 +14,8 @@ const FIRST_SAVE_EXISTS_ERROR: &str = "Project file already exists. Choose a new
 const FIRST_SAVE_STAGE_ERROR: &str = "Could not stage the project safely.";
 const FIRST_SAVE_PUBLISH_ERROR: &str = "Could not publish the project safely.";
 const PROJECT_WRITE_BUSY_ERROR: &str = "Project update is already being saved.";
+const PROJECT_REVISION_CONFLICT_ERROR: &str = "Project changed since it was opened.";
+const PROJECT_REVISION_INVALID_ERROR: &str = "Invalid project revision.";
 
 fn first_save_parent(target: &Path) -> &Path {
     match target.parent() {
@@ -373,13 +375,58 @@ fn first_save_flush_target(
     Ok(())
 }
 
-/// Executes the single first-save publication state machine with injectable native boundaries.
-///
-/// Production passes the real hard-link and parent-durability operations. Native persistence tests
-/// replace only those two boundaries to exercise failure ordering while preserving the identical
-/// staging, identity, no-clobber, permission, replacement, cleanup, durability, and native
-/// cross-process admission implementation.
-pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
+fn project_revision_is_valid(revision: &str) -> bool {
+    revision.len() == 64
+        && revision
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn current_project_content_sha256(target: &Path) -> Result<Option<String>, String> {
+    match fs::symlink_metadata(target) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(FIRST_SAVE_PUBLISH_ERROR.to_string()),
+        Ok(_) => {}
+    }
+
+    let file = engine::open_project_file(target)
+        .map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
+    if !metadata.is_file() || metadata.len() > FIRST_SAVE_MAX_PROJECT_FILE_BYTES as u64 {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    }
+    let identity = first_save_identity_from_file(&file)
+        .map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
+    if !first_save_path_matches_identity(target, &identity) {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    }
+    let digest = bandscope_desktop_core::sha256_hex_reader(file)
+        .map_err(|_| FIRST_SAVE_PUBLISH_ERROR.to_string())?;
+    if !first_save_path_matches_identity(target, &identity) {
+        return Err(FIRST_SAVE_PUBLISH_ERROR.to_string());
+    }
+    Ok(Some(digest))
+}
+
+fn verify_expected_project_revision(
+    target: &Path,
+    expected_content_sha256: Option<&str>,
+) -> Result<(), String> {
+    if expected_content_sha256.is_some_and(|revision| !project_revision_is_valid(revision)) {
+        return Err(PROJECT_REVISION_INVALID_ERROR.to_string());
+    }
+
+    let current = current_project_content_sha256(target)?;
+    match (current.as_deref(), expected_content_sha256) {
+        (None, None) => Ok(()),
+        (Some(current), Some(expected)) if current == expected => Ok(()),
+        _ => Err(PROJECT_REVISION_CONFLICT_ERROR.to_string()),
+    }
+}
+
+fn publish_project_file_after_admission<F, S>(
     target: &Path,
     content: &[u8],
     link: F,
@@ -389,8 +436,6 @@ where
     F: FnOnce(&Path, &Path) -> std::io::Result<()>,
     S: FnMut(&Path) -> std::io::Result<()>,
 {
-    let _write_admission = acquire_project_write_admission(target)?;
-
     if content.is_empty() {
         return Err(FIRST_SAVE_STAGE_ERROR.to_string());
     }
@@ -491,6 +536,51 @@ where
             }
         },
     }
+}
+
+/// Executes the single first-save publication state machine with injectable native boundaries.
+///
+/// Production passes the real hard-link and parent-durability operations. Native persistence tests
+/// replace only those two boundaries to exercise failure ordering while preserving the identical
+/// staging, identity, no-clobber, permission, replacement, cleanup, durability, and native
+/// cross-process admission implementation.
+pub(crate) fn publish_new_project_file_with_linker_and_directory_sync<F, S>(
+    target: &Path,
+    content: &[u8],
+    link: F,
+    sync_parent: S,
+) -> Result<(), String>
+where
+    F: FnOnce(&Path, &Path) -> std::io::Result<()>,
+    S: FnMut(&Path) -> std::io::Result<()>,
+{
+    let _write_admission = acquire_project_write_admission(target)?;
+    publish_project_file_after_admission(target, content, link, sync_parent)
+}
+
+/// Persist one app-owned workspace snapshot only when its base revision is still durable.
+///
+/// Security Notes: the expected revision is a path-free SHA-256 receipt from the prior accepted
+/// workspace publication. Recovery, revision validation, and replacement execute under one
+/// process-external Project Persistence admission lease. A missing, malformed, or stale receipt
+/// never authorizes an existing target and stale full snapshots are not replayed automatically.
+pub(crate) fn publish_workspace_project_file_with_expected_content(
+    target: &Path,
+    content: &[u8],
+    expected_content_sha256: Option<&str>,
+) -> Result<String, String> {
+    let next_revision = bandscope_desktop_core::sha256_hex_reader(Cursor::new(content))
+        .map_err(|_| FIRST_SAVE_STAGE_ERROR.to_string())?;
+    let _write_admission = acquire_project_write_admission(target)?;
+    engine::recover_project_publication(target)?;
+    verify_expected_project_revision(target, expected_content_sha256)?;
+    publish_project_file_after_admission(
+        target,
+        content,
+        |source, destination| fs::hard_link(source, destination),
+        first_save_sync_parent,
+    )?;
+    Ok(next_revision)
 }
 
 pub(crate) fn publish_new_project_file(target: &Path, content: &[u8]) -> Result<(), String> {
