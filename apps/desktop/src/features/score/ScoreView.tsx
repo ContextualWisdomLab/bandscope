@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FileMusic, FilePlus2, Loader2, Trash2 } from "lucide-react";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -64,7 +64,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const isCurrentContext = (expectedContextKey: string) =>
     contextKeyRef.current === expectedContextKey;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (previousContextKeyRef.current === contextKey) {
       return;
     }
