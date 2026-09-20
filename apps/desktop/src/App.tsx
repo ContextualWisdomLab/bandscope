@@ -638,7 +638,7 @@ export function App() {
     }
   };
 
-  /** Render the accepted rehearsal state without letting a revision conflict erase it from view. */
+  /** Render the accepted workspace state; revision conflicts are rendered above every rehearsal view. */
   const renderWorkspaceState = () => {
     if (jobError) {
       return <ErrorState error={jobError} />;
@@ -646,29 +646,10 @@ export function App() {
     if (analysisInFlight || isStarting) {
       return <LoadingState />;
     }
-    const conflictNotice = projectRevisionConflict ? (
-      <ProjectRevisionConflictNotice
-        kind={projectRevisionConflict}
-        hasAcceptedProject={jobResult !== null}
-        onDismiss={() => setProjectRevisionConflict(null)}
-        onChooseProject={() => void handleLoadProject()}
-        t={t}
-      />
-    ) : null;
     if (jobResult) {
-      return (
-        <>
-          {conflictNotice}
-          <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />
-        </>
-      );
+      return <Workspace song={jobResult} sourceBootstrap={jobResultBootstrap} onSongUpdate={handleSongUpdate} />;
     }
-    return (
-      <>
-        {conflictNotice}
-        <EmptyState />
-      </>
-    );
+    return <EmptyState />;
   };
 
   const currentView: RehearsalView = jobResult && activeView === "score" ? "score" : "workspace";
@@ -994,6 +975,16 @@ export function App() {
             <ConfidenceMetric song={jobResult} t={t} />
             <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label={t("metricPriorityLabel")} value={priorityLabel(jobResult, t)} detail={jobResult?.exportSummary?.headline ?? t("metricPriorityPendingDetail")} accent="text-amber-300" />
           </header>
+
+          {projectRevisionConflict ? (
+            <ProjectRevisionConflictNotice
+              kind={projectRevisionConflict}
+              hasAcceptedProject={jobResult !== null}
+              onDismiss={() => setProjectRevisionConflict(null)}
+              onChooseProject={() => void handleLoadProject()}
+              t={t}
+            />
+          ) : null}
 
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {currentView === "score" && jobResult ? (
