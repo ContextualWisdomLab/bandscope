@@ -8,9 +8,28 @@ WINDOWS_WORKFLOW = "project-persistence-windows-native.yml"
 LEGACY_WINDOWS_WORKFLOW = "project-persistence-windows.yml"
 WARNING_GATE_FEATURE = "persistence_warning_gate"
 EXACT_SOURCE_REF = "ref: ${{ github.event.pull_request.head.sha || github.sha }}"
-CORE_OWNER_TEST_COMMAND = (
-    "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
-    "--features persistence_warning_gate --all-targets"
+CORE_OWNER_TEST_COMMANDS = (
+    (
+        "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
+        "--features persistence_warning_gate --lib score_attachment_recovery::tests::"
+    ),
+    (
+        "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
+        "--features persistence_warning_gate --lib content_sha256::tests::"
+    ),
+    (
+        "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
+        "--features persistence_warning_gate "
+        "--test content_sha256_shared_kernel "
+        "--test project_format_resource_admission_handoff "
+        "--test project_format_v2_fixture "
+        "--test project_format_v2_playback_preference "
+        "--test project_format_v3_renderer_source_authority "
+        "--test project_format_v3_source_reference "
+        "--test project_migration_receipt_input_binding "
+        "--test project_persistence_contract "
+        "--test project_persistence_score_recovery"
+    ),
 )
 TAURI_OWNER_TEST_COMMAND = (
     "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
@@ -70,9 +89,12 @@ def _assert_enforces_owned_rust_warnings(workflow: str, lane: str) -> None:
 
 
 def _assert_runs_core_owner_contracts(workflow: str, lane: str) -> None:
-    assert (
-        CORE_OWNER_TEST_COMMAND in workflow
-    ), f"{lane} persistence workflow must execute desktop-core Project Persistence tests"
+    for command in CORE_OWNER_TEST_COMMANDS:
+        assert command in workflow, f"{lane} persistence workflow misses owner command: {command}"
+    assert "--all-targets" not in workflow, (
+        f"{lane} persistence workflow must not turn unrelated desktop-core domains into "
+        "Project Persistence gate ownership"
+    )
 
 
 def _assert_checks_out_exact_source_identity(workflow: str, lane: str) -> None:
