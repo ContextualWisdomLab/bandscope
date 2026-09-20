@@ -5,7 +5,12 @@ import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScoreViewer } from "./ScoreViewer";
-import { attachScorePdf, readScorePdf, removeScorePdf } from "./scoreStorage";
+import {
+  attachScorePdf,
+  getScorePdfReceipt,
+  readScorePdf,
+  removeScorePdfIfReceiptMatches
+} from "./scoreStorage";
 
 /** Props accepted by the per-song score attachments view. */
 export interface ScoreViewProps {
@@ -108,11 +113,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   };
 
   /**
-   * Detach metadata before destructive byte deletion. If the project owner
-   * rejects the metadata commit, the stored PDF remains intact and referenced.
-   * Once metadata is accepted, a later storage-delete failure can leave an
-   * unreferenced recovery/cleanup candidate but cannot create a durable project
-   * reference to bytes that this interaction already deleted.
+   * Capture the exact Score Storage object identity before changing durable
+   * project metadata, then delete bytes only if that same receipt is still
+   * current after metadata detachment. A missing object needs no deletion; a
+   * changed object is preserved as a recovery candidate rather than recaptured
+   * by id-only authority.
    */
   const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
     const confirmed = window.confirm(
@@ -123,6 +128,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     }
     setError(null);
     try {
+      const receipt = await getScorePdfReceipt(activeProjectId, attachment.id);
       const accepted = await onSongUpdate({
         ...song,
         scoreAttachments: attachments.filter((entry) => entry.id !== attachment.id)
@@ -136,7 +142,9 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
         setPdfBytes(null);
         setIsOpening(false);
       }
-      await removeScorePdf(activeProjectId, attachment.id);
+      if (receipt) {
+        await removeScorePdfIfReceiptMatches(activeProjectId, receipt);
+      }
     } catch (removeError) {
       setError(bridgeErrorDetail(removeError, t("scoreRemoveFailed")));
     }

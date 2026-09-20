@@ -14,8 +14,12 @@ type TauriBridgeWindow = Window & {
  */
 export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
+/** Path-free content identity for one currently published score object. */
+export type ScorePdfReceipt = { scoreId: string; contentSha256: string };
+
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const SHA256_HEX = /^[0-9a-f]{64}$/;
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as
@@ -99,11 +103,51 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
 }
 
 /**
- * Delete the stored score PDF copy. Resolves to false when the file was
- * already gone so callers can treat removal as idempotent.
+ * Snapshot path-free object identity before a buyer-facing detach changes
+ * durable project metadata. A missing object is represented as `null`; malformed
+ * bridge payloads fail closed instead of becoming deletion authority.
  */
-export async function removeScorePdf(projectId: string, scoreId: string): Promise<boolean> {
-  const response = await invokeScoreCommand("remove_score_pdf", { projectId, scoreId });
+export async function getScorePdfReceipt(
+  projectId: string,
+  scoreId: string
+): Promise<ScorePdfReceipt | null> {
+  const response = await invokeScoreCommand("get_score_pdf_receipt", { projectId, scoreId });
+  if (response === null) {
+    return null;
+  }
+  if (
+    typeof response !== "object" ||
+    typeof (response as Record<string, unknown>).scoreId !== "string" ||
+    typeof (response as Record<string, unknown>).contentSha256 !== "string"
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  const payload = response as ScorePdfReceipt;
+  if (payload.scoreId !== scoreId || !SHA256_HEX.test(payload.contentSha256)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return payload;
+}
+
+/**
+ * Delete a stored score only if the current object still matches the receipt
+ * captured before durable metadata detachment. A false result is a safe
+ * non-removal for an absent or changed object; callers must not fall back to
+ * id-only deletion.
+ */
+export async function removeScorePdfIfReceiptMatches(
+  projectId: string,
+  receipt: ScorePdfReceipt
+): Promise<boolean> {
+  if (!receipt.scoreId || !SHA256_HEX.test(receipt.contentSha256)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  const response = await invokeScoreCommand("remove_score_pdf_if_receipt_matches", {
+    projectId,
+    scoreId: receipt.scoreId,
+    contentSha256: receipt.contentSha256
+  });
   if (typeof response !== "boolean") {
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
