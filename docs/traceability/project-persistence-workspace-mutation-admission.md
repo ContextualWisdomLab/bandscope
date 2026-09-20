@@ -12,6 +12,8 @@ A restart introduced one more authority gap. Renderer revision receipts are inte
 
 A failed reopen has a related session-liveness risk. The renderer must temporarily remove a prior receipt for the selected project id so native Project Persistence can perform restart equality binding with no claimed predecessor. If the selected document conflicts with durable workspace bytes, that bind is rejected before renderer acceptance. Permanently discarding the prior receipt at that point would also revoke CAS authority from an already active, previously accepted project in the same renderer session even though the attempted reopen never replaced it.
 
+Once native CAS began rejecting stale snapshots safely, the product exposed a separate interaction defect: `App` routed the exact revision conflict through the generic load/save error state. That replaced the accepted rehearsal workspace with an error card even though native Project Persistence had deliberately left the previously accepted project unchanged. In Score view the same conflict could be invisible because the generic workspace error surface was not rendered there. A correct product boundary therefore needs to preserve the last accepted rehearsal and surface a path-free conflict notice across all rehearsal views without implying that a compare, merge, reload, or discard operation exists when it does not.
+
 ## Constraints
 
 - #970/#962 remains the canonical Project Persistence owner.
@@ -26,6 +28,9 @@ A failed reopen has a related session-liveness risk. The renderer must temporari
 - An absent renderer receipt may bind to an existing workspace only when the canonical candidate bytes exactly equal the current durable workspace bytes. Equality binding must not stage or replace the target.
 - Equality binding does not relax ordinary workspace content admission: empty snapshots and snapshots above the 5 MiB bound remain rejected before revision binding.
 - A rejected reopen must not revoke the prior accepted renderer-session revision receipt for the project that remains active. Restoration may not overwrite a newer receipt accepted concurrently.
+- Revision-conflict UI may describe the conflict and offer only operations that actually exist. It must not invent semantic merge, compare, reload, recovery, or discard authority that Project Persistence does not yet expose.
+- A revision conflict must not erase the last accepted rehearsal from the renderer. Conflict messaging is product state layered above the accepted aggregate, including while Score view is active.
+- Conflict copy must not expose native filesystem paths, content hashes, score data, or internal persistence identifiers.
 - The native warning-gated Project Persistence harness remains the single compile authority for crate-private production code. A new integration case must join that harness rather than recompiling the owner as an independent test crate and thereby manufacturing dead-code warnings.
 
 ## Renderer RED → fix evidence
@@ -90,6 +95,16 @@ The first exact `b0962e...` macOS owner run `35483630066` / job `106005815303` f
 
 `b0beeb2f230ecd446ae1caeaff91b081950e6210` is the minimal renderer repair. Reopen still removes the receipt before equality binding so restart semantics do not claim an unverified predecessor. It now snapshots the prior session receipt and, if binding fails, restores that receipt only when no newer receipt has appeared for the project id in the meantime. A concurrent successful persistence therefore cannot be rolled back to older renderer authority. Successful reopen continues to keep only the native receipt returned by Project Persistence.
 
+## Buyer-visible revision-conflict RED → fix evidence
+
+`b19f59009ca55ba7cbf1b4f6ad944a4bbaab750d` adds application-level regressions for the first buyer-visible conflict contract. A conflicting reopen must leave the already accepted rehearsal visible and expose bounded conflict actions; a mutation that loses the native revision race must keep the last accepted song rather than replacing it with generic error state. No hosted RED is claimed for this head because no workflow run materialized before its descendant repair.
+
+`cbf21d6c5e9c3e5ac60af2b21c456bffd3c371c4` is the first causal UI repair. It classifies only the exact native CAS conflict through `projectPersistenceErrors.ts`, keeps generic failures on the existing error path, and adds a path-free alert with two operations that actually exist: dismiss/keep the current accepted rehearsal, or invoke the ordinary project chooser. It does not manufacture Compare, Merge, Reload-from-workspace, Recover, or Discard behavior. English and Korean copy are keyed through the existing i18n surface.
+
+Self-review found that the first repair rendered the notice inside `renderWorkspaceState()`. That meant a conflict could disappear while the user was on Score view, even though Score metadata mutations use the same Project Persistence CAS boundary. `76bfba5fbe3c6c6b3aaea48c8f990bfae93e9fef` adds a regression that leaves Score view active, triggers a conflicting Open, and requires the same alert to remain visible. Its general CI was superseded/cancelled by the descendant repair before a terminal assertion verdict, so this is source-level RED rather than hosted RED.
+
+`44b0dd7971a6b9d6f6da8d847c48b4a7f90d4acb` moves the conflict notice above the workspace/score view switch. The accepted rehearsal view therefore remains intact and the same alert is visible regardless of the currently selected rehearsal surface. Native buttons provide keyboard operation and visible focus through the existing Button contract; the alert uses `role="alert"`, assertive live announcement, and atomic status text. Exact browser/screen-reader/zoom evidence remains a release gate rather than being inferred from markup.
+
 ## Decision
 
 A same-project overlapping workspace mutation is rejected rather than queued. Queuing was rejected because the bridge receives complete snapshots, not semantic deltas; a queued snapshot can already be stale and replaying it after the first commit would preserve the corruption window. Last-write-wins was rejected for the same reason.
@@ -100,17 +115,23 @@ A SHA-256 receipt was chosen instead of a renderer-authored monotonic integer be
 
 Restart authority is rebound by proving canonical candidate equality against the exact native workspace, not by trusting the selected file. This makes equality binding an idempotent read/receipt operation: it returns without publication when bytes already match. A different workspace revision is a conflict, not an invitation to overwrite, retry, or silently adopt the selected file. If that conflict rejects an Open attempt, the previously accepted renderer session keeps its prior CAS receipt unless a newer accepted receipt has already superseded it.
 
+A revision conflict is now modeled separately from generic analysis/storage failure. Native Project Persistence remains the authority that decides whether the candidate is stale; the UI only classifies the exact bounded conflict and preserves the last accepted aggregate. The initial product action set is deliberately smaller than a full recovery workflow: keep/dismiss the accepted rehearsal or choose another project. Those operations do not mutate the durable conflicting workspace and therefore do not pretend to solve reconciliation that the owner does not yet implement.
+
 ## Security Notes
 
 ### Attack surface
 
 Renderer mutation payloads, project identifiers, and opaque revision receipts cross the Tauri boundary into app-owned `project.bscope` persistence. The concurrency risk is integrity loss rather than confidentiality loss: two valid payloads can be individually well-formed while their ordering silently discards buyer work. Reopen adds an authority-confusion risk because the user-selected project path and the app-owned workspace are distinct storage contracts. A rejected reopen also creates an availability risk if it can erase the revision receipt required for the still-active project to mutate safely.
 
+Conflict presentation adds an information-disclosure boundary: native errors can contain implementation detail, while a buyer-visible revision notice should reveal only that the accepted project and attempted operation no longer share the same durable revision. The conflict surface therefore does not echo raw errors, hashes, project ids, selected paths, or score paths.
+
 ### Trust boundary
 
 Native Project Persistence remains the durable storage authority. The TypeScript bridge owns only one-renderer admission plus retention of the last native content receipt. Native publication owns process-external writer admission, recovery, current-file identity validation, digest comparison, and replacement. Neither layer accepts a renderer filesystem path, and neither replaces native project-id validation, target identity, crash-safe publication, recovery, or migration checks.
 
 On reopen, `load_project` may read a manual/exported file, but revision binding resolves the workspace again from the native retained project identity. The selected path and its raw content hash never authorize workspace replacement. A renderer receipt restored after failed binding is only the receipt that had already been returned by an earlier successful native workspace transaction in the same process.
+
+The UI does not decide which revision is authoritative. `isProjectRevisionConflict` recognizes only the owner-defined conflict message and maps it to product state. All other failures remain on the generic bounded error path rather than being mislabeled as a recoverable revision conflict.
 
 ### Mitigations
 
@@ -120,25 +141,32 @@ The current durable target is opened through the Project Persistence no-follow/r
 
 Failed reopen binding restores a prior renderer-session receipt only if that receipt existed before the attempted bind and the project id still has no newer receipt. This prevents the failure path from revoking a still-active aggregate while also preventing stale restoration from overwriting a concurrent native success.
 
+The conflict UI keeps the accepted rehearsal rendered and never automatically retries or replays the rejected snapshot. Dismissal changes only transient renderer conflict state. Choosing another project invokes the existing chooser and leaves native Project Persistence responsible for binding or rejecting that new selection.
+
 The Unix parent-directory lock is intentionally scoped to the containing directory. App-owned BandScope aggregates live in separate project roots, so their workspace transactions remain independent. Manual exports into the same arbitrary user directory can serialize briefly on Unix; this is a conservative integrity trade-off and does not make manual exports participants in the app-owned revision contract.
 
 ### Safe failure and logging/privacy
 
 Rejection exposes no filesystem path, project content, score data, revision value, or secret-shaped value. A rejected overlap, stale revision, or reopen conflict does not stage or replace buyer project bytes. A rejected Open attempt also leaves the prior accepted session capable of forwarding its last verified revision. Native failure releases process ownership automatically, so a later user action can retry after reloading/reconciling current durable state rather than inheriting a stale software-owned lock.
 
+The revision-conflict notice uses fixed localized copy instead of `safeErrorDetail`, so even an exact CAS rejection does not echo native diagnostics into the UI. Generic failures continue through the existing bounded/redacted error path.
+
 ### Test points
 
 - `analysis.workspace-single-flight.test.ts` covers same-renderer overlap rejection, different-project concurrency, release after native failure, and missing workspace project-id rejection.
 - `projectDocumentSaveAuthority.test.ts` covers native revision-receipt retention/forwarding and malformed receipt rejection at the renderer boundary.
 - `projectDocumentBridge.test.ts` covers app-owned reopen binding before renderer acceptance, conflict rejection, preservation of the prior active revision after a rejected reopen, and the portable-document no-bind boundary.
+- `App.project-revision-conflict.test.tsx` covers conflicting reopen while an accepted rehearsal is visible, failed stale mutation without optimistic renderer replacement, bounded conflict actions, and visibility of the notice while Score view is active.
 - `project_persistence_native_write_admission.case` uses a real child process, pauses it only after the first target is published, proves a concurrent production write fails before replacement, terminates the first writer, and proves a later production write succeeds after OS ownership is released.
 - `project_persistence_workspace_revision.case` is part of the canonical warning-gated native harness and covers first publication, current-revision replacement, stale-revision rejection, restart equality binding without a stage, equality-path content admission, and target/revision mismatch without changing accepted bytes.
-- macOS and Windows Project Persistence native workflows are the exact-head execution authority for native admission/CAS. Repository CI is the execution authority for the TypeScript bridge regressions.
+- macOS and Windows Project Persistence native workflows are the exact-head execution authority for native admission/CAS. Repository CI is the execution authority for the TypeScript bridge and App regressions.
 
 ## Remaining risk
 
-The restart/reopen binding closes the authority gap only when the loaded project carries a valid native `sourceReference` and the canonical reopened payload is identical to the exact app-owned workspace, or when that workspace does not yet exist and can be created as the first app-owned snapshot. A differing workspace fails closed before renderer acceptance. The previous active session now retains its own verified receipt after such a rejection, but this is integrity-safe plumbing rather than release-quality interaction design: the user still receives a generic load/save failure rather than a conflict surface explaining the durable and selected states.
+The restart/reopen binding closes the authority gap only when the loaded project carries a valid native `sourceReference` and the canonical reopened payload is identical to the exact app-owned workspace, or when that workspace does not yet exist and can be created as the first app-owned snapshot. A differing workspace fails closed before renderer acceptance. The previous active session retains its own verified receipt after such a rejection, and the UI now keeps that accepted rehearsal visible while explaining the conflict with functional dismiss/keep-current and choose-another-project actions.
 
-The next Project Persistence slice is buyer-visible revision conflict handling. It must not automatically retry, replay, or semantically merge a stale full snapshot. A bounded Reload / Compare / Recover / Discard or equivalent contract must define which durable state wins, what can be inspected without exposing local paths, and how keyboard/screen-reader users resolve the conflict.
+This is not full reconciliation. BandScope still lacks an owner-backed operation to inspect both durable states semantically, reload the exact app-owned workspace without reusing an arbitrary selected path, recover a rejected local edit as an explicit candidate, or discard one side with auditable intent. Those operations need a Project Persistence contract before the UI can expose Compare / Reload / Recover / Discard. Automatic retry, replay, or merge of stale full snapshots remains prohibited.
 
-Score Storage restart reconciliation remains separate: a PDF can still become durable before attachment metadata commits, and that state must remain an explicit recovery candidate rather than being silently adopted or deleted. Accessible conflict/recovery UX and packaged process-kill, disk-full, permission, cancellation, and power-loss evidence remain product acceptance work.
+The conflict UI currently has English and Korean resources because the repository i18n runtime itself exposes only those two locales. JA/ZH/VI/ES/DE/FR resource/runtime support, CJK/text-expansion/font-fallback validation, keyboard/screen-reader browser E2E, 400% zoom, and responsive packaged evidence remain UI Delivery Gate work; markup alone is not acceptance evidence.
+
+Score Storage restart reconciliation remains separate: a PDF can still become durable before attachment metadata commits, and that state must remain an explicit recovery candidate rather than being silently adopted or deleted. Packaged process-kill, disk-full, permission, cancellation, and power-loss evidence also remains commercial-release work.
