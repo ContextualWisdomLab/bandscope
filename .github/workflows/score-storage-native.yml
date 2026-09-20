@@ -25,6 +25,7 @@ on:
       - "docs/traceability/score-attachment-success-durability.md"
       - "docs/traceability/score-attachment-unix-stage-cleanup.md"
       - "docs/traceability/score-attachment-fault-recovery.md"
+      - "docs/traceability/score-attachment-windows-acl-recovery.md"
       - ".github/workflows/score-storage-native.yml"
   push:
     branches:
@@ -50,6 +51,7 @@ on:
       - "docs/traceability/score-attachment-success-durability.md"
       - "docs/traceability/score-attachment-unix-stage-cleanup.md"
       - "docs/traceability/score-attachment-fault-recovery.md"
+      - "docs/traceability/score-attachment-windows-acl-recovery.md"
       - ".github/workflows/score-storage-native.yml"
 
 permissions:
