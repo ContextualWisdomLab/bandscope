@@ -16,6 +16,7 @@ on:
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
       - "docs/traceability/score-attachment-publication.md"
+      - "docs/traceability/score-attachment-recovery-inventory.md"
       - ".github/workflows/score-storage-native.yml"
   push:
     branches:
@@ -32,6 +33,7 @@ on:
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/src/main.rs"
       - "docs/traceability/score-attachment-publication.md"
+      - "docs/traceability/score-attachment-recovery-inventory.md"
       - ".github/workflows/score-storage-native.yml"
 
 permissions:
