@@ -58,7 +58,9 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 const WORKSPACE_SAVE_IN_FLIGHT_MESSAGE = "Project update is already being saved.";
+const PROJECT_CONTENT_REVISION_PATTERN = /^[0-9a-f]{64}$/;
 const workspaceSaveInFlight = new Set<string>();
+const workspaceContentRevisionByProject = new Map<string, string>();
 
 export { MAX_LOCAL_AUDIO_FILE_BYTES, MAX_YOUTUBE_URL_LENGTH };
 
@@ -390,9 +392,11 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
  * minted project aggregate, it may pass only that project id; Tauri resolves the
  * retained publication identity and injects the path-free reference natively.
  * `workspace=true` selects the app-owned crash-safe snapshot instead of opening
- * a user-facing Save As dialog. Workspace writes are single-flight per project:
- * a second full-song snapshot is rejected while the first durability decision
- * is unresolved, so a stale renderer snapshot cannot overwrite it silently.
+ * a user-facing Save As dialog. Workspace writes are single-flight per project
+ * and carry the last native SHA-256 revision receipt. Native Project Persistence
+ * validates that receipt under the same process-external admission lease as
+ * recovery and replacement, so a full snapshot derived from an older durable
+ * revision fails closed rather than being queued or replayed.
  */
 export async function saveProjectDocument(
   projectDocument: ProjectDocument,
@@ -416,11 +420,22 @@ export async function saveProjectDocument(
   }
 
   try {
-    await invokeAnalysis("save_project", {
+    const expectedContentSha256 =
+      workspaceLeaseKey === undefined
+        ? undefined
+        : workspaceContentRevisionByProject.get(workspaceLeaseKey);
+    const response = await invokeAnalysis("save_project", {
       payload: parsedDocument,
       ...(projectId === undefined ? {} : { projectId }),
-      ...(workspace ? { workspace: true } : {})
+      ...(workspace ? { workspace: true } : {}),
+      ...(expectedContentSha256 === undefined ? {} : { expectedContentSha256 })
     });
+    if (workspaceLeaseKey !== undefined) {
+      if (typeof response !== "string" || !PROJECT_CONTENT_REVISION_PATTERN.test(response)) {
+        throw new Error("Invalid project save receipt");
+      }
+      workspaceContentRevisionByProject.set(workspaceLeaseKey, response);
+    }
   } finally {
     if (workspaceLeaseKey !== undefined) {
       workspaceSaveInFlight.delete(workspaceLeaseKey);
@@ -431,7 +446,11 @@ export async function saveProjectDocument(
 /** Reopen one current versioned project document, including durable Project Persistence state. */
 export async function loadProjectDocument(): Promise<ProjectDocument> {
   const response = await invokeAnalysis("load_project");
-  return parseProjectDocument(response);
+  const document = parseProjectDocument(response);
+  if (document.sourceReference) {
+    workspaceContentRevisionByProject.delete(document.sourceReference.projectId);
+  }
+  return document;
 }
 
 /** Compatibility save for callers that do not yet own a playback-source preference. */
