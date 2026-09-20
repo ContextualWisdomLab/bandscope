@@ -12,7 +12,7 @@ use bandscope_desktop_core::*;
 use rfd::FileDialog;
 use serde_json::{json, Value};
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufRead, BufReader, Cursor, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::{atomic::Ordering, mpsc},
@@ -1038,16 +1038,20 @@ async fn import_youtube_url(
 /// Security Notes: workspace persistence never accepts a renderer path. It
 /// requires a BandScope-minted project id, resolves the existing project root
 /// through Project Persistence authority, and publishes the fixed
-/// `project.bscope` child with the same crash-safe recovery/publication state
-/// machine used by manual saves. Manual Save keeps the OS-owned file picker.
+/// `project.bscope` child with recovery, expected-revision validation, and
+/// replacement under one process-external write admission lease. The renderer
+/// may submit only the path-free revision receipt returned by the prior accepted
+/// workspace save. Manual Save keeps the OS-owned file picker and does not use
+/// workspace revision authority.
 #[tauri::command]
 fn save_project(
     payload: Value,
     project_id: Option<String>,
     workspace: Option<bool>,
+    expected_content_sha256: Option<String>,
     app: tauri::AppHandle<impl Runtime>,
     publication_state: tauri::State<'_, LocalAudioPublicationIdentityState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let parsed = project_document_from_value(payload)
         .map_err(|_| "Invalid project payload".to_string())?;
     let parsed = project_document_with_retained_source_reference(
@@ -1056,24 +1060,36 @@ fn save_project(
         &publication_state,
     )?;
     let content = project_content_for_document(&parsed)?;
+    let workspace = workspace.unwrap_or(false);
 
-    let path = if workspace.unwrap_or(false) {
+    let path = if workspace {
         let project_id = project_id
             .as_deref()
             .ok_or_else(|| "Invalid project payload".to_string())?;
         let project_root = app_owned_root(&app, "projects", project_id)?;
         project_root.join("project.bscope")
     } else {
+        if expected_content_sha256.is_some() {
+            return Err("Invalid project revision.".to_string());
+        }
         FileDialog::new()
             .add_filter("BandScope Project", &["bscope", "json"])
             .save_file()
             .ok_or_else(|| "User cancelled".to_string())?
     };
 
+    if workspace {
+        return project_persistence::publish_workspace_project_file_with_expected_content(
+            &path,
+            content.as_bytes(),
+            expected_content_sha256.as_deref(),
+        );
+    }
+
     project_persistence::recover_project_publication(&path)?;
     project_persistence::publish_new_project_file(&path, content.as_bytes())?;
-
-    Ok(())
+    bandscope_desktop_core::sha256_hex_reader(Cursor::new(content.as_bytes()))
+        .map_err(|_| "Could not publish the project safely.".to_string())
 }
 
 #[tauri::command]
