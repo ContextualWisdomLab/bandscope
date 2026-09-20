@@ -9,6 +9,9 @@ publish = false
 name = "bandscope_desktop_core"
 path = "src/root.rs"
 
+[features]
+score-storage-fault-injection = []
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 
