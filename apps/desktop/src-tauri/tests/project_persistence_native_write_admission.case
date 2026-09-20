@@ -99,19 +99,24 @@ fn overlapping_process_write_fails_before_overwriting_published_project() {
         ORIGINAL
     );
 
-    let error = project_persistence::publish_new_project_file(&target, FOLLOW_UP)
-        .expect_err("a second process must fail closed while native write admission is held");
-    assert_eq!(error, "Project update is already being saved.");
-    assert_eq!(
-        fs::read(&target).expect("rejected overlap must not replace buyer project bytes"),
-        ORIGINAL
-    );
+    let overlap_result = project_persistence::publish_new_project_file(&target, FOLLOW_UP);
+    let bytes_during_overlap =
+        fs::read(&target).expect("overlap attempt must leave a readable project target");
 
     child
         .kill()
         .expect("parent must be able to terminate the admission holder");
     let status = child.wait().expect("terminated child should be reapable");
     assert!(!status.success(), "the interruption must be a real process termination");
+
+    assert_eq!(
+        overlap_result.expect_err("a second process must fail closed while native write admission is held"),
+        "Project update is already being saved."
+    );
+    assert_eq!(
+        bytes_during_overlap, ORIGINAL,
+        "rejected overlap must not replace buyer project bytes"
+    );
 
     project_persistence::publish_new_project_file(&target, FOLLOW_UP)
         .expect("OS-owned admission must be released when the writer process terminates");
