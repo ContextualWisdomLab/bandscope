@@ -42,7 +42,6 @@ describe("App score project identity", () => {
 
   it("passes the reopened app-owned publication project id to ScoreView", async () => {
     mockLoadProjectDocument.mockResolvedValueOnce({
-      version: 1,
       song: {
         id: "song-reopened-1",
         title: "Reopened rehearsal",
@@ -57,7 +56,11 @@ describe("App score project identity", () => {
         selectedPlaybackSource: "full_mix"
       },
       sourceReference: {
-        projectId: "project-reopened-1"
+        projectId: "project-42-7",
+        artifactName: "source.wav",
+        extension: "wav",
+        fileSizeBytes: 4096,
+        contentSha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
     });
 
@@ -72,6 +75,6 @@ describe("App score project identity", () => {
     const primaryNav = screen.getByRole("navigation", { name: /primary rehearsal views/i });
     fireEvent.click(within(primaryNav).getByRole("button", { name: /^Score$/i }));
 
-    expect(screen.getByTestId("score-project-id")).toHaveTextContent("project-reopened-1");
+    expect(screen.getByTestId("score-project-id")).toHaveTextContent("project-42-7");
   });
 });
