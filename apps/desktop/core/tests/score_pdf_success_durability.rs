@@ -1,5 +1,6 @@
 const ROOT_SOURCE: &str = include_str!("../src/root.rs");
 const RECOVERY_SOURCE: &str = include_str!("../src/score_recovery.rs");
+const OWNER_WORKFLOW: &str = include_str!("../../../../.github/workflows/score-storage-native.yml");
 
 #[test]
 fn public_score_publication_routes_through_lease_bound_success_durability_boundary() {
@@ -29,5 +30,13 @@ fn public_score_publication_routes_through_lease_bound_success_durability_bounda
     assert!(
         RECOVERY_SOURCE.contains("score_publication::sync_successful_publication_metadata"),
         "the public publication path must supply the platform durability barrier"
+    );
+}
+
+#[test]
+fn owner_workflow_executes_interruption_and_permission_fault_recovery_contracts() {
+    assert!(
+        OWNER_WORKFLOW.contains("--test score_pdf_fault_recovery"),
+        "Score Storage CI must explicitly execute the interruption/permission fault recovery regression"
     );
 }
