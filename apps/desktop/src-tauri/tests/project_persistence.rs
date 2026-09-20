@@ -25,6 +25,8 @@ mod linked_ancestor;
 mod macos_root_alias;
 #[path = "project_persistence_migration_content_cas.case"]
 mod migration_content_cas;
+#[path = "project_persistence_native_write_admission.case"]
+mod native_write_admission;
 #[path = "project_persistence_open_authority.case"]
 mod open_authority;
 #[path = "project_persistence_overwrite.case"]
