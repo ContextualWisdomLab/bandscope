@@ -413,15 +413,17 @@ fn current_project_content_sha256(target: &Path) -> Result<Option<String>, Strin
 fn verify_expected_project_revision(
     target: &Path,
     expected_content_sha256: Option<&str>,
-) -> Result<(), String> {
+    next_content_sha256: &str,
+) -> Result<bool, String> {
     if expected_content_sha256.is_some_and(|revision| !project_revision_is_valid(revision)) {
         return Err(PROJECT_REVISION_INVALID_ERROR.to_string());
     }
 
     let current = current_project_content_sha256(target)?;
     match (current.as_deref(), expected_content_sha256) {
-        (None, None) => Ok(()),
-        (Some(current), Some(expected)) if current == expected => Ok(()),
+        (None, None) => Ok(false),
+        (Some(current), None) if current == next_content_sha256 => Ok(true),
+        (Some(current), Some(expected)) if current == expected => Ok(false),
         _ => Err(PROJECT_REVISION_CONFLICT_ERROR.to_string()),
     }
 }
@@ -560,10 +562,13 @@ where
 
 /// Persist one app-owned workspace snapshot only when its base revision is still durable.
 ///
-/// Security Notes: the expected revision is a path-free SHA-256 receipt from the prior accepted
-/// workspace publication. Recovery, revision validation, and replacement execute under one
-/// process-external Project Persistence admission lease. A missing, malformed, or stale receipt
-/// never authorizes an existing target and stale full snapshots are not replayed automatically.
+/// Security Notes: an expected revision is a path-free SHA-256 receipt from the prior accepted
+/// workspace publication. After restart, an absent receipt may bind only when the canonical
+/// candidate bytes exactly match the existing app-owned workspace bytes under the same native
+/// admission lease; that equality path returns without staging or replacing the target. Recovery,
+/// revision validation, and replacement otherwise execute under one process-external Project
+/// Persistence admission lease. Malformed or stale receipts and non-identical restart candidates
+/// fail closed, and stale full snapshots are never replayed automatically.
 pub(crate) fn publish_workspace_project_file_with_expected_content(
     target: &Path,
     content: &[u8],
@@ -573,7 +578,14 @@ pub(crate) fn publish_workspace_project_file_with_expected_content(
         .map_err(|_| FIRST_SAVE_STAGE_ERROR.to_string())?;
     let _write_admission = acquire_project_write_admission(target)?;
     engine::recover_project_publication(target)?;
-    verify_expected_project_revision(target, expected_content_sha256)?;
+    let already_current = verify_expected_project_revision(
+        target,
+        expected_content_sha256,
+        &next_revision,
+    )?;
+    if already_current {
+        return Ok(next_revision);
+    }
     publish_project_file_after_admission(
         target,
         content,
