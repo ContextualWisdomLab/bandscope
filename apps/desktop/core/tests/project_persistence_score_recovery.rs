@@ -2,6 +2,7 @@ use bandscope_desktop_core::{
     authorize_unreferenced_score_recovery_action,
     derive_score_attachment_recovery_candidates,
     recovery_attachment_metadata_for_action,
+    revalidate_unreferenced_score_recovery_action,
     ScoreAttachmentRecoveryReconciliation,
     UnreferencedScoreRecoveryDecision,
 };
@@ -131,7 +132,7 @@ fn recover_action_produces_truthful_generated_metadata_without_claiming_original
     )
     .expect("buyer recovery decision should be authorized");
 
-    let metadata = recovery_attachment_metadata_for_action(&recover)
+    let metadata = recovery_attachment_metadata_for_action(&reconciliation, &recover)
         .expect("authorized recovery should produce durable presentation metadata");
 
     assert_eq!(metadata.score_id(), PUBLISHED_ONLY_ID);
@@ -161,7 +162,7 @@ fn preserve_or_discard_actions_cannot_become_recovered_attachment_metadata() {
         )
         .expect("non-recovery disposition should still be authorizable");
         assert_eq!(
-            recovery_attachment_metadata_for_action(&action)
+            recovery_attachment_metadata_for_action(&reconciliation, &action)
                 .err()
                 .as_deref(),
             Some("Could not prepare recovered score attachment metadata.")
@@ -212,5 +213,49 @@ fn forged_overlapping_reconciliation_cannot_authorize_destructive_cleanup() {
     assert_eq!(
         result.err().as_deref(),
         Some("Could not authorize score attachment recovery action.")
+    );
+}
+
+#[test]
+fn stale_recovery_authorization_cannot_cross_a_changed_reconciliation() {
+    let initial = derive_score_attachment_recovery_candidates(
+        &[],
+        &[PUBLISHED_ONLY_ID.to_string()],
+    )
+    .expect("published-only score should initially be recoverable");
+    let recover = authorize_unreferenced_score_recovery_action(
+        &initial,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Recover,
+    )
+    .expect("initial recovery decision should be authorized");
+    let discard = authorize_unreferenced_score_recovery_action(
+        &initial,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Discard,
+    )
+    .expect("initial discard decision should be authorized");
+
+    let current = derive_score_attachment_recovery_candidates(
+        &[PUBLISHED_ONLY_ID.to_string()],
+        &[PUBLISHED_ONLY_ID.to_string()],
+    )
+    .expect("current owner evidence should show the score as referenced");
+
+    for action in [&recover, &discard] {
+        assert_eq!(
+            revalidate_unreferenced_score_recovery_action(&current, action)
+                .err()
+                .as_deref(),
+            Some("Could not authorize score attachment recovery action."),
+            "a decision from an older reconciliation must not survive current owner evidence"
+        );
+    }
+    assert_eq!(
+        recovery_attachment_metadata_for_action(&current, &recover)
+            .err()
+            .as_deref(),
+        Some("Could not prepare recovered score attachment metadata."),
+        "stale recovery authority must not become durable metadata"
     );
 }
