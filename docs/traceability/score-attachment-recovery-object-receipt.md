@@ -26,9 +26,11 @@ The implementation follows NIST FIPS 180-4 SHA-256 operations and includes publi
 
 ## Regression and causal repair
 
-Source RED `4d8d6c10761235c64ce5c5f70e4a0567ad5d4383`, refined by `c1a4c78da0f4d76c67967dc2d05df5019599d511`, creates object A, inventories its receipt, removes A, republishes different bytes B under the same score id, then requires stale receipt A to preserve B while fresh receipt B can remove exactly B. The RED is source-level unless a terminal failing hosted run is independently observed; it is not promoted to hosted RED merely because the missing API would fail compilation.
+Source RED `4d8d6c10761235c64ce5c5f70e4a0567ad5d4383`, refined by `c1a4c78da0f4d76c67967dc2d05df5019599d511`, creates object A, inventories its receipt, removes A, republishes different bytes B under the same score id, then requires stale receipt A to preserve B while fresh receipt B can remove exactly B. The RED is source-level unless a terminal failing hosted run independently reaches the intended stale-receipt assertion; missing API compilation alone is not promoted to hosted RED.
 
-Causal repair is the receipt-bearing Score Storage contract on the descendant head: path-free receipt inventory plus lease-scoped compare-and-delete. The test intentionally uses the production publisher and production remover rather than generated arrays or a fake filesystem lifecycle.
+Causal repair is the receipt-bearing Score Storage contract: path-free receipt inventory plus lease-scoped compare-and-delete. The test intentionally uses the production publisher and production remover rather than generated arrays or a fake filesystem lifecycle.
+
+Exact `b252cac4abf91d2722a2f9e87e8cbf949dd4d41d` produced terminal macOS and Windows owner failures before the intended ABA assertion. Both platforms passed Score Storage unit tests and the shared SHA-256 known-answer test, then the new integration fixture failed its first production publication with `Could not recover the score workspace.`. RCA showed the test created only the fixture parent while production admission correctly requires the app-owned `scores` workspace to pre-exist before acquiring its lease. `ee7995e222756aa04f6f1cd83ed2dd5e2d928afe` fixes only the fixture by creating `scores_root`; production admission was not weakened and the failed run is not evidence against the receipt contract.
 
 ## Security notes
 
@@ -41,7 +43,7 @@ Causal repair is the receipt-bearing Score Storage contract on the descendant he
 
 ## Alternatives rejected
 
-Lifetime non-reuse tombstones were rejected for this slice because they would add a new durable lifecycle sidecar and compatibility/migration semantics solely to compensate for logical-id reuse. Filesystem inode/file-id alone was rejected because object identifiers can be reused and are platform-specific. Revalidating a receipt and then releasing the lease before deletion was rejected because it recreates a TOCTOU window. Hashing a path without the existing bounded/contained read boundary was rejected because it would create a second filesystem authority.
+Lifetime non-reuse tombstones were rejected for this slice because they would add a new durable lifecycle sidecar and compatibility/migration semantics solely to compensate for logical-id reuse. Filesystem inode/file-id alone was rejected because object identifiers can be reused and are platform-specific. Revalidating a receipt and then releasing the lease before deletion was rejected because it recreates a TOCTOU window. Hashing a path without the existing bounded/contained read boundary was rejected because it would create a second filesystem authority. Weakening production admission so tests may publish into a missing workspace was also rejected; app-owned workspace creation belongs to its existing orchestration boundary.
 
 ## Remaining work
 
