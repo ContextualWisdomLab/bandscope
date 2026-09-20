@@ -40,6 +40,7 @@ type TauriWindow = Window & { __TAURI_INTERNALS__?: unknown };
 const tauriWindow = window as TauriWindow;
 const mockInvoke = vi.mocked(invoke);
 const SCORE_ID = "3f2c8f0e-1a2b-4c3d-8e9f-001122334455";
+const OTHER_SCORE_ID = "4f2c8f0e-1a2b-4c3d-8e9f-001122334455";
 const SCORE_DIGEST = "ab".repeat(32);
 
 function makeSong(scoreAttachments?: ScoreAttachment[]): RehearsalSong {
@@ -183,5 +184,72 @@ describe("ScoreView project-context invalidation", () => {
 
     expect(onSongUpdate).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("score-viewer")).toHaveTextContent("no-data");
+  });
+
+  it("attaches onto the latest same-song snapshot after native publication finishes", async () => {
+    let resolveAttach!: (value: unknown) => void;
+    mockInvoke
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveAttach = resolve; }))
+      .mockResolvedValueOnce([1, 2, 3]);
+    const initialSong = makeSong();
+    const concurrentAttachment = { id: OTHER_SCORE_ID, fileName: "band-notes.pdf" };
+    const updatedSong = {
+      ...makeSong([concurrentAttachment]),
+      title: "Late Night Set — revised"
+    };
+    const onSongUpdate = vi.fn(() => true);
+    const { rerender } = render(
+      <ScoreView song={initialSong} projectId="project-a" onSongUpdate={onSongUpdate} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add score" }));
+    rerender(<ScoreView song={updatedSong} projectId="project-a" onSongUpdate={onSongUpdate} />);
+    await act(async () => { resolveAttach(attachResponse()); });
+
+    await waitFor(() => expect(onSongUpdate).toHaveBeenCalledTimes(1));
+    expect(onSongUpdate).toHaveBeenCalledWith({
+      ...updatedSong,
+      scoreAttachments: [
+        concurrentAttachment,
+        { id: SCORE_ID, fileName: "opener.pdf" }
+      ]
+    });
+  });
+
+  it("detaches from the latest same-song snapshot after receipt lookup finishes", async () => {
+    let resolveReceipt!: (value: unknown) => void;
+    mockInvoke
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveReceipt = resolve; }))
+      .mockResolvedValueOnce(true);
+    const removableAttachment = { id: SCORE_ID, fileName: "opener.pdf" };
+    const concurrentAttachment = { id: OTHER_SCORE_ID, fileName: "band-notes.pdf" };
+    const initialSong = makeSong([removableAttachment]);
+    const updatedSong = {
+      ...makeSong([removableAttachment, concurrentAttachment]),
+      title: "Late Night Set — revised"
+    };
+    const onSongUpdate = vi.fn(() => true);
+    const { rerender } = render(
+      <ScoreView song={initialSong} projectId="project-a" onSongUpdate={onSongUpdate} />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove: opener.pdf" }));
+    rerender(<ScoreView song={updatedSong} projectId="project-a" onSongUpdate={onSongUpdate} />);
+    await act(async () => {
+      resolveReceipt({ scoreId: SCORE_ID, contentSha256: SCORE_DIGEST });
+    });
+
+    await waitFor(() => expect(onSongUpdate).toHaveBeenCalledTimes(1));
+    expect(onSongUpdate).toHaveBeenCalledWith({
+      ...updatedSong,
+      scoreAttachments: [concurrentAttachment]
+    });
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("remove_score_pdf_if_receipt_matches", {
+        projectId: "project-a",
+        scoreId: SCORE_ID,
+        contentSha256: SCORE_DIGEST
+      });
+    });
   });
 });
