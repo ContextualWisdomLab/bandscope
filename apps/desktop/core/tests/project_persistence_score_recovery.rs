@@ -1,6 +1,7 @@
 use bandscope_desktop_core::{
     authorize_unreferenced_score_recovery_action,
     derive_score_attachment_recovery_candidates,
+    recovery_attachment_metadata_for_action,
     ScoreAttachmentRecoveryReconciliation,
     UnreferencedScoreRecoveryDecision,
 };
@@ -72,7 +73,7 @@ fn reconciliation_rejects_duplicate_or_malformed_owner_identities() {
 }
 
 #[test]
-fn unreferenced_published_score_requires_an_explicit_preserve_or_discard_decision() {
+fn unreferenced_published_score_requires_an_explicit_preserve_recover_or_discard_decision() {
     let reconciliation = derive_score_attachment_recovery_candidates(
         &[REFERENCED_ID.to_string(), MISSING_ID.to_string()],
         &[PUBLISHED_ONLY_ID.to_string(), REFERENCED_ID.to_string()],
@@ -91,6 +92,18 @@ fn unreferenced_published_score_requires_an_explicit_preserve_or_discard_decisio
         UnreferencedScoreRecoveryDecision::Preserve
     );
 
+    let recover = authorize_unreferenced_score_recovery_action(
+        &reconciliation,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Recover,
+    )
+    .expect("buyer may explicitly recover an unreferenced published object");
+    assert_eq!(recover.score_id(), PUBLISHED_ONLY_ID);
+    assert_eq!(
+        recover.decision(),
+        UnreferencedScoreRecoveryDecision::Recover
+    );
+
     let discard = authorize_unreferenced_score_recovery_action(
         &reconciliation,
         PUBLISHED_ONLY_ID,
@@ -102,6 +115,58 @@ fn unreferenced_published_score_requires_an_explicit_preserve_or_discard_decisio
         discard.decision(),
         UnreferencedScoreRecoveryDecision::Discard
     );
+}
+
+#[test]
+fn recover_action_produces_truthful_generated_metadata_without_claiming_original_filename() {
+    let reconciliation = derive_score_attachment_recovery_candidates(
+        &[],
+        &[PUBLISHED_ONLY_ID.to_string()],
+    )
+    .expect("published-only score should be a recovery candidate");
+    let recover = authorize_unreferenced_score_recovery_action(
+        &reconciliation,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Recover,
+    )
+    .expect("buyer recovery decision should be authorized");
+
+    let metadata = recovery_attachment_metadata_for_action(&recover)
+        .expect("authorized recovery should produce durable presentation metadata");
+
+    assert_eq!(metadata.score_id(), PUBLISHED_ONLY_ID);
+    assert_eq!(
+        metadata.file_name(),
+        "recovered-score-3f2c8f0e-1a2b-4c3d-8e9f-001122334455.pdf"
+    );
+    assert!(!metadata.file_name().contains("opener"));
+}
+
+#[test]
+fn preserve_or_discard_actions_cannot_become_recovered_attachment_metadata() {
+    let reconciliation = derive_score_attachment_recovery_candidates(
+        &[],
+        &[PUBLISHED_ONLY_ID.to_string()],
+    )
+    .expect("published-only score should be a recovery candidate");
+
+    for decision in [
+        UnreferencedScoreRecoveryDecision::Preserve,
+        UnreferencedScoreRecoveryDecision::Discard,
+    ] {
+        let action = authorize_unreferenced_score_recovery_action(
+            &reconciliation,
+            PUBLISHED_ONLY_ID,
+            decision,
+        )
+        .expect("non-recovery disposition should still be authorizable");
+        assert_eq!(
+            recovery_attachment_metadata_for_action(&action)
+                .err()
+                .as_deref(),
+            Some("Could not prepare recovered score attachment metadata.")
+        );
+    }
 }
 
 #[test]
