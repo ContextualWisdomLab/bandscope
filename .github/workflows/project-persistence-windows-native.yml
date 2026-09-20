@@ -105,8 +105,12 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install Rust 1.97.1
         run: rustup toolchain install 1.97.1 --profile minimal
-      - name: Run desktop-core Project Persistence contract tests
-        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features persistence_warning_gate --all-targets
+      - name: Run Project Persistence recovery module tests
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features persistence_warning_gate --lib score_attachment_recovery::tests::
+      - name: Run Project Persistence content-identity module tests
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features persistence_warning_gate --lib content_sha256::tests::
+      - name: Run Project Persistence core integration contracts
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features persistence_warning_gate --test content_sha256_shared_kernel --test project_format_resource_admission_handoff --test project_format_v2_fixture --test project_format_v2_playback_preference --test project_format_v3_renderer_source_authority --test project_format_v3_source_reference --test project_migration_receipt_input_binding --test project_persistence_contract --test project_persistence_score_recovery
       - name: Prepare compile-only frontendDist fixture
         shell: pwsh
         run: |
