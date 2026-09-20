@@ -17,6 +17,7 @@ mod audio_resource;
 mod content_sha256;
 mod project_format;
 mod publication_identity;
+mod score_attachment_recovery;
 mod score_pdf;
 mod source_readmission;
 
@@ -38,6 +39,9 @@ pub use publication_identity::{
     build_local_audio_publication_identity, LocalAudioPublicationIdentity,
 };
 pub use runtime_core::*;
+pub use score_attachment_recovery::{
+    derive_score_attachment_recovery_candidates, ScoreAttachmentRecoveryReconciliation,
+};
 pub use score_pdf::read_validated_score_pdf;
 pub use source_readmission::{
     re_admit_local_audio_publication, re_admit_local_audio_publication_from_project_root,
