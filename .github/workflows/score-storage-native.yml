@@ -153,4 +153,5 @@ jobs:
           cargo +1.97.1 test
           --manifest-path apps/desktop/src-tauri/Cargo.toml
           --features score-storage-fault-injection
+          --bin score-storage-fault-harness
           --test score_storage_executable_termination
