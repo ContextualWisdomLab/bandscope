@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - docs/bandscope-product-readiness-baseline
+  pull_request:
+    branches:
+      - docs/gap-baseline-2026-08-31
+    types:
+      - opened
+      - reopened
+      - synchronize
   workflow_dispatch:
 
 permissions:
