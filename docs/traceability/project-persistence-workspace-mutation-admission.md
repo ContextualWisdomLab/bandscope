@@ -18,6 +18,7 @@ Process-external admission alone is still insufficient. A second process can der
 - Native writer admission must be process-owned and released by the OS after abnormal process termination; a pid file or best-effort cleanup is not sufficient authority.
 - Revision authority must be checked after recovery and while the same native write-admission lease is still held. A renderer-only comparison would leave a TOCTOU window before publication.
 - Revision material is an opaque path-free content identity receipt, not a project-domain field or ontology label.
+- The native warning-gated Project Persistence harness remains the single compile authority for crate-private production code. A new integration case must join that harness rather than recompiling the owner as an independent test crate and thereby manufacturing dead-code warnings.
 
 ## Renderer RED → fix evidence
 
@@ -29,7 +30,7 @@ Process-external admission alone is still insufficient. A second process can der
 
 ## Native cross-process RED → fix evidence
 
-`33f62fa4c7cecb75dcdc56dd2ccdbf309af44af1` adds a process-boundary regression. A child process publishes `project.bscope` and then blocks at the deterministic parent-durability boundary while the target is already visible. The parent attempts a second production publication against the same target. Before native admission, that second writer is able to replace the first writer's visible project bytes while the first transaction is still unresolved.
+`33f62fa4c7cecb75dcdc56dd2ccdbf309af44af1` adds a process-boundary regression. A child process publishes `project.bscope` and then blocks at the deterministic parent-durability boundary while the target is already visible. The parent attempts a second production publication against that exact target. Before native admission, that second writer is able to replace the first writer's visible project bytes while the first transaction is still unresolved.
 
 `d7ff75de4fa447d4c90119e4eb8c4f7c1341c3c0` wires the case into the single-compile Project Persistence native harness. Exact hosted macOS and Windows owner lanes reached terminal RED for the overlapping-writer contract.
 
@@ -41,7 +42,7 @@ Process-external admission alone is still insufficient. A second process can der
 
 ## Durable revision/content-identity RED → fix evidence
 
-`cfcaf8af09d37e55efdbecb569d820d157b03d32` adds `project_persistence_workspace_revision.rs` before the production revision API exists. It requires three invariants: an absent target accepts only an absent predecessor revision, an existing target accepts only its current predecessor revision, and a stale predecessor revision cannot replace the current bytes. The repair followed before a terminal workflow verdict, so this commit is source-level RED evidence rather than a claimed hosted RED.
+`cfcaf8af09d37e55efdbecb569d820d157b03d32` adds the first revision regression before the production revision API exists. It requires three invariants: an absent target accepts only an absent predecessor revision, an existing target accepts only its current predecessor revision, and a stale predecessor revision cannot replace the current bytes. The repair followed before a terminal workflow verdict, so this commit is source-level RED evidence rather than a claimed hosted RED.
 
 `bcdd59cd84f4e588cb96162028d21a750490e78d` adds the native aggregate CAS primitive. `publish_workspace_project_file_with_expected_content` acquires the process-external Project Persistence admission lease first, performs publication recovery while that lease is held, opens the current `project.bscope` through the no-follow/reparse-safe Project Persistence opener, bounds it to the 5 MiB project limit, checks descriptor/path identity around SHA-256 calculation, compares the current digest with the caller's expected digest, and only then enters the existing staging/replacement state machine. The successful publication returns the SHA-256 of the newly accepted canonical project bytes as the next revision receipt.
 
@@ -52,6 +53,14 @@ The expected revision is deliberately optional only for a genuinely absent targe
 `d025976799a1ad6829d06348ef321c6810de2594` extends the renderer contract regression so the first workspace write carries no predecessor receipt, the next write carries the exact prior native receipt, and malformed native receipts fail closed.
 
 `c17230aefcc02f3a7cc8eb21768819c100f6dba5` wires the contract into the Tauri command. Workspace saves invoke the native recovery + expected-revision validation + publication transaction and return the new SHA-256 receipt. Manual Save / Save As remains outside this app-owned CAS contract and rejects an unexpected workspace revision argument.
+
+`b0962e323be2c1146b3e7cac2c451a36b1c3055b` fixes the pre-existing renderer single-flight fixtures so successful workspace persistence returns valid native revision receipts instead of `undefined`; overlap and failure assertions are unchanged.
+
+### Exact-head warning-gate RCA
+
+The first exact `b0962e...` macOS owner run `35483630066` / job `106005815303` failed during the native warning-gated test compile, not during a CAS assertion. `project_persistence.rs` is included by the canonical `tests/project_persistence.rs` single-compile harness with `deny(warnings)`. The new revision regression had initially been added as a separate `project_persistence_workspace_revision.rs` integration crate, so the canonical harness compiled the newly added CAS constants/functions without any case in that crate referencing them and correctly promoted the resulting `dead_code` warnings to errors. This is an ownership/harness defect; suppressing the warnings or weakening the gate was rejected.
+
+`3518976fbb1f0c4bf5b6afb5ee2de9197e6419ed` converts the revision regression to `project_persistence_workspace_revision.case`; `6a27c5bfe7532954d8183f584b4f9211ef663316` registers that case in the canonical warning-gated Project Persistence harness; `baee09125cd73a52fdd8d8101e08289dcf4c505b` removes the duplicate standalone integration crate. The production owner is therefore compiled once and the CAS production symbols are exercised from the same warning-gated crate as the rest of Project Persistence.
 
 ## Decision
 
@@ -88,7 +97,7 @@ Rejection exposes no filesystem path, project content, score data, revision valu
 - `analysis.workspace-single-flight.test.ts` covers same-renderer overlap rejection, different-project concurrency, release after native failure, and missing workspace project-id rejection.
 - `projectDocumentSaveAuthority.test.ts` covers native revision-receipt retention/forwarding and malformed receipt rejection at the renderer boundary.
 - `project_persistence_native_write_admission.case` uses a real child process, pauses it only after the first target is published, proves a concurrent production write fails before replacement, terminates the first writer, and proves a later production write succeeds after OS ownership is released.
-- `project_persistence_workspace_revision.rs` covers first publication, current-revision replacement, stale-revision rejection, and target/revision presence mismatch without changing accepted bytes.
+- `project_persistence_workspace_revision.case` is part of the canonical warning-gated native harness and covers first publication, current-revision replacement, stale-revision rejection, and target/revision presence mismatch without changing accepted bytes.
 - macOS and Windows Project Persistence native workflows are the exact-head execution authority for native admission/CAS. Repository CI remains the authority for the TypeScript bridge regressions.
 
 ## Remaining risk
