@@ -1,10 +1,10 @@
 use crate::{
     is_valid_score_id, read_validated_score_pdf, resolve_existing_score_pdf, score_publication,
-    score_storage, score_storage::remove_score_pdf_attachment, sha256_hex_reader,
+    score_storage, sha256_hex_reader, MAX_SCORE_PDF_BYTES,
 };
 use std::{
     fs::{self, File, OpenOptions},
-    io::Cursor,
+    io::{Cursor, Read},
     path::{Path, PathBuf},
 };
 
@@ -46,6 +46,11 @@ impl PublishedScorePdfReceipt {
 struct ScoreWorkspaceLease {
     _file: File,
     root: PathBuf,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct AdmittedScoreStage {
+    content_sha256: String,
 }
 
 #[cfg(unix)]
@@ -163,6 +168,77 @@ fn validated_pdf_content_sha256(path: &Path) -> Result<String, String> {
     sha256_hex_reader(Cursor::new(bytes)).map_err(|_| SCORE_RECOVERY_ERROR.to_string())
 }
 
+#[cfg(unix)]
+fn open_stage_for_admission(path: &Path) -> Result<File, String> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(O_NOFOLLOW)
+        .open(path)
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())
+}
+
+#[cfg(windows)]
+fn open_stage_for_admission(path: &Path) -> Result<File, String> {
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .share_mode(0x0000_0001 | 0x0000_0002 | 0x0000_0004)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    let file = options
+        .open(path)
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    if !metadata.is_file() || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
+    }
+    Ok(file)
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn open_stage_for_admission(_path: &Path) -> Result<File, String> {
+    Err(SCORE_RECOVERY_ERROR.to_string())
+}
+
+fn admit_score_stage_for_cleanup(stage: &Path) -> Result<AdmittedScoreStage, String> {
+    let mut file = open_stage_for_admission(stage)?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    if !metadata.is_file() || metadata.len() > MAX_SCORE_PDF_BYTES {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
+    }
+    let expected_len = metadata.len();
+    let mut bounded = (&mut file).take(expected_len.saturating_add(1));
+    let content_sha256 =
+        sha256_hex_reader(&mut bounded).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    drop(bounded);
+    let after = file
+        .metadata()
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    if after.len() != expected_len {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
+    }
+    Ok(AdmittedScoreStage { content_sha256 })
+}
+
+fn remove_admitted_score_stage(
+    stage: &Path,
+    admitted_stage: &AdmittedScoreStage,
+) -> Result<(), String> {
+    let current = admit_score_stage_for_cleanup(stage)?;
+    if current != *admitted_stage {
+        return Err(SCORE_RECOVERY_ERROR.to_string());
+    }
+    score_storage::remove_score_pdf_attachment(stage)
+        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())
+}
+
 fn recover_abandoned_score_stages(
     scores_root: &Path,
     lease: &ScoreWorkspaceLease,
@@ -195,6 +271,7 @@ fn recover_abandoned_score_stages(
                 return Err(SCORE_RECOVERY_ERROR.to_string());
             }
         }
+        let admitted_stage = admit_score_stage_for_cleanup(&stage)?;
 
         let destination = scores_root.join(format!("{score_id}.pdf"));
         match fs::symlink_metadata(&destination) {
@@ -213,8 +290,7 @@ fn recover_abandoned_score_stages(
                 if stage_sha256 != destination_sha256 {
                     return Err(SCORE_RECOVERY_ERROR.to_string());
                 }
-                remove_score_pdf_attachment(&stage)
-                    .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+                remove_admitted_score_stage(&stage, &admitted_stage)?;
                 removed += 1;
                 continue;
             }
@@ -222,7 +298,7 @@ fn recover_abandoned_score_stages(
             Err(_) => return Err(SCORE_RECOVERY_ERROR.to_string()),
         }
 
-        remove_score_pdf_attachment(&stage).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+        remove_admitted_score_stage(&stage, &admitted_stage)?;
         removed += 1;
     }
     Ok(removed)
@@ -398,13 +474,18 @@ where
 /// owned staging namespace. Reserved symlink/reparse/non-regular entries, lock
 /// acquisition failure, unreadable directory state, a stage plus a
 /// content-different destination, or a supported-platform metadata barrier
-/// failure fail closed. Errors contain neither absolute paths nor PDF bytes. A
-/// barrier failure after publication does not guess-delete the object; later
-/// inventory/recovery determines actual storage truth. Windows retains the
-/// staged-file sync contract but does not yet claim directory-entry power-loss
-/// durability. This recovery covers current-contract interruption states and
-/// does not claim compatibility with an older concurrently running BandScope
-/// build that never acquired the lease.
+/// failure fail closed. Recovery binds a reserved stage to a bounded SHA-256
+/// content receipt before later validation and checks that receipt again before
+/// lower-level identity-safe deletion, so a different stage substituted during
+/// the transaction is preserved rather than recaptured as cleanup authority.
+/// The lower Unix deletion primitive still retains its documented narrow final
+/// identity-check-to-`unlinkat` race. Errors contain neither absolute paths nor
+/// PDF bytes. A barrier failure after publication does not guess-delete the
+/// object; later inventory/recovery determines actual storage truth. Windows
+/// retains the staged-file sync contract but does not yet claim directory-entry
+/// power-loss durability. This recovery covers current-contract interruption
+/// states and does not claim compatibility with an older concurrently running
+/// BandScope build that never acquired the lease.
 pub fn publish_score_pdf_attachment(
     source: &Path,
     scores_root: &Path,
@@ -459,6 +540,35 @@ mod tests {
         assert_eq!(published_score_id("notes.pdf"), None);
         assert_eq!(published_score_id("../escape.pdf"), None);
         assert_eq!(published_score_id("6fa459ea-ee8a-4ca4-894e-db77e160355e.PDF"), None);
+    }
+
+    #[test]
+    fn admitted_stage_cleanup_rejects_different_content_replacement() {
+        let root = unique_test_dir("stage-admission-replacement");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join(format!(".score-{SCORE_ID}.stage"));
+        let moved = root.join("admitted-stage-before-replacement");
+        fs::write(&stage, b"%PDF-1.7\nadmitted").expect("admitted stage should be written");
+        let admitted =
+            admit_score_stage_for_cleanup(&stage).expect("stage admission should succeed");
+
+        fs::rename(&stage, &moved).expect("admitted stage should move before cleanup");
+        fs::write(&stage, b"%PDF-1.7\nreplacement")
+            .expect("different-content replacement should be written");
+
+        let error = remove_admitted_score_stage(&stage, &admitted)
+            .expect_err("recovery must not recapture a different stage object as cleanup authority");
+
+        assert_eq!(error, SCORE_RECOVERY_ERROR);
+        assert_eq!(
+            fs::read(&stage).expect("replacement should survive failed cleanup"),
+            b"%PDF-1.7\nreplacement"
+        );
+        assert_eq!(
+            fs::read(&moved).expect("admitted stage should remain preserved"),
+            b"%PDF-1.7\nadmitted"
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
