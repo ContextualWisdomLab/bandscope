@@ -598,11 +598,14 @@ where
     // write ownership while making the completed stage publishable.
     drop(stage_file);
 
+    crate::score_publication::wait_at_fault_checkpoint("after-stage-sync-before-link");
+
     if fs::hard_link(&stage, &destination).is_err() {
         let _ = remove_owned_stage(&stage, expected_stage);
         return Err(SCORE_ATTACH_ERROR.to_string());
     }
 
+    crate::score_publication::wait_at_fault_checkpoint("after-link-before-stage-retirement");
     after_link(&stage, &destination);
 
     // A same-length regular-file replacement is not the object we staged.
