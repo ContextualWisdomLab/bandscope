@@ -98,3 +98,21 @@ fn inventory_preserves_stage_plus_destination_ambiguity() {
     assert!(destination.exists());
     fs::remove_dir_all(root).expect("ambiguous fixture should be removable");
 }
+
+#[test]
+fn recovery_binds_admitted_stage_identity_to_cleanup() {
+    let source = include_str!("../src/score_recovery.rs");
+
+    assert!(
+        source.contains("admit_score_stage_for_cleanup(&stage)"),
+        "recovery must capture the admitted stage object before later validation and cleanup"
+    );
+    assert!(
+        source.contains("remove_admitted_score_stage(&stage, admitted_stage)"),
+        "recovery cleanup must remain bound to the stage object admitted earlier in the transaction"
+    );
+    assert!(
+        !source.contains("remove_score_pdf_attachment(&stage)"),
+        "generic pathname-time deletion may recapture a replacement object and cannot be recovery authority"
+    );
+}
