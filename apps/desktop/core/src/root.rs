@@ -17,10 +17,10 @@ mod score_storage;
 pub use content_sha256::sha256_hex_reader;
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
-pub use score_publication::publish_score_pdf_attachment;
 pub use score_recovery::{
     inventory_published_score_pdf_ids, inventory_published_score_pdf_receipts,
-    remove_score_pdf_attachment_if_receipt_matches, PublishedScorePdfReceipt,
+    publish_score_pdf_attachment, remove_score_pdf_attachment_if_receipt_matches,
+    PublishedScorePdfReceipt,
 };
 pub use score_retention::resolve_score_pdf_for_removal;
 pub use score_storage::remove_score_pdf_attachment;
