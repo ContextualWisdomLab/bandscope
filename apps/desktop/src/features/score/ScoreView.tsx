@@ -55,9 +55,11 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const readRequestRef = useRef(0);
+  const selectedRef = useRef<ScoreAttachment | null>(selected);
   const contextKey = `${projectId ?? ""}\u0000${song.id}`;
   const contextKeyRef = useRef(contextKey);
   const previousContextKeyRef = useRef(contextKey);
+  selectedRef.current = selected;
   contextKeyRef.current = contextKey;
 
   /** Return whether an async operation still belongs to the rendered project/song context. */
@@ -70,6 +72,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     }
     previousContextKeyRef.current = contextKey;
     readRequestRef.current += 1;
+    selectedRef.current = null;
     setSelected(null);
     setPdfBytes(null);
     setIsOpening(false);
@@ -89,6 +92,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   ) => {
     const requestId = readRequestRef.current + 1;
     readRequestRef.current = requestId;
+    selectedRef.current = attachment;
     setSelected(attachment);
     setPdfBytes(null);
     setError(null);
@@ -100,6 +104,7 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
       }
     } catch (readError) {
       if (readRequestRef.current === requestId && isCurrentContext(expectedContextKey)) {
+        selectedRef.current = null;
         setSelected(null);
         setError(`${t("scoreReadFailed")} ${bridgeErrorDetail(readError, "")}`.trim());
       }
@@ -150,7 +155,9 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
    * project metadata, then delete bytes only if that same receipt is still
    * current after metadata detachment. The project/song context is also
    * revalidated before metadata mutation and again before storage deletion, so
-   * an async detach cannot cross a project switch.
+   * an async detach cannot cross a project switch. Selection freshness is read
+   * at acceptance time so a score opened while receipt/persistence work is in
+   * flight cannot remain visible after its metadata is detached.
    */
   const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
     const expectedContextKey = contextKeyRef.current;
@@ -173,8 +180,9 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
       if (!isCurrentContext(expectedContextKey) || accepted === false) {
         return;
       }
-      if (selected?.id === attachment.id) {
+      if (selectedRef.current?.id === attachment.id) {
         readRequestRef.current += 1;
+        selectedRef.current = null;
         setSelected(null);
         setPdfBytes(null);
         setIsOpening(false);
