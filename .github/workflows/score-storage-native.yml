@@ -19,6 +19,7 @@ on:
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/src/main.rs"
+      - "apps/desktop/src-tauri/tests/score_storage_executable_termination.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
@@ -46,6 +47,7 @@ on:
       - "apps/desktop/core/tests/score_pdf_*.rs"
       - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/src/main.rs"
+      - "apps/desktop/src-tauri/tests/score_storage_executable_termination.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
@@ -136,3 +138,9 @@ jobs:
           --manifest-path apps/desktop/core/Cargo.toml
           --features score-storage-fault-injection
           --test score_pdf_process_termination_recovery
+      - name: Run desktop-executable process-termination recovery regression
+        run: >-
+          cargo +1.97.1 test
+          --manifest-path apps/desktop/src-tauri/Cargo.toml
+          --features score-storage-fault-injection
+          --test score_storage_executable_termination
