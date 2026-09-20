@@ -1,5 +1,5 @@
 use crate::{
-    is_valid_score_id, score_retention::resolve_existing_score_pdf, score_storage,
+    is_valid_score_id, resolve_existing_score_pdf, score_storage,
     score_storage::remove_score_pdf_attachment,
 };
 use std::{
@@ -199,10 +199,10 @@ fn recover_abandoned_score_stages(
 ///
 /// Security Notes: only exact `<uuid>.pdf` names enter the owned object
 /// inventory. Unrelated files are ignored rather than treated as Score Storage
-/// objects. A matching owned name must resolve through the existing retention
-/// boundary as a regular contained non-reparse object; suspicious matching
-/// entries and ambiguous publication state fail closed. No filesystem path,
-/// filename from the selected source, or PDF payload is returned.
+/// objects. A matching owned name must resolve through the existing read-time
+/// containment boundary as a regular contained non-symlink object; suspicious
+/// matching entries and ambiguous publication state fail closed. No filesystem
+/// path, filename from the selected source, or PDF payload is returned.
 pub fn inventory_published_score_pdf_ids(scores_root: &Path) -> Result<Vec<String>, String> {
     let lease = acquire_score_workspace_lease(scores_root)?;
     recover_abandoned_score_stages(scores_root, &lease)?;
