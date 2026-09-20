@@ -1,11 +1,16 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FileMusic, FilePlus2, Loader2, Trash2 } from "lucide-react";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScoreViewer } from "./ScoreViewer";
-import { attachScorePdf, readScorePdf, removeScorePdf } from "./scoreStorage";
+import {
+  attachScorePdf,
+  getScorePdfReceipt,
+  readScorePdf,
+  removeScorePdfIfReceiptMatches
+} from "./scoreStorage";
 
 /** Props accepted by the per-song score attachments view. */
 export interface ScoreViewProps {
@@ -18,8 +23,12 @@ export interface ScoreViewProps {
    * disabled without it.
    */
   projectId: string | null;
-  /** Callback receiving the song with updated `scoreAttachments` metadata. */
-  onSongUpdate: (song: RehearsalSong) => void;
+  /**
+   * Commit updated song metadata. Async owners may return `false` when the
+   * project snapshot was not durably accepted; legacy synchronous owners may
+   * return `void`, which remains an accepted update for backward compatibility.
+   */
+  onSongUpdate: (song: RehearsalSong) => void | boolean | Promise<void | boolean>;
 }
 
 /**
@@ -46,58 +55,121 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const readRequestRef = useRef(0);
+  const selectedRef = useRef<ScoreAttachment | null>(selected);
+  const songRef = useRef(song);
+  const contextKey = `${projectId ?? ""}\u0000${song.id}`;
+  const contextKeyRef = useRef(contextKey);
+  const previousContextKeyRef = useRef(contextKey);
+  selectedRef.current = selected;
+  songRef.current = song;
+  contextKeyRef.current = contextKey;
+
+  /** Return whether an async operation still belongs to the rendered project/song context. */
+  const isCurrentContext = (expectedContextKey: string) =>
+    contextKeyRef.current === expectedContextKey;
+
+  useLayoutEffect(() => {
+    if (previousContextKeyRef.current === contextKey) {
+      return;
+    }
+    previousContextKeyRef.current = contextKey;
+    readRequestRef.current += 1;
+    selectedRef.current = null;
+    setSelected(null);
+    setPdfBytes(null);
+    setIsOpening(false);
+    setIsAttaching(false);
+    setError(null);
+  }, [contextKey]);
 
   /**
-   * Load the stored PDF bytes for an attachment into the viewer. Callers pass
-   * the active project id explicitly; the storage controls are only wired up
-   * (and enabled) when a workspace is present, so this never runs without one.
+   * Load the stored PDF bytes for an attachment into the viewer. The caller's
+   * project/song context is captured with the request so a late result cannot
+   * repaint a different project after navigation.
    */
-  const openAttachment = async (activeProjectId: string, attachment: ScoreAttachment) => {
+  const openAttachment = async (
+    activeProjectId: string,
+    attachment: ScoreAttachment,
+    expectedContextKey = contextKeyRef.current
+  ) => {
     const requestId = readRequestRef.current + 1;
     readRequestRef.current = requestId;
+    selectedRef.current = attachment;
     setSelected(attachment);
     setPdfBytes(null);
     setError(null);
     setIsOpening(true);
     try {
       const bytes = await readScorePdf(activeProjectId, attachment.id);
-      if (readRequestRef.current === requestId) {
+      if (readRequestRef.current === requestId && isCurrentContext(expectedContextKey)) {
         setPdfBytes(bytes);
       }
     } catch (readError) {
-      if (readRequestRef.current === requestId) {
+      if (readRequestRef.current === requestId && isCurrentContext(expectedContextKey)) {
+        selectedRef.current = null;
         setSelected(null);
         setError(`${t("scoreReadFailed")} ${bridgeErrorDetail(readError, "")}`.trim());
       }
     } finally {
-      if (readRequestRef.current === requestId) {
+      if (readRequestRef.current === requestId && isCurrentContext(expectedContextKey)) {
         setIsOpening(false);
       }
     }
   };
 
   /**
-   * Attach a new score PDF via the native picker and open it. The attach
-   * control is disabled while `isAttaching`, so overlapping attaches cannot be
-   * started; the active project id is supplied by the enabled control.
+   * Attach a new score PDF via the native picker and open it only after the
+   * owning project metadata accepts the attachment. A completed publication
+   * whose project context has since changed is left as a recovery candidate;
+   * stale UI intent never mutates the newly active project. Within the same
+   * project/song, metadata is based on the latest rendered song snapshot before
+   * persistence; durable concurrent-writer arbitration remains Project
+   * Persistence/CAS authority.
    */
   const handleAttach = async (activeProjectId: string) => {
+    const expectedContextKey = contextKeyRef.current;
     setError(null);
     setIsAttaching(true);
     try {
       const result = await attachScorePdf(activeProjectId, song.id);
+      if (!isCurrentContext(expectedContextKey)) {
+        return;
+      }
       const attachment: ScoreAttachment = { id: result.id, fileName: result.fileName };
-      onSongUpdate({ ...song, scoreAttachments: [...attachments, attachment] });
-      setIsAttaching(false);
-      await openAttachment(activeProjectId, attachment);
+      const currentSong = songRef.current;
+      const currentAttachments = currentSong.scoreAttachments ?? [];
+      const accepted = await onSongUpdate({
+        ...currentSong,
+        scoreAttachments: [...currentAttachments, attachment]
+      });
+      if (!isCurrentContext(expectedContextKey) || accepted === false) {
+        return;
+      }
+      await openAttachment(activeProjectId, attachment, expectedContextKey);
     } catch (attachError) {
-      setIsAttaching(false);
-      setError(bridgeErrorDetail(attachError, t("scoreAttachFailed")));
+      if (isCurrentContext(expectedContextKey)) {
+        setError(bridgeErrorDetail(attachError, t("scoreAttachFailed")));
+      }
+    } finally {
+      if (isCurrentContext(expectedContextKey)) {
+        setIsAttaching(false);
+      }
     }
   };
 
-  /** Remove an attachment after confirmation (metadata and stored copy). */
+  /**
+   * Capture the exact Score Storage object identity before changing durable
+   * project metadata, then delete bytes only if that same receipt is still
+   * current after metadata detachment. The project/song context is also
+   * revalidated before metadata mutation and again before storage deletion, so
+   * an async detach cannot cross a project switch. Selection freshness and the
+   * latest rendered same-song snapshot are read at acceptance time so receipt
+   * latency cannot leave a detached score visible or overwrite newer visible
+   * metadata. Durable concurrent-writer arbitration remains Project
+   * Persistence/CAS authority.
+   */
   const handleRemove = async (activeProjectId: string, attachment: ScoreAttachment) => {
+    const expectedContextKey = contextKeyRef.current;
     const confirmed = window.confirm(
       t("scoreRemoveConfirm").replace("{fileName}", attachment.fileName)
     );
@@ -106,19 +178,33 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
     }
     setError(null);
     try {
-      await removeScorePdf(activeProjectId, attachment.id);
-      onSongUpdate({
-        ...song,
-        scoreAttachments: attachments.filter((entry) => entry.id !== attachment.id)
+      const receipt = await getScorePdfReceipt(activeProjectId, attachment.id);
+      if (!isCurrentContext(expectedContextKey)) {
+        return;
+      }
+      const currentSong = songRef.current;
+      const currentAttachments = currentSong.scoreAttachments ?? [];
+      const accepted = await onSongUpdate({
+        ...currentSong,
+        scoreAttachments: currentAttachments.filter((entry) => entry.id !== attachment.id)
       });
-      if (selected?.id === attachment.id) {
+      if (!isCurrentContext(expectedContextKey) || accepted === false) {
+        return;
+      }
+      if (selectedRef.current?.id === attachment.id) {
         readRequestRef.current += 1;
+        selectedRef.current = null;
         setSelected(null);
         setPdfBytes(null);
         setIsOpening(false);
       }
+      if (receipt) {
+        await removeScorePdfIfReceiptMatches(activeProjectId, receipt);
+      }
     } catch (removeError) {
-      setError(bridgeErrorDetail(removeError, t("scoreRemoveFailed")));
+      if (isCurrentContext(expectedContextKey)) {
+        setError(bridgeErrorDetail(removeError, t("scoreRemoveFailed")));
+      }
     }
   };
 

@@ -657,7 +657,6 @@ fn select_local_audio_source(
         source,
     };
     store_bootstrap_source(&state, summary.clone());
-
     Ok(summary)
 }
 
@@ -784,11 +783,38 @@ fn scores_root_for_project<R: Runtime>(
     Ok(root)
 }
 
-/// Security Notes: the file path comes exclusively from the OS file dialog
-/// (never from JS), is validated (magic bytes, size, extension, no symlink),
-/// and is copied into the app-owned scores directory. The stored copy is named
-/// by a locally minted UUID v4, so no untrusted external path is ever
-/// referenced again after this command returns.
+fn published_score_pdf_receipt(
+    scores_root: &Path,
+    score_id: &str,
+) -> Result<Option<PublishedScorePdfReceipt>, String> {
+    if !is_valid_score_id(score_id) {
+        return Err("Invalid score id.".to_string());
+    }
+    let receipts = inventory_published_score_pdf_receipts(scores_root)?;
+    Ok(receipts
+        .into_iter()
+        .find(|receipt| receipt.score_id() == score_id))
+}
+
+fn is_valid_score_content_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScorePdfReceiptPayload {
+    score_id: String,
+    content_sha256: String,
+}
+
+/// Security Notes: the selected path comes only from the OS file dialog and is
+/// admitted as a bounded, non-symlink PDF before publication. Score Storage
+/// reopens that source once, copies only the descriptor-length snapshot into a
+/// private staging file, rejects growth/truncation, and publishes without
+/// replacing an existing score id. No local path or PDF bytes cross IPC.
 #[tauri::command]
 fn attach_score_pdf(
     project_id: String,
@@ -808,13 +834,11 @@ fn attach_score_pdf(
         .add_filter("PDF Score", &["pdf"])
         .pick_file()
         .ok_or_else(|| "Choose a PDF file to attach as a score.".to_string())?;
-    let (source, file_name, file_size_bytes) = validate_score_pdf_source(&path)?;
+    let (source, file_name, _validated_file_size_bytes) = validate_score_pdf_source(&path)?;
 
     let scores_root = scores_root_for_project(&app, &project_id)?;
     let score_id = uuid::Uuid::new_v4().to_string();
-    let destination = scores_root.join(format!("{score_id}.pdf"));
-    std::fs::copy(&source, &destination)
-        .map_err(|_| "Could not copy the PDF into the project workspace.".to_string())?;
+    let file_size_bytes = publish_score_pdf_attachment(&source, &scores_root, &score_id)?;
 
     Ok(ScoreAttachmentPayload {
         score_id,
@@ -826,7 +850,9 @@ fn attach_score_pdf(
 /// Security Notes: no path crosses the IPC boundary. Both ids are validated
 /// against strict allowlist shapes, the path is rebuilt locally, and the
 /// canonicalize-plus-prefix guard in `resolve_existing_score_pdf` rejects any
-/// escape from the app-owned scores root.
+/// escape from the app-owned scores root. The resolved file is then read
+/// through the bounded core helper so growth after attachment cannot trigger
+/// an allocation beyond the 25 MiB product limit.
 #[tauri::command]
 fn read_score_pdf(
     project_id: String,
@@ -838,18 +864,19 @@ fn read_score_pdf(
     }
     let scores_root = scores_root_for_project(&app, &project_id)?;
     let path = resolve_existing_score_pdf(&scores_root, &score_id)?;
-    std::fs::read(path).map_err(|_| "Could not read the score PDF.".to_string())
+    read_validated_score_pdf(&path)
 }
 
-/// Security Notes: same id validation and traversal guard as `read_score_pdf`;
-/// deletion is scoped to a single validated file inside the app-owned scores
-/// root. Returns `false` when the score does not exist (idempotent removal).
+/// Return a path-free content receipt for the currently published score object.
+/// A valid but absent score returns `None`; suspicious workspace state remains an
+/// error. The receipt is freshness evidence only and does not authorize a
+/// lifecycle decision by itself.
 #[tauri::command]
-fn remove_score_pdf(
+fn get_score_pdf_receipt(
     project_id: String,
     score_id: String,
     app: tauri::AppHandle<impl Runtime>,
-) -> Result<bool, String> {
+) -> Result<Option<ScorePdfReceiptPayload>, String> {
     if !is_valid_project_id(&project_id) {
         return Err("Invalid project id.".to_string());
     }
@@ -857,12 +884,40 @@ fn remove_score_pdf(
         return Err("Invalid score id.".to_string());
     }
     let scores_root = scores_root_for_project(&app, &project_id)?;
-    let path = match resolve_existing_score_pdf(&scores_root, &score_id) {
-        Ok(path) => path,
-        Err(_) => return Ok(false),
+    Ok(published_score_pdf_receipt(&scores_root, &score_id)?.map(|receipt| {
+        ScorePdfReceiptPayload {
+            score_id: receipt.score_id().to_string(),
+            content_sha256: receipt.content_sha256().to_string(),
+        }
+    }))
+}
+
+/// Delete score bytes only when the buyer-facing detach flow presents the same
+/// content identity it captured before durable project metadata was changed.
+/// The current object is re-read before mutation and the core owner revalidates
+/// the receipt again while holding the Score Storage lease. Missing or changed
+/// bytes are safe non-removals; no id-only deletion fallback exists.
+#[tauri::command]
+fn remove_score_pdf_if_receipt_matches(
+    project_id: String,
+    score_id: String,
+    content_sha256: String,
+    app: tauri::AppHandle<impl Runtime>,
+) -> Result<bool, String> {
+    if !is_valid_project_id(&project_id) {
+        return Err("Invalid project id.".to_string());
+    }
+    if !is_valid_score_id(&score_id) || !is_valid_score_content_sha256(&content_sha256) {
+        return Err("Invalid score receipt.".to_string());
+    }
+    let scores_root = scores_root_for_project(&app, &project_id)?;
+    let Some(receipt) = published_score_pdf_receipt(&scores_root, &score_id)? else {
+        return Ok(false);
     };
-    std::fs::remove_file(path).map_err(|_| "Could not remove the score PDF.".to_string())?;
-    Ok(true)
+    if receipt.content_sha256() != content_sha256 {
+        return Ok(false);
+    }
+    remove_score_pdf_attachment_if_receipt_matches(&scores_root, &receipt)
 }
 
 fn main() {
@@ -877,7 +932,8 @@ fn main() {
             load_project,
             attach_score_pdf,
             read_score_pdf,
-            remove_score_pdf
+            get_score_pdf_receipt,
+            remove_score_pdf_if_receipt_matches
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

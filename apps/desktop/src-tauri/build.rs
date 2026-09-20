@@ -9,7 +9,8 @@ fn main() {
             "load_project",
             "attach_score_pdf",
             "read_score_pdf",
-            "remove_score_pdf",
+            "get_score_pdf_receipt",
+            "remove_score_pdf_if_receipt_matches",
         ]),
     ))
     .expect("failed to build tauri application manifest");
