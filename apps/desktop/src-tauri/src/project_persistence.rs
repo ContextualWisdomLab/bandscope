@@ -574,6 +574,13 @@ pub(crate) fn publish_workspace_project_file_with_expected_content(
     content: &[u8],
     expected_content_sha256: Option<&str>,
 ) -> Result<String, String> {
+    if content.is_empty() {
+        return Err(FIRST_SAVE_STAGE_ERROR.to_string());
+    }
+    if content.len() > FIRST_SAVE_MAX_PROJECT_FILE_BYTES {
+        return Err("Project file is too large (exceeds 5 MiB limit)".to_string());
+    }
+
     let next_revision = bandscope_desktop_core::sha256_hex_reader(Cursor::new(content))
         .map_err(|_| FIRST_SAVE_STAGE_ERROR.to_string())?;
     let _write_admission = acquire_project_write_admission(target)?;
