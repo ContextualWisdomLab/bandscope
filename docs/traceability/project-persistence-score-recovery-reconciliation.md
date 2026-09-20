@@ -8,6 +8,8 @@ Project Persistence therefore needs a path-free comparison contract before any r
 
 Classification alone is also not deletion authority. `ScoreAttachmentRecoveryReconciliation` is public application data, so a later caller could otherwise feed a forged or stale classification into cleanup code. A destructive or reattachment path needs a second boundary that proves an explicit buyer decision applies to an identity that is still classified only as `unreferenced_published`.
 
+A second race exists after that buyer decision. A recovery dialog can remain open while another save, detach, recovery, or cleanup changes project/storage truth. An authorization that was valid when the dialog opened must not become a durable capability that survives newer owner evidence.
+
 ## Constraints
 
 - Score Storage remains the canonical owner of score object existence and native containment validation.
@@ -17,6 +19,7 @@ Classification alone is also not deletion authority. `ScoreAttachmentRecoveryRec
 - Reconciliation must not auto-attach, auto-delete, retry, merge, or invent a lifecycle intent.
 - A missing referenced score must never become cleanup or reattachment authority through this contract.
 - An action authorization must revalidate public reconciliation state instead of trusting that the caller obtained it from `derive_score_attachment_recovery_candidates` unchanged.
+- Authorization is session-local intent, not a durable capability. Every metadata/byte mutation boundary must revalidate the action against fresh reconciliation evidence.
 - Restart inventory does not contain the original selected filename, so recovery presentation must not invent one.
 
 ## Decision
@@ -31,15 +34,18 @@ The unreferenced set is deliberately named as evidence, not a disposition. It ca
 
 `authorize_unreferenced_score_recovery_action` is the second boundary. It accepts only one current unreferenced-published id plus an explicit `Preserve`, `Recover`, or `Discard` decision. It revalidates all three public identity sets, rejects malformed or duplicated ids, rejects any cross-set overlap, and rejects referenced, missing-reference, and unknown ids. The returned `AuthorizedUnreferencedScoreRecoveryAction` has private fields so downstream code cannot manufacture cleanup or reattachment authority by struct literal.
 
+That opaque action is deliberately short-lived. `revalidate_unreferenced_score_recovery_action` must be called with fresh reconciliation evidence immediately before an eventual destructive cleanup or other owner mutation. If the score became referenced, disappeared, moved to another lifecycle set, or the current reconciliation is inconsistent, the action fails closed and the application must refresh recovery state rather than replaying the older decision.
+
 This authorization still performs no I/O. `Preserve` is explicitly non-destructive. `Discard` is only cleanup-intent evidence for a future Score Storage call after the owner stack is integrated. `Recover` is only reattachment-intent evidence; Project Persistence still must commit attachment metadata durably before the recovered score can be presented as accepted.
 
-Because Score Storage restart inventory intentionally returns score ids only, `recovery_attachment_metadata_for_action` does not pretend to recover the original selected filename. Only an authorized `Recover` action can produce `RecoveredScoreAttachmentMetadata`, and its deterministic display filename is `recovered-score-<score-id>.pdf`. `Preserve` and `Discard` actions fail closed at this boundary. The generated label is presentation truth, not source-file provenance.
+Because Score Storage restart inventory intentionally returns score ids only, `recovery_attachment_metadata_for_action` does not pretend to recover the original selected filename. Only an authorized `Recover` action can produce `RecoveredScoreAttachmentMetadata`, and its deterministic display filename is `recovered-score-<score-id>.pdf`. `Preserve` and `Discard` actions fail closed at this boundary. The function now also requires fresh reconciliation and revalidates the action before producing metadata, so a stale dialog decision cannot become durable project state. The generated label is presentation truth, not source-file provenance.
 
 ## Alternatives rejected
 
 - **Automatic attach of every unreferenced object:** cannot distinguish interrupted attach from failed cleanup after a completed detach.
 - **Automatic deletion of every unreferenced object:** can destroy a PDF whose publication succeeded immediately before process death.
 - **Trusting a public reconciliation struct as deletion or reattachment authority:** a caller can construct stale or overlapping sets; action must revalidate current classification invariants.
+- **Treating an authorized action as durable capability:** owner truth can change while the buyer is deciding; stale recovery/discard intent must be revalidated at use time.
 - **Pretending the original filename was recovered:** the inventory contract does not carry that evidence after the crash window.
 - **Persisting user-local paths or mutable filename sidecars in Project Persistence:** crosses owner boundaries and adds recovery state whose durability would itself need reconciliation.
 - **Filesystem scan inside Project Persistence:** duplicates Score Storage path and containment authority.
@@ -48,9 +54,9 @@ Because Score Storage restart inventory intentionally returns score ids only, `r
 
 ## Security and privacy notes
 
-Both inputs are treated as untrusted boundary data even when supplied by another BandScope owner. Every id must satisfy the canonical BandScope score-id shape and be unique within its owner set. Reconciliation failure returns `Could not reconcile score attachments.`; action-authorization failure returns `Could not authorize score attachment recovery action.`; presentation-metadata failure returns `Could not prepare recovered score attachment metadata.`. None of these errors includes paths, filenames, PDF bytes, project metadata, or the rejected id.
+Both inputs are treated as untrusted boundary data even when supplied by another BandScope owner. Every id must satisfy the canonical BandScope score-id shape and be unique within its owner set. Reconciliation failure returns `Could not reconcile score attachments.`; action-authorization or freshness failure returns `Could not authorize score attachment recovery action.`; presentation-metadata failure returns `Could not prepare recovered score attachment metadata.`. None of these errors includes paths, filenames, PDF bytes, project metadata, or the rejected id.
 
-The service is pure and performs no I/O. It cannot weaken Score Storage's native symlink/reparse/containment checks and cannot mutate the project document. The action authorization never authorizes a `missing_referenced_score_ids` entry, so a broken durable reference cannot be silently converted into permission to delete or rewrite project truth. The generated recovery filename contains only a validated opaque score id and the fixed `recovered-score-` / `.pdf` literals; it does not expose the buyer's original selected filename or local path.
+The service is pure and performs no I/O. It cannot weaken Score Storage's native symlink/reparse/containment checks and cannot mutate the project document. Action authorization never authorizes a `missing_referenced_score_ids` entry, and current-state revalidation prevents an older unreferenced decision from acting after the same id has become referenced. The generated recovery filename contains only a validated opaque score id and the fixed `recovered-score-` / `.pdf` literals; it does not expose the buyer's original selected filename or local path.
 
 ## Test points
 
@@ -76,12 +82,18 @@ A third source-level RED, `e1ff85e77c08b030bc54995b8213c47cc634a5ab`, requires a
 
 `184690416054be6aba415e574f94965f3e89338c` adds the `Recover` decision, opaque `RecoveredScoreAttachmentMetadata`, and `recovery_attachment_metadata_for_action`. `6a77bec1353ced292337e034435111da6a3f6289` exports the new contract from the canonical desktop-core root. The owner module and integration regression cover both the recover-success path and preserve/discard rejection paths.
 
+A fourth source-level RED, `f22b3d235343e38f7cafe54807004e61bcffbdd7`, models a realistic stale-dialog race: recovery/discard is authorized while an object is unreferenced, then fresh owner evidence shows the same object has become durably referenced before the decision is consumed. The test requires both explicit revalidation and recovered-metadata production to fail closed under the changed reconciliation. No hosted RED is claimed because the causal repair immediately follows.
+
+`cf89afc80c780ecf71dc550910849aadde751992` adds `revalidate_unreferenced_score_recovery_action` and changes recovered-metadata construction to require fresh reconciliation. `707431ab52e990a10fb38753f503f9836007b668` exports the revalidation boundary from the canonical desktop-core root. Module and integration tests cover both stale `Recover` and stale `Discard` authority.
+
 Exact-head hosted evidence must be taken only from the final unchanged head.
 
 ## Remaining integration
 
 This contract still does not consume the Score Storage inventory from PR #1241 because that owner is not protected/released on the Project Persistence branch. After the owner contract is integrated, the application can supply durable project attachment ids and validated Score Storage inventory ids to this service, surface `unreferenced_published_score_ids` as explicit recovery candidates, and treat `missing_referenced_score_ids` as a broken-reference condition without silently rewriting either owner.
 
-The filename-truth gap is now bounded in the domain: an authorized `Recover` action can produce durable attachment metadata without fabricating the original filename. What remains is application orchestration and buyer interaction. The application must present the candidate, obtain explicit Recover / Preserve / Discard intent, persist recovered metadata through the Project Persistence CAS/durability path, and only then present it as an accepted attachment. A discard path must cross the separate Score Storage owner boundary with current authorization; it must not be inferred from reconciliation alone.
+The filename-truth and stale-intent gaps are now bounded in the domain: an authorized `Recover` action can produce durable attachment metadata without fabricating the original filename, but only while fresh reconciliation still classifies that id as unreferenced-published. An eventual Discard executor must likewise call `revalidate_unreferenced_score_recovery_action` immediately before crossing the Score Storage mutation boundary.
+
+What remains is application orchestration and buyer interaction. The application must present the candidate, obtain explicit Recover / Preserve / Discard intent, refresh owner evidence before consuming that intent, persist recovered metadata through the Project Persistence CAS/durability path, and only then present it as an accepted attachment. A discard path must cross the separate Score Storage owner boundary with current authorization; it must not be inferred from reconciliation alone.
 
 Buyer-visible wording, keyboard and screen-reader interaction, crash-window E2E, locale coverage, missing-reference UI, cross-owner protected/released integration, and packaged recovery evidence remain separate acceptance work.
