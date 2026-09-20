@@ -28,6 +28,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Refresh from bounded live GitHub authority
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -47,7 +48,7 @@ jobs:
       - name: Preserve exact-head live queue evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: open-pr-queue-${{ github.sha }}
+          name: open-pr-queue-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             docs/product-readiness/open-pr-queue.json
             docs/product-readiness/open-pr-queue.md
