@@ -84,18 +84,18 @@ fn validated_reconciliation_sets(
     let missing_referenced = validated_identity_set(&reconciliation.missing_referenced_score_ids)
         .map_err(|_| SCORE_RECOVERY_ACTION_ERROR.to_string())?;
 
-    if !referenced_and_published
+    if referenced_and_published
         .intersection(&unreferenced_published)
         .next()
-        .is_none()
-        || !referenced_and_published
+        .is_some()
+        || referenced_and_published
             .intersection(&missing_referenced)
             .next()
-            .is_none()
-        || !unreferenced_published
+            .is_some()
+        || unreferenced_published
             .intersection(&missing_referenced)
             .next()
-            .is_none()
+            .is_some()
     {
         return Err(SCORE_RECOVERY_ACTION_ERROR.to_string());
     }
