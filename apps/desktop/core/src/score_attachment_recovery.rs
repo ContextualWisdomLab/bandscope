@@ -44,10 +44,12 @@ pub enum UnreferencedScoreRecoveryDecision {
     Discard,
 }
 
-/// Opaque authorization proving that one explicit buyer decision targeted a current unreferenced object.
+/// Opaque authorization proving that one explicit buyer decision targeted an unreferenced object.
 ///
 /// Fields are private so callers cannot manufacture destructive cleanup or reattachment authority without
-/// passing the reconciliation checks in [`authorize_unreferenced_score_recovery_action`].
+/// passing the reconciliation checks in [`authorize_unreferenced_score_recovery_action`]. Authorization
+/// is intentionally not a durable capability: every mutation boundary must revalidate the action against
+/// fresh reconciliation evidence with [`revalidate_unreferenced_score_recovery_action`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthorizedUnreferencedScoreRecoveryAction {
     score_id: String,
@@ -177,8 +179,8 @@ pub fn derive_score_attachment_recovery_candidates(
 /// reattachment authority.
 ///
 /// `Preserve`, `Recover`, and `Discard` are all explicit buyer decisions. No action mutates storage here.
-/// Project Persistence therefore remains unable to delete Score Storage bytes or alter durable attachment
-/// metadata on classification alone.
+/// The returned action is session-local intent, not a durable capability; the current owner evidence must
+/// be checked again immediately before metadata or byte mutation.
 ///
 /// # Errors
 ///
@@ -204,23 +206,56 @@ pub fn authorize_unreferenced_score_recovery_action(
     })
 }
 
-/// Build truthful durable presentation metadata for one authorized recovery action.
+/// Revalidate an authorized decision against fresh Project Persistence and Score Storage evidence.
+///
+/// Recovery dialogs can remain open while another save, detach, recovery, or cleanup changes lifecycle
+/// state. An authorization from an older reconciliation must therefore never cross a later mutation
+/// boundary by itself. The score id must still be exactly one current unreferenced-published candidate;
+/// if it became referenced, disappeared, moved into the missing-reference set, or the reconciliation is
+/// otherwise inconsistent, the action fails closed and the application must refresh recovery state.
+///
+/// # Errors
+///
+/// Returns a bounded generic error when the current reconciliation no longer authorizes this score id.
+pub fn revalidate_unreferenced_score_recovery_action(
+    current_reconciliation: &ScoreAttachmentRecoveryReconciliation,
+    action: &AuthorizedUnreferencedScoreRecoveryAction,
+) -> Result<(), String> {
+    if !is_valid_score_id(&action.score_id) {
+        return Err(SCORE_RECOVERY_ACTION_ERROR.to_string());
+    }
+
+    let (_, unreferenced_published, _) = validated_reconciliation_sets(current_reconciliation)?;
+    if !unreferenced_published.contains(&action.score_id) {
+        return Err(SCORE_RECOVERY_ACTION_ERROR.to_string());
+    }
+
+    Ok(())
+}
+
+/// Build truthful durable presentation metadata for one currently valid authorized recovery action.
 ///
 /// The restart inventory carries no original selected filename. A `Recover` action therefore uses a
 /// deterministic generated label, `recovered-score-<score-id>.pdf`, rather than claiming the original
 /// filename was restored. `Preserve` and `Discard` actions cannot be converted into attachment metadata.
-/// This function performs no filesystem or project mutation; the application must still persist the
-/// returned metadata through Project Persistence before presenting the attachment as accepted.
+/// The action is revalidated against fresh reconciliation evidence before metadata is emitted so a dialog
+/// decision cannot outlive a concurrent attach/detach/recovery state change. This function performs no
+/// filesystem or project mutation; the application must still persist the returned metadata through
+/// Project Persistence before presenting the attachment as accepted.
 ///
 /// # Errors
 ///
-/// Returns a bounded generic error when the authorized action is not an explicit `Recover` decision.
+/// Returns a bounded generic error when the authorized action is not an explicit `Recover` decision or is
+/// no longer valid under the supplied current reconciliation.
 pub fn recovery_attachment_metadata_for_action(
+    current_reconciliation: &ScoreAttachmentRecoveryReconciliation,
     action: &AuthorizedUnreferencedScoreRecoveryAction,
 ) -> Result<RecoveredScoreAttachmentMetadata, String> {
     if action.decision != UnreferencedScoreRecoveryDecision::Recover {
         return Err(SCORE_RECOVERED_METADATA_ERROR.to_string());
     }
+    revalidate_unreferenced_score_recovery_action(current_reconciliation, action)
+        .map_err(|_| SCORE_RECOVERED_METADATA_ERROR.to_string())?;
 
     Ok(RecoveredScoreAttachmentMetadata {
         score_id: action.score_id.clone(),
@@ -285,7 +320,7 @@ mod tests {
             UnreferencedScoreRecoveryDecision::Recover,
         )
         .expect("recovery candidate should authorize explicit recovery");
-        let metadata = recovery_attachment_metadata_for_action(&recover)
+        let metadata = recovery_attachment_metadata_for_action(&reconciliation, &recover)
             .expect("authorized recovery should produce generated metadata");
         assert_eq!(metadata.score_id(), SCORE_ID);
         assert_eq!(
@@ -300,7 +335,40 @@ mod tests {
         )
         .expect("candidate should authorize preserve");
         assert_eq!(
-            recovery_attachment_metadata_for_action(&preserve)
+            recovery_attachment_metadata_for_action(&reconciliation, &preserve)
+                .err()
+                .as_deref(),
+            Some(SCORE_RECOVERED_METADATA_ERROR)
+        );
+    }
+
+    #[test]
+    fn stale_authorization_fails_current_revalidation() {
+        let initial = ScoreAttachmentRecoveryReconciliation {
+            referenced_and_published_score_ids: Vec::new(),
+            unreferenced_published_score_ids: vec![SCORE_ID.to_string()],
+            missing_referenced_score_ids: Vec::new(),
+        };
+        let action = authorize_unreferenced_score_recovery_action(
+            &initial,
+            SCORE_ID,
+            UnreferencedScoreRecoveryDecision::Recover,
+        )
+        .expect("initial candidate should authorize recovery");
+        let current = ScoreAttachmentRecoveryReconciliation {
+            referenced_and_published_score_ids: vec![SCORE_ID.to_string()],
+            unreferenced_published_score_ids: Vec::new(),
+            missing_referenced_score_ids: Vec::new(),
+        };
+
+        assert_eq!(
+            revalidate_unreferenced_score_recovery_action(&current, &action)
+                .err()
+                .as_deref(),
+            Some(SCORE_RECOVERY_ACTION_ERROR)
+        );
+        assert_eq!(
+            recovery_attachment_metadata_for_action(&current, &action)
                 .err()
                 .as_deref(),
             Some(SCORE_RECOVERED_METADATA_ERROR)
