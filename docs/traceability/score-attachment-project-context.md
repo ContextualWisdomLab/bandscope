@@ -11,11 +11,15 @@ Receipt-bound storage identity prevents same-id object ABA, but it does not by i
 
 The first context-key repair used a passive React effect to clear the previously selected score after a project/song change. That protected later asynchronous continuation, but React explicitly permits passive effects to run after the browser paints. For buyer-visible score content, a single stale Project A paint while Project B is already active is not an acceptable confidentiality/UI boundary.
 
+A second same-context race remained after that repair. Detach captured the render-time `selected` value before awaiting the content receipt and project metadata persistence. A buyer could open the same score while detach was waiting; after metadata detachment was accepted, the stale closure still saw the earlier selection and could leave the now-detached PDF visible in the viewer even while Score Storage deletion proceeded.
+
 ## Decision
 
 ScoreView derives a context key from `(projectId, song.id)` and keeps the current key in a render-time ref. Every async read, attach and detach captures the key at operation start and rechecks it before any later UI mutation or lifecycle step.
 
 A project/song change invalidates the visible score selection, PDF bytes, read request generation, opening/attaching state and stale error state in `useLayoutEffect`, so the state reset and resulting rerender complete before the browser repaint. The render-time ref changes even earlier, during render, so an old promise resolving between the new render and the layout effect already fails the freshness check.
+
+Score selection also has a live ref synchronized with each selection transition. Detach consults that ref only after durable metadata acceptance. If the attachment being detached became selected while receipt lookup or metadata persistence was in flight, detach invalidates the read generation and clears selection, bytes and opening state before storage deletion. The decision is therefore based on the current same-context viewer state, not the render that initiated detach.
 
 Attach rechecks context after native publication and again after project metadata acceptance. If native publication completed for the old project after navigation, ScoreView does not attach that result to the new project and does not delete the bytes; the object remains a recovery candidate for higher-level reconciliation.
 
@@ -27,6 +31,8 @@ Detach rechecks context after receipt acquisition and again after project metada
 
 `7dfa1c6c7c8100619dd3eafcd9f01b153fd3cb9b` adds context-key invalidation and async revalidation. Owner self-review then compared the visible-state reset against React's documented effect timing: passive `useEffect` may allow a paint before its state reset, while `useLayoutEffect` processes its state updates before repaint. `e95de494fd3747a09fd23780188a474d51dd26ef` therefore changes only that visual invalidation boundary from passive to layout effect; async authority and storage semantics are unchanged.
 
+`721bddc70081329c860c267cb3b83ce73531a3c8` adds the same-context selection RED: remove begins while receipt lookup is pending, the buyer opens that score, metadata detachment is then accepted, and the viewer must no longer display the detached score. The previous closure-based `selected` check retained the bytes. `9f63bd53db01949670f35a7ed8cdf7cee46bc10e` repairs the cause by tracking live selection identity and clearing the current detached selection after metadata acceptance. The RED head did not receive terminal hosted evidence before the repair descendant, so no hosted RED is claimed.
+
 The focused regressions are owned by `score-storage-native` through the Ubuntu UI job. Hosted GREEN belongs only to an unchanged exact current head; predecessor native/UI verdicts do not transfer across this source change.
 
 ## Invariants and safe failure
@@ -36,9 +42,10 @@ The focused regressions are owned by `score-storage-native` through the Ubuntu U
 - Old-project attach completion never calls project metadata mutation for the new context.
 - Old-project detach receipt completion never starts metadata mutation for the new context.
 - If navigation occurs while detach metadata persistence is pending, Score Storage deletion is suppressed after the persistence result returns.
+- If the score being detached becomes selected while same-context detach is in flight, accepted metadata detachment invalidates that current selection and its bytes before storage deletion.
 - A stale operation does not manufacture compensating deletion authority. Published bytes remain recoverable rather than being guessed away.
 - Same-project metadata rerenders do not invalidate work because the key is based on project id and song id, not object identity.
 
 ## Claim boundary
 
-This closes the in-component asynchronous project-switch continuation and pre-paint stale-score reset boundary for ScoreView. The focused jsdom regression proves the state/lifecycle authority cases; the pre-paint timing claim follows the React client rendering contract and the use of `useLayoutEffect`, not a synthetic browser-paint timer. It does not claim atomicity across Project Persistence and Score Storage, shipped Tauri cancellation semantics, project deletion/recovery rollback, restart Recover/Preserve/Discard authorization, or old-build coexistence. Those remain separate acceptance work.
+This closes the in-component asynchronous project-switch continuation, pre-paint stale-score reset, and same-context detach-selection freshness boundaries for ScoreView. The focused jsdom regressions prove the state/lifecycle authority cases; the pre-paint timing claim follows the React client rendering contract and the use of `useLayoutEffect`, not a synthetic browser-paint timer. It does not claim atomicity across Project Persistence and Score Storage, shipped Tauri cancellation semantics, project deletion/recovery rollback, restart Recover/Preserve/Discard authorization, or old-build coexistence. Those remain separate acceptance work.
