@@ -44,6 +44,8 @@ Source-level RED `3484d5169b6e9b00501f4c6bf2f48e1165d6e144` added `project_persi
 
 Causal implementation `67febe0a049e642f5ced0c8cfb355d8b1108e25b` added the pure reconciliation service. `95aee6d464f1bbdc026cd4ab20ff5739ab6c116d` exported the contract from the canonical desktop-core root.
 
+Self-review after CI ownership wiring found that the initial error assertions called `Result<ScoreAttachmentRecoveryReconciliation, String>::as_deref()`, which is not available because the success type does not implement `Deref`. `e8f8da6ef3839e66182c3f2adca0da50f3c93d10` repairs the integration assertion and `75e5efe1be2c4f4b818d191b2ed8d79a04a38d2b` repairs the module regression by applying `err().as_deref()` to `Option<String>`. This is test-harness RCA, not a change to the reconciliation contract.
+
 No hosted RED is claimed for the test-only head because descendant repair commits were pushed before a terminal workflow verdict was available. Exact-head hosted evidence must be taken only from the final unchanged head.
 
 ## Remaining integration
