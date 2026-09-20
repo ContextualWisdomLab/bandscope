@@ -26,6 +26,7 @@ on:
       - "apps/desktop/src-tauri/src/bin/score-storage-fault-harness.rs"
       - "apps/desktop/src/features/score/ScoreView.tsx"
       - "apps/desktop/src/features/score/ScoreView.test.tsx"
+      - "apps/desktop/src/features/score/ScoreView.projectContext.test.tsx"
       - "apps/desktop/src/features/score/ScoreView.persistenceOutcome.test.tsx"
       - "apps/desktop/src/features/score/scoreStorage.ts"
       - "apps/desktop/src/features/score/scoreStorage.test.ts"
@@ -63,6 +64,7 @@ on:
       - "apps/desktop/src-tauri/src/bin/score-storage-fault-harness.rs"
       - "apps/desktop/src/features/score/ScoreView.tsx"
       - "apps/desktop/src/features/score/ScoreView.test.tsx"
+      - "apps/desktop/src/features/score/ScoreView.projectContext.test.tsx"
       - "apps/desktop/src/features/score/ScoreView.persistenceOutcome.test.tsx"
       - "apps/desktop/src/features/score/scoreStorage.ts"
       - "apps/desktop/src/features/score/scoreStorage.test.ts"
@@ -198,9 +200,10 @@ jobs:
           package-manager-cache: false
       - name: Install locked JavaScript dependencies
         run: npm ci
-      - name: Run receipt-bound score detach regressions
+      - name: Run receipt-bound score detach and project-context regressions
         run: >-
           npm exec --workspace=@bandscope/desktop -- vitest run
           src/features/score/ScoreView.test.tsx
+          src/features/score/ScoreView.projectContext.test.tsx
           src/features/score/scoreStorage.test.ts
           src/features/score/ScoreView.persistenceOutcome.test.tsx
