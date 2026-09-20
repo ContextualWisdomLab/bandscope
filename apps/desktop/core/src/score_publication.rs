@@ -4,7 +4,7 @@ const SCORE_ATTACH_ERROR: &str = "Could not attach the score PDF.";
 const BEFORE_METADATA_BARRIER_CHECKPOINT: &str = "before-metadata-barrier";
 
 #[cfg(feature = "score-storage-fault-injection")]
-fn wait_at_fault_checkpoint(checkpoint: &str) {
+pub(crate) fn wait_at_fault_checkpoint(checkpoint: &str) {
     use std::{
         ffi::OsStr,
         fs::OpenOptions,
@@ -42,7 +42,7 @@ fn wait_at_fault_checkpoint(checkpoint: &str) {
 }
 
 #[cfg(not(feature = "score-storage-fault-injection"))]
-fn wait_at_fault_checkpoint(_checkpoint: &str) {}
+pub(crate) fn wait_at_fault_checkpoint(_checkpoint: &str) {}
 
 #[cfg(target_os = "macos")]
 const SYNC_VOLUME_FULLSYNC: i32 = 0x01;
