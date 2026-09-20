@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { invoke } from "@tauri-apps/api/core";
 import { ScoreView } from "./ScoreView";
@@ -61,6 +61,11 @@ describe("ScoreView project-context invalidation", () => {
     mockInvoke.mockReset();
     tauriWindow.__TAURI_INTERNALS__ = { invoke: () => Promise.resolve(null) };
     vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    delete tauriWindow.__TAURI_INTERNALS__;
+    vi.restoreAllMocks();
   });
 
   it("does not render a read that resolves after the active project changes", async () => {
