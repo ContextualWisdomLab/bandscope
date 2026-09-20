@@ -19,6 +19,7 @@ REQUIRED_NATIVE_PERSISTENCE_PATHS = (
     '"apps/desktop/core/testdata/project-*.json"',
     '"apps/desktop/src/App.tsx"',
     '"apps/desktop/src/App.project-save-source-authority.test.tsx"',
+    '"apps/desktop/src/App.score-project-identity.test.tsx"',
     '"apps/desktop/src/features/workspace/SectionRoadmap.tsx"',
     '"apps/desktop/src/lib/analysis.ts"',
     '"apps/desktop/src/lib/analysis.workspace-single-flight.test.ts"',
