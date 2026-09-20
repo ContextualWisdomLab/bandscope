@@ -1,4 +1,7 @@
-use crate::{is_valid_score_id, score_storage, score_storage::remove_score_pdf_attachment};
+use crate::{
+    is_valid_score_id, score_retention::resolve_existing_score_pdf, score_storage,
+    score_storage::remove_score_pdf_attachment,
+};
 use std::{
     fs::{self, File, OpenOptions},
     path::{Path, PathBuf},
@@ -126,6 +129,11 @@ fn reserved_stage_score_id(name: &str) -> Option<&str> {
     is_valid_score_id(score_id).then_some(score_id)
 }
 
+fn published_score_id(name: &str) -> Option<&str> {
+    let score_id = name.strip_suffix(".pdf")?;
+    is_valid_score_id(score_id).then_some(score_id)
+}
+
 fn recover_abandoned_score_stages(
     scores_root: &Path,
     lease: &ScoreWorkspaceLease,
@@ -176,6 +184,46 @@ fn recover_abandoned_score_stages(
         removed += 1;
     }
     Ok(removed)
+}
+
+/// Return a deterministic inventory of safely published Score Storage objects.
+///
+/// The inventory is intentionally only byte/object truth. It does not claim
+/// that a returned score id is referenced by durable project metadata, nor
+/// whether an unreferenced object should be recovered or deleted. Project
+/// Persistence owns that lifecycle decision. Before listing, the function
+/// acquires the same cross-process lease as publication and performs the same
+/// abandoned-stage recovery so a fresh process cannot report a workspace while
+/// a current-contract writer is live or while stage-plus-destination state is
+/// ambiguous.
+///
+/// Security Notes: only exact `<uuid>.pdf` names enter the owned object
+/// inventory. Unrelated files are ignored rather than treated as Score Storage
+/// objects. A matching owned name must resolve through the existing retention
+/// boundary as a regular contained non-reparse object; suspicious matching
+/// entries and ambiguous publication state fail closed. No filesystem path,
+/// filename from the selected source, or PDF payload is returned.
+pub fn inventory_published_score_pdf_ids(scores_root: &Path) -> Result<Vec<String>, String> {
+    let lease = acquire_score_workspace_lease(scores_root)?;
+    recover_abandoned_score_stages(scores_root, &lease)?;
+
+    let mut score_ids = Vec::new();
+    let entries = fs::read_dir(scores_root).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(score_id) = published_score_id(name) else {
+            continue;
+        };
+        resolve_existing_score_pdf(scores_root, score_id)
+            .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+        score_ids.push(score_id.to_string());
+    }
+    score_ids.sort_unstable();
+    Ok(score_ids)
 }
 
 /// Publish one score attachment after recovering process-abandoned staging.
@@ -239,6 +287,17 @@ mod tests {
         assert_eq!(reserved_stage_score_id(".score-../escape.stage"), None);
         assert_eq!(reserved_stage_score_id("score-6fa459ea-ee8a-4ca4-894e-db77e160355e.stage"), None);
         assert_eq!(reserved_stage_score_id(".score-6fa459ea-ee8a-4ca4-894e-db77e160355e.tmp"), None);
+    }
+
+    #[test]
+    fn published_score_name_requires_exact_score_uuid_shape() {
+        assert_eq!(
+            published_score_id("6fa459ea-ee8a-4ca4-894e-db77e160355e.pdf"),
+            Some(SCORE_ID)
+        );
+        assert_eq!(published_score_id("notes.pdf"), None);
+        assert_eq!(published_score_id("../escape.pdf"), None);
+        assert_eq!(published_score_id("6fa459ea-ee8a-4ca4-894e-db77e160355e.PDF"), None);
     }
 
     #[test]
