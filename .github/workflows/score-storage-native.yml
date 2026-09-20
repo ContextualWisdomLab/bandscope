@@ -11,6 +11,7 @@ on:
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/content_sha256.rs"
       - "apps/desktop/core/src/score_pdf.rs"
+      - "apps/desktop/core/src/score_publication.rs"
       - "apps/desktop/core/src/score_recovery.rs"
       - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_storage.rs"
@@ -21,6 +22,7 @@ on:
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
       - "docs/traceability/score-attachment-post-link-recovery.md"
+      - "docs/traceability/score-attachment-success-durability.md"
       - ".github/workflows/score-storage-native.yml"
   push:
     branches:
@@ -32,6 +34,7 @@ on:
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/content_sha256.rs"
       - "apps/desktop/core/src/score_pdf.rs"
+      - "apps/desktop/core/src/score_publication.rs"
       - "apps/desktop/core/src/score_recovery.rs"
       - "apps/desktop/core/src/score_retention.rs"
       - "apps/desktop/core/src/score_storage.rs"
@@ -42,6 +45,7 @@ on:
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
       - "docs/traceability/score-attachment-post-link-recovery.md"
+      - "docs/traceability/score-attachment-success-durability.md"
       - ".github/workflows/score-storage-native.yml"
 
 permissions:
@@ -62,7 +66,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d199908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -79,8 +83,11 @@ jobs:
             --lib score_recovery::tests::
           cargo +1.97.1 test \
             --manifest-path apps/desktop/core/Cargo.toml \
+            --lib score_publication::tests::
+          cargo +1.97.1 test \
+            --manifest-path apps/desktop/core/Cargo.toml \
             --test content_sha256_shared_kernel
-      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, and wiring regressions
+      - name: Run Score Storage publication, retention, interruption, restart, inventory, receipt, durability, and wiring regressions
         run: >-
           cargo +1.97.1 test
           --manifest-path apps/desktop/core/Cargo.toml
@@ -90,4 +97,5 @@ jobs:
           --test score_pdf_restart_readback
           --test score_pdf_recovery_inventory
           --test score_pdf_recovery_object_receipt
+          --test score_pdf_success_durability
           --test score_pdf_attachment_wiring
