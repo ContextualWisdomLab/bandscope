@@ -158,6 +158,11 @@ fn published_score_id(name: &str) -> Option<&str> {
     is_valid_score_id(score_id).then_some(score_id)
 }
 
+fn validated_pdf_content_sha256(path: &Path) -> Result<String, String> {
+    let bytes = read_validated_score_pdf(path).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    sha256_hex_reader(Cursor::new(bytes)).map_err(|_| SCORE_RECOVERY_ERROR.to_string())
+}
+
 fn recover_abandoned_score_stages(
     scores_root: &Path,
     lease: &ScoreWorkspaceLease,
@@ -191,15 +196,28 @@ fn recover_abandoned_score_stages(
             }
         }
 
-        // A destination beside its staging alias means interruption may have
-        // happened after no-clobber publication. Score metadata persistence is
-        // not yet transactionally coupled to this storage layer, so deleting
-        // either pathname here could erase evidence or an attachment whose
-        // lifecycle authority is not established. Preserve both and fail
-        // closed; #1239 tracks that later lifecycle/recovery vertical.
         let destination = scores_root.join(format!("{score_id}.pdf"));
         match fs::symlink_metadata(&destination) {
-            Ok(_) => return Err(SCORE_RECOVERY_ERROR.to_string()),
+            Ok(_) => {
+                // The publisher creates the destination as a hard link to the
+                // synchronized stage. After a process dies between link creation
+                // and stage retirement, both names therefore contain the same
+                // validated PDF bytes. Content equality is sufficient recovery
+                // evidence to retire only the temporary alias while preserving
+                // the buyer bytes as an unreferenced recovery candidate. A
+                // different destination remains ambiguous and is preserved.
+                resolve_existing_score_pdf(scores_root, score_id)
+                    .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+                let stage_sha256 = validated_pdf_content_sha256(&stage)?;
+                let destination_sha256 = validated_pdf_content_sha256(&destination)?;
+                if stage_sha256 != destination_sha256 {
+                    return Err(SCORE_RECOVERY_ERROR.to_string());
+                }
+                remove_score_pdf_attachment(&stage)
+                    .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+                removed += 1;
+                continue;
+            }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_) => return Err(SCORE_RECOVERY_ERROR.to_string()),
         }
@@ -247,9 +265,7 @@ fn receipt_for_score_id(
     }
     let path = resolve_existing_score_pdf(scores_root, score_id)
         .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
-    let bytes = read_validated_score_pdf(&path).map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
-    let content_sha256 = sha256_hex_reader(Cursor::new(bytes))
-        .map_err(|_| SCORE_RECOVERY_ERROR.to_string())?;
+    let content_sha256 = validated_pdf_content_sha256(&path)?;
     Ok(PublishedScorePdfReceipt {
         score_id: score_id.to_string(),
         content_sha256,
@@ -350,18 +366,21 @@ pub fn remove_score_pdf_attachment_if_receipt_matches(
 /// The workspace lease spans recovery and the complete lower-level publication
 /// so another BandScope process using this contract cannot have a live writer
 /// mistaken for stale staging. A crash releases the OS lease automatically;
-/// the next publication removes only reserved `.score-<uuid>.stage` regular
-/// files for which no `<uuid>.pdf` destination exists, then proceeds through
-/// the existing bounded/private/no-clobber Score Storage publisher.
+/// the next operation removes a reserved `.score-<uuid>.stage` regular file
+/// when no destination exists. If a synchronized destination also exists and
+/// both names contain the same validated bytes, recovery retires only the stage
+/// alias and keeps the destination as a recovery candidate for Project
+/// Persistence. Different stage/destination bytes remain ambiguous and fail
+/// closed.
 ///
 /// Security Notes: malformed names are ignored because they are outside the
 /// owned staging namespace. Reserved symlink/reparse/non-regular entries,
-/// lock acquisition failure, unreadable directory state, or a stage with a
-/// destination already present fail closed. Errors contain neither absolute
-/// paths nor PDF bytes. This recovery closes abandoned *staging* from writers
-/// using this lease contract; it does not claim lifecycle authority for a
-/// destination created before an interruption or compatibility with an older
-/// concurrently running BandScope build that never acquired the lease.
+/// lock acquisition failure, unreadable directory state, or a stage plus a
+/// content-different destination fail closed. Errors contain neither absolute
+/// paths nor PDF bytes. This recovery covers current-contract stage-only and
+/// verified post-link interruption states; it does not claim compatibility
+/// with an older concurrently running BandScope build that never acquired the
+/// lease.
 pub fn publish_score_pdf_attachment(
     source: &Path,
     scores_root: &Path,
@@ -487,6 +506,30 @@ mod tests {
     }
 
     #[test]
+    fn recovery_retires_equal_post_link_stage_and_keeps_destination() {
+        let root = unique_test_dir("stage-and-equal-destination");
+        fs::create_dir_all(&root).expect("score root should be created");
+        let stage = root.join(format!(".score-{SCORE_ID}.stage"));
+        let destination = root.join(format!("{SCORE_ID}.pdf"));
+        fs::write(&stage, b"%PDF-1.7\npublished").expect("stage fixture should be written");
+        fs::hard_link(&stage, &destination)
+            .expect("post-link fixture should expose the destination alias");
+        let lease = acquire_score_workspace_lease(&root).expect("recovery should acquire lease");
+
+        let removed = recover_abandoned_score_stages(&root, &lease)
+            .expect("equal stage and destination should recover non-destructively");
+
+        assert_eq!(removed, 1);
+        assert!(!stage.exists());
+        assert_eq!(
+            fs::read(&destination).expect("published destination should remain"),
+            b"%PDF-1.7\npublished"
+        );
+        drop(lease);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn recovery_preserves_ambiguous_stage_plus_destination() {
         let root = unique_test_dir("stage-and-destination");
         fs::create_dir_all(&root).expect("score root should be created");
@@ -498,7 +541,7 @@ mod tests {
         let lease = acquire_score_workspace_lease(&root).expect("recovery should acquire lease");
 
         let error = recover_abandoned_score_stages(&root, &lease)
-            .expect_err("ambiguous published state must fail closed");
+            .expect_err("content-different published state must fail closed");
 
         assert_eq!(error, SCORE_RECOVERY_ERROR);
         assert!(stage.exists());
