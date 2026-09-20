@@ -16,6 +16,7 @@ pub(crate) use runtime_core as core;
 mod audio_resource;
 mod content_sha256;
 mod project_format;
+mod project_scoped_score_recovery;
 mod publication_identity;
 mod score_attachment_recovery;
 mod score_pdf;
@@ -35,14 +36,18 @@ pub use project_format::{
     ProjectDocumentPayload, ProjectMigrationReceipt, ProjectPreferencesPayload,
     ProjectSourceReferencePayload, SelectedPlaybackSourcePayload, CURRENT_PROJECT_FORMAT_VERSION,
 };
+pub use project_scoped_score_recovery::{
+    authorize_project_scoped_score_recovery_action,
+    recovery_attachment_metadata_for_project_action,
+    revalidate_project_scoped_score_recovery_action,
+    ProjectScopedScoreRecoveryAction,
+};
 pub use publication_identity::{
     build_local_audio_publication_identity, LocalAudioPublicationIdentity,
 };
 pub use runtime_core::*;
 pub use score_attachment_recovery::{
-    authorize_unreferenced_score_recovery_action, derive_score_attachment_recovery_candidates,
-    recovery_attachment_metadata_for_action, revalidate_unreferenced_score_recovery_action,
-    AuthorizedUnreferencedScoreRecoveryAction, RecoveredScoreAttachmentMetadata,
+    derive_score_attachment_recovery_candidates, RecoveredScoreAttachmentMetadata,
     ScoreAttachmentRecoveryReconciliation, UnreferencedScoreRecoveryDecision,
 };
 pub use score_pdf::read_validated_score_pdf;
