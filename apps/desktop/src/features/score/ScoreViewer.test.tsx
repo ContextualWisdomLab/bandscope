@@ -259,12 +259,15 @@ describe("ScoreViewer", () => {
 
     // Wrap the resize in an async act() so the resulting re-render and its async
     // getPage()/getViewport() calls flush deterministically before we assert.
+    vi.useFakeTimers();
     await act(async () => {
       resizeCallback?.(
         [{ contentRect: { width: 300 } } as ResizeObserverEntry],
         {} as ResizeObserver
       );
+      vi.advanceTimersByTime(200);
     });
+    vi.useRealTimers();
 
     await waitFor(() => {
       expect(page.getViewport).toHaveBeenCalledWith({ scale: 0.5 });

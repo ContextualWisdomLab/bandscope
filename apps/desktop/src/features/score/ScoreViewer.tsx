@@ -106,13 +106,20 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
       return;
     }
 
+    let timeoutId: number;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
+        window.clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => {
+          setContainerWidth(entry.contentRect.width);
+        }, 150);
       }
     });
     observer.observe(container);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timeoutId);
+    };
   }, [status]);
 
   useEffect(() => {

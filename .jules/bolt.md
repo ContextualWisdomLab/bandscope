@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-09-20 - Debounce ResizeObserver updates driving heavy renders
+**Learning:** Updating React state directly on ResizeObserver callbacks can lead to severe performance degradation if the resulting render triggers expensive operations (like pdf.js canvas repaints), because window resizes emit many events per second.
+**Action:** Always debounce state updates triggered by ResizeObserver when the update drives expensive component re-renders (like canvas repaints) by using a timeout and cleanup function in the useEffect.
