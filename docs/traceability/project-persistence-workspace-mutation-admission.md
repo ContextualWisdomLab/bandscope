@@ -22,6 +22,7 @@ A restart introduced one more authority gap. Renderer revision receipts are inte
 - Revision material is an opaque path-free content identity receipt, not a project-domain field or ontology label.
 - Restart/reopen binding may use only the exact app-owned workspace target resolved from the native project id. A selected export/import path is never revision authority.
 - An absent renderer receipt may bind to an existing workspace only when the canonical candidate bytes exactly equal the current durable workspace bytes. Equality binding must not stage or replace the target.
+- Equality binding does not relax ordinary workspace content admission: empty snapshots and snapshots above the 5 MiB bound remain rejected before revision binding.
 - The native warning-gated Project Persistence harness remains the single compile authority for crate-private production code. A new integration case must join that harness rather than recompiling the owner as an independent test crate and thereby manufacturing dead-code warnings.
 
 ## Renderer RED → fix evidence
@@ -78,6 +79,8 @@ The first exact `b0962e...` macOS owner run `35483630066` / job `106005815303` f
 
 `10a5076113fea4e83d0e96bfd426c63572d20cec`, `95726d517fbb8867de814abca343d158d825d115`, and `186e21871e2330c09bfc045a6ce1ce8e19866f33` repair CI ownership by adding `projectDocumentBridge.test.ts` to both native owner workflow trigger sets and to the workflow-policy contract. Native owner lanes still execute Rust persistence regressions; repository CI remains the execution authority for the TypeScript bridge test.
 
+`456400b77ea2e9ef7f91d3a4c49c75e32fb7f773` adds an edge regression for the equality shortcut itself: an existing empty file and an empty candidate must not become accepted merely because their SHA-256 digests match. `c2a3d46881e0b60a048d77b99fe350ed53d22f48` restores the ordinary workspace content admission in front of digest binding, so empty snapshots and snapshots above 5 MiB fail before recovery/binding and the equality path cannot bypass the established publication bounds.
+
 ## Decision
 
 A same-project overlapping workspace mutation is rejected rather than queued. Queuing was rejected because the bridge receives complete snapshots, not semantic deltas; a queued snapshot can already be stale and replaying it after the first commit would preserve the corruption window. Last-write-wins was rejected for the same reason.
@@ -104,7 +107,7 @@ On reopen, `load_project` may read a manual/exported file, but revision binding 
 
 Renderer admission is keyed by the BandScope-minted project id and released in `finally`. Native admission is acquired before workspace recovery and is held by an OS resource rather than a mutable pid marker. Linux/macOS use an already-authorized directory descriptor and Windows derives its mutex name from the native canonical target path; the mutex/lock name is never supplied by the WebView. A killed writer cannot leave a logically owned lock that requires guesswork to clear.
 
-The current durable target is opened through the Project Persistence no-follow/reparse-safe opener and bounded before hashing. Descriptor identity is checked against the path before and after digest calculation. A stale or presence-mismatched receipt fails before staging or replacement. Revision text is validated as lowercase 64-hex SHA-256 before comparison. An absent receipt with an existing target can only bind when the target digest equals the canonical candidate digest, and that path returns without staging or replacement.
+The current durable target is opened through the Project Persistence no-follow/reparse-safe opener and bounded before hashing. Descriptor identity is checked against the path before and after digest calculation. A stale or presence-mismatched receipt fails before staging or replacement. Revision text is validated as lowercase 64-hex SHA-256 before comparison. An absent receipt with an existing target can only bind when the target digest equals the canonical candidate digest, and that path returns without staging or replacement. Empty and over-limit candidates are rejected before equality comparison.
 
 The Unix parent-directory lock is intentionally scoped to the containing directory. App-owned BandScope aggregates live in separate project roots, so their workspace transactions remain independent. Manual exports into the same arbitrary user directory can serialize briefly on Unix; this is a conservative integrity trade-off and does not make manual exports participants in the app-owned revision contract.
 
@@ -118,7 +121,7 @@ Rejection exposes no filesystem path, project content, score data, revision valu
 - `projectDocumentSaveAuthority.test.ts` covers native revision-receipt retention/forwarding and malformed receipt rejection at the renderer boundary.
 - `projectDocumentBridge.test.ts` covers app-owned reopen binding before renderer acceptance, conflict rejection, and the portable-document no-bind boundary.
 - `project_persistence_native_write_admission.case` uses a real child process, pauses it only after the first target is published, proves a concurrent production write fails before replacement, terminates the first writer, and proves a later production write succeeds after OS ownership is released.
-- `project_persistence_workspace_revision.case` is part of the canonical warning-gated native harness and covers first publication, current-revision replacement, stale-revision rejection, restart equality binding without a stage, and target/revision mismatch without changing accepted bytes.
+- `project_persistence_workspace_revision.case` is part of the canonical warning-gated native harness and covers first publication, current-revision replacement, stale-revision rejection, restart equality binding without a stage, equality-path content admission, and target/revision mismatch without changing accepted bytes.
 - macOS and Windows Project Persistence native workflows are the exact-head execution authority for native admission/CAS. Repository CI is the execution authority for the TypeScript bridge regressions.
 
 ## Remaining risk
