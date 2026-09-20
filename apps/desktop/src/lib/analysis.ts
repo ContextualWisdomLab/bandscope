@@ -448,24 +448,36 @@ export async function saveProjectDocument(
  * before returning it to renderer state.
  *
  * A loaded document with a native `sourceReference` names an existing BandScope project aggregate.
- * The renderer clears any prior in-memory receipt and asks native Project Persistence to bind the
- * canonical source-free candidate to that exact app-owned workspace. Native code accepts an absent
- * receipt only when workspace bytes are absent (first publication) or byte-identical to the
- * canonical candidate; differing durable bytes fail closed before the document becomes UI state.
- * Portable documents without an app-owned source remain load-only and do not manufacture workspace
- * authority.
+ * The renderer temporarily withdraws any prior in-memory receipt while native Project Persistence
+ * binds the canonical source-free candidate to that exact app-owned workspace. Native code accepts
+ * an absent receipt only when workspace bytes are absent (first publication) or byte-identical to
+ * the canonical candidate; differing durable bytes fail closed before the document becomes UI
+ * state. A failed reopen restores any still-current receipt for the previously active aggregate so
+ * rejecting another document cannot silently revoke that session's CAS authority. Portable
+ * documents without an app-owned source remain load-only and do not manufacture workspace authority.
  */
 export async function loadProjectDocument(): Promise<ProjectDocument> {
   const response = await invokeAnalysis("load_project");
   const document = parseProjectDocument(response);
   if (document.sourceReference) {
     const projectId = document.sourceReference.projectId;
+    const previousContentRevision = workspaceContentRevisionByProject.get(projectId);
     workspaceContentRevisionByProject.delete(projectId);
-    await saveProjectDocument(
-      createProjectDocument(document.song, document.preferences.selectedPlaybackSource),
-      projectId,
-      true
-    );
+    try {
+      await saveProjectDocument(
+        createProjectDocument(document.song, document.preferences.selectedPlaybackSource),
+        projectId,
+        true
+      );
+    } catch (error) {
+      if (
+        previousContentRevision !== undefined &&
+        !workspaceContentRevisionByProject.has(projectId)
+      ) {
+        workspaceContentRevisionByProject.set(projectId, previousContentRevision);
+      }
+      throw error;
+    }
   }
   return document;
 }
