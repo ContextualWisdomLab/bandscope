@@ -20,7 +20,6 @@ on:
       - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/src/main.rs"
       - "apps/desktop/src-tauri/src/bin/score-storage-fault-harness.rs"
-      - "apps/desktop/src-tauri/tests/score_storage_executable_termination.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
@@ -49,7 +48,6 @@ on:
       - "apps/desktop/src-tauri/Cargo.toml"
       - "apps/desktop/src-tauri/src/main.rs"
       - "apps/desktop/src-tauri/src/bin/score-storage-fault-harness.rs"
-      - "apps/desktop/src-tauri/tests/score_storage_executable_termination.rs"
       - "docs/traceability/score-attachment-publication.md"
       - "docs/traceability/score-attachment-recovery-inventory.md"
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
@@ -149,9 +147,19 @@ jobs:
           --features score-storage-fault-injection
           --test score_pdf_process_termination_recovery
       - name: Run desktop-package executable process-termination recovery regression
-        run: >-
-          cargo +1.97.1 test
-          --manifest-path apps/desktop/src-tauri/Cargo.toml
-          --features score-storage-fault-injection
-          --bin score-storage-fault-harness
-          --test score_storage_executable_termination
+        shell: bash
+        run: |
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/bandscope-score-fault-harness"
+          cargo +1.97.1 build \
+            --manifest-path apps/desktop/src-tauri/Cargo.toml \
+            --features score-storage-fault-injection \
+            --bin score-storage-fault-harness
+          executable_suffix=""
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            executable_suffix=".exe"
+          fi
+          export BANDSCOPE_SCORE_STORAGE_FAULT_HARNESS_BIN="$CARGO_TARGET_DIR/debug/score-storage-fault-harness${executable_suffix}"
+          cargo +1.97.1 test \
+            --manifest-path apps/desktop/core/Cargo.toml \
+            --features score-storage-fault-injection \
+            --test score_pdf_desktop_package_termination_recovery
