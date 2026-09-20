@@ -1,4 +1,9 @@
-use bandscope_desktop_core::derive_score_attachment_recovery_candidates;
+use bandscope_desktop_core::{
+    authorize_unreferenced_score_recovery_action,
+    derive_score_attachment_recovery_candidates,
+    ScoreAttachmentRecoveryReconciliation,
+    UnreferencedScoreRecoveryDecision,
+};
 
 const REFERENCED_ID: &str = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
 const PUBLISHED_ONLY_ID: &str = "3f2c8f0e-1a2b-4c3d-8e9f-001122334455";
@@ -63,5 +68,84 @@ fn reconciliation_rejects_duplicate_or_malformed_owner_identities() {
     assert_eq!(
         malformed.err().as_deref(),
         Some("Could not reconcile score attachments.")
+    );
+}
+
+#[test]
+fn unreferenced_published_score_requires_an_explicit_preserve_or_discard_decision() {
+    let reconciliation = derive_score_attachment_recovery_candidates(
+        &[REFERENCED_ID.to_string(), MISSING_ID.to_string()],
+        &[PUBLISHED_ONLY_ID.to_string(), REFERENCED_ID.to_string()],
+    )
+    .expect("valid owner identities should reconcile");
+
+    let preserve = authorize_unreferenced_score_recovery_action(
+        &reconciliation,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Preserve,
+    )
+    .expect("buyer may explicitly preserve an unreferenced published object");
+    assert_eq!(preserve.score_id(), PUBLISHED_ONLY_ID);
+    assert_eq!(
+        preserve.decision(),
+        UnreferencedScoreRecoveryDecision::Preserve
+    );
+
+    let discard = authorize_unreferenced_score_recovery_action(
+        &reconciliation,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Discard,
+    )
+    .expect("buyer may explicitly discard an unreferenced published object");
+    assert_eq!(discard.score_id(), PUBLISHED_ONLY_ID);
+    assert_eq!(
+        discard.decision(),
+        UnreferencedScoreRecoveryDecision::Discard
+    );
+}
+
+#[test]
+fn recovery_action_never_authorizes_referenced_missing_or_unknown_score_ids() {
+    let reconciliation = derive_score_attachment_recovery_candidates(
+        &[REFERENCED_ID.to_string(), MISSING_ID.to_string()],
+        &[PUBLISHED_ONLY_ID.to_string(), REFERENCED_ID.to_string()],
+    )
+    .expect("valid owner identities should reconcile");
+
+    for score_id in [
+        REFERENCED_ID,
+        MISSING_ID,
+        "11111111-1111-4111-8111-111111111111",
+        "../escape",
+    ] {
+        let result = authorize_unreferenced_score_recovery_action(
+            &reconciliation,
+            score_id,
+            UnreferencedScoreRecoveryDecision::Discard,
+        );
+        assert_eq!(
+            result.err().as_deref(),
+            Some("Could not authorize score attachment recovery action."),
+            "{score_id} must not become cleanup authority"
+        );
+    }
+}
+
+#[test]
+fn forged_overlapping_reconciliation_cannot_authorize_destructive_cleanup() {
+    let forged = ScoreAttachmentRecoveryReconciliation {
+        referenced_and_published_score_ids: vec![PUBLISHED_ONLY_ID.to_string()],
+        unreferenced_published_score_ids: vec![PUBLISHED_ONLY_ID.to_string()],
+        missing_referenced_score_ids: Vec::new(),
+    };
+
+    let result = authorize_unreferenced_score_recovery_action(
+        &forged,
+        PUBLISHED_ONLY_ID,
+        UnreferencedScoreRecoveryDecision::Discard,
+    );
+    assert_eq!(
+        result.err().as_deref(),
+        Some("Could not authorize score attachment recovery action.")
     );
 }
