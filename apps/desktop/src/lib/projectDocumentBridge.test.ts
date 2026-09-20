@@ -70,19 +70,23 @@ describe("project document bridge", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it("returns the persisted source semantic and content identity with the reopened song", async () => {
+  it("binds a reopened app-owned document to the exact native workspace revision before returning it", async () => {
     const song = createDemoRehearsalSong();
-    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
-      song,
-      preferences: { selectedPlaybackSource: "vocals" },
-      sourceReference: {
-        projectId: "project-400-4",
-        artifactName: "source.flac",
-        extension: "flac",
-        fileSizeBytes: 8192,
-        contentSha256: CONTENT_SHA256
-      }
-    });
+    const invoke = vi
+      .fn()
+      .mockResolvedValueOnce({
+        song,
+        preferences: { selectedPlaybackSource: "vocals" },
+        sourceReference: {
+          projectId: "project-400-4",
+          artifactName: "source.flac",
+          extension: "flac",
+          fileSizeBytes: 8192,
+          contentSha256: CONTENT_SHA256
+        }
+      })
+      .mockResolvedValueOnce(CONTENT_SHA256);
+    tauriWindow.__TAURI_INVOKE__ = invoke;
 
     await expect(loadProjectDocument()).resolves.toEqual({
       song,
@@ -95,6 +99,52 @@ describe("project document bridge", () => {
         contentSha256: CONTENT_SHA256
       }
     });
+
+    expect(invoke).toHaveBeenNthCalledWith(1, "load_project", undefined);
+    expect(invoke).toHaveBeenNthCalledWith(2, "save_project", {
+      payload: {
+        song,
+        preferences: { selectedPlaybackSource: "vocals" }
+      },
+      projectId: "project-400-4",
+      workspace: true
+    });
+  });
+
+  it("fails the reopen before renderer acceptance when native workspace bytes conflict", async () => {
+    const song = createDemoRehearsalSong();
+    const invoke = vi
+      .fn()
+      .mockResolvedValueOnce({
+        song,
+        preferences: { selectedPlaybackSource: "full_mix" },
+        sourceReference: {
+          projectId: "project-400-5",
+          artifactName: "source.wav",
+          extension: "wav",
+          fileSizeBytes: 4096,
+          contentSha256: CONTENT_SHA256
+        }
+      })
+      .mockRejectedValueOnce(new Error("Project changed since it was opened."));
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+
+    await expect(loadProjectDocument()).rejects.toThrow("Project changed since it was opened.");
+  });
+
+  it("does not manufacture workspace authority for a portable document without an app-owned source", async () => {
+    const song = createDemoRehearsalSong();
+    const invoke = vi.fn().mockResolvedValue({
+      song,
+      preferences: { selectedPlaybackSource: "drums" }
+    });
+    tauriWindow.__TAURI_INVOKE__ = invoke;
+
+    await expect(loadProjectDocument()).resolves.toEqual({
+      song,
+      preferences: { selectedPlaybackSource: "drums" }
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a revocable playback authority returned across the project boundary", async () => {
