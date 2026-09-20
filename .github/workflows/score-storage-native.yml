@@ -23,6 +23,7 @@ on:
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
       - "docs/traceability/score-attachment-post-link-recovery.md"
       - "docs/traceability/score-attachment-success-durability.md"
+      - "docs/traceability/score-attachment-unix-stage-cleanup.md"
       - ".github/workflows/score-storage-native.yml"
   push:
     branches:
@@ -46,6 +47,7 @@ on:
       - "docs/traceability/score-attachment-recovery-object-receipt.md"
       - "docs/traceability/score-attachment-post-link-recovery.md"
       - "docs/traceability/score-attachment-success-durability.md"
+      - "docs/traceability/score-attachment-unix-stage-cleanup.md"
       - ".github/workflows/score-storage-native.yml"
 
 permissions:
