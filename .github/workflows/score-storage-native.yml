@@ -110,3 +110,9 @@ jobs:
           --test score_pdf_windows_acl_recovery
           --test score_pdf_unix_stage_cleanup_contract
           --test score_pdf_attachment_wiring
+      - name: Run production-publisher process-termination recovery regression
+        run: >-
+          cargo +1.97.1 test
+          --manifest-path apps/desktop/core/Cargo.toml
+          --features score-storage-fault-injection
+          --test score_pdf_process_termination_recovery
