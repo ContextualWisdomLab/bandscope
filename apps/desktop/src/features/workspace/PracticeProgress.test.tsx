@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
 
@@ -69,14 +69,18 @@ describe("PracticeProgress", () => {
     expect(handleChange).toHaveBeenCalledWith(0);
   });
 
-  it("calls onChange when slider is changed", () => {
+  it("calls onChange when slider is changed via keyboard", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     const slider = screen.getByRole("slider");
-    fireEvent.change(slider, { target: { value: "75" } });
 
-    expect(handleChange).toHaveBeenCalledWith(75);
+    await act(async () => {
+      slider.focus();
+      fireEvent.keyDown(slider, { key: "ArrowRight", code: "ArrowRight" });
+    });
+
+    expect(handleChange).toHaveBeenCalledWith(51);
   });
 
   it("keeps focus on interactive controls instead of the progress region", () => {
@@ -85,16 +89,6 @@ describe("PracticeProgress", () => {
 
     expect(screen.getByRole("region", { name: "practiceProgressRegionLabel" })).not.toHaveAttribute("tabindex");
     expect(screen.getByRole("slider")).toBeInTheDocument();
-  });
-
-  it("ignores invalid slider input gracefully", () => {
-    const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
-
-    const slider = screen.getByRole("slider");
-    fireEvent.change(slider, { target: { value: "invalid" } });
-
-    expect(handleChange).not.toHaveBeenCalled();
   });
 
   it("disables increase button when progress is 100", () => {

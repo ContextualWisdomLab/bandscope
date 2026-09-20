@@ -1,6 +1,8 @@
 import { memo, useCallback } from "react";
 import { Minus, Plus } from "lucide-react";
+import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Slider, SliderTrack, SliderIndicator, SliderThumb } from "../../components/ui/slider";
 
 /** Documented. */
 interface PracticeProgressProps {
@@ -28,10 +30,10 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
     onChange(Math.min(100, progress + 10));
   }, [progress, onChange]);
 
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    if (!Number.isNaN(value)) {
-      onChange(Math.max(0, Math.min(100, value)));
+  const handleSliderChange = useCallback((value: number | readonly number[]) => {
+    const numericValue = Array.isArray(value) ? value[0] : (typeof value === "number" ? value : undefined);
+    if (numericValue !== undefined) {
+      onChange(Math.max(0, Math.min(100, numericValue)));
     }
   }, [onChange]);
 
@@ -60,24 +62,22 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           <Minus className="size-4" aria-hidden="true" />
         </button>
 
-        <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-slate-900/50 shadow-inner">
-          <div
-            className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-          <input
+        <div className="relative flex h-3 flex-1 items-center">
+          <Slider
             id="practice-progress-slider"
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            value={progress}
-            onChange={handleSliderChange}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          />
+            min={0}
+            max={100}
+            step={1}
+            value={[progress]}
+            onValueChange={handleSliderChange}
+          >
+            <SliderPrimitive.Control className="w-full">
+              <SliderTrack>
+                <SliderIndicator />
+              </SliderTrack>
+              <SliderThumb aria-label={t("practiceProgressLabel")} />
+            </SliderPrimitive.Control>
+          </Slider>
         </div>
 
         <button

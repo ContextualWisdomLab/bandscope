@@ -61,3 +61,8 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+## 2026-09-20 - Slider UI Implementation
+
+**Learning:** Base UI's `Slider` component passes its state via `typeof className === 'function'` instead of propagating it to children. The internal structure separates `SliderPrimitive.Root` and `SliderPrimitive.Thumb` among others. A crucial learning for Testing Library and `Slider.Thumb`: when testing conditional classes applied via the state function, verify that the state object structure passed by Base UI actually contains the property you rely on (e.g., `disabled`). If checking `toHaveClass`, query the element where the class effectively renders. Wrapping `focus()` inside `act()` is necessary when triggering it for tests involving Base UI primitives.
+
+**Action:** When implementing Base UI state styling, carefully read the component type definitions to understand what state variables are available to the `className` function. When testing component behavior, explicitly test how the functional class behaves, as relying purely on the root component's prop may not reflect how inner primitive states execute the `className` function.
