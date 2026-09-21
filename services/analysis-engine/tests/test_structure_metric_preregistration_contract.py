@@ -9,7 +9,6 @@ from types import ModuleType
 
 import pytest
 from conftest import load_module
-
 from test_structure_noninferiority_policy import _registration, _result
 
 _EXPECTED_METRIC_CONTRACT = {
