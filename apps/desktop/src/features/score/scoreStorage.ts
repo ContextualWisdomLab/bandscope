@@ -20,6 +20,11 @@ const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
 // The cap matches the native Score Storage maximum so malformed IPC cannot create
 // a second oversized buffer or persist impossible attachment-size metadata.
 const MAX_SCORE_PDF_BRIDGE_BYTES = 25 * 1024 * 1024;
+// Native Score Storage mints lowercase hyphenated UUID identities and later read/remove
+// commands admit only that exact shape. Revalidate the returned identity before it can
+// enter project metadata so a malformed bridge response cannot create an attachment
+// that the native owner will deterministically refuse on the next operation.
+const SCORE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as
@@ -61,7 +66,8 @@ async function invokeScoreCommand(command: string, args: Record<string, unknown>
  * app-owned project workspace. Security Notes: the file path never crosses
  * the IPC boundary from JS; the Rust command owns the dialog, validation
  * (magic bytes, size cap, no symlinks), and the copy destination. The
- * renderer revalidates returned size metadata before accepting it.
+ * renderer revalidates returned identity, presentation, and size metadata
+ * before accepting it into project state.
  */
 export async function attachScorePdf(projectId: string, songId: string): Promise<ScoreAttachResult> {
   const response = await invokeScoreCommand("attach_score_pdf", { projectId, songId });
@@ -70,10 +76,14 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
   }
 
   const payload = response as Record<string, unknown>;
+  const scoreId = payload.scoreId;
+  const fileName = payload.fileName;
   const fileSizeBytes = payload.fileSizeBytes;
   if (
-    typeof payload.scoreId !== "string" ||
-    typeof payload.fileName !== "string" ||
+    typeof scoreId !== "string" ||
+    !SCORE_ID_PATTERN.test(scoreId) ||
+    typeof fileName !== "string" ||
+    fileName.length === 0 ||
     typeof fileSizeBytes !== "number" ||
     !Number.isSafeInteger(fileSizeBytes) ||
     fileSizeBytes <= 0 ||
@@ -83,8 +93,8 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
   }
 
   return {
-    id: payload.scoreId,
-    fileName: payload.fileName,
+    id: scoreId,
+    fileName,
     fileSizeBytes
   };
 }
