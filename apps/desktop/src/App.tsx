@@ -800,17 +800,29 @@ export function App() {
                     {t("saveProject")}
                   </Button>
                 ) : (
-                  <Button
-                    aria-disabled="true"
-                    title={t("saveRequiresAnalysis")}
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
-                    aria-label={t("saveProject")}
-                  >
-                    <Save className="mr-2 size-4" aria-hidden="true" />
-                    {t("saveProject")}
-                  </Button>
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            aria-disabled="true"
+                            aria-describedby="save-project-unavailable-reason"
+                            onClick={preventUnavailableAction}
+                            variant="outline"
+                            className="min-h-11 border-white/10 bg-white/5 font-semibold text-slate-100"
+                            aria-label={t("saveProject")}
+                          />
+                        }
+                      >
+                        <Save className="mr-2 size-4" aria-hidden="true" />
+                        {t("saveProject")}
+                      </TooltipTrigger>
+                      <TooltipContent>{t("saveRequiresAnalysis")}</TooltipContent>
+                    </Tooltip>
+                    <span id="save-project-unavailable-reason" className="sr-only">
+                      {t("saveRequiresAnalysis")}
+                    </span>
+                  </>
                 )}
                 <Button
                   onClick={handleStartAnalysis}
