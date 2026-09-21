@@ -9,6 +9,7 @@ import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _CANONICAL_ACTIVATION = "bash scripts/checks/activate_pinned_npm_runtime.sh"
+_SHELL_LINE_CONTINUATION = re.compile(r"\\\r?\n")
 _DIRECT_NPM = re.compile(
     r"(?:^|[;&|(){}]|\b(?:then|do)\b)\s*"
     r"(?:!\s*)?"
@@ -17,6 +18,12 @@ _DIRECT_NPM = re.compile(
     r"(?:(?:command|exec)\s+)?npm(?:\s|$)",
     re.MULTILINE,
 )
+
+
+def _contains_direct_npm(script: str) -> bool:
+    """Detect npm after applying the shell's escaped-newline joining rule."""
+    normalized = _SHELL_LINE_CONTINUATION.sub("", script)
+    return _DIRECT_NPM.search(normalized) is not None
 
 
 def test_direct_npm_detection_covers_shell_control_flow_boundaries() -> None:
@@ -31,7 +38,7 @@ def test_direct_npm_detection_covers_shell_control_flow_boundaries() -> None:
     )
 
     for script in scripts:
-        assert _DIRECT_NPM.search(script), script
+        assert _contains_direct_npm(script), script
 
 
 def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
@@ -59,7 +66,7 @@ def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
                 if isinstance(step, dict) and isinstance(step.get("run"), str)
             ]
             first_npm_index = next(
-                (index for index, command in enumerate(run_steps) if _DIRECT_NPM.search(command)),
+                (index for index, command in enumerate(run_steps) if _contains_direct_npm(command)),
                 None,
             )
             if first_npm_index is None:
