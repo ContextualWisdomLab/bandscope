@@ -45,6 +45,7 @@ Rejected. #1241 is a consumer. It must use the protected/released npm runtime ow
 2. `2ddd8b151c2223984eaa088f01865427ad04ae0b` routes release preflight through `bash scripts/checks/activate_pinned_npm_runtime.sh`.
 3. `ab04754df0f48798bb50d50baf4ab6aa38e89f1e` routes the security backstop through the same helper.
 4. `df20e63895968bea105510478ccc04995981d18d` strengthens the regression from literal `npm ci` matching to direct `npm` execution at normal shell-command boundaries, including common environment-assignment and `command npm` forms. This prevents npm command aliases or a different direct npm subcommand from silently escaping runtime admission.
+5. `a990e7c70b40dae748123d1447c7ae724edc60e6` removes the older inline-activation fallback from `test_npm_toolchain_contract.py`; both structural regressions now describe the same single canonical activation-path invariant instead of carrying contradictory executable policy.
 
 ## Exact-head verification finding
 
@@ -77,6 +78,7 @@ The structural regression recognizes direct npm execution at ordinary shell boun
 - Release and security workflows now consume the same runtime-admission implementation as CI/build owners.
 - SHA-512 locator admission, bounded transient acquisition retry, fail-closed nontransient behavior, and runtime verification have one workflow-level owner.
 - A future direct npm consumer cannot satisfy the repository test merely by reproducing `corepack enable npm` and `npm run check:npm-runtime` inline.
+- The original npm-consumer discovery test no longer encodes that rejected fallback, preventing future maintenance from reintroducing two conflicting policy definitions.
 
 ## Follow-up
 
