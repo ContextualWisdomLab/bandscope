@@ -1,7 +1,6 @@
 """Regression tests for failed-track scientific acceptance policy."""
 
 import pytest
-
 from test_structure_noninferiority_policy import _registration, _result, _validator
 
 
