@@ -10,6 +10,13 @@ import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _EXPECTED_NPM_VERSION = "10.9.9"
+_EXPECTED_NPM_INTEGRITY = (
+    "d60fba8cb42f688b81e33c2f1cbef2ad7b977166700ec0ad057f1b6d60ea6ef"
+    "2524abf673e20c35931cd8305d1dbb8887134d6eefdc0e7b8435bd458bf65b862"
+)
+_EXPECTED_PACKAGE_MANAGER = (
+    f"npm@{_EXPECTED_NPM_VERSION}+sha512.{_EXPECTED_NPM_INTEGRITY}"
+)
 _EXPECTED_NODE_VERSION = "22.22.3"
 _MINIMUM_NPM_TAR_VERSION = "7.5.19"
 _NPM_RUNTIME_CHECK = "node scripts/checks/verify_npm_runtime.mjs"
@@ -132,7 +139,7 @@ def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
     """Require npm and source-tree commands to reject a different generator."""
     manifest = _root_manifest()
 
-    assert manifest["packageManager"] == f"npm@{_EXPECTED_NPM_VERSION}"
+    assert manifest["packageManager"] == _EXPECTED_PACKAGE_MANAGER
     assert manifest["engines"] == {"node": ">=22.22.2 <23"}
     assert manifest["devEngines"] == {
         "packageManager": {
