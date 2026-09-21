@@ -10,6 +10,8 @@ const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
 const MAX_SCORE_BYTES = 25 * 1024 * 1024;
 const OVERSIZED_SCORE_BYTES = MAX_SCORE_BYTES + 1;
+const VALID_PROJECT_ID = "project-1-2";
+const VALID_SONG_ID = "song-1";
 const VALID_SCORE_ID = "6fa459ea-ee8a-4ca4-894e-db77e160355e";
 
 describe("scoreStorage bridge resolution", () => {
@@ -26,13 +28,13 @@ describe("scoreStorage bridge resolution", () => {
     // return null so callers fail closed instead of dereferencing `window`.
     vi.stubGlobal("window", undefined);
 
-    await expect(attachScorePdf("project-1", "song-1")).rejects.toThrow(
+    await expect(attachScorePdf(VALID_PROJECT_ID, VALID_SONG_ID)).rejects.toThrow(
       BRIDGE_UNAVAILABLE_MESSAGE
     );
-    await expect(readScorePdf("project-1", VALID_SCORE_ID)).rejects.toThrow(
+    await expect(readScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).rejects.toThrow(
       BRIDGE_UNAVAILABLE_MESSAGE
     );
-    await expect(removeScorePdf("project-1", VALID_SCORE_ID)).rejects.toThrow(
+    await expect(removeScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).rejects.toThrow(
       BRIDGE_UNAVAILABLE_MESSAGE
     );
   });
@@ -44,12 +46,52 @@ describe("scoreStorage bridge resolution", () => {
       fileSizeBytes: 2048
     });
 
-    await expect(attachScorePdf("project-1", "song-1")).resolves.toEqual({
+    await expect(attachScorePdf(VALID_PROJECT_ID, VALID_SONG_ID)).resolves.toEqual({
       id: VALID_SCORE_ID,
       fileName: "chart.pdf",
       fileSizeBytes: 2048
     });
   });
+
+  it.each(["project-1", "../project-1-2", "PROJECT-1-2", "project-1-2-extra"])(
+    "rejects malformed project id before every score IPC: %s",
+    async (projectId) => {
+      const mockInvoke = vi.fn().mockResolvedValue({
+        scoreId: VALID_SCORE_ID,
+        fileName: "chart.pdf",
+        fileSizeBytes: 2048
+      });
+      (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
+
+      await expect(attachScorePdf(projectId, VALID_SONG_ID)).rejects.toThrow(
+        INVALID_RESPONSE_MESSAGE
+      );
+      await expect(readScorePdf(projectId, VALID_SCORE_ID)).rejects.toThrow(
+        INVALID_RESPONSE_MESSAGE
+      );
+      await expect(removeScorePdf(projectId, VALID_SCORE_ID)).rejects.toThrow(
+        INVALID_RESPONSE_MESSAGE
+      );
+      expect(mockInvoke).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["", " ", "\t"])(
+    "rejects blank song id before attach IPC",
+    async (songId) => {
+      const mockInvoke = vi.fn().mockResolvedValue({
+        scoreId: VALID_SCORE_ID,
+        fileName: "chart.pdf",
+        fileSizeBytes: 2048
+      });
+      (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
+
+      await expect(attachScorePdf(VALID_PROJECT_ID, songId)).rejects.toThrow(
+        INVALID_RESPONSE_MESSAGE
+      );
+      expect(mockInvoke).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([
     ["empty score id", "", "chart.pdf"],
@@ -64,7 +106,7 @@ describe("scoreStorage bridge resolution", () => {
       fileSizeBytes: 2048
     });
 
-    await expect(attachScorePdf("project-1", "song-1")).rejects.toThrow(
+    await expect(attachScorePdf(VALID_PROJECT_ID, VALID_SONG_ID)).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
     );
   });
@@ -83,7 +125,7 @@ describe("scoreStorage bridge resolution", () => {
       fileSizeBytes
     });
 
-    await expect(attachScorePdf("project-1", "song-1")).rejects.toThrow(
+    await expect(attachScorePdf(VALID_PROJECT_ID, VALID_SONG_ID)).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
     );
   });
@@ -94,7 +136,7 @@ describe("scoreStorage bridge resolution", () => {
       const mockInvoke = vi.fn().mockResolvedValue([37, 80, 68, 70, 45]);
       (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
 
-      await expect(readScorePdf("project-1", scoreId)).rejects.toThrow(
+      await expect(readScorePdf(VALID_PROJECT_ID, scoreId)).rejects.toThrow(
         INVALID_RESPONSE_MESSAGE
       );
       expect(mockInvoke).not.toHaveBeenCalled();
@@ -107,7 +149,7 @@ describe("scoreStorage bridge resolution", () => {
       const mockInvoke = vi.fn().mockResolvedValue(true);
       (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
 
-      await expect(removeScorePdf("project-1", scoreId)).rejects.toThrow(
+      await expect(removeScorePdf(VALID_PROJECT_ID, scoreId)).rejects.toThrow(
         INVALID_RESPONSE_MESSAGE
       );
       expect(mockInvoke).not.toHaveBeenCalled();
@@ -117,7 +159,7 @@ describe("scoreStorage bridge resolution", () => {
   it("preserves exact bytes from a valid bridge array", async () => {
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue([0, 1, 255]);
 
-    await expect(readScorePdf("project-1", VALID_SCORE_ID)).resolves.toEqual(
+    await expect(readScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).resolves.toEqual(
       new Uint8Array([0, 1, 255])
     );
   });
@@ -129,7 +171,7 @@ describe("scoreStorage bridge resolution", () => {
   ])("rejects an empty %s bridge response", async (_label, createResponse) => {
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(createResponse());
 
-    await expect(readScorePdf("project-1", VALID_SCORE_ID)).rejects.toThrow(
+    await expect(readScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
     );
   });
@@ -145,7 +187,7 @@ describe("scoreStorage bridge resolution", () => {
     });
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(oversizedResponse);
 
-    await expect(readScorePdf("project-1", VALID_SCORE_ID)).rejects.toThrow(
+    await expect(readScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
     );
   });
@@ -178,7 +220,7 @@ describe("scoreStorage bridge resolution", () => {
   ])("rejects an oversized %s bridge response", async (_label, createResponse) => {
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(createResponse());
 
-    await expect(readScorePdf("project-1", VALID_SCORE_ID)).rejects.toThrow(
+    await expect(readScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
     );
   });
@@ -195,7 +237,7 @@ describe("scoreStorage bridge resolution", () => {
       .fn()
       .mockResolvedValue([0, invalidByte, 255]);
 
-    await expect(readScorePdf("project-1", VALID_SCORE_ID)).rejects.toThrow(
+    await expect(readScorePdf(VALID_PROJECT_ID, VALID_SCORE_ID)).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
     );
   });
