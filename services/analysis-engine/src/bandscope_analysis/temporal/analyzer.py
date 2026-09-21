@@ -30,7 +30,10 @@ BEATS_PER_BAR = 4
 
 def _single_line_log_repr(value: object) -> str:
     """Render a diagnostic value without letting its repr create log controls."""
-    rendered = repr(value)
+    try:
+        rendered = repr(value)
+    except Exception:
+        rendered = f"<{type(value).__name__} repr unavailable>"
     return "".join(
         character
         if character.isprintable()
