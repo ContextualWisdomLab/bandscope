@@ -88,23 +88,31 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 
-  it.each([
-    ["read", "score-1", [37, 80, 68, 70, 45]],
-    ["read", VALID_SCORE_ID.toUpperCase(), [37, 80, 68, 70, 45]],
-    ["remove", "score-1", true],
-    ["remove", VALID_SCORE_ID.toUpperCase(), true]
-  ])("rejects malformed score id before %s IPC", async (operation, scoreId, response) => {
-    const mockInvoke = vi.fn().mockResolvedValue(response);
-    (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
+  it.each(["score-1", VALID_SCORE_ID.toUpperCase()])(
+    "rejects malformed score id before read IPC: %s",
+    async (scoreId) => {
+      const mockInvoke = vi.fn().mockResolvedValue([37, 80, 68, 70, 45]);
+      (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
 
-    const promise =
-      operation === "read"
-        ? readScorePdf("project-1", scoreId)
-        : removeScorePdf("project-1", scoreId);
+      await expect(readScorePdf("project-1", scoreId)).rejects.toThrow(
+        INVALID_RESPONSE_MESSAGE
+      );
+      expect(mockInvoke).not.toHaveBeenCalled();
+    }
+  );
 
-    await expect(promise).rejects.toThrow(INVALID_RESPONSE_MESSAGE);
-    expect(mockInvoke).not.toHaveBeenCalled();
-  });
+  it.each(["score-1", VALID_SCORE_ID.toUpperCase()])(
+    "rejects malformed score id before remove IPC: %s",
+    async (scoreId) => {
+      const mockInvoke = vi.fn().mockResolvedValue(true);
+      (window as TauriWindow).__TAURI_INVOKE__ = mockInvoke;
+
+      await expect(removeScorePdf("project-1", scoreId)).rejects.toThrow(
+        INVALID_RESPONSE_MESSAGE
+      );
+      expect(mockInvoke).not.toHaveBeenCalled();
+    }
+  );
 
   it("preserves exact bytes from a valid bridge array", async () => {
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue([0, 1, 255]);
