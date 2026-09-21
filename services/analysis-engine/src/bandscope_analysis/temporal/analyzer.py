@@ -28,6 +28,17 @@ KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
 BEATS_PER_BAR = 4
 
 
+def _single_line_log_repr(value: object) -> str:
+    """Render a diagnostic value without letting its repr create log controls."""
+    rendered = repr(value)
+    return "".join(
+        character
+        if character.isprintable()
+        else character.encode("unicode_escape").decode("ascii")
+        for character in rendered
+    )
+
+
 def _estimate_downbeats(
     onset_env: NDArray[np.floating[Any]],
     beat_frames: NDArray[np.integer[Any]],
@@ -73,7 +84,7 @@ class TemporalAnalyzer:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
-        logger.info("Loading and decoding audio: %s", repr(path_str))
+        logger.info("Loading and decoding audio: %s", _single_line_log_repr(path_str))
 
         try:
             with path.open("rb") as fileobj:
@@ -140,5 +151,9 @@ class TemporalAnalyzer:
             }
 
         except Exception as e:
-            logger.error("Failed to analyze audio %s: %s", repr(path_str), repr(e))
+            logger.error(
+                "Failed to analyze audio %s: %s",
+                _single_line_log_repr(path_str),
+                _single_line_log_repr(e),
+            )
             raise ValueError(f"Temporal analysis failed: {e}") from e
