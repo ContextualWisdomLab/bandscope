@@ -40,6 +40,8 @@ The scope wrapper validates project identity, durable revision encoding, and the
 
 A SHA-256 revision here is content identity/CAS evidence, not an authenticity or cryptographic-signature claim. Its authority comes from the native Project Persistence boundary that computes and rereads the durable project bytes immediately around mutation.
 
+The same-project stale-intent case is a state-race problem consistent with MITRE CWE-367: the product checks one resource state, but that state can change before later use. The mitigation applied here is not a timing heuristic. Mutation authority is conditioned on a fresh exact revision comparison at the use boundary, after which the existing persistence CAS remains responsible for the durable write.
+
 ## Test points
 
 Source-level RED `3aaf84d9dd34b3f7f7c12f17cd4a9ffa97b8dca9` established project-id scoping: authorize Recover for Project A, keep candidate sets unchanged, then attempt to consume the decision under Project B. The decision and metadata creation must both fail closed.
@@ -51,6 +53,10 @@ Repair `fb97bd05b9fe16181c3c09af768c4e69771c14f8` adds the revision to `ProjectS
 Earlier repairs `f0fc96b67d18c9a2c168f1864a091edf835ea3e2` and `85c48a02ed8d09b11df1dd2bebf5eae60b38570f` established the scoped authorization layer and removed unscoped mutation-authority helpers from the public desktop-core surface. Native Project Persistence workflows include this source and the `project_persistence_score_recovery` integration target in their exact-head trigger/test set.
 
 Hosted GREEN must be claimed only for the final unchanged exact head after both owner-native lanes execute the revision-bound integration contract.
+
+## References
+
+MITRE. (2026). *CWE-367: Time-of-check Time-of-use (TOCTOU) race condition* (CWE 4.20). https://cwe.mitre.org/data/definitions/367.html
 
 ## Remaining integration
 
