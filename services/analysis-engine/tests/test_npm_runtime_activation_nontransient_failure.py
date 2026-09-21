@@ -121,6 +121,27 @@ def test_pinned_npm_activation_does_not_retry_signature_failure(tmp_path: Path) 
     os.name == "nt",
     reason="shell helper is exercised by hosted Windows lanes",
 )
+def test_pinned_npm_activation_does_not_retry_mixed_integrity_timeout_failure(
+    tmp_path: Path,
+) -> None:
+    """Integrity failure wins over a timeout token in the same Corepack diagnostic."""
+    result = _run_corepack_failure(
+        tmp_path,
+        diagnostic=(
+            "Integrity check failed while validating package-manager metadata; "
+            "registry request ended with ETIMEDOUT"
+        ),
+    )
+
+    _assert_immediate_failure(*result)
+    assert "Integrity check failed" in result[0].stderr
+    assert "not classified as transient" in result[0].stderr
+
+
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="shell helper is exercised by hosted Windows lanes",
+)
 def test_pinned_npm_activation_does_not_retry_unknown_failure(tmp_path: Path) -> None:
     """An unclassified Corepack failure must fail closed instead of being guessed transient."""
     result = _run_corepack_failure(
