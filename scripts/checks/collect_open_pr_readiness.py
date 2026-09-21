@@ -222,7 +222,9 @@ def _graphql_batch_query(numbers: list[int]) -> str:
                     name
                     status
                     conclusion
-                    app {{ databaseId }}
+                    checkSuite {{
+                      app {{ databaseId }}
+                    }}
                   }}
                   ... on StatusContext {{
                     context
@@ -293,12 +295,15 @@ def _normalize_check_contexts(pr_node: dict[str, Any], expected_head: str) -> li
         context = _record(raw_context, f"status context[{index}]")
         typename = context.get("__typename")
         if typename == "CheckRun":
-            app = context.get("app")
+            check_suite = _record(
+                context.get("checkSuite"), f"status context[{index}].checkSuite"
+            )
+            app = check_suite.get("app")
             app_id: int | None = None
             if app is not None:
                 app_id = _nullable_positive_int(
-                    _record(app, f"status context[{index}].app").get("databaseId"),
-                    f"status context[{index}].app.databaseId",
+                    _record(app, f"status context[{index}].checkSuite.app").get("databaseId"),
+                    f"status context[{index}].checkSuite.app.databaseId",
                 )
             normalized.append(
                 {
