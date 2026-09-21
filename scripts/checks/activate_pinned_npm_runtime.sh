@@ -8,8 +8,13 @@ package_manager_spec="$({
 import { readFileSync } from "node:fs";
 
 const manifest = JSON.parse(readFileSync("package.json", "utf8"));
-if (typeof manifest.packageManager !== "string" || !/^npm@[0-9]+\.[0-9]+\.[0-9]+$/.test(manifest.packageManager)) {
-  throw new Error("package.json must pin packageManager to an exact npm version");
+if (
+  typeof manifest.packageManager !== "string" ||
+  !/^npm@[0-9]+\.[0-9]+\.[0-9]+\+sha512\.[0-9a-f]{128}$/.test(manifest.packageManager)
+) {
+  throw new Error(
+    "package.json must pin packageManager to an exact npm version plus SHA-512 integrity"
+  );
 }
 process.stdout.write(manifest.packageManager);
 NODE
