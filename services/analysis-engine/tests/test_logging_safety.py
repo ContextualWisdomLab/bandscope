@@ -13,19 +13,46 @@ from bandscope_analysis import cli
 from bandscope_analysis.temporal import TemporalAnalyzer
 from bandscope_analysis.temporal import analyzer as analyzer_module
 
+_LOG_CONTROL_ESCAPES = (
+    ("\n", "\\n"),
+    ("\r", "\\r"),
+    ("\t", "\\t"),
+    ("\x1b", "\\x1b"),
+    ("\x00", "\\x00"),
+)
+_HOSTILE_LOG_VALUES = (
+    "FORGED\nSECURITY EVENT",
+    "FORGED\r\nSECURITY EVENT",
+    "FORGED\tSECURITY EVENT",
+    "FORGED\x1b[31mSECURITY EVENT",
+    "FORGED\x00SECURITY EVENT",
+    "정상-유니코드-é",
+)
 
+
+def _assert_log_value_is_single_record(rendered: str, untrusted_value: str) -> None:
+    for control_character, escaped_form in _LOG_CONTROL_ESCAPES:
+        assert control_character not in rendered
+        if control_character in untrusted_value:
+            assert escaped_form in rendered
+    if untrusted_value == "정상-유니코드-é":
+        assert untrusted_value in rendered
+
+
+@pytest.mark.parametrize("untrusted_value", _HOSTILE_LOG_VALUES)
 def test_temporal_error_log_escapes_exception_control_characters(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
+    untrusted_value: str,
 ) -> None:
     """Decoder failures must not inject a second physical log line."""
     audio_path = tmp_path / "buyer-audio.wav"
     audio_path.write_bytes(b"not-a-real-wave")
 
     def fail_decode(*_args: object, **_kwargs: object) -> object:
-        """Raise a decoder error containing an injected physical newline."""
-        raise RuntimeError("decoder failed\nFORGED SECURITY EVENT")
+        """Raise a decoder error carrying the parameterized untrusted value."""
+        raise RuntimeError(untrusted_value)
 
     monkeypatch.setattr(analyzer_module.librosa, "load", fail_decode)
     caplog.set_level(logging.ERROR, logger=analyzer_module.__name__)
@@ -39,16 +66,17 @@ def test_temporal_error_log_escapes_exception_control_characters(
         if record.name == analyzer_module.__name__ and record.levelno >= logging.ERROR
     ]
     assert len(messages) == 1
-    assert "\n" not in messages[0]
-    assert "\\n" in messages[0]
+    _assert_log_value_is_single_record(messages[0], untrusted_value)
 
 
+@pytest.mark.parametrize("untrusted_value", _HOSTILE_LOG_VALUES)
 def test_cli_logs_untrusted_filename_as_single_line(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
+    untrusted_value: str,
 ) -> None:
     """Local-audio labels must stay on one physical log line on fallback."""
-    malicious_name = "buyer.wav\nFORGED SECURITY EVENT"
+    malicious_name = f"buyer-{untrusted_value}.wav"
     stdin = io.StringIO(
         json.dumps(
             {
@@ -98,8 +126,8 @@ def test_cli_logs_untrusted_filename_as_single_line(
     messages = [
         record.getMessage()
         for record in caplog.records
-        if "buyer.wav" in record.getMessage()
+        if "buyer-" in record.getMessage()
     ]
     assert len(messages) == 2
-    assert all("\n" not in message for message in messages)
-    assert all("\\n" in message for message in messages)
+    for message in messages:
+        _assert_log_value_is_single_record(message, untrusted_value)
