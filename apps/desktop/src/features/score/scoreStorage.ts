@@ -103,25 +103,27 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
  * Read the validated score PDF bytes for a previously attached score.
  * Security Notes: only allowlisted ids cross the IPC boundary; the Rust
  * command rebuilds and canonicalizes the path inside the app-owned root.
- * The renderer rejects oversized byte containers before copying or parsing.
+ * The renderer rejects empty or oversized byte containers before copying or parsing.
  */
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
   if (response instanceof Uint8Array) {
-    if (response.byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
+    const byteLength = response.byteLength;
+    if (byteLength > 0 && byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
       return response;
     }
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
   if (response instanceof ArrayBuffer) {
-    if (response.byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
+    const byteLength = response.byteLength;
+    if (byteLength > 0 && byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
       return new Uint8Array(response);
     }
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
   if (Array.isArray(response)) {
     const len = response.length;
-    if (len > MAX_SCORE_PDF_BRIDGE_BYTES) {
+    if (len === 0 || len > MAX_SCORE_PDF_BRIDGE_BYTES) {
       throw new Error(INVALID_RESPONSE_MESSAGE);
     }
 
