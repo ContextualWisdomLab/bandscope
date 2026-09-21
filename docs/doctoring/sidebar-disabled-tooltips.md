@@ -39,7 +39,9 @@ Alternatives rejected:
 
 ## Evidence and claim boundary
 
-MDN states that `aria-disabled="true"` communicates disabled semantics but does not suppress functionality; developers must suppress behavior themselves. W3C WCAG 2.2 SC 1.4.10 explains that ordinary text content should reflow within a viewport rather than force two-dimensional scrolling. MDN defines `prefers-reduced-motion` as the user preference for reducing non-essential motion. These sources support the interaction, wrapping, and motion-preference boundaries; they do not prove BandScope conformance by themselves.
+WAI-ARIA 1.3 distinguishes an accessible name from a more verbose accessible description and recommends `aria-describedby` when a short description already exists in the DOM. W3C Authoring Practices likewise documents a button referencing sibling descriptive text with `aria-describedby` and notes that `title` is a lower-priority fallback that can be inaccessible to users without a hover-capable pointing device. That directly supports keeping `Save Project` as the action name while exposing the prerequisite reason as a separate persistent description.
+
+MDN states that `aria-disabled="true"` communicates disabled semantics but does not suppress functionality; developers must suppress behavior themselves. W3C WCAG 2.2 SC 1.4.10 explains that ordinary text content should reflow within a viewport rather than force two-dimensional scrolling. MDN defines `prefers-reduced-motion` as the user preference for reducing non-essential motion. These sources support the interaction, description, wrapping, and motion-preference boundaries; they do not prove BandScope conformance by themselves.
 
 The repository lockfile on this stack identifies `@base-ui/react` 1.7.0. The Base UI trigger contract renders a button by default and supports the `render` composition used for the unavailable Save Button. Earlier review that reasoned from Radix-specific semantics was dismissed only after the repository added Base UI trigger-forwarding evidence; that dismissal is not an approval and does not satisfy current-head review.
 
@@ -55,6 +57,7 @@ Current automated evidence covers App DOM semantics, the focused unavailable-Sav
 - Reviewer learning note: `.jules/palette.md`
 - Dependency authority: root `package-lock.json`, `@base-ui/react` 1.7.0 on this stack
 - Upstream implementation authority: Base UI Tooltip/Button render composition
+- Accessibility description authority: WAI-ARIA 1.3 and W3C Authoring Practices accessible-name/description guidance
 
 ## Security Notes
 
@@ -67,5 +70,9 @@ The MDN, W3C, and upstream Base UI URLs in this doctoring note are documentation
 Mozilla Developer Network. (2025, November 6). *ARIA: aria-disabled attribute*. MDN Web Docs. https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-disabled
 
 Mozilla Developer Network. (2026, June 10). *prefers-reduced-motion CSS media feature*. MDN Web Docs. https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion
+
+World Wide Web Consortium. (2026, June 4). *Accessible Rich Internet Applications (WAI-ARIA) 1.3*. https://www.w3.org/TR/2026/WD-wai-aria-1.3-20260604/
+
+World Wide Web Consortium, Web Accessibility Initiative. (n.d.). *Providing accessible names and descriptions*. Retrieved September 21, 2026, from https://www.w3.org/WAI/ARIA/apg/practices/names-and-descriptions/
 
 W3C Accessibility Guidelines Working Group. (2026, August 10). *Understanding Success Criterion 1.4.10: Reflow*. W3C Web Accessibility Initiative. https://www.w3.org/WAI/WCAG22/Understanding/reflow
