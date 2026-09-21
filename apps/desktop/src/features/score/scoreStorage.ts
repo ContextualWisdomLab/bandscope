@@ -16,8 +16,9 @@ export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
-// Mirrors the native Score Storage admission contract at the JS IPC boundary so a
-// malformed bridge response cannot allocate or feed a second oversized PDF buffer.
+// Keep renderer-side admission bounded independently of the bridge implementation.
+// The cap matches the native Score Storage maximum so malformed IPC cannot create
+// a second oversized buffer or persist impossible attachment-size metadata.
 const MAX_SCORE_PDF_BRIDGE_BYTES = 25 * 1024 * 1024;
 
 /**
@@ -59,25 +60,32 @@ async function invokeScoreCommand(command: string, args: Record<string, unknown>
  * Open the native PDF picker and copy the validated score into the
  * app-owned project workspace. Security Notes: the file path never crosses
  * the IPC boundary from JS; the Rust command owns the dialog, validation
- * (magic bytes, size cap, no symlinks), and the copy destination.
+ * (magic bytes, size cap, no symlinks), and the copy destination. The
+ * renderer revalidates returned size metadata before accepting it.
  */
 export async function attachScorePdf(projectId: string, songId: string): Promise<ScoreAttachResult> {
   const response = await invokeScoreCommand("attach_score_pdf", { projectId, songId });
+  if (typeof response !== "object" || response === null) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  const payload = response as Record<string, unknown>;
+  const fileSizeBytes = payload.fileSizeBytes;
   if (
-    typeof response !== "object" ||
-    response === null ||
-    typeof (response as Record<string, unknown>).scoreId !== "string" ||
-    typeof (response as Record<string, unknown>).fileName !== "string" ||
-    typeof (response as Record<string, unknown>).fileSizeBytes !== "number"
+    typeof payload.scoreId !== "string" ||
+    typeof payload.fileName !== "string" ||
+    typeof fileSizeBytes !== "number" ||
+    !Number.isSafeInteger(fileSizeBytes) ||
+    fileSizeBytes <= 0 ||
+    fileSizeBytes > MAX_SCORE_PDF_BRIDGE_BYTES
   ) {
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
 
-  const payload = response as { scoreId: string; fileName: string; fileSizeBytes: number };
   return {
     id: payload.scoreId,
     fileName: payload.fileName,
-    fileSizeBytes: payload.fileSizeBytes
+    fileSizeBytes
   };
 }
 
@@ -85,6 +93,7 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
  * Read the validated score PDF bytes for a previously attached score.
  * Security Notes: only allowlisted ids cross the IPC boundary; the Rust
  * command rebuilds and canonicalizes the path inside the app-owned root.
+ * The renderer rejects oversized byte containers before copying or parsing.
  */
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
