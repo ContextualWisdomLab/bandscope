@@ -14,6 +14,11 @@ _BUILD_BASELINE = _REPOSITORY_ROOT / ".github" / "workflows" / "build-baseline.y
 _CI_WORKFLOW = _REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 _ACTIVATION_HELPER = _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
 _ACTIVATION_COMMAND = "bash scripts/checks/activate_pinned_npm_runtime.sh"
+_EXPECTED_PACKAGE_MANAGER = (
+    "npm@10.9.9+sha512."
+    "d60fba8cb42f688b81e33c2f1cbef2ad7b977166700ec0ad057f1b6d60ea6ef"
+    "2524abf673e20c35931cd8305d1dbb8887134d6eefdc0e7b8435bd458bf65b862"
+)
 
 
 def _job_steps(job: object) -> list[dict[str, object]]:
@@ -49,7 +54,7 @@ def _fake_command_environment(
 
     _write_executable(
         fake_bin / "node",
-        "#!/usr/bin/env bash\ncat >/dev/null\nprintf 'npm@10.9.9'\n",
+        f"#!/usr/bin/env bash\ncat >/dev/null\nprintf '%s' {_EXPECTED_PACKAGE_MANAGER!r}\n",
     )
     _write_executable(
         fake_bin / "corepack",
@@ -186,7 +191,7 @@ def test_pinned_npm_activation_helper_retries_acquisition_but_never_falls_back()
     assert "corepack enable npm" in source
     assert "npm run check:npm-runtime" in source
     assert "sleep_seconds=$((attempt * 5))" in source
-    assert "/^npm@[0-9]+\\.[0-9]+\\.[0-9]+$/" in source
+    assert r"/^npm@[0-9]+\.[0-9]+\.[0-9]+\+sha512\.[0-9a-f]{128}$/" in source
     assert "|| true" not in source
     assert "npm@10.9.8" not in source
 
@@ -210,7 +215,7 @@ def test_pinned_npm_activation_recovers_after_two_transient_acquisition_failures
     assert npm_log.read_text(encoding="utf-8").splitlines() == ["run check:npm-runtime"]
     assert corepack_enable_log.read_text(encoding="utf-8").splitlines() == ["enable npm"]
     assert "ETIMEDOUT" in completed.stderr
-    assert "retrying exact npm@10.9.9" in completed.stderr
+    assert f"retrying exact {_EXPECTED_PACKAGE_MANAGER}" in completed.stderr
 
 
 @pytest.mark.skipif(
