@@ -8,7 +8,6 @@ import struct
 from pathlib import Path
 
 import pytest
-
 from test_structure_corpus_admission import (
     _admission,
     _digest,
