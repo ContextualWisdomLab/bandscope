@@ -142,6 +142,7 @@ def _tracks() -> list[dict[str, object]]:
 
 
 def test_macro_track_aggregation_recomputes_f_and_preserves_worst_peak_memory() -> None:
+    """Aggregate equal-weight tracks and retain the worst observed peak memory."""
     aggregation = _aggregation()
 
     evidence = aggregation.aggregate_complete_track_measurements(
@@ -167,6 +168,7 @@ def test_macro_track_aggregation_recomputes_f_and_preserves_worst_peak_memory() 
 
 
 def test_paired_bootstrap_is_deterministic_and_resamples_track_pairs() -> None:
+    """Keep paired bootstrap output deterministic for a frozen seed and track set."""
     aggregation = _aggregation()
     uncertainty = {
         "procedure_id": "paired-track-bootstrap-v1",
@@ -217,6 +219,7 @@ def test_percentile_projection_preserves_asymmetric_interval_bounds() -> None:
 
 
 def test_aggregation_fails_closed_on_duplicate_tracks_or_unsupported_uncertainty() -> None:
+    """Reject duplicate track weight and uncertainty plans outside preregistration."""
     aggregation = _aggregation()
     duplicate = _tracks()
     duplicate[1]["track_id"] = "track-a"
