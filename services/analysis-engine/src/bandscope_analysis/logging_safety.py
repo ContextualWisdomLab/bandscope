@@ -1,4 +1,4 @@
-"""Bounded rendering helpers for untrusted analysis log fields."""
+"""Bounded rendering helpers for untrusted analysis diagnostics."""
 
 from __future__ import annotations
 
@@ -21,11 +21,11 @@ def single_line_log_text(
     *,
     max_chars: int = MAX_LOG_DIAGNOSTIC_CHARS,
 ) -> str:
-    """Escape controls and cap one untrusted textual log field.
+    """Escape controls and cap one untrusted textual diagnostic field.
 
     The function stops reading input once the rendered budget is exhausted, so
     oversized buyer/dependency text cannot force a full-size escaped copy solely
-    for routine diagnostics.
+    for diagnostics.
     """
     if max_chars < len(_LOG_TRUNCATION_SUFFIX):
         raise ValueError("max_chars is too small for the truncation marker")
@@ -60,8 +60,20 @@ def safe_log_value(value: object) -> str:
     return f"<{_safe_type_name(value)}>"
 
 
+def safe_exception_message(error: BaseException) -> str:
+    """Return bounded exception text without calling dependency ``str``/``repr``."""
+    try:
+        args = BaseException.args.__get__(error, type(error))
+    except Exception:
+        return _safe_type_name(error)
+
+    if not args or type(args[0]) is not str or not args[0]:
+        return _safe_type_name(error)
+    return single_line_log_text(args[0])
+
+
 def safe_exception_summary(error: BaseException) -> str:
-    """Render a bounded exception summary without calling dependency ``str``/``repr``."""
+    """Render a bounded typed exception summary without dependency ``str``/``repr``."""
     error_type = _safe_type_name(error)
     try:
         args = BaseException.args.__get__(error, type(error))
