@@ -10,6 +10,11 @@ import pytest
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _ACTIVATION_HELPER = _REPOSITORY_ROOT / "scripts" / "checks" / "activate_pinned_npm_runtime.sh"
+_EXPECTED_PACKAGE_MANAGER = (
+    "npm@10.9.9+sha512."
+    "d60fba8cb42f688b81e33c2f1cbef2ad7b977166700ec0ad057f1b6d60ea6ef"
+    "2524abf673e20c35931cd8305d1dbb8887134d6eefdc0e7b8435bd458bf65b862"
+)
 
 
 def _write_executable(path: Path, content: str) -> None:
@@ -32,7 +37,7 @@ def _run_corepack_failure(
 
     _write_executable(
         fake_bin / "node",
-        "#!/usr/bin/env bash\ncat >/dev/null\nprintf 'npm@10.9.9'\n",
+        f"#!/usr/bin/env bash\ncat >/dev/null\nprintf '%s' {_EXPECTED_PACKAGE_MANAGER!r}\n",
     )
     _write_executable(
         fake_bin / "corepack",
