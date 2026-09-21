@@ -27,6 +27,7 @@ def test_direct_npm_detection_covers_shell_control_flow_boundaries() -> None:
         "(npm ci)",
         "! npm ci",
         "exec npm ci",
+        "np\\\nm ci",
     )
 
     for script in scripts:
