@@ -66,8 +66,30 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it.each([
-    ["Uint8Array", () => new Uint8Array(OVERSIZED_SCORE_BYTES)],
-    ["ArrayBuffer", () => new ArrayBuffer(OVERSIZED_SCORE_BYTES)]
+    [
+      "Uint8Array",
+      () =>
+        new Proxy(new Uint8Array(), {
+          get(target, property) {
+            if (property === "byteLength") {
+              return OVERSIZED_SCORE_BYTES;
+            }
+            return Reflect.get(target, property, target);
+          }
+        })
+    ],
+    [
+      "ArrayBuffer",
+      () =>
+        new Proxy(new ArrayBuffer(0), {
+          get(target, property) {
+            if (property === "byteLength") {
+              return OVERSIZED_SCORE_BYTES;
+            }
+            return Reflect.get(target, property, target);
+          }
+        })
+    ]
   ])("rejects an oversized %s bridge response", async (_label, createResponse) => {
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(createResponse());
 
