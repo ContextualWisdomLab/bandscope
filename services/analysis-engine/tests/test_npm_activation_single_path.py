@@ -10,10 +10,11 @@ import yaml
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _CANONICAL_ACTIVATION = "bash scripts/checks/activate_pinned_npm_runtime.sh"
 _DIRECT_NPM = re.compile(
-    r"(?:^|[;&|])\s*"
-    r"(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|]+\s+)*)?"
-    r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|]+\s+)*"
-    r"(?:command\s+)?npm(?:\s|$)",
+    r"(?:^|[;&|(){}]|\b(?:then|do)\b)\s*"
+    r"(?:!\s*)?"
+    r"(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|(){}]+\s+)*)?"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|(){}]+\s+)*"
+    r"(?:(?:command|exec)\s+)?npm(?:\s|$)",
     re.MULTILINE,
 )
 
