@@ -186,7 +186,9 @@ def test_pinned_npm_activation_helper_retries_acquisition_but_never_falls_back()
 
     assert 'MAX_ATTEMPTS="3"' in source
     assert 'corepack install --global "$package_manager_spec"' in source
-    assert '"ETIMEDOUT"' in source
+    assert '"etimedout"' in source
+    assert "LC_ALL=C tr '[:upper:]' '[:lower:]'" in source
+    assert "${acquisition_output,,}" not in source
     assert "not classified as transient" in source
     assert "corepack enable npm" in source
     assert "npm run check:npm-runtime" in source
