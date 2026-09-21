@@ -17,6 +17,8 @@ npm run check:npm-runtime
 
 The existing structural test explicitly accepted that fallback whenever it appeared before `npm ci`. This meant a workflow could bypass the canonical helper's locator validation and failure-classification behavior while still satisfying the repository test.
 
+A second policy gap remained after direct-npm discovery was introduced. The detector recognized line starts, shell separators, environment assignments and `command npm`, but it did not recognize ordinary shell control-flow forms such as `then npm`, `do npm`, subshell grouping, negation, or `exec npm`. A workflow could therefore execute npm through normal shell syntax while being misclassified as a non-consumer and escape the single-path invariant.
+
 ## Constraints
 
 - Node/npm runtime acquisition remains #896 ownership; downstream product owners must not copy a mutable Draft helper.
@@ -24,6 +26,7 @@ The existing structural test explicitly accepted that fallback whenever it appea
 - The repair must preserve existing release/security job behavior except for routing npm activation through the canonical helper.
 - Reusable-workflow call jobs with no local `steps` are not direct shell consumers; repository-owned called workflow files are inspected independently.
 - Source-level tests are not promoted to hosted GREEN until the unchanged exact head completes its normal repository and central gates.
+- The detector should recognize ordinary shell execution structure without treating arbitrary prose such as `echo npm ci` as executable npm authority.
 
 ## Alternatives considered
 
@@ -34,6 +37,14 @@ Rejected. It makes the documented single-owner path advisory rather than enforce
 ### Enroll only `release.yml` and `security-audit.yml`
 
 Rejected. File-name allowlists already proved brittle when Score Storage added a new npm-consuming workflow. The invariant belongs to executable npm consumption, not a fixed workflow inventory.
+
+### Match only line-start and command-separator forms
+
+Rejected. Shell control keywords and grouping are ordinary executable syntax. Treating `if ...; then npm ci; fi`, `for ...; do npm ...; done`, `(npm ci)`, `! npm ci`, or `exec npm ci` as non-consumers creates a lexical bypass in the policy gate even though the runner executes npm normally.
+
+### Treat every textual `npm` occurrence as execution
+
+Rejected. A fully lexical substring rule would also classify comments or harmless output such as `echo npm ci` as runtime authority. The current detector remains conservative but execution-oriented: it recognizes supported shell command boundaries and wrappers and requires explicit policy extension if a new execution form is introduced.
 
 ### Patch Score Storage #1241 directly
 
@@ -46,6 +57,8 @@ Rejected. #1241 is a consumer. It must use the protected/released npm runtime ow
 3. `ab04754df0f48798bb50d50baf4ab6aa38e89f1e` routes the security backstop through the same helper.
 4. `df20e63895968bea105510478ccc04995981d18d` strengthens the regression from literal `npm ci` matching to direct `npm` execution at normal shell-command boundaries, including common environment-assignment and `command npm` forms. This prevents npm command aliases or a different direct npm subcommand from silently escaping runtime admission.
 5. `a990e7c70b40dae748123d1447c7ae724edc60e6` removes the older inline-activation fallback from `test_npm_toolchain_contract.py`; both structural regressions now describe the same single canonical activation-path invariant instead of carrying contradictory executable policy.
+6. RED `19ddd51d1cb13ed3d783d9e5b81f1ec4f276a787` adds focused detector regressions for `then npm`, `do npm`, subshell grouping, shell negation and `exec npm`. The prior detector fails those cases, so an ordinary shell-wrapped npm consumer could be omitted from policy admission. Repair followed immediately; no hosted terminal RED is claimed for the test-only head.
+7. `dc726efbb09d343bacbae0ec273a21390433e01d` extends the execution-boundary detector to shell control keywords, grouping, negation and `exec` while preserving the existing environment-assignment and `command npm` forms. `echo npm ci` remains outside the admitted execution forms rather than becoming a false consumer.
 
 ## Exact-head verification finding
 
@@ -57,11 +70,11 @@ This was a repository-source defect, not a runner or npm-acquisition failure. It
 - `a41a2e5b8d3f6e53c7df232dd449b842c866e3c9` formats `test_npm_package_manager_integrity_pin.py`.
 - `6366eb66635bada29fe72ec99e55efdeeeaaecd0` formats `test_npm_toolchain_contract.py`.
 
-The failed `8113cbfc...` verdict is predecessor evidence only. The repaired final head must obtain its own unchanged exact-head gates.
+The failed `8113cbfc...` verdict is predecessor evidence only. Every later source move, including the shell-control-flow detector repair, requires a fresh unchanged-head verdict.
 
 ## Authority and evidence
 
-npm documents `npm ci` as a clean-install command for automated environments and exposes aliases such as `clean-install`, `ic`, and `install-clean`. Therefore the repository contract guards the direct npm executable rather than one spelling of the install subcommand.
+npm documents `npm ci` as a clean-install command for automated environments and exposes aliases such as `clean-install`, `ic`, and `install-clean`. Therefore the repository contract guards the npm executable and its execution boundary rather than one spelling of the install subcommand.
 
 Reference: npm, Inc. (2026). *npm-ci*. https://docs.npmjs.com/cli/commands/npm-ci/
 
@@ -71,17 +84,19 @@ The canonical activation helper remains the only place that may acquire/enable t
 
 The trust boundary is CI dependency-tool execution. A workflow must not reach an npm command under an unreviewed bundled/system/latest runtime or a workflow-local activation sequence that omits the owner helper's integrity and failure-classification policy.
 
-The structural regression recognizes direct npm execution at ordinary shell boundaries, including environment assignments and `command npm`. Deliberately hiding npm behind another interpreter or generated shell program is outside the current parser and is not an accepted bypass; such a workflow requires explicit policy review and a regression extension before merge.
+The structural regression recognizes direct npm execution at line starts, command separators, shell control-flow boundaries, grouping, negation, environment assignments, `command`, and `exec`. Deliberately hiding npm behind another interpreter, generated shell program, or an unrecognized command wrapper is not an accepted bypass; such a workflow requires explicit policy review and a regression extension before merge.
 
 ## Effect
 
 - Release and security workflows now consume the same runtime-admission implementation as CI/build owners.
 - SHA-512 locator admission, bounded transient acquisition retry, fail-closed nontransient behavior, and runtime verification have one workflow-level owner.
 - A future direct npm consumer cannot satisfy the repository test merely by reproducing `corepack enable npm` and `npm run check:npm-runtime` inline.
-- The original npm-consumer discovery test no longer encodes that rejected fallback, preventing future maintenance from reintroducing two conflicting policy definitions.
+- Ordinary shell control flow no longer lets an npm consumer disappear from workflow policy admission.
+- The original npm-consumer discovery test no longer encodes the rejected inline fallback, preventing future maintenance from reintroducing two conflicting policy definitions.
 
 ## Follow-up
 
 - Obtain terminal exact-head CI, build, security/SAST/SBOM/CodeQL and independent non-author review for the final #896 head.
+- If a workflow needs npm through another interpreter or wrapper, add an executable regression for that exact form before admitting it; do not silently broaden the bypass surface.
 - After #896 reaches protected truth, ordinary/non-force reconcile #1241 and replace its raw bundled-npm dependency admission with the protected canonical helper.
 - Re-run #1241's focused ScoreView UI regression on that exact consumer head; do not transfer predecessor failures or successes.
