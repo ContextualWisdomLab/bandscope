@@ -20,7 +20,8 @@ def test_temporal_error_log_escapes_exception_control_characters(
     audio_path = tmp_path / "buyer-audio.wav"
     audio_path.write_bytes(b"not-a-real-wave")
 
-    def fail_decode(*args: object, **kwargs: object) -> object:
+    def fail_decode(*_args: object, **_kwargs: object) -> object:
+        """Raise a decoder error containing an injected physical newline."""
         raise RuntimeError("decoder failed\nFORGED SECURITY EVENT")
 
     monkeypatch.setattr(analyzer_module.librosa, "load", fail_decode)
