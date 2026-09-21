@@ -34,8 +34,13 @@ while true; do
   fi
 
   printf '%s\n' "$acquisition_output" >&2
-  case "$acquisition_output" in
-    *"ETIMEDOUT"*)
+  normalized_output="${acquisition_output,,}"
+  case "$normalized_output" in
+    *"signature"*|*"integrity"*|*"keyid"*|*"metadata"*|*"checksum"*|*"hash mismatch"*)
+      echo "Corepack acquisition failure is not classified as transient; refusing to retry or weaken verification." >&2
+      exit 1
+      ;;
+    *"etimedout"*)
       ;;
     *)
       echo "Corepack acquisition failure is not classified as transient; refusing to retry or weaken verification." >&2
