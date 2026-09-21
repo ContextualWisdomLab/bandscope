@@ -10,7 +10,9 @@ For `number[]` responses, the renderer allocated `new Uint8Array(response.length
 
 The attach path had a related metadata-integrity gap: `fileSizeBytes` was accepted whenever its JavaScript type was `number`. `NaN`, infinity, negative/fractional values, zero, or a value above the native 25 MiB admission ceiling could therefore become renderer-visible attachment metadata even though none can describe a successfully admitted stored score.
 
-The normal native path is expected to honor its own validation. This repair treats the IPC response as a trust boundary anyway, so renderer resource admission remains fail-closed when the bridge, a test/dev shim, or future serialization code returns impossible data.
+A second attach-path gap remained after the size repair. `scoreId` and `fileName` were accepted on JavaScript type alone. Native Score Storage mints score identities as lowercase hyphenated UUIDs and later read/remove commands reject any other score-id syntax; the durable shared project schema also requires a non-empty attachment filename. A malformed IPC response could therefore be accepted into renderer/project state even though the native owner would deterministically reject the identity on the next operation, or the shared project parser would reject an empty filename on persistence/reload.
+
+The normal native path is expected to honor its own validation. These repairs treat the IPC response as a trust boundary anyway, so renderer admission remains fail-closed when the bridge, a test/dev shim, or future serialization code returns impossible data. Tauri v2 commands serialize values across the WebView/core IPC message boundary; frontend tests can also deliberately mock command results, so producer postconditions are explicit contracts rather than TypeScript compile-time guarantees.
 
 ## Constraints
 
@@ -19,14 +21,16 @@ The normal native path is expected to honor its own validation. This repair trea
 - The renderer must reject oversized byte containers before creating a second buffer or iterating attacker-shaped array elements.
 - All accepted byte-container forms must obey the same renderer ceiling.
 - Attachment-size metadata must describe a possible successfully admitted score: a positive safe integer no greater than the renderer/native 25 MiB ceiling.
+- Returned score identities must satisfy the native owner's lowercase hyphenated UUID syntax before they can enter renderer/project state.
+- Returned attachment filenames must be non-empty, matching the durable shared `ScoreAttachment` schema without inventing stricter cross-platform filename rules in the renderer.
 - Invalid IPC data is not reflected into logs or error text; callers receive the stable `Invalid score bridge response` boundary.
-- A future native size-limit change requires an explicit contract update and fresh tests rather than silently widening one side of the boundary.
+- A future native size-limit or score-identity contract change requires an explicit contract update and fresh tests rather than silently widening one side of the boundary.
 
 ## Alternatives considered
 
 ### Trust the native command exclusively
 
-Rejected. Native validation protects the expected command implementation, but the renderer still consumes IPC data from an external boundary. Test/dev shims, serialization changes, or a compromised bridge can violate the native postcondition. The renderer should not allocate an unbounded second buffer merely because the producer is expected to be correct.
+Rejected. Native validation protects the expected command implementation, but the renderer still consumes IPC data from an external boundary. Test/dev shims, serialization changes, or a compromised bridge can violate the native postcondition. The renderer should not allocate an unbounded second buffer or persist an impossible attachment identity merely because the producer is expected to be correct.
 
 ### Validate bytes after allocating the destination buffer
 
@@ -36,9 +40,17 @@ Rejected. This detects malformed byte values but does not bound the allocation t
 
 Rejected. Their byte domain is already valid, but their size is still a resource-admission input and can feed the PDF path directly.
 
+### Validate only that `scoreId` and `fileName` are strings
+
+Rejected. Type-valid strings can still violate the contracts consumed immediately downstream. An arbitrary non-empty `scoreId` can be persisted but rejected by native read/remove, while an empty `fileName` is invalid under the shared durable project schema. Admission therefore checks the score-id syntax actually minted/admitted by Score Storage and the shared schema's non-empty filename invariant.
+
+### Copy native filename/path policy into TypeScript
+
+Rejected. Native file selection and filesystem semantics remain Score Storage authority. The renderer only checks the presentation invariant it must persist (`fileName.length > 0`); it does not second-guess platform-specific filename legality or path resolution.
+
 ### Duplicate native PDF and filesystem validation in TypeScript
 
-Rejected. That would violate the Score Storage ownership boundary and create divergent security implementations. The renderer owns only the IPC container/metadata admission needed before local allocation and downstream parsing.
+Rejected. That would violate the Score Storage ownership boundary and create divergent security implementations. The renderer owns only the IPC container/metadata admission needed before local allocation and downstream parsing/persistence.
 
 ## Decision
 
@@ -51,7 +63,11 @@ The renderer defines `MAX_SCORE_PDF_BRIDGE_BYTES = 25 * 1024 * 1024`, matching t
 - rejects `number[]` length above the ceiling before destination allocation or element access;
 - performs the existing one-pass byte validation/copy for bounded arrays, admitting only integer values from 0 through 255.
 
-`attachScorePdf` now accepts `fileSizeBytes` only when it is a positive safe integer at or below the same ceiling.
+`attachScorePdf` now:
+
+- accepts `fileSizeBytes` only when it is a positive safe integer at or below the same ceiling;
+- accepts `scoreId` only when it matches the native lowercase hyphenated UUID syntax (`8-4-4-4-12`, hexadecimal); and
+- accepts only a non-empty `fileName`, which is the renderer-visible invariant required by the shared `ScoreAttachment` project schema.
 
 This is defense in depth at the renderer IPC boundary. It does not expand renderer authority over native storage.
 
@@ -63,6 +79,8 @@ This is defense in depth at the renderer IPC boundary. It does not expand render
 - `a97bae9efdf1fcfd72dbfa60a66366e433356502`: replaces large typed test allocations with lightweight Proxy fixtures while preserving oversized-container semantics.
 - `7c53c5414ef79f403ea051c3256b38eca4f034c0`: RED proving attachment `fileSizeBytes` accepted impossible numeric values under the previous `typeof number` check.
 - `bf97eda4f4cf599afb8aee96aa9d5b54ba01d3d9`: repair requiring positive safe-integer attachment size metadata bounded by the same 25 MiB contract.
+- `333008b92b7db9844fe677e6b1d79a4172655599`: RED proving the renderer accepted empty, non-canonical, and uppercase score identities plus an empty filename as successful attachment metadata.
+- `335aba67edf6cd50f11cec172449f059c11a5e4e`: causal repair requiring the native score-id syntax and the shared schema's non-empty filename invariant before attachment metadata is returned.
 
 These commits establish source/test evidence only. The PR is stacked on the formatter prerequisite rather than a protected target, so current hosted PR workflow generation is not treated as GREEN. Fresh protected-target verification remains required after normal prerequisite integration and ordinary/non-force reconciliation.
 
@@ -70,22 +88,33 @@ These commits establish source/test evidence only. The PR is stacked on the form
 
 ### Trust boundary
 
-Tauri IPC return values are untrusted at the renderer boundary even when the normal native producer is expected to satisfy stronger invariants. The security objective here is bounded renderer memory admission and internally consistent attachment metadata, not protection against arbitrary code execution in a fully compromised desktop process.
+Tauri IPC return values are untrusted at the renderer boundary even when the normal native producer is expected to satisfy stronger invariants. The security objective here is bounded renderer memory admission and syntactically/semantically consistent attachment metadata, not protection against arbitrary code execution in a fully compromised desktop process.
+
+Tauri documents commands as an IPC abstraction that serializes command arguments and return data across the WebView/core boundary, and its frontend testing guidance explicitly supports mocked IPC results. Those mechanics make runtime response validation appropriate at the consumer boundary even though the native command remains the primary owner.
 
 ### CWE mapping
 
 MITRE CWE-770, *Allocation of Resources Without Limits or Throttling*, describes resource allocation without intended size/count restrictions and recommends explicit limits plus input validation. The pre-repair array path allocated a destination buffer from an untrusted response length before enforcing a resource ceiling; the selected repair moves that bound ahead of allocation and applies it consistently to all accepted byte-container forms.
 
-Reference: MITRE. (2026). *CWE-770: Allocation of Resources Without Limits or Throttling* (CWE 4.20). https://cwe.mitre.org/data/definitions/770.html
+MITRE CWE-1286, *Improper Validation of Syntactic Correctness of Input*, covers data expected to conform to a defined syntax but admitted without checking that syntax. The attachment identity repair uses an accept-known-good pattern for the native score-id format instead of treating every JavaScript string as a valid durable/native identity. CWE-1286 is used here rather than the more abstract CWE-20 because the concrete defect is syntactic admission of a defined identifier contract.
+
+References:
+
+- MITRE. (2026). *CWE-770: Allocation of Resources Without Limits or Throttling* (CWE 4.20). https://cwe.mitre.org/data/definitions/770.html
+- MITRE. (2026). *CWE-1286: Improper Validation of Syntactic Correctness of Input* (CWE 4.20). https://cwe.mitre.org/data/definitions/1286.html
+- Tauri. (2026). *Inter-process communication*. https://v2.tauri.app/concept/inter-process-communication/
+- Tauri. (2026). *Mock Tauri APIs*. https://v2.tauri.app/develop/tests/mocking/
 
 ### Residual risk
 
-The 25 MiB value intentionally mirrors a native owner constant rather than importing a shared runtime constant across the Rust/TypeScript boundary. This can drift if the native admission policy changes. Such a change must update both contracts deliberately and keep the renderer no more permissive than the native owner. Hosted memory/GC and packaged buyer-path measurements remain separate performance evidence; this source repair does not claim a measured latency or memory improvement.
+The 25 MiB value and score-id syntax intentionally mirror native owner contracts rather than importing one shared runtime implementation across the Rust/TypeScript boundary. Either can drift if the native admission policy changes. Such changes must update both contracts deliberately and keep the renderer no more permissive than the native owner. The renderer deliberately does not reproduce native file/path validation; filename platform semantics remain native authority.
+
+Hosted memory/GC and packaged buyer-path measurements remain separate performance evidence; these source repairs do not claim a measured latency or memory improvement. A fully compromised desktop process can bypass renderer checks and is outside this boundary's claim.
 
 ## Follow-up
 
 1. After #1176 reaches protected ancestry, reconcile this owner ordinary/non-force onto current `develop`.
 2. Run the focused bridge regressions and normal desktop/repository/security gates on one unchanged exact head.
 3. Verify the packaged Score/PDF path with representative rights-cleared PDFs near the admission limit and record renderer heap/GC behavior without weakening the 25 MiB ceiling.
-4. Keep byte-resource admission here separate from Score Storage filesystem/recovery ownership and from ScoreViewer/PDF rendering-performance owners.
+4. Keep byte/metadata admission here separate from Score Storage filesystem/recovery ownership and from ScoreViewer/PDF rendering-performance owners.
 5. Do not close weaker preservation PRs until a protected successor has verifiably absorbed their still-valid semantic/test evidence.
