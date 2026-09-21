@@ -972,8 +972,7 @@ mod tests {
         let mut command = Command::new(current_test_binary);
         command
             .env("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT", "1")
-            .arg("--exact")
-            .arg("runtime_core::tests::youtube_process_output_drains_large_stdout_and_stderr_before_exit")
+            .arg("youtube_process_output_drains_large_stdout_and_stderr_before_exit")
             .arg("--nocapture");
 
         let output = crate::wait_for_process_output(
