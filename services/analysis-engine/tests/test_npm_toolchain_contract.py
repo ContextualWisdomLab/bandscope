@@ -92,7 +92,7 @@ def _assert_no_mutable_npm_commands(steps: list[dict[str, object]]) -> None:
 
 
 def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, object]]) -> None:
-    """Require reviewed npm activation and audit before the first npm dependency read."""
+    """Require the canonical npm activation helper before the first dependency read."""
     run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
     consumption_index = next(
         (
@@ -104,33 +104,19 @@ def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, ob
     )
     assert consumption_index is not None
 
-    helper_index = next(
-        (
-            index
-            for index, command in enumerate(run_steps)
-            if command.strip() == _NPM_ACTIVATION_COMMAND
-        ),
-        None,
-    )
-    if helper_index is not None:
-        assert helper_index < consumption_index
-        return
+    helper_indices = [
+        index
+        for index, command in enumerate(run_steps)
+        if command.strip() == _NPM_ACTIVATION_COMMAND
+    ]
+    assert len(helper_indices) == 1
+    assert helper_indices[0] < consumption_index
 
-    activation_index = next(
-        (index for index, command in enumerate(run_steps) if "corepack enable npm" in command),
-        None,
-    )
-    audit_index = next(
-        (
-            index
-            for index, command in enumerate(run_steps)
-            if "npm run check:npm-runtime" in command
-        ),
-        None,
-    )
-    assert activation_index is not None
-    assert audit_index is not None
-    assert activation_index <= audit_index < consumption_index
+    for command in run_steps:
+        if command.strip() == _NPM_ACTIVATION_COMMAND:
+            continue
+        assert "corepack enable npm" not in command
+        assert "npm run check:npm-runtime" not in command
 
 
 def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
