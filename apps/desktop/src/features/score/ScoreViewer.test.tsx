@@ -265,6 +265,11 @@ describe("ScoreViewer", () => {
         [{ contentRect: { width: 300 } } as ResizeObserverEntry],
         {} as ResizeObserver
       );
+      // Fire a second time to trigger the debounce logic path
+      resizeCallback?.(
+        [{ contentRect: { width: 300 } } as ResizeObserverEntry],
+        {} as ResizeObserver
+      );
       vi.advanceTimersByTime(200);
     });
     vi.useRealTimers();
