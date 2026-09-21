@@ -48,6 +48,22 @@ describe("scoreStorage bridge resolution", () => {
     await expect(readScorePdf("project-1", "score-1")).resolves.toEqual(new Uint8Array());
   });
 
+  it("rejects an oversized bridge array before allocating or reading its bytes", async () => {
+    const oversizedResponse = new Proxy(new Array(25 * 1024 * 1024 + 1), {
+      get(target, property, receiver) {
+        if (property !== "length") {
+          throw new Error("oversized bridge payload should be rejected before byte access");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(oversizedResponse);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
   it.each([
     ["NaN", Number.NaN],
     ["Infinity", Number.POSITIVE_INFINITY],
