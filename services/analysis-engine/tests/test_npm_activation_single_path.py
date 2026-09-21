@@ -1,4 +1,4 @@
-"""Keep npm-consuming workflows on the canonical runtime activation path."""
+"""Keep workflow npm execution on the canonical runtime activation path."""
 
 from __future__ import annotations
 
@@ -9,15 +9,19 @@ import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _CANONICAL_ACTIVATION = "bash scripts/checks/activate_pinned_npm_runtime.sh"
-_NPM_CI = re.compile(r"(?:^|\n)\s*npm ci(?:\s|$)")
+_DIRECT_NPM = re.compile(
+    r"(?:^|[;&|])\s*"
+    r"(?:env\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|]+\s+)*)?"
+    r"(?:[A-Za-z_][A-Za-z0-9_]*=[^\s;&|]+\s+)*"
+    r"(?:command\s+)?npm(?:\s|$)",
+    re.MULTILINE,
+)
 
 
 def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
-    """Reject workflow-local Corepack/runtime activation before npm dependency reads."""
-    workflow_paths = sorted(
-        (*(_REPOSITORY_ROOT / ".github" / "workflows").glob("*.yml"),)
-        + (*(_REPOSITORY_ROOT / ".github" / "workflows").glob("*.yaml"),)
-    )
+    """Reject workflow-local Corepack/runtime activation before direct npm execution."""
+    workflows_dir = _REPOSITORY_ROOT / ".github" / "workflows"
+    workflow_paths = sorted((*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")))
     assert workflow_paths
 
     consumers = 0
@@ -38,15 +42,15 @@ def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
                 for step in steps
                 if isinstance(step, dict) and isinstance(step.get("run"), str)
             ]
-            consumption_index = next(
+            first_npm_index = next(
                 (
                     index
                     for index, command in enumerate(run_steps)
-                    if _NPM_CI.search(command)
+                    if _DIRECT_NPM.search(command)
                 ),
                 None,
             )
-            if consumption_index is None:
+            if first_npm_index is None:
                 continue
 
             consumers += 1
@@ -56,11 +60,11 @@ def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
                 for index, command in enumerate(run_steps)
                 if command.strip() == _CANONICAL_ACTIVATION
             ]
-            assert helper_indices == [helper_indices[0]] if helper_indices else False, (
+            assert len(helper_indices) == 1, (
                 f"{context} must use exactly one canonical npm activation helper"
             )
-            assert helper_indices[0] < consumption_index, (
-                f"{context} must activate the pinned npm runtime before npm ci"
+            assert helper_indices[0] < first_npm_index, (
+                f"{context} must activate the pinned npm runtime before direct npm execution"
             )
 
             for command in run_steps:
