@@ -95,7 +95,11 @@ def test_cli_logs_untrusted_filename_as_single_line(
 
     assert cli.main() == 0
 
-    messages = [record.getMessage() for record in caplog.records if "buyer.wav" in record.getMessage()]
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if "buyer.wav" in record.getMessage()
+    ]
     assert len(messages) == 2
     assert all("\n" not in message for message in messages)
     assert all("\\n" in message for message in messages)
