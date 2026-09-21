@@ -11,6 +11,8 @@ The structure noninferiority result schema already carries per-track `p50_latenc
 
 That is not sufficient for a production decision between `chroma_cqt` and `chroma_stft`. Performance evidence must be fixed before candidate results are observed, must consume the same admitted decoded PCM identity as the quality comparison, and must avoid a cache-warmed benchmark path that is unlike a user's first analysis of a song.
 
+A later review found a second reproducibility gap in that producer. `PERFORMANCE_MEASUREMENT_CONTRACT` participated in registration identity, but runtime measurement did not validate that the published mapping still matched the implementation constants used for trial count, contract identity, lane order, quantiles, and quantile method. A future edit could therefore change the public preregistration mapping without making scientific execution fail closed. The same review also found mixed `ctypes` import styles in the Windows RSS boundary; that was repaired without changing the Win32 API or measurement semantics.
+
 ## Decision
 
 `isolated-single-shot-v1` is the only preregistered structure performance contract in schema v1. Its complete semantics are owned by `scripts/research/measure_structure_lane_resources.py` and copied into `STRUCTURE_METRIC_CONTRACT["performance_measurement"]`, so they participate in the metric-aware registration SHA-256.
@@ -31,6 +33,8 @@ The contract is:
 
 Twenty observations are a preregistered engineering sampling plan, not a claim that twenty observations estimate an asymptotic tail distribution. The production decision still uses the registered paired track-level bootstrap across the rights-cleared corpus; the within-track repetitions create the frozen p50/p95 performance summary supplied to that higher-level procedure.
 
+The public `PERFORMANCE_MEASUREMENT_CONTRACT` is now built from the runtime constants that control contract identity, supported platforms, warm-up count, measured-trial count, lane-order identity, latency quantiles, and quantile method. Scientific execution calls `_validate_performance_measurement_contract()` before paired measurement. Any mutation or source drift that makes the published mapping differ from those runtime-backed semantics fails before evidence is produced. Existing behavior tests continue to verify the actual alternating lane sequence and numerical quantile result, so the mapping comparison is not treated as a substitute for executable behavior evidence.
+
 ## Timer boundary
 
 Python documents `perf_counter()` as a performance counter with the highest available resolution for short durations and states that it is monotonic in CPython; `perf_counter_ns()` returns the same clock as integer nanoseconds and avoids float precision loss. The worker therefore records `perf_counter_ns()` immediately before and after the one repository-owned structure-segmentation call.
@@ -47,7 +51,7 @@ This does not claim that operating-system file cache, CPU frequency, thermal sta
 
 On macOS, the worker reads `getrusage(RUSAGE_SELF).ru_maxrss`. Apple's `getrusage(2)` documentation defines `ru_maxrss` as maximum resident set size and documents the value in kilobytes, so the implementation converts KiB to MiB by dividing by 1024.
 
-On Windows, the worker calls `GetProcessMemoryInfo` and uses `PROCESS_MEMORY_COUNTERS.PeakWorkingSetSize`. Microsoft documents the working set as physical memory mapped into the process address space and exposes both current and peak working-set size. The implementation converts bytes to MiB.
+On Windows, the worker calls `GetProcessMemoryInfo` and uses `PROCESS_MEMORY_COUNTERS.PeakWorkingSetSize`. Microsoft documents the working set as physical memory mapped into the process address space and exposes both current and peak working-set size. The implementation converts bytes to MiB. The Windows-only function now uses a single `ctypes` import style while preserving `Structure`, `wintypes`, `WinDLL`, pointer setup, `GetProcessMemoryInfo`, and `get_last_error` behavior.
 
 Linux is intentionally not admitted for `isolated-single-shot-v1`. Python's `resource` API is Unix-specific and `ru_maxrss` unit conventions are platform-dependent; adding Linux would require a separately reviewed platform contract rather than silently treating all `getrusage` values as equivalent.
 
@@ -69,6 +73,9 @@ The scientific receipt records the contract identity plus baseline/candidate p50
 - Contract fixture `a05c345a23910e0e0c48f327ded8ea1a8d09bb9a` cross-checks registration metadata against the executable performance owner.
 - Hygiene repair `6d49d7a54672eda000d94682c2040915f6b4657e` removed an unused typing import before hosted lint evidence.
 - Focused-test alignment `11c59ade85b1866e550edec2ea26cb185670c9ab` prevents the recognized-metric unit boundary from accidentally launching platform performance workers; the dedicated performance tests own that contract.
+- Hosted CI on exact `e99ccecc20a72d9531d77be5b854ae6090500aff` reached `ci / build-and-test` and failed `check:python-docstrings` on seven #1228-owned test functions. Commits `8bf2fe6f31e0e65b55014e47c2ea12b032e57e4c` and `22da683509cf2e47c427b7ff3797149a7f67430f` repair those exact D103 findings without changing scientific behavior. The predecessor failure is retained only as causal evidence.
+- RED `2265cc612166e642968e1c6780e50abc2f311748` adds focused regressions that mutate contract identity, measured-trial count, lane-order identity, latency quantiles, and quantile method and require scientific execution to fail closed on drift. Repair followed before a terminal hosted verdict, so no hosted RED is claimed for the test-only head.
+- GREEN `f08a35392eabbc759760d2f0a5b9fd87241a2e61` makes the published contract runtime-backed, validates it before paired measurement, reuses the contract ID and quantile constants in execution, and removes the mixed Windows `ctypes` import style without changing the Win32 measurement API.
 
 ## Rejected alternatives
 
@@ -84,17 +91,19 @@ The scientific receipt records the contract identity plus baseline/candidate p50
 
 **Use fewer measured trials when a track is expensive.** Rejected because data-dependent or operator-dependent trial reduction would change the estimator after corpus identity is known. An execution that cannot complete the preregistered count is a failed track under the existing no-exclusion policy.
 
+**Keep the public performance mapping as registration-only metadata.** Rejected because registration identity is not enough if runtime execution can proceed after that mapping drifts away from the constants and behavior used to produce evidence. The producer now fails before paired measurement when the public mapping no longer equals the runtime-backed contract.
+
 ## Security Notes
 
 - Input remains local-only and path-free after corpus admission.
 - Subprocess invocation uses `sys.executable`, the repository-owned worker path, exact numeric arguments, `shell=False`, and stdin PCM bytes; no generic execution surface is introduced.
-- Any non-zero exit, worker stderr, malformed JSON, unexpected receipt field, unsupported platform, invalid timer, or invalid RSS value fails the scientific measurement.
+- Any non-zero exit, worker stderr, malformed JSON, unexpected receipt field, unsupported platform, invalid timer, invalid RSS value, or performance-contract drift fails the scientific measurement.
 - Raw licensed audio and workstation paths are not emitted in durable performance evidence.
 - This contract adds no telemetry or network-dependent runtime path.
 
 ## Claim boundary and remaining work
 
-This contract closes the missing canonical producer for per-track p50/p95 latency and peak RSS. It does not establish that STFT is faster, that either lane meets a product latency target, or that twenty within-track repetitions make p95 a universal tail-latency estimate.
+This contract closes the missing canonical producer for per-track p50/p95 latency and peak RSS and now makes drift between the public preregistration mapping and its runtime-backed constants an executable failure. It does not establish that STFT is faster, that either lane meets a product latency target, or that twenty within-track repetitions make p95 a universal tail-latency estimate.
 
 Before rights-cleared real-audio execution, reviewers still must freeze the concrete corpus membership and representativeness, numeric quality noninferiority margins, maximum candidate latency ratio, exact bootstrap resample count and seed, exact host/runtime profile, and claim boundary. Candidate results must not be inspected before those choices are frozen.
 
