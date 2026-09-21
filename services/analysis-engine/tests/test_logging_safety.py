@@ -113,6 +113,42 @@ def test_temporal_error_log_neutralizes_hostile_exception_repr(
     assert "\\u2028" in messages[0]
 
 
+def test_temporal_error_log_survives_exception_repr_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Logging must not replace the decoder failure when exception repr itself fails."""
+    audio_path = tmp_path / "buyer-audio.wav"
+    audio_path.write_bytes(b"not-a-real-wave")
+
+    class BrokenReprDecoderError(RuntimeError):
+        """Model a dependency exception whose repr is itself faulty."""
+
+        def __repr__(self) -> str:
+            """Raise to verify diagnostics do not mask the original failure path."""
+            raise RuntimeError("repr failed")
+
+    def fail_decode(*_args: object, **_kwargs: object) -> object:
+        """Raise the dependency-shaped exception through the real analyzer path."""
+        raise BrokenReprDecoderError("decoder failed")
+
+    monkeypatch.setattr(analyzer_module.librosa, "load", fail_decode)
+    caplog.set_level(logging.ERROR, logger=analyzer_module.__name__)
+
+    with pytest.raises(ValueError, match="Temporal analysis failed: decoder failed"):
+        TemporalAnalyzer().analyze(audio_path)
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == analyzer_module.__name__ and record.levelno >= logging.ERROR
+    ]
+    assert len(messages) == 1
+    assert "BrokenReprDecoderError" in messages[0]
+    assert "repr unavailable" in messages[0]
+
+
 @pytest.mark.parametrize("untrusted_value", _HOSTILE_LOG_VALUES)
 def test_cli_logs_untrusted_filename_as_single_line(
     monkeypatch: pytest.MonkeyPatch,
