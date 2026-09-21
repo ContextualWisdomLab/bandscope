@@ -22,6 +22,9 @@ from .tuning import get_setup_note
 
 logger = logging.getLogger(__name__)
 
+_OTHER_STEM_ROLE_IDS = frozenset({"keys-left", "keys-right", "acoustic-guitar"})
+_OTHER_STEM_ENTRANCE_LABEL = "Accompaniment"
+
 
 class RoleExtractor:
     """Extracts roles and builds the part graph for song sections."""
@@ -330,6 +333,50 @@ class RoleExtractor:
             "acoustic_guitar": acoustic_guitar_role,
         }
 
+    @staticmethod
+    def _activity_vamp_plan(
+        role_id: str,
+        roles: dict[str, RehearsalRole],
+        role_activity: dict[str, bool],
+        next_role_activity: dict[str, bool] | None,
+    ) -> str | None:
+        """Return bounded vamp guidance only for an unambiguous upcoming entrance.
+
+        A vamp plan is emitted only when real stem activity shows that this role
+        stays active across the next structural boundary and either one distinct
+        role or the canonical shared accompaniment stem becomes active there.
+        Mixed-source entrances and heuristic fallback topology intentionally
+        produce no plan.
+        """
+        if (
+            next_role_activity is None
+            or not role_activity.get(role_id, False)
+            or not next_role_activity.get(role_id, False)
+        ):
+            return None
+
+        activating_role_ids = [
+            candidate_id
+            for candidate_id, is_active in next_role_activity.items()
+            if is_active and not role_activity.get(candidate_id, False)
+        ]
+        if len(activating_role_ids) == 1:
+            target_role_id = activating_role_ids[0]
+            target_role_name = next(
+                (role["name"] for role in roles.values() if role["id"] == target_role_id),
+                None,
+            )
+        elif frozenset(activating_role_ids) == _OTHER_STEM_ROLE_IDS:
+            # The source separator exposes keys/guitar as one shared `other` stem.
+            # Name only that coarse evidence instead of inventing a specific instrument.
+            target_role_name = _OTHER_STEM_ENTRANCE_LABEL
+        else:
+            return None
+
+        if target_role_name is None:
+            return None
+        return f"Keep this part going until {target_role_name} enters in the next section."
+
     def _build_activity_topology(
         self,
         section_id: str,
@@ -357,7 +404,18 @@ class RoleExtractor:
             handoff_to, handoff_from = handoffs.get(role_id, ([], []))
 
             if is_active:
-                active_roles.append(roles[role_key])
+                role = roles[role_key]
+                vamp_plan = self._activity_vamp_plan(
+                    role_id,
+                    roles,
+                    role_activity,
+                    next_role_activity,
+                )
+                if vamp_plan is not None:
+                    role = role.copy()
+                    role["vampPlan"] = vamp_plan
+                    role["vampPlanSource"] = "model"
+                active_roles.append(role)
 
             part_graph.append(
                 {

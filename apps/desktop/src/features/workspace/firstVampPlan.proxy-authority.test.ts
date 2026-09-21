@@ -1,0 +1,83 @@
+import { createDemoRehearsalSong } from "@bandscope/shared-types";
+import { describe, expect, it } from "vitest";
+import { resolveFirstVampPlan } from "./firstVampPlan";
+
+const DEMO_VAMP_PLAN =
+  "Hold the two-bar verse groove until the vocal pickup; don't move until you hear city lights.";
+
+describe("resolveFirstVampPlan own-data authority", () => {
+  it("uses the snapshotted own-data vamp plan instead of a Proxy get trap", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    const roleIndex = section?.roles.findIndex((role) => role.id === "bass-guitar") ?? -1;
+    const role = roleIndex >= 0 ? section?.roles[roleIndex] : undefined;
+    expect(section).toBeDefined();
+    expect(role).toBeDefined();
+    if (!section || !role || roleIndex < 0) {
+      throw new Error("Demo vamp-plan fixture is missing the expected Bass Guitar role.");
+    }
+
+    section.roles[roleIndex] = new Proxy(role, {
+      get(target, property, receiver) {
+        if (property === "vampPlan") {
+          return "Injected proxy vamp.";
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+
+    expect(resolveFirstVampPlan(song)?.vampPlan).toBe(DEMO_VAMP_PLAN);
+  });
+
+  it("uses the snapshotted own-data time range instead of a Proxy get trap", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    expect(section).toBeDefined();
+    if (!section) {
+      throw new Error("Demo vamp-plan fixture is missing the expected verse section.");
+    }
+    const expectedStart = section.timeRange.start;
+    section.timeRange = new Proxy(section.timeRange, {
+      get(target, property, receiver) {
+        if (property === "start") {
+          return expectedStart + 15;
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+
+    expect(resolveFirstVampPlan(song)?.atSeconds).toBe(expectedStart);
+  });
+
+  it("returns snapshotted role identity and display copy instead of Proxy get values", () => {
+    const song = createDemoRehearsalSong();
+    const section = song.sections.find((candidate) => candidate.id === "verse-1");
+    const roleIndex = section?.roles.findIndex((role) => role.id === "bass-guitar") ?? -1;
+    const role = roleIndex >= 0 ? section?.roles[roleIndex] : undefined;
+    expect(section).toBeDefined();
+    expect(role).toBeDefined();
+    if (!section || !role || roleIndex < 0) {
+      throw new Error("Demo vamp-plan fixture is missing the expected Bass Guitar role.");
+    }
+    const expectedId = role.id;
+    const expectedName = role.name;
+    section.roles[roleIndex] = new Proxy(role, {
+      get(target, property, receiver) {
+        if (property === "name") {
+          return "Injected proxy role";
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+
+    const resolved = resolveFirstVampPlan(song) as
+      | (ReturnType<typeof resolveFirstVampPlan> & {
+          holdingRoleId?: string;
+          holdingRoleName?: string;
+        })
+      | null;
+    expect(resolved?.vampPlan).toBe(DEMO_VAMP_PLAN);
+    expect(resolved?.holdingRoleId).toBe(expectedId);
+    expect(resolved?.holdingRoleName).toBe(expectedName);
+  });
+});
