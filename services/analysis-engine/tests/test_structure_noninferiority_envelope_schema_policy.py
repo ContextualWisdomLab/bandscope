@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from test_structure_noninferiority_policy import (
     _corpus,
     _metrics,
