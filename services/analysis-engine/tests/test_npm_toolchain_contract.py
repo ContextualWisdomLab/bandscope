@@ -244,7 +244,12 @@ def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads
         assert isinstance(jobs, dict)
         workflow_consumers = 0
 
-        for job_name in jobs:
+        for job_name, job in jobs.items():
+            assert isinstance(job, dict)
+            if job.get("steps") is None:
+                # Reusable-workflow call jobs have no local shell steps. Their called workflow
+                # is scanned independently when it lives in this repository workflow directory.
+                continue
             steps = _job_steps(jobs, str(job_name))
             consumes_npm = any(
                 isinstance(step.get("run"), str)
