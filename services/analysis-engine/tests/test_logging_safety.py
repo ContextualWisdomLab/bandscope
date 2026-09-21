@@ -19,6 +19,8 @@ _LOG_CONTROL_ESCAPES = (
     ("\t", "\\t"),
     ("\x1b", "\\x1b"),
     ("\x00", "\\x00"),
+    ("\u2028", "\\u2028"),
+    ("\u2029", "\\u2029"),
 )
 _HOSTILE_LOG_VALUES = (
     "FORGED\nSECURITY EVENT",
@@ -26,6 +28,8 @@ _HOSTILE_LOG_VALUES = (
     "FORGED\tSECURITY EVENT",
     "FORGED\x1b[31mSECURITY EVENT",
     "FORGED\x00SECURITY EVENT",
+    "FORGED\u2028SECURITY EVENT",
+    "FORGED\u2029SECURITY EVENT",
     "정상-유니코드-é",
 )
 
@@ -83,7 +87,7 @@ def test_temporal_error_log_neutralizes_hostile_exception_repr(
 
         def __repr__(self) -> str:
             """Return an intentionally unsafe representation for the regression."""
-            return "HostileDecoderError('FORGED\nSECURITY EVENT\x1b[31m')"
+            return "HostileDecoderError('FORGED\nSECURITY EVENT\x1b[31m\u2028NEXT')"
 
     def fail_decode(*_args: object, **_kwargs: object) -> object:
         """Raise the dependency-shaped exception through the real analyzer path."""
@@ -103,8 +107,10 @@ def test_temporal_error_log_neutralizes_hostile_exception_repr(
     assert len(messages) == 1
     assert "\n" not in messages[0]
     assert "\x1b" not in messages[0]
+    assert "\u2028" not in messages[0]
     assert "\\n" in messages[0]
     assert "\\x1b" in messages[0]
+    assert "\\u2028" in messages[0]
 
 
 @pytest.mark.parametrize("untrusted_value", _HOSTILE_LOG_VALUES)
