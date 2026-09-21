@@ -34,7 +34,7 @@ while true; do
   fi
 
   printf '%s\n' "$acquisition_output" >&2
-  normalized_output="${acquisition_output,,}"
+  normalized_output="$(printf '%s' "$acquisition_output" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
   case "$normalized_output" in
     *"signature"*|*"integrity"*|*"keyid"*|*"metadata"*|*"checksum"*|*"hash mismatch"*)
       echo "Corepack acquisition failure is not classified as transient; refusing to retry or weaken verification." >&2
