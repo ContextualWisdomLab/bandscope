@@ -8,6 +8,7 @@ import sys
 from datetime import UTC, datetime
 
 from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+from bandscope_analysis.logging_safety import safe_log_value
 from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -86,7 +87,7 @@ def main() -> int:
         audio_path = local_source.get("sourcePath")
         file_name = local_source.get("fileName", "selected audio")
         if audio_path:
-            logging.info("Extracting temporal features from %s...", repr(file_name))
+            logging.info("Extracting temporal features from %s...", safe_log_value(file_name))
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
@@ -94,7 +95,7 @@ def main() -> int:
             except Exception:
                 logging.warning(
                     "Temporal analysis failed for %s; continuing with safe fallback.",
-                    repr(file_name),
+                    safe_log_value(file_name),
                 )
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
