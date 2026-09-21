@@ -32,6 +32,18 @@ Rafii, Z., Liutkus, A., Stöter, F.-R., Mimilakis, S. I., & Bittner, R. (2019). 
 
 Stöter, F.-R., Liutkus, A., & Ito, N. (2018). The 2018 Signal Separation Evaluation Campaign. In E. Vincent, A. Yeredor, Z. Koldovský, & P. Tichavský (Eds.), *Latent Variable Analysis and Signal Separation* (pp. 293–305). Springer. https://doi.org/10.1007/978-3-319-93764-9_28
 
+## Merge-train control plane and exact-head evidence
+
+GitHub, Inc. (n.d.). *Checks: GraphQL API reference*. GitHub Docs. https://docs.github.com/en/graphql/reference/checks
+
+GitHub, Inc. (n.d.). *GitHub Apps: GraphQL API reference*. GitHub Docs. https://docs.github.com/en/graphql/reference/apps
+
+GitHub, Inc. (n.d.). *Triggering a workflow*. GitHub Docs. https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
+
+The queue readiness collector follows the documented GraphQL ownership path `CheckRun.checkSuite.app.databaseId` when binding a required check to the GitHub App identity configured by branch protection. A direct `CheckRun.app` selection is not part of the current GraphQL schema and must fail closed rather than being treated as missing app identity.
+
+Workflow-trigger documentation is used only to classify event/admission behavior. The presence of a matching `push` or `pull_request` trigger does not by itself prove that an exact-head run was created; BandScope records the actual workflow-run inventory before treating a head as verified.
+
 ## Use in BandScope
 
 These sources do not by themselves prove BandScope conformance or accuracy. Each cited requirement must map to:
