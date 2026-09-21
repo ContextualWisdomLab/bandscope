@@ -12,6 +12,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from ..logging_safety import safe_exception_summary, safe_log_value
 from .model import TemporalFeatures
 
 logger = logging.getLogger(__name__)
@@ -26,20 +27,6 @@ KNOWN_LIBROSA_NUMBA_WARNING_FILTERS = (
 )
 # ponytail: assumes 4/4; upgrade to meter estimation or a madmom DBN if other meters matter.
 BEATS_PER_BAR = 4
-
-
-def _single_line_log_repr(value: object) -> str:
-    """Render a diagnostic value without letting its repr create log controls."""
-    try:
-        rendered = repr(value)
-    except Exception:
-        rendered = f"<{type(value).__name__} repr unavailable>"
-    return "".join(
-        character
-        if character.isprintable()
-        else character.encode("unicode_escape").decode("ascii")
-        for character in rendered
-    )
 
 
 def _estimate_downbeats(
@@ -87,7 +74,7 @@ class TemporalAnalyzer:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
-        logger.info("Loading and decoding audio: %s", _single_line_log_repr(path_str))
+        logger.info("Loading and decoding audio: %s", safe_log_value(path_str))
 
         try:
             with path.open("rb") as fileobj:
@@ -156,7 +143,7 @@ class TemporalAnalyzer:
         except Exception as e:
             logger.error(
                 "Failed to analyze audio %s: %s",
-                _single_line_log_repr(path_str),
-                _single_line_log_repr(e),
+                safe_log_value(path_str),
+                safe_exception_summary(e),
             )
             raise ValueError(f"Temporal analysis failed: {e}") from e
