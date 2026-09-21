@@ -83,7 +83,7 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
     typeof scoreId !== "string" ||
     !SCORE_ID_PATTERN.test(scoreId) ||
     typeof fileName !== "string" ||
-    fileName.length === 0 ||
+    fileName.trim().length === 0 ||
     typeof fileSizeBytes !== "number" ||
     !Number.isSafeInteger(fileSizeBytes) ||
     fileSizeBytes <= 0 ||
