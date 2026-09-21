@@ -22,6 +22,7 @@ def _readonly(payload: bytes) -> memoryview:
 
 
 def test_parser_accepts_exact_mirex_tsv_and_preserves_rational_boundaries() -> None:
+    """Preserve exact rational boundaries for an admitted normalized annotation."""
     parser = _parser()
     segments = parser.parse_functional_annotations(
         _readonly(b"0.0\t1.5\tintro\n1.5\t4.0\tverse\n"),
@@ -36,6 +37,7 @@ def test_parser_accepts_exact_mirex_tsv_and_preserves_rational_boundaries() -> N
 
 
 def test_parser_rejects_mapping_freedom_and_noncanonical_labels() -> None:
+    """Reject post-registration label mapping and labels outside the frozen vocabulary."""
     parser = _parser()
     for label in ("Verse", "verse1", "solo", "other", " verse"):
         payload = f"0.0\t1.0\t{label}\n".encode()
@@ -48,6 +50,7 @@ def test_parser_rejects_mapping_freedom_and_noncanonical_labels() -> None:
 
 
 def test_parser_rejects_gap_overlap_and_incomplete_duration() -> None:
+    """Require a continuous segmentation that exactly spans the admitted audio duration."""
     parser = _parser()
     invalid_payloads = (
         b"0.0\t1.0\tintro\n1.1\t2.0\tverse\n",
@@ -64,6 +67,7 @@ def test_parser_rejects_gap_overlap_and_incomplete_duration() -> None:
 
 
 def test_parser_rejects_malformed_nonfinite_or_mutable_annotation_input() -> None:
+    """Fail closed on malformed, non-finite, or mutable annotation evidence."""
     parser = _parser()
     with pytest.raises(ValueError, match="three tab-separated"):
         parser.parse_functional_annotations(
