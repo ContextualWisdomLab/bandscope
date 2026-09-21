@@ -69,6 +69,44 @@ def test_temporal_error_log_escapes_exception_control_characters(
     _assert_log_value_is_single_record(messages[0], untrusted_value)
 
 
+def test_temporal_error_log_neutralizes_hostile_exception_repr(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A decoder exception cannot bypass log neutralization via custom repr."""
+    audio_path = tmp_path / "buyer-audio.wav"
+    audio_path.write_bytes(b"not-a-real-wave")
+
+    class HostileDecoderError(RuntimeError):
+        """Model a dependency exception whose repr emits raw control characters."""
+
+        def __repr__(self) -> str:
+            """Return an intentionally unsafe representation for the regression."""
+            return "HostileDecoderError('FORGED\nSECURITY EVENT\x1b[31m')"
+
+    def fail_decode(*_args: object, **_kwargs: object) -> object:
+        """Raise the dependency-shaped exception through the real analyzer path."""
+        raise HostileDecoderError("decoder failed")
+
+    monkeypatch.setattr(analyzer_module.librosa, "load", fail_decode)
+    caplog.set_level(logging.ERROR, logger=analyzer_module.__name__)
+
+    with pytest.raises(ValueError, match="Temporal analysis failed"):
+        TemporalAnalyzer().analyze(audio_path)
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == analyzer_module.__name__ and record.levelno >= logging.ERROR
+    ]
+    assert len(messages) == 1
+    assert "\n" not in messages[0]
+    assert "\x1b" not in messages[0]
+    assert "\\n" in messages[0]
+    assert "\\x1b" in messages[0]
+
+
 @pytest.mark.parametrize("untrusted_value", _HOSTILE_LOG_VALUES)
 def test_cli_logs_untrusted_filename_as_single_line(
     monkeypatch: pytest.MonkeyPatch,
