@@ -43,25 +43,48 @@ import numpy as np
 
 ChromaFeature = Literal["cqt", "stft"]
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+_PERFORMANCE_CONTRACT_ID = "isolated-single-shot-v1"
+_SUPPORTED_PLATFORMS = ("darwin", "win32")
+_WARMUP_TRIALS = 0
 _MEASURED_TRIALS = 20
+_LANE_ORDER = "alternate_baseline_candidate_by_trial_index"
+_LATENCY_QUANTILES = (0.5, 0.95)
+_QUANTILE_METHOD = "linear"
 
-PERFORMANCE_MEASUREMENT_CONTRACT: dict[str, object] = {
-    "contract_id": "isolated-single-shot-v1",
-    "supported_platforms": ["darwin", "win32"],
-    "warmup_trials": 0,
-    "measured_trials": _MEASURED_TRIALS,
-    "trial_process": "fresh_subprocess_per_lane_trial",
-    "lane_order": "alternate_baseline_candidate_by_trial_index",
-    "timer": "time.perf_counter_ns",
-    "timer_scope": "repository_structure_segmenter_only",
-    "worker_startup_in_latency": False,
-    "input_transfer_in_latency": False,
-    "latency_quantiles": [0.5, 0.95],
-    "quantile_method": "linear",
-    "memory_metric": "process_peak_resident_set_size",
-    "memory_scope": "entire_worker_process_lifetime_including_pcm_input",
-    "peak_rss_aggregation": "maximum_across_trials",
-}
+
+def _expected_performance_measurement_contract() -> dict[str, object]:
+    """Return the runtime-backed scientific performance contract."""
+    return {
+        "contract_id": _PERFORMANCE_CONTRACT_ID,
+        "supported_platforms": list(_SUPPORTED_PLATFORMS),
+        "warmup_trials": _WARMUP_TRIALS,
+        "measured_trials": _MEASURED_TRIALS,
+        "trial_process": "fresh_subprocess_per_lane_trial",
+        "lane_order": _LANE_ORDER,
+        "timer": "time.perf_counter_ns",
+        "timer_scope": "repository_structure_segmenter_only",
+        "worker_startup_in_latency": False,
+        "input_transfer_in_latency": False,
+        "latency_quantiles": list(_LATENCY_QUANTILES),
+        "quantile_method": _QUANTILE_METHOD,
+        "memory_metric": "process_peak_resident_set_size",
+        "memory_scope": "entire_worker_process_lifetime_including_pcm_input",
+        "peak_rss_aggregation": "maximum_across_trials",
+    }
+
+
+PERFORMANCE_MEASUREMENT_CONTRACT: dict[str, object] = (
+    _expected_performance_measurement_contract()
+)
+
+
+def _validate_performance_measurement_contract() -> None:
+    """Fail closed if published preregistration metadata drifts from runtime semantics."""
+    if PERFORMANCE_MEASUREMENT_CONTRACT != _expected_performance_measurement_contract():
+        raise RuntimeError("performance measurement contract drifted from runtime implementation")
+
+
+_validate_performance_measurement_contract()
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,40 +189,48 @@ def _macos_peak_rss_mib() -> float:
 
 def _windows_peak_rss_mib() -> float:
     """Return Windows PeakWorkingSetSize for the current worker process."""
-    import ctypes
-    from ctypes import wintypes
+    from ctypes import (
+        POINTER,
+        Structure,
+        WinDLL,
+        byref,
+        c_size_t,
+        get_last_error,
+        sizeof,
+        wintypes,
+    )
 
-    class ProcessMemoryCounters(ctypes.Structure):
+    class ProcessMemoryCounters(Structure):
         """Win32 PROCESS_MEMORY_COUNTERS layout required by GetProcessMemoryInfo."""
 
         _fields_ = [
             ("cb", wintypes.DWORD),
             ("PageFaultCount", wintypes.DWORD),
-            ("PeakWorkingSetSize", ctypes.c_size_t),
-            ("WorkingSetSize", ctypes.c_size_t),
-            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
-            ("QuotaPagedPoolUsage", ctypes.c_size_t),
-            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
-            ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-            ("PagefileUsage", ctypes.c_size_t),
-            ("PeakPagefileUsage", ctypes.c_size_t),
+            ("PeakWorkingSetSize", c_size_t),
+            ("WorkingSetSize", c_size_t),
+            ("QuotaPeakPagedPoolUsage", c_size_t),
+            ("QuotaPagedPoolUsage", c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", c_size_t),
+            ("QuotaNonPagedPoolUsage", c_size_t),
+            ("PagefileUsage", c_size_t),
+            ("PeakPagefileUsage", c_size_t),
         ]
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    psapi = ctypes.WinDLL("psapi", use_last_error=True)
+    kernel32 = WinDLL("kernel32", use_last_error=True)
+    psapi = WinDLL("psapi", use_last_error=True)
     kernel32.GetCurrentProcess.restype = wintypes.HANDLE
     psapi.GetProcessMemoryInfo.argtypes = [
         wintypes.HANDLE,
-        ctypes.POINTER(ProcessMemoryCounters),
+        POINTER(ProcessMemoryCounters),
         wintypes.DWORD,
     ]
     psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
 
     counters = ProcessMemoryCounters()
-    counters.cb = ctypes.sizeof(counters)
+    counters.cb = sizeof(counters)
     handle = kernel32.GetCurrentProcess()
-    if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
-        error_code = ctypes.get_last_error()
+    if not psapi.GetProcessMemoryInfo(handle, byref(counters), counters.cb):
+        error_code = get_last_error()
         raise OSError(error_code, "GetProcessMemoryInfo failed")
     peak_bytes = int(counters.PeakWorkingSetSize)
     if peak_bytes <= 0:
@@ -338,7 +369,7 @@ def _summarize_trials(trials: Sequence[IsolatedLaneTrial]) -> LaneResourceSummar
     )
     if not np.all(np.isfinite(latencies)) or np.any(latencies <= 0.0):
         raise ValueError("lane evidence contains invalid latency")
-    p50, p95 = np.quantile(latencies, [0.5, 0.95], method="linear")
+    p50, p95 = np.quantile(latencies, _LATENCY_QUANTILES, method=_QUANTILE_METHOD)
     peak_rss_mib = max(trial.peak_rss_mib for trial in trials)
     if not math.isfinite(peak_rss_mib) or peak_rss_mib <= 0.0:
         raise ValueError("lane evidence contains invalid peak RSS")
@@ -356,6 +387,7 @@ def measure_paired_repository_lane_resources(
     duration_seconds: object,
 ) -> PairedLaneResourceEvidence:
     """Measure paired CQT/STFT performance on the exact immutable admitted PCM."""
+    _validate_performance_measurement_contract()
     pcm = _pcm_view(decoded_pcm)
     sample_rate = _positive_sample_rate(sample_rate_hz)
     exact_duration = _duration(
@@ -380,7 +412,7 @@ def measure_paired_repository_lane_resources(
             else:
                 candidate_trials.append(observation)
     return PairedLaneResourceEvidence(
-        contract_id="isolated-single-shot-v1",
+        contract_id=_PERFORMANCE_CONTRACT_ID,
         baseline=_summarize_trials(baseline_trials),
         candidate=_summarize_trials(candidate_trials),
     )
