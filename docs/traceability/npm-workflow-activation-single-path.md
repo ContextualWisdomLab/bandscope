@@ -46,6 +46,18 @@ Rejected. #1241 is a consumer. It must use the protected/released npm runtime ow
 3. `ab04754df0f48798bb50d50baf4ab6aa38e89f1e` routes the security backstop through the same helper.
 4. `df20e63895968bea105510478ccc04995981d18d` strengthens the regression from literal `npm ci` matching to direct `npm` execution at normal shell-command boundaries, including common environment-assignment and `command npm` forms. This prevents npm command aliases or a different direct npm subcommand from silently escaping runtime admission.
 
+## Exact-head verification finding
+
+The first hosted generation on `8113cbfcffc60af3cdc9a25df0709548d7fc2bd4` proved the pinned npm helper itself on Node 22.22.2: Corepack installed the integrity-bound npm 10.9.9 locator, `verify_npm_runtime.mjs` reported npm 10.9.9 with bundled tar 7.5.22, and frozen `npm ci` completed. The job then failed at `ruff format --check --diff` because three #896-owned Python regression files were not in canonical Ruff format.
+
+This was a repository-source defect, not a runner or npm-acquisition failure. It was repaired immediately from the emitted formatter diff:
+
+- `190a052c60e01fec347c3009df3e5a1869823a7d` formats `test_npm_activation_single_path.py`.
+- `a41a2e5b8d3f6e53c7df232dd449b842c866e3c9` formats `test_npm_package_manager_integrity_pin.py`.
+- `6366eb66635bada29fe72ec99e55efdeeeaaecd0` formats `test_npm_toolchain_contract.py`.
+
+The failed `8113cbfc...` verdict is predecessor evidence only. The repaired final head must obtain its own unchanged exact-head gates.
+
 ## Authority and evidence
 
 npm documents `npm ci` as a clean-install command for automated environments and exposes aliases such as `clean-install`, `ic`, and `install-clean`. Therefore the repository contract guards the direct npm executable rather than one spelling of the install subcommand.
