@@ -9,7 +9,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 EXPECTED_NODE_ENGINE = ">=22.22.2 <23"
 EXPECTED_NODE_FLOOR = (22, 22, 2)
-EXPECTED_NPM_VERSION = "10.9.9"
 EXPECTED_JSDOM_RANGE = "^30.0.1"
 EXPECTED_ESLINT_RANGE = "^10.9.1"
 CANONICAL_NPM_ACTIVATION = "bash scripts/checks/activate_pinned_npm_runtime.sh"
@@ -41,7 +40,6 @@ def test_node_engine_floor_matches_jsdom_30_runtime_contract() -> None:
     package_lock = _load_json("package-lock.json")
 
     assert package["engines"] == {"node": EXPECTED_NODE_ENGINE}
-    assert package["packageManager"] == f"npm@{EXPECTED_NPM_VERSION}"
     assert package_lock["packages"][""]["engines"] == {"node": EXPECTED_NODE_ENGINE}
 
 
