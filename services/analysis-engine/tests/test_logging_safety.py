@@ -158,6 +158,36 @@ def test_temporal_error_log_survives_exception_repr_failure(
     assert "repr unavailable" not in messages[0]
 
 
+def test_temporal_failure_does_not_execute_dependency_str(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Wrapping a decoder failure must not execute dependency-controlled str code."""
+    audio_path = tmp_path / "buyer-audio.wav"
+    audio_path.write_bytes(b"not-a-real-wave")
+    str_calls = 0
+
+    class BrokenStrDecoderError(RuntimeError):
+        """Model a decoder exception whose string conversion is unsafe."""
+
+        def __str__(self) -> str:
+            """Raise if the analyzer executes dependency string conversion."""
+            nonlocal str_calls
+            str_calls += 1
+            raise RuntimeError("str failed")
+
+    def fail_decode(*_args: object, **_kwargs: object) -> object:
+        """Raise the dependency-shaped exception through the real analyzer path."""
+        raise BrokenStrDecoderError("decoder failed")
+
+    monkeypatch.setattr(analyzer_module.librosa, "load", fail_decode)
+
+    with pytest.raises(ValueError, match="Temporal analysis failed: decoder failed"):
+        TemporalAnalyzer().analyze(audio_path)
+
+    assert str_calls == 0
+
+
 def test_temporal_error_log_bounds_oversized_exception_message(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -175,7 +205,7 @@ def test_temporal_error_log_bounds_oversized_exception_message(
     monkeypatch.setattr(analyzer_module.librosa, "load", fail_decode)
     caplog.set_level(logging.ERROR, logger=analyzer_module.__name__)
 
-    with pytest.raises(ValueError, match="Temporal analysis failed"):
+    with pytest.raises(ValueError, match="Temporal analysis failed") as raised:
         TemporalAnalyzer().analyze(audio_path)
 
     messages = [
@@ -186,6 +216,8 @@ def test_temporal_error_log_bounds_oversized_exception_message(
     assert len(messages) == 1
     assert "<truncated>" in messages[0]
     assert len(messages[0]) <= 1200
+    assert "<truncated>" in str(raised.value)
+    assert len(str(raised.value)) <= 1200
 
 
 @pytest.mark.parametrize("untrusted_value", _HOSTILE_LOG_VALUES)
