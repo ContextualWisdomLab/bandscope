@@ -43,11 +43,7 @@ def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
                 if isinstance(step, dict) and isinstance(step.get("run"), str)
             ]
             first_npm_index = next(
-                (
-                    index
-                    for index, command in enumerate(run_steps)
-                    if _DIRECT_NPM.search(command)
-                ),
+                (index for index, command in enumerate(run_steps) if _DIRECT_NPM.search(command)),
                 None,
             )
             if first_npm_index is None:
