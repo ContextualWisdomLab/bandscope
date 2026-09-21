@@ -8,6 +8,7 @@ type TauriWindow = Window & {
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+const OVERSIZED_SCORE_BYTES = 25 * 1024 * 1024 + 1;
 
 describe("scoreStorage bridge resolution", () => {
   afterEach(() => {
@@ -49,7 +50,7 @@ describe("scoreStorage bridge resolution", () => {
   });
 
   it("rejects an oversized bridge array before allocating or reading its bytes", async () => {
-    const oversizedResponse = new Proxy(new Array(25 * 1024 * 1024 + 1), {
+    const oversizedResponse = new Proxy(new Array(OVERSIZED_SCORE_BYTES), {
       get(target, property, receiver) {
         if (property !== "length") {
           throw new Error("oversized bridge payload should be rejected before byte access");
@@ -58,6 +59,17 @@ describe("scoreStorage bridge resolution", () => {
       }
     });
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(oversizedResponse);
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
+  });
+
+  it.each([
+    ["Uint8Array", () => new Uint8Array(OVERSIZED_SCORE_BYTES)],
+    ["ArrayBuffer", () => new ArrayBuffer(OVERSIZED_SCORE_BYTES)]
+  ])("rejects an oversized %s bridge response", async (_label, createResponse) => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(createResponse());
 
     await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
       INVALID_RESPONSE_MESSAGE
