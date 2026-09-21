@@ -140,5 +140,5 @@ class TemporalAnalyzer:
             }
 
         except Exception as e:
-            logger.error("Failed to analyze audio %s: %s", repr(path_str), e)
+            logger.error("Failed to analyze audio %s: %s", repr(path_str), repr(e))
             raise ValueError(f"Temporal analysis failed: {e}") from e
