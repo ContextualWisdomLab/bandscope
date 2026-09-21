@@ -196,7 +196,9 @@ def test_receipt_cannot_pass_without_reviewed_decision_timestamp() -> None:
                                         "name": "ci / build-and-test",
                                         "status": "COMPLETED",
                                         "conclusion": "SUCCESS",
-                                        "app": {"databaseId": 15368},
+                                        "checkSuite": {
+                                            "app": {"databaseId": 15368},
+                                        },
                                     }
                                 ],
                             }
