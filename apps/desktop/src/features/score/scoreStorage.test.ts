@@ -55,7 +55,8 @@ describe("scoreStorage bridge resolution", () => {
     ["empty score id", "", "chart.pdf"],
     ["non-canonical score id", "score-1", "chart.pdf"],
     ["uppercase score id", VALID_SCORE_ID.toUpperCase(), "chart.pdf"],
-    ["empty file name", VALID_SCORE_ID, ""]
+    ["empty file name", VALID_SCORE_ID, ""],
+    ["whitespace-only file name", VALID_SCORE_ID, " \t "]
   ])("rejects %s attachment identity metadata", async (_label, scoreId, fileName) => {
     (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
       scoreId,
