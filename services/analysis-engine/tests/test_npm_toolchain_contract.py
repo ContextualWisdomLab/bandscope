@@ -10,9 +10,15 @@ import yaml
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 _EXPECTED_NPM_VERSION = "10.9.9"
+_EXPECTED_NPM_INTEGRITY = (
+    "d60fba8cb42f688b81e33c2f1cbef2ad7b977166700ec0ad057f1b6d60ea6ef"
+    "2524abf673e20c35931cd8305d1dbb8887134d6eefdc0e7b8435bd458bf65b862"
+)
+_EXPECTED_PACKAGE_MANAGER = f"npm@{_EXPECTED_NPM_VERSION}+sha512.{_EXPECTED_NPM_INTEGRITY}"
 _EXPECTED_NODE_VERSION = "22.22.3"
 _MINIMUM_NPM_TAR_VERSION = "7.5.19"
 _NPM_RUNTIME_CHECK = "node scripts/checks/verify_npm_runtime.mjs"
+_NPM_ACTIVATION_COMMAND = "bash scripts/checks/activate_pinned_npm_runtime.sh"
 
 
 def _root_manifest() -> dict[str, object]:
@@ -86,20 +92,8 @@ def _assert_no_mutable_npm_commands(steps: list[dict[str, object]]) -> None:
 
 
 def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, object]]) -> None:
-    """Require Corepack npm activation and runtime audit before the first npm dependency read."""
+    """Require the canonical npm activation helper before the first dependency read."""
     run_steps = [str(step["run"]) for step in steps if isinstance(step.get("run"), str)]
-    activation_index = next(
-        (index for index, command in enumerate(run_steps) if "corepack enable npm" in command),
-        None,
-    )
-    audit_index = next(
-        (
-            index
-            for index, command in enumerate(run_steps)
-            if "npm run check:npm-runtime" in command
-        ),
-        None,
-    )
     consumption_index = next(
         (
             index
@@ -108,19 +102,29 @@ def _assert_patched_npm_precedes_dependency_consumption(steps: list[dict[str, ob
         ),
         None,
     )
-
-    assert activation_index is not None
-    assert audit_index is not None
     assert consumption_index is not None
-    assert activation_index <= audit_index < consumption_index
+
+    helper_indices = [
+        index
+        for index, command in enumerate(run_steps)
+        if command.strip() == _NPM_ACTIVATION_COMMAND
+    ]
+    assert len(helper_indices) == 1
+    assert helper_indices[0] < consumption_index
+
+    for command in run_steps:
+        if command.strip() == _NPM_ACTIVATION_COMMAND:
+            continue
+        assert "corepack enable npm" not in command
+        assert "npm run check:npm-runtime" not in command
 
 
 def test_root_manifest_pins_the_lockfile_generator_and_fails_on_drift() -> None:
     """Require npm and source-tree commands to reject a different generator."""
     manifest = _root_manifest()
 
-    assert manifest["packageManager"] == f"npm@{_EXPECTED_NPM_VERSION}"
-    assert manifest["engines"] == {"node": ">=22.13 <23"}
+    assert manifest["packageManager"] == _EXPECTED_PACKAGE_MANAGER
+    assert manifest["engines"] == {"node": ">=22.22.2 <23"}
     assert manifest["devEngines"] == {
         "packageManager": {
             "name": "npm",
@@ -147,8 +151,7 @@ def test_primary_ci_consumes_the_lock_without_mutable_resolution() -> None:
     lock_job = _lock_validation_job(workflow)
 
     assert f'node-version: "{_EXPECTED_NODE_VERSION}"' in workflow
-    assert f'EXPECTED_NPM_VERSION: "{_EXPECTED_NPM_VERSION}"' in workflow
-    assert 'test "$(npm --version)" = "$EXPECTED_NPM_VERSION"' in lock_job
+    assert lock_job.count(_NPM_ACTIVATION_COMMAND) == 1
     assert "npm ci --ignore-scripts --no-audit --no-fund" in lock_job
     assert "git diff --exit-code -- package.json package-lock.json" in lock_job
     assert "needs: lock-validation" in workflow
@@ -211,18 +214,26 @@ def test_root_lock_preserves_esbuild_peer_metadata() -> None:
 
 
 def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads() -> None:
-    """Prevent dependency reads before Corepack selects and verifies the reviewed npm runtime."""
-    workflow_names = ("ci.yml", "release.yml", "security-audit.yml", "build-baseline.yml")
+    """Discover every npm consumer and require the canonical runtime before dependency reads."""
+    workflows_dir = _REPOSITORY_ROOT / ".github" / "workflows"
+    workflow_paths = sorted((*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")))
+    assert workflow_paths, "repository must contain GitHub Actions workflows"
 
-    for workflow_name in workflow_names:
-        workflow_path = _REPOSITORY_ROOT / ".github" / "workflows" / workflow_name
+    npm_consumer_workflows = 0
+    npm_consumer_jobs = 0
+    for workflow_path in workflow_paths:
         document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
         assert isinstance(document, dict)
         jobs = document.get("jobs")
         assert isinstance(jobs, dict)
-        npm_consumers = 0
+        workflow_consumers = 0
 
-        for job_name in jobs:
+        for job_name, job in jobs.items():
+            assert isinstance(job, dict)
+            if job.get("steps") is None:
+                # Reusable-workflow call jobs have no local shell steps. Their called workflow
+                # is scanned independently when it lives in this repository workflow directory.
+                continue
             steps = _job_steps(jobs, str(job_name))
             consumes_npm = any(
                 isinstance(step.get("run"), str)
@@ -231,7 +242,8 @@ def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads
             )
             if not consumes_npm:
                 continue
-            npm_consumers += 1
+            workflow_consumers += 1
+            npm_consumer_jobs += 1
             _assert_checkout_credentials_not_persisted(steps)
 
             setup_node_steps = [
@@ -240,15 +252,18 @@ def test_npm_consuming_workflows_activate_pinned_runtime_before_dependency_reads
                 if isinstance(step.get("uses"), str)
                 and str(step["uses"]).startswith("actions/setup-node@")
             ]
-            assert len(setup_node_steps) == 1, f"{workflow_name}:{job_name} setup-node ownership"
+            context = f"{workflow_path.name}:{job_name}"
+            assert len(setup_node_steps) == 1, f"{context} setup-node ownership"
             setup_options = setup_node_steps[0].get("with")
             assert isinstance(setup_options, dict)
-            assert "cache" not in setup_options, (
-                f"{workflow_name}:{job_name} pre-Corepack npm cache"
-            )
+            assert "cache" not in setup_options, f"{context} pre-Corepack npm cache"
             assert setup_options.get("package-manager-cache") is False, (
-                f"{workflow_name}:{job_name} must disable setup-node package-manager cache"
+                f"{context} must disable setup-node package-manager cache"
             )
             _assert_patched_npm_precedes_dependency_consumption(steps)
 
-        assert npm_consumers > 0, f"{workflow_name} must contain an npm dependency consumer"
+        if workflow_consumers:
+            npm_consumer_workflows += 1
+
+    assert npm_consumer_workflows > 0, "repository must contain an npm-consuming workflow"
+    assert npm_consumer_jobs > 0, "repository must contain an npm-consuming workflow job"

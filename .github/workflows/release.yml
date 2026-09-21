@@ -45,9 +45,7 @@ jobs:
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal
       - name: Activate and verify pinned npm runtime
-        run: |
-          corepack enable npm
-          npm run check:npm-runtime
+        run: bash scripts/checks/activate_pinned_npm_runtime.sh
       - name: Install node dependencies
         run: npm ci
       - name: Sync Python dependencies
