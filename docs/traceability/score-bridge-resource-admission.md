@@ -4,132 +4,134 @@ Status: Proposed
 
 ## Problem
 
-BandScope accepts score-PDF bytes and attachment metadata from the Tauri IPC bridge before the renderer hands those bytes to buyer-visible Score/PDF UI. The native Score Storage boundary already caps admitted PDFs at 25 MiB, but the renderer previously trusted the returned container size.
+BandScope accepts Score/PDF bytes and attachment metadata across the Tauri IPC boundary before the renderer hands them to buyer-visible UI or sends stored-score operations back to the native command layer. The native Score Storage boundary already caps admitted PDFs at 25 MiB and admits score identities only in its lowercase hyphenated UUID-shaped syntax, but the renderer historically treated several bridge values as trustworthy.
 
-For `number[]` responses, the renderer allocated `new Uint8Array(response.length)` before applying byte-domain validation. A malformed or compromised bridge response could therefore request a second oversized renderer allocation before any byte was inspected. `Uint8Array` and `ArrayBuffer` responses likewise crossed the renderer boundary without an independent size check.
+For `number[]` read responses, the renderer allocated `new Uint8Array(response.length)` before applying byte-domain validation. A malformed or compromised bridge response could therefore request a second oversized renderer allocation before any byte was inspected. `Uint8Array` and `ArrayBuffer` responses likewise crossed the renderer boundary without an independent size check. All three forms also admitted zero-length content even though zero bytes cannot be a usable PDF.
 
-A smaller validity gap remained after the size repair: all three accepted bridge container forms also admitted a zero-length payload. At attachment time, native score admission reads the complete `%PDF-` magic header, so zero bytes are never valid admitted PDF content. The current #1176-base `read_score_pdf` command, however, still performs `std::fs::read` after path validation; an app-owned score object truncated after attachment can therefore surface as a successful empty `Vec<u8>`. A test/dev shim or serialization defect can produce the same renderer input. The renderer previously forwarded all of those zero-byte results to the Score/PDF UI. Native descriptor-bounded read-time size/content revalidation remains canonical #865 ownership rather than being duplicated here.
+The attach path separately accepted impossible metadata. `fileSizeBytes` originally required only the JavaScript `number` type, and `scoreId` / `fileName` originally required only strings. That allowed non-finite, fractional, non-positive, oversized size metadata, noncanonical score identities, and blank presentation metadata to enter renderer state.
 
-The attach path had a related metadata-integrity gap: `fileSizeBytes` was accepted whenever its JavaScript type was `number`. `NaN`, infinity, negative/fractional values, zero, or a value above the native 25 MiB admission ceiling could therefore become renderer-visible attachment metadata even though none can describe a successfully admitted stored score.
+A final one-sided identity gap remained after attachment-response validation was tightened: `attachScorePdf()` rejected a noncanonical returned `scoreId`, but `readScorePdf()` and `removeScorePdf()` still accepted an arbitrary string and sent it to the privileged native command. This contradicted the source comment that only allowlisted score identities cross IPC. It was reachable from malformed/inconsistent renderer or persisted project state because the current shared `ScoreAttachment` parser on this stack requires only a non-empty attachment `id`; it does not enforce the native UUID-shaped syntax. Native `read/remove` still fail closed, but renderer admission was inconsistent across the two IPC directions.
 
-A second attach-path gap remained after the size repair. `scoreId` and `fileName` were accepted on JavaScript type alone. Native Score Storage mints score identities as lowercase hyphenated UUIDs and later read/remove commands reject any other score-id syntax; the durable shared project schema also requires a non-blank attachment filename. A malformed IPC response could therefore be accepted into renderer/project state even though the native owner would deterministically reject the identity on the next operation, or the shared project parser would reject an empty or whitespace-only filename on persistence/reload.
+The renderer also rejects whitespace-only returned filenames. This is deliberately stricter than the current shared durable schema, which rejects only the empty string. The stricter renderer predicate prevents presentation-only whitespace from entering live Score UI state; it is defense in depth, not a claim that the shared schema already owns the same predicate.
 
-The first attachment-metadata repair rejected only `fileName.length === 0`, which still admitted values such as `" \t "`. That remained inconsistent with the shared `ScoreAttachment` parser, whose filename invariant is `fileName.trim().length > 0`. A whitespace-only bridge filename could therefore be accepted into live renderer state and only fail later when the same attachment crossed the durable project-schema boundary.
-
-These repairs treat the IPC response as a trust boundary, so renderer admission remains fail-closed when native storage state, the bridge, a test/dev shim, or future serialization code returns data that cannot be valid buyer-visible score content. Tauri v2 commands serialize values across the WebView/core IPC message boundary; frontend tests can also deliberately mock command results, so producer postconditions are explicit contracts rather than TypeScript compile-time guarantees.
+The current #1176-base native `read_score_pdf` still performs an ordinary file read after path validation. A previously admitted app-owned PDF that is later truncated can therefore yield unusable content to the renderer. Canonical #865 owns descriptor-bounded read-time size/content revalidation; this renderer lane must not duplicate that Rust filesystem/PDF policy.
 
 ## Constraints
 
-- Native Score Storage remains the owner of picker/path authority, PDF magic validation, filesystem publication, symlink handling, content receipts, durability, recovery, and destructive mutation.
-- Renderer validation must not create a second filesystem or PDF-validity implementation.
-- The renderer must reject zero-length and oversized byte containers before downstream PDF parsing. Zero bytes can never be valid PDF content; exact PDF magic/content revalidation remains native #865 authority.
-- The renderer must reject oversized array containers before creating a second buffer or iterating attacker-shaped array elements.
-- All accepted byte-container forms must obey the same renderer ceiling.
-- Attachment-size metadata must describe a possible successfully admitted score: a positive safe integer no greater than the renderer/native 25 MiB ceiling.
-- Returned score identities must satisfy the native owner's lowercase hyphenated UUID syntax before they can enter renderer/project state.
-- Returned attachment filenames must contain at least one non-whitespace character, matching the durable shared `ScoreAttachment` schema without inventing stricter cross-platform filename rules in the renderer.
-- Invalid IPC data is not reflected into logs or error text; callers receive the stable `Invalid score bridge response` boundary.
-- A future native size-limit, score-identity, or shared attachment-filename contract change requires an explicit two-sided contract update and fresh tests rather than silently widening one side of the boundary.
+- Native Score Storage remains the authoritative owner of picker/path authority, score-id filesystem admission, PDF magic validation, symlink handling, publication, content receipts, durability, recovery and destructive mutation.
+- Renderer admission must not become a second filesystem or PDF-validity implementation.
+- All accepted byte-container forms must be non-empty and no larger than 25 MiB before downstream parsing or a second allocation.
+- Oversized `number[]` values must be rejected before destination allocation or attacker-shaped element access.
+- Attachment size metadata must be a positive safe integer no larger than the same 25 MiB ceiling.
+- Native-returned and renderer-supplied score identities must satisfy the native lowercase hyphenated UUID-shaped syntax before crossing the renderer/native Score IPC boundary.
+- The renderer may reject presentation metadata more strictly than the shared durable schema, but it must not describe that stricter predicate as shared-schema authority.
+- Invalid bridge/identity data is not reflected into logs or buyer-visible diagnostics; callers receive the stable `Invalid score bridge response` boundary.
+- Changes to native size or identity contracts require an explicit two-sided review; durable shared-schema tightening remains its canonical owner rather than being silently imposed here.
 
 ## Alternatives considered
 
 ### Trust the native command exclusively
 
-Rejected. Native attachment validation protects initial ingestion, but the current base read command can still observe a later-truncated app-owned file, and the renderer also consumes IPC data from test/dev shims and serialization code. The renderer should not allocate an unbounded second buffer, forward zero-byte content as a usable score, or persist impossible attachment metadata merely because the normal producer is expected to be correct.
+Rejected. Native validation is still authoritative, but the renderer is a separate IPC consumer/caller and should not allocate from unbounded bridge responses or invoke a privileged score command with an identity it already knows cannot satisfy the native contract. Tauri command arguments and return values cross an IPC serialization boundary; consumer-side admission is a defense-in-depth contract, not a replacement for Rust validation.
 
 ### Validate bytes after allocating the destination buffer
 
-Rejected. This detects malformed byte values but does not bound the allocation that occurs before validation. Resource admission must precede allocation and element access.
+Rejected. That detects malformed byte values but does not bound the allocation performed before validation.
 
 ### Accept typed arrays and `ArrayBuffer` without a renderer cap
 
-Rejected. Their byte domain is already valid, but their size is still a resource-admission input and can feed the PDF path directly.
+Rejected. Their byte domain is already valid, but their size is still a resource-admission input.
 
-### Reimplement native PDF-magic validation in the renderer
+### Reimplement `%PDF-`, path, or descriptor policy in TypeScript
 
-Rejected. The minimum renderer guard is narrower: zero-byte content is always invalid, while exact `%PDF-` validation, descriptor semantics, file selection and filesystem provenance stay with native Score Storage and canonical native read owner #865. This consumer repair must not become a second PDF validator.
+Rejected. Exact PDF content/provenance and filesystem semantics remain native Score Storage / #865 authority. The renderer only rejects values that cannot be usable bridge content and bounds its own allocation surface.
 
-### Validate only that `scoreId` and `fileName` are strings
+### Validate only attachment-response score ids
 
-Rejected. Type-valid strings can still violate the contracts consumed immediately downstream. An arbitrary non-empty `scoreId` can be persisted but rejected by native read/remove, while an empty or whitespace-only `fileName` is invalid under the shared durable project schema. Admission therefore checks the score-id syntax actually minted/admitted by Score Storage and the shared schema's non-blank filename invariant.
+Rejected. The same identity is subsequently supplied by renderer/project state to `read_score_pdf` and `remove_score_pdf`. One-sided postcondition checking still lets malformed persisted/live state cross the privileged IPC call boundary. The same syntax predicate is therefore applied immediately before both read and remove invokes while native validation remains authoritative.
 
-### Normalize or copy native filename/path policy into TypeScript
+### Tighten the shared project schema from this lane
 
-Rejected. Native file selection and filesystem semantics remain Score Storage authority. The renderer does not trim or rewrite the buyer-visible filename and does not second-guess platform-specific filename legality or path resolution. It only rejects a value that the shared durable schema would reject later anyway.
+Rejected. The live shared `ScoreAttachment` parser on this stack requires non-empty `id` and `fileName`; it does not require native UUID syntax or non-whitespace filename content. Changing that durable project contract is broader Project Persistence/shared-types ownership. This lane instead fails closed at the Score bridge boundary and records the cross-layer drift explicitly.
 
-### Duplicate native PDF and filesystem validation in TypeScript
+### Normalize filenames in the renderer
 
-Rejected. That would violate the Score Storage ownership boundary and create divergent security implementations. The renderer owns only the IPC container/metadata admission needed before local allocation and downstream parsing/persistence.
+Rejected. Native filename/path legality remains Score Storage authority and buyer-visible presentation text should not be silently rewritten. The renderer only rejects empty/whitespace-only presentation values and preserves accepted filenames verbatim.
 
 ## Decision
 
-The renderer defines `MAX_SCORE_PDF_BRIDGE_BYTES = 25 * 1024 * 1024`, matching the native Score Storage maximum.
+`MAX_SCORE_PDF_BRIDGE_BYTES` remains `25 * 1024 * 1024`, matching the current native Score Storage maximum.
 
-`readScorePdf` now:
+`readScorePdf()` now:
 
-- rejects zero-length `Uint8Array`, `ArrayBuffer`, and `number[]` responses as invalid score content;
-- rejects `Uint8Array.byteLength` above the ceiling before returning the object;
-- rejects `ArrayBuffer.byteLength` above the ceiling before constructing a `Uint8Array` view;
-- rejects `number[]` length above the ceiling before destination allocation or element access;
-- performs the existing one-pass byte validation/copy for bounded arrays, admitting only integer values from 0 through 255.
+- rejects a noncanonical `scoreId` before native IPC;
+- rejects zero-length `Uint8Array`, `ArrayBuffer`, and `number[]` responses;
+- rejects typed containers above the ceiling before returning or constructing a view;
+- rejects an oversized `number[]` before destination allocation/element access; and
+- performs one-pass validation/copy for bounded arrays, admitting only integer values `0..255`.
 
-`attachScorePdf` now:
+`attachScorePdf()` now:
 
-- accepts `fileSizeBytes` only when it is a positive safe integer at or below the same ceiling;
-- accepts `scoreId` only when it matches the native lowercase hyphenated UUID syntax (`8-4-4-4-12`, hexadecimal); and
-- accepts `fileName` only when `fileName.trim().length > 0`, matching the durable shared `ScoreAttachment` parser while preserving the original filename verbatim.
+- accepts `fileSizeBytes` only when it is a positive safe integer at or below the ceiling;
+- accepts returned `scoreId` only when it matches native lowercase hyphenated `8-4-4-4-12` hexadecimal syntax; and
+- rejects empty or whitespace-only returned `fileName` while preserving accepted filenames verbatim.
 
-This is defense in depth at the renderer IPC boundary. It does not expand renderer authority over native storage.
+`removeScorePdf()` now rejects a noncanonical `scoreId` before native IPC. It otherwise preserves the native command's boolean/idempotent deletion contract.
+
+The renderer check does not authorize an operation. It only rejects obviously invalid syntax earlier; the native command still independently checks identity, path and filesystem authority.
 
 ## RED → repair evidence
 
-- `0067f8de5766adeccbe62466b56d496257b9b700`: RED using an oversized sparse-array Proxy whose byte access traps. The pre-repair implementation allocates from the untrusted length and then touches an element instead of rejecting at resource admission.
-- `698d0dc253c005d5baab0b5c68a10701ed449fc0`: causal repair applying the 25 MiB renderer cap before array allocation/read and to typed byte containers.
-- `cf034b69cef18411e9c354bcf127a47eddd76677`: regression coverage for oversized `Uint8Array` and `ArrayBuffer` responses.
-- `a97bae9efdf1fcfd72dbfa60a66366e433356502`: replaces large typed test allocations with lightweight Proxy fixtures while preserving oversized-container semantics.
-- `7c53c5414ef79f403ea051c3256b38eca4f034c0`: RED proving attachment `fileSizeBytes` accepted impossible numeric values under the previous `typeof number` check.
-- `bf97eda4f4cf599afb8aee96aa9d5b54ba01d3d9`: repair requiring positive safe-integer attachment size metadata bounded by the same 25 MiB contract.
-- `333008b92b7db9844fe677e6b1d79a4172655599`: RED proving the renderer accepted empty, non-canonical, and uppercase score identities plus an empty filename as successful attachment metadata.
-- `335aba67edf6cd50f11cec172449f059c11a5e4e`: causal repair requiring the native score-id syntax and an initially non-empty filename before attachment metadata is returned.
-- `3b4bbe2607988e79f91000bdd742fe15b3373ce6`: RED replacing the old empty-array-success expectation with fail-closed regressions for empty `number[]`, `Uint8Array`, and `ArrayBuffer` bridge responses. The predecessor implementation accepted all three.
-- `e454d52e75e6890781ed111337c99e038edaad2e`: minimal repair rejecting zero-byte containers before they can be returned to the Score/PDF renderer, without duplicating `%PDF-` magic validation in TypeScript.
-- `82e71a69f4da4bd540d0dd27417944744ef304fc`: RED proving the first metadata repair still admitted a whitespace-only bridge filename that the shared durable attachment parser rejects.
-- `ebee7c1bbea5e91403d4608729c0ad4e06ba7d1e`: minimal repair aligning renderer admission with the shared non-blank filename invariant via `trim().length > 0`, without normalizing the filename or importing filesystem policy.
+Earlier retained lineage:
 
-These commits establish source/test evidence only. The PR is stacked on the formatter prerequisite rather than a protected target, so current hosted PR workflow generation is not treated as GREEN. Fresh protected-target verification remains required after normal prerequisite integration and ordinary/non-force reconciliation.
+- `0067f8de5766adeccbe62466b56d496257b9b700` → `698d0dc253c005d5baab0b5c68a10701ed449fc0`: bound array admission before allocation/read and apply the cap to typed containers.
+- `7c53c5414ef79f403ea051c3256b38eca4f034c0` → `bf97eda4f4cf599afb8aee96aa9d5b54ba01d3d9`: require possible attachment-size metadata.
+- `333008b92b7db9844fe677e6b1d79a4172655599` → `335aba67edf6cd50f11cec172449f059c11a5e4e69771c14f8`: attachment identity/presentation response admission. The filename reasoning is corrected here: whitespace rejection is renderer defense in depth, not an existing shared-schema `trim()` rule.
+- `3b4bbe2607988e79f91000bdd742fe15b3373ce6` → `e454d52e75e6890781ed111337c99e038edaad2e`: reject zero-byte bridge containers.
+- `82e71a69f4da4bd540d0dd27417944744ef304fc` → `ebee7c1bbea5e91403d4608729c0ad4e06ba7d1e`: reject whitespace-only returned filenames without normalization.
+
+Current identity-call repair:
+
+- RED `745561478c6b89347f5514c1294101ef7ade6960`: adds read/remove regressions requiring malformed and uppercase score ids to fail before the Tauri invoke shim is called. Existing response-admission tests are switched to a canonical id so the new caller guard cannot accidentally make those tests vacuous.
+- Production repair `36a9a4859af760301d37ffa565e04837afc09052`: centralizes the score-id predicate and applies it to attachment responses plus read/remove call admission.
+- Test-shape cleanup `700fba20d50c54f64189b3d7f88e9a6a0932fd32`: preserves the RED semantics while keeping each `it.each` table homogeneously typed.
+
+The test-only RED was immediately followed by the repair, so no hosted terminal RED is claimed. This PR is stacked on an unprotected feature prerequisite; fresh hosted exact-head evidence must be reacquired only after normal prerequisite integration/reconciliation.
 
 ## Security Notes
 
-### Trust boundary
+### Trust and authority boundary
 
-Tauri IPC return values are untrusted at the renderer boundary even when the normal native producer is expected to satisfy stronger invariants. The security objective here is bounded renderer memory admission and syntactically/semantically consistent bridge postconditions, not protection against arbitrary code execution in a fully compromised desktop process.
+Tauri v2 commands expose a frontend-to-Rust IPC call surface. Runtime authority/capability checks and Rust command validation remain authoritative. This renderer rule is an additional accept-known-good input check before invoking the score read/remove commands and a postcondition check on score command responses.
 
-Native attachment admission reads the full `PDF_MAGIC` header before accepting a selected score, so an empty file is never valid score content. The current #1176-base `read_score_pdf` nevertheless uses `std::fs::read` after path validation, which means post-attachment storage truncation can produce an empty successful bridge value. The renderer now rejects that value, while #865 remains the canonical native owner for descriptor-bounded read-time size/magic validation and its own race handling. Tauri documents commands as an IPC abstraction that serializes command arguments and return data across the WebView/core boundary, and its frontend testing guidance explicitly supports mocked IPC results. Those mechanics make runtime response validation appropriate at the consumer boundary without importing native filesystem authority.
+A malformed project document or stale in-memory object with a non-empty but noncanonical attachment id can currently pass the shared durable attachment parser. Before this repair it could therefore reach native read/remove IPC. Native validation prevented path escape, so this is not evidence of a native traversal bypass; it is a bridge-contract consistency and unnecessary privileged-call finding.
 
 ### CWE mapping
 
-MITRE CWE-770, *Allocation of Resources Without Limits or Throttling*, describes resource allocation without intended size/count restrictions and recommends explicit limits plus input validation. The pre-repair array path allocated a destination buffer from an untrusted response length before enforcing a resource ceiling; the selected repair moves that bound ahead of allocation and applies it consistently to all accepted byte-container forms.
+MITRE CWE-770, *Allocation of Resources Without Limits or Throttling*, maps to the pre-repair array/typed-container allocation surface. The repair moves an explicit size limit ahead of renderer allocation and downstream PDF parsing.
 
-MITRE CWE-1286, *Improper Validation of Syntactic Correctness of Input*, covers data expected to conform to a defined syntax but admitted without checking that syntax. The attachment identity repair uses an accept-known-good pattern for the native score-id format instead of treating every JavaScript string as a valid durable/native identity. The whitespace-only filename repair is the semantic companion to that check: it prevents the bridge from admitting a presentation value that the shared durable parser already defines as blank. CWE-1286 is used here rather than the more abstract CWE-20 because the concrete identifier defect is syntactic admission of a defined contract; the filename condition is documented primarily as cross-layer contract consistency rather than a separate vulnerability claim.
+MITRE CWE-1286, *Improper Validation of Syntactic Correctness of Input*, maps directly to the score-id issue: native Score Storage defines a concrete accepted syntax, while the renderer previously sent arbitrary strings to read/remove IPC and initially accepted arbitrary string identities from attachment responses. The repair uses an accept-known-good syntax check at the bridge boundary. This is intentionally narrower than claiming the project schema itself is now canonicalized.
 
 References:
 
 - MITRE. (2026). *CWE-770: Allocation of Resources Without Limits or Throttling* (CWE 4.20). https://cwe.mitre.org/data/definitions/770.html
 - MITRE. (2026). *CWE-1286: Improper Validation of Syntactic Correctness of Input* (CWE 4.20). https://cwe.mitre.org/data/definitions/1286.html
 - Tauri. (2026). *Inter-process communication*. https://v2.tauri.app/concept/inter-process-communication/
-- Tauri. (2026). *Mock Tauri APIs*. https://v2.tauri.app/develop/tests/mocking/
+- Tauri. (2025). *Runtime authority*. https://v2.tauri.app/security/runtime-authority/
 
 ### Residual risk
 
-The 25 MiB value and score-id syntax intentionally mirror native owner contracts rather than importing one shared runtime implementation across the Rust/TypeScript boundary. Either can drift if the native admission policy changes. The filename invariant is shared-schema-owned and now mirrored exactly as a non-blank predicate; if that durable contract changes, renderer admission must be reviewed in the same change. Such changes must keep the renderer no more permissive than the downstream contract it feeds. The renderer deliberately does not reproduce native file/path or PDF-magic validation; those semantics remain native authority.
+The 25 MiB value and score-id syntax are intentionally mirrored from the native owner rather than imported from one shared executable implementation. They can drift if native policy changes, so such changes require paired contract review and tests.
 
-Rejecting only zero bytes is not a substitute for #865's native read-time validation: nonempty corrupted/truncated content can still be invalid PDF data. Hosted memory/GC and packaged buyer-path measurements remain separate performance evidence; these source repairs do not claim a measured latency or memory improvement. A fully compromised desktop process can bypass renderer checks and is outside this boundary's claim.
+The durable shared attachment parser remains less strict than this renderer boundary: it accepts any non-empty attachment id and any non-empty filename. This repair prevents malformed score ids from reaching score read/remove IPC, but it does not make malformed persisted metadata valid or automatically migrate it. Durable-schema normalization/migration belongs to the shared-types/Project Persistence owner.
+
+Renderer zero-byte rejection is not a substitute for #865's native read-time validation. Nonempty corrupted/truncated content can still be invalid PDF data. No latency, heap or GC improvement is claimed without packaged-path measurement.
 
 ## Follow-up
 
-1. After #1176 reaches protected ancestry, reconcile this owner ordinary/non-force onto current `develop`.
-2. Keep #865 as the native read-time allocation/content-validation owner; once it reaches protected truth, reconcile this consumer lane without copying its Rust implementation.
-3. Run the focused bridge regressions and normal desktop/repository/security gates on one unchanged exact head.
-4. Verify the packaged Score/PDF path with representative rights-cleared PDFs near the admission limit and record renderer heap/GC behavior without weakening the 25 MiB ceiling.
-5. Keep byte/metadata admission here separate from Score Storage filesystem/recovery ownership and from ScoreViewer/PDF rendering-performance owners.
-6. Do not close weaker preservation PRs until a protected successor has verifiably absorbed their still-valid semantic/test evidence.
+1. #1176 must reach protected ancestry through normal gates; then reconcile this owner ordinary/non-force onto current `develop`.
+2. Keep #865 as native read-time allocation/content-validation owner and consume its protected contract without copying Rust source.
+3. Reacquire focused Score bridge tests plus repository/security/SAST/SBOM evidence on one unchanged protected-target head.
+4. Evaluate durable `ScoreAttachment.id` syntax tightening/migration only in the canonical shared-types/Project Persistence owner, because existing persisted documents may require compatibility handling.
+5. Verify representative rights-cleared PDFs near the admission limit in the packaged Score/PDF path and record heap/GC behavior separately from correctness/security claims.
+6. Keep Score bridge admission distinct from Score Storage publication/recovery and ScoreViewer rendering-performance owners.
