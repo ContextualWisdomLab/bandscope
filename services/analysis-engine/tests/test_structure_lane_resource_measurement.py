@@ -53,6 +53,31 @@ def test_performance_contract_is_part_of_metric_aware_registration_identity() ->
     }
 
 
+@pytest.mark.parametrize(
+    ("field", "drifted_value"),
+    (
+        ("contract_id", "isolated-single-shot-v2"),
+        ("measured_trials", 19),
+        ("lane_order", "baseline_then_candidate"),
+        ("latency_quantiles", [0.5, 0.9]),
+        ("quantile_method", "nearest"),
+    ),
+)
+def test_performance_measurement_contract_drift_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    drifted_value: object,
+) -> None:
+    """Reject preregistration metadata that no longer describes runtime measurement semantics."""
+    module = _measurement_module()
+    drifted_contract = dict(module.PERFORMANCE_MEASUREMENT_CONTRACT)
+    drifted_contract[field] = drifted_value
+    monkeypatch.setattr(module, "PERFORMANCE_MEASUREMENT_CONTRACT", drifted_contract)
+
+    with pytest.raises(RuntimeError, match="performance measurement contract drift"):
+        module._validate_performance_measurement_contract()
+
+
 def test_paired_measurement_alternates_order_and_uses_linear_quantiles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
