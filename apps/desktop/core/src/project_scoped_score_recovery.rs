@@ -1,9 +1,10 @@
-//! Project-identity binding for score recovery intent.
+//! Project identity and revision binding for score recovery intent.
 //!
 //! Recovery reconciliation is path-free and score-id based, but a buyer decision is made while one
-//! project aggregate is active. The same score candidate can remain visible after the application
-//! switches projects, so score-set revalidation alone is insufficient mutation authority. This module
-//! binds the otherwise valid recovery action to the app-owned project identity that authorized it.
+//! durable project aggregate revision is active. The same score candidate can remain visible after the
+//! application switches projects or after another writer updates the same project, so score-set
+//! revalidation alone is insufficient mutation authority. This module binds the otherwise valid recovery
+//! action to both the app-owned project identity and durable content revision that authorized it.
 
 use crate::{
     runtime_core::is_valid_project_id,
@@ -22,14 +23,23 @@ const SCORE_RECOVERY_ACTION_ERROR: &str = "Could not authorize score attachment 
 const SCORE_RECOVERED_METADATA_ERROR: &str =
     "Could not prepare recovered score attachment metadata.";
 
-/// Session-local score recovery intent bound to one app-owned project aggregate.
+fn is_valid_project_revision(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// Session-local score recovery intent bound to one durable app-owned project revision.
 ///
 /// This type is deliberately opaque. A score recovery decision that was valid for Project A must never
-/// become mutation authority for Project B merely because both projects currently classify the same
-/// score id as unreferenced and published.
+/// become mutation authority for Project B, and a decision from revision R1 must never survive an R2
+/// update of the same project merely because both states classify the same score id as unreferenced and
+/// published.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProjectScopedScoreRecoveryAction {
     project_id: String,
+    project_revision: String,
     action: AuthorizedUnreferencedScoreRecoveryAction,
 }
 
@@ -37,6 +47,11 @@ impl ProjectScopedScoreRecoveryAction {
     /// Return the validated app-owned project identity that authorized this decision.
     pub fn project_id(&self) -> &str {
         &self.project_id
+    }
+
+    /// Return the canonical lowercase SHA-256 project revision that authorized this decision.
+    pub fn project_revision(&self) -> &str {
+        &self.project_revision
     }
 
     /// Return the validated score identity covered by this decision.
@@ -50,24 +65,26 @@ impl ProjectScopedScoreRecoveryAction {
     }
 }
 
-/// Authorize one explicit score-recovery disposition for the currently active app-owned project.
+/// Authorize one explicit score-recovery disposition for the currently active durable project revision.
 ///
 /// The project identity is validated with the same canonical `project-<nanos>-<counter>` contract used
-/// by Project Persistence before being retained inside the opaque action. Reconciliation and score-id
-/// checks remain owned by the existing recovery domain; this function only adds the missing aggregate
-/// identity boundary.
+/// by Project Persistence. The project revision must be the canonical lowercase SHA-256 token returned by
+/// the durable workspace publication/load boundary. Reconciliation and score-id checks remain owned by
+/// the existing recovery domain; this function adds aggregate identity and revision freshness without
+/// acquiring Score Storage filesystem authority.
 ///
 /// # Errors
 ///
-/// Returns a bounded generic error when the project id is malformed or the underlying score recovery
-/// reconciliation cannot authorize the requested candidate and decision.
+/// Returns a bounded generic error when the project id or revision is malformed or the underlying score
+/// recovery reconciliation cannot authorize the requested candidate and decision.
 pub fn authorize_project_scoped_score_recovery_action(
     project_id: &str,
+    project_revision: &str,
     reconciliation: &ScoreAttachmentRecoveryReconciliation,
     score_id: &str,
     decision: UnreferencedScoreRecoveryDecision,
 ) -> Result<ProjectScopedScoreRecoveryAction, String> {
-    if !is_valid_project_id(project_id) {
+    if !is_valid_project_id(project_id) || !is_valid_project_revision(project_revision) {
         return Err(SCORE_RECOVERY_ACTION_ERROR.to_string());
     }
 
@@ -75,26 +92,33 @@ pub fn authorize_project_scoped_score_recovery_action(
         .map_err(|_| SCORE_RECOVERY_ACTION_ERROR.to_string())?;
     Ok(ProjectScopedScoreRecoveryAction {
         project_id: project_id.to_string(),
+        project_revision: project_revision.to_string(),
         action,
     })
 }
 
-/// Revalidate a project-scoped decision against fresh aggregate identity and recovery evidence.
+/// Revalidate a project-scoped decision against fresh aggregate identity, revision, and recovery evidence.
 ///
-/// The caller must supply the project identity active at the mutation boundary. Switching projects
-/// invalidates the previous decision even when the current score candidate sets are byte-for-byte equal.
-/// The score lifecycle evidence is then revalidated by the existing recovery domain.
+/// The caller must supply the project identity and durable revision reread at the mutation boundary.
+/// Switching projects or changing the durable revision invalidates the previous decision even when the
+/// current score candidate sets are byte-for-byte equal. The score lifecycle evidence is then
+/// revalidated by the existing recovery domain.
 ///
 /// # Errors
 ///
-/// Returns a bounded generic error when the active project changed, the project id is malformed, or the
-/// underlying score candidate no longer has unreferenced-published status.
+/// Returns a bounded generic error when the active project or revision changed, either current token is
+/// malformed, or the underlying score candidate no longer has unreferenced-published status.
 pub fn revalidate_project_scoped_score_recovery_action(
     current_project_id: &str,
+    current_project_revision: &str,
     current_reconciliation: &ScoreAttachmentRecoveryReconciliation,
     action: &ProjectScopedScoreRecoveryAction,
 ) -> Result<(), String> {
-    if !is_valid_project_id(current_project_id) || action.project_id != current_project_id {
+    if !is_valid_project_id(current_project_id)
+        || !is_valid_project_revision(current_project_revision)
+        || action.project_id != current_project_id
+        || action.project_revision != current_project_revision
+    {
         return Err(SCORE_RECOVERY_ACTION_ERROR.to_string());
     }
 
@@ -102,23 +126,25 @@ pub fn revalidate_project_scoped_score_recovery_action(
         .map_err(|_| SCORE_RECOVERY_ACTION_ERROR.to_string())
 }
 
-/// Build recovered attachment metadata only for a still-current project-scoped Recover decision.
+/// Build recovered attachment metadata only for a still-current revision-bound Recover decision.
 ///
-/// Project identity and fresh recovery evidence are checked before metadata can be emitted. The underlying
-/// recovery domain still owns the truthful generated filename and rejects Preserve/Discard decisions.
-/// This function performs no project or filesystem mutation.
+/// Project identity, durable revision, and fresh recovery evidence are checked before metadata can be
+/// emitted. The underlying recovery domain still owns the truthful generated filename and rejects
+/// Preserve/Discard decisions. This function performs no project or filesystem mutation.
 ///
 /// # Errors
 ///
-/// Returns a bounded generic error when the project changed, recovery evidence changed, or the action is
-/// not an explicit Recover decision.
+/// Returns a bounded generic error when the project or revision changed, recovery evidence changed, or
+/// the action is not an explicit Recover decision.
 pub fn recovery_attachment_metadata_for_project_action(
     current_project_id: &str,
+    current_project_revision: &str,
     current_reconciliation: &ScoreAttachmentRecoveryReconciliation,
     action: &ProjectScopedScoreRecoveryAction,
 ) -> Result<RecoveredScoreAttachmentMetadata, String> {
     revalidate_project_scoped_score_recovery_action(
         current_project_id,
+        current_project_revision,
         current_reconciliation,
         action,
     )
