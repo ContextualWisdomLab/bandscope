@@ -16,6 +16,9 @@ export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
+// Mirrors the native Score Storage admission contract at the JS IPC boundary so a
+// malformed bridge response cannot allocate or feed a second oversized PDF buffer.
+const MAX_SCORE_PDF_BRIDGE_BYTES = 25 * 1024 * 1024;
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as
@@ -86,13 +89,23 @@ export async function attachScorePdf(projectId: string, songId: string): Promise
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
   if (response instanceof Uint8Array) {
-    return response;
+    if (response.byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
+      return response;
+    }
+    throw new Error(INVALID_RESPONSE_MESSAGE);
   }
   if (response instanceof ArrayBuffer) {
-    return new Uint8Array(response);
+    if (response.byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
+      return new Uint8Array(response);
+    }
+    throw new Error(INVALID_RESPONSE_MESSAGE);
   }
   if (Array.isArray(response)) {
     const len = response.length;
+    if (len > MAX_SCORE_PDF_BRIDGE_BYTES) {
+      throw new Error(INVALID_RESPONSE_MESSAGE);
+    }
+
     const arr = new Uint8Array(len);
     let isValid = true;
     for (let i = 0; i < len; i++) {
