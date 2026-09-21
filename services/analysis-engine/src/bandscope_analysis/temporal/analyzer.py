@@ -12,7 +12,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
-from ..logging_safety import safe_exception_summary, safe_log_value
+from ..logging_safety import safe_exception_message, safe_exception_summary, safe_log_value
 from .model import TemporalFeatures
 
 logger = logging.getLogger(__name__)
@@ -146,4 +146,4 @@ class TemporalAnalyzer:
                 safe_log_value(path_str),
                 safe_exception_summary(e),
             )
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+            raise ValueError(f"Temporal analysis failed: {safe_exception_message(e)}") from e
