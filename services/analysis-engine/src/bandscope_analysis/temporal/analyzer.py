@@ -12,6 +12,7 @@ import librosa
 import numpy as np
 from numpy.typing import NDArray
 
+from ..logging_safety import safe_exception_message, safe_exception_summary, safe_log_value
 from .model import TemporalFeatures
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ class TemporalAnalyzer:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
-        logger.info(f"Loading and decoding audio: {path_str}")
+        logger.info("Loading and decoding audio: %s", safe_log_value(path_str))
 
         try:
             with path.open("rb") as fileobj:
@@ -128,7 +129,7 @@ class TemporalAnalyzer:
 
             bpm_val = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
 
-            logger.info(f"Analysis complete: {bpm_val:.1f} BPM, {len(beat_times)} beats detected.")
+            logger.info("Analysis complete: %.1f BPM, %d beats detected.", bpm_val, len(beat_times))
 
             return {
                 "bpm": bpm_val,
@@ -140,5 +141,9 @@ class TemporalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+            logger.error(
+                "Failed to analyze audio %s: %s",
+                safe_log_value(path_str),
+                safe_exception_summary(e),
+            )
+            raise ValueError(f"Temporal analysis failed: {safe_exception_message(e)}") from e
