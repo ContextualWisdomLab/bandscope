@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
 
@@ -32,6 +32,36 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     expect(screen.getByText("50%")).toBeTruthy();
+  });
+
+  it("shows the boundary tooltip on keyboard focus and dismisses it with Escape", async () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={0} onChange={handleChange} />);
+
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    fireEvent.focus(decreaseBtn);
+
+    const tooltip = await screen.findByText(
+      "decreasePracticeProgressLabel: practiceProgressAtMin",
+    );
+    expect(tooltip).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => {
+      expect(
+        screen.queryByText("decreasePracticeProgressLabel: practiceProgressAtMin"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows the action tooltip after pointer hover", async () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={50} onChange={handleChange} />);
+
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+    fireEvent.mouseMove(increaseBtn);
+
+    expect(await screen.findByText("increasePracticeProgressLabel")).toBeInTheDocument();
   });
 
   it("calls onChange with increased value when increase button is clicked", () => {
