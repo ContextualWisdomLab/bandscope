@@ -95,10 +95,16 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 
-  it("accepts an empty bridge array", async () => {
-    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue([]);
+  it.each([
+    ["array", () => []],
+    ["Uint8Array", () => new Uint8Array()],
+    ["ArrayBuffer", () => new ArrayBuffer(0)]
+  ])("rejects an empty %s bridge response", async (_label, createResponse) => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue(createResponse());
 
-    await expect(readScorePdf("project-1", "score-1")).resolves.toEqual(new Uint8Array());
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
+    );
   });
 
   it("rejects an oversized bridge array before allocating or reading its bytes", async () => {
