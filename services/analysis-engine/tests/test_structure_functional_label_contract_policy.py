@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 
 import pytest
-
 from test_structure_noninferiority_policy import _metrics, _registration, _validator
 
 
