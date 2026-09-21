@@ -8,7 +8,8 @@ type TauriWindow = Window & {
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
-const OVERSIZED_SCORE_BYTES = 25 * 1024 * 1024 + 1;
+const MAX_SCORE_BYTES = 25 * 1024 * 1024;
+const OVERSIZED_SCORE_BYTES = MAX_SCORE_BYTES + 1;
 
 describe("scoreStorage bridge resolution", () => {
   afterEach(() => {
@@ -32,6 +33,39 @@ describe("scoreStorage bridge resolution", () => {
     );
     await expect(removeScorePdf("project-1", "score-1")).rejects.toThrow(
       BRIDGE_UNAVAILABLE_MESSAGE
+    );
+  });
+
+  it("preserves valid attachment metadata from the bridge", async () => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
+      scoreId: "score-1",
+      fileName: "chart.pdf",
+      fileSizeBytes: 2048
+    });
+
+    await expect(attachScorePdf("project-1", "song-1")).resolves.toEqual({
+      id: "score-1",
+      fileName: "chart.pdf",
+      fileSizeBytes: 2048
+    });
+  });
+
+  it.each([
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["zero", 0],
+    ["oversized", OVERSIZED_SCORE_BYTES]
+  ])("rejects %s attachment size metadata", async (_label, fileSizeBytes) => {
+    (window as TauriWindow).__TAURI_INVOKE__ = vi.fn().mockResolvedValue({
+      scoreId: "score-1",
+      fileName: "chart.pdf",
+      fileSizeBytes
+    });
+
+    await expect(attachScorePdf("project-1", "song-1")).rejects.toThrow(
+      INVALID_RESPONSE_MESSAGE
     );
   });
 
