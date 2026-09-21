@@ -18,6 +18,20 @@ _DIRECT_NPM = re.compile(
 )
 
 
+def test_direct_npm_detection_covers_shell_control_flow_boundaries() -> None:
+    """Treat npm behind ordinary shell control syntax as a workflow consumer."""
+    scripts = (
+        "if test -f package-lock.json; then npm ci; fi",
+        "for attempt in 1; do npm --version; done",
+        "(npm ci)",
+        "! npm ci",
+        "exec npm ci",
+    )
+
+    for script in scripts:
+        assert _DIRECT_NPM.search(script), script
+
+
 def test_npm_consumers_use_only_the_canonical_activation_helper() -> None:
     """Reject workflow-local Corepack/runtime activation before direct npm execution."""
     workflows_dir = _REPOSITORY_ROOT / ".github" / "workflows"
