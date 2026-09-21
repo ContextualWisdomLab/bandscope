@@ -29,7 +29,7 @@
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
 
-## 2024-08-01 - Prevent Log Forging / Injection
-**Vulnerability:** Untrusted user input (e.g., file paths, filenames) was logged directly using f-strings or without proper sanitization, which allows attackers to inject malicious log entries (like newlines) to forge log records.
-**Learning:** Python logging should always use deferred string interpolation (e.g., `%s` formatting) rather than f-strings. Additionally, untrusted inputs must be wrapped with `repr()` before being passed to the logger to escape control characters.
-**Prevention:** Use parameterized formatting (`logger.info("msg %s", repr(var))`) consistently for all log statements containing external inputs.
+## 2026-09-21 - Prevent log forging / injection
+**Vulnerability:** Untrusted file names, paths, or decoder exception text could carry carriage returns or newlines into plain-text logs and create forged physical log records.
+**Learning:** Deferred logging interpolation avoids eager string construction but does not itself neutralize control characters. Every untrusted value that enters a line-oriented log record must be rendered into a single-line representation before the logging formatter receives it.
+**Prevention:** Keep message templates parameterized and pass untrusted values through a control-character-safe representation such as `repr()`. Regression tests must include newline-bearing path/name or exception text and assert that one logical event produces one physical log line.
