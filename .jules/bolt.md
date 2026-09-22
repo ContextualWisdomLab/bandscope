@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-07-14 - Replace Array.reduce with a for loop
+**Learning:** Using `Array.prototype.reduce()` or `Array.prototype.forEach()` introduces function call overhead for every element in an array, which can accumulate to a significant slowdown when processing large collections of data (like transcription arrays).
+**Action:** Replace `.reduce()` and `.forEach()` with standard `for` loops for calculating aggregates and mappings on large arrays to avoid callback overhead in tight loops.
