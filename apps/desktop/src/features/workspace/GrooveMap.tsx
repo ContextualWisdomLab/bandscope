@@ -11,22 +11,22 @@ interface GrooveMapProps {
   isLoading?: boolean;
 }
 
+/** Preserve the former reduction semantics while avoiding reducer callback dispatch. */
+function maximumNoteOffset(notes: readonly TranscriptionNote[]): number {
+  let max = 10;
+  for (let i = 0; i < notes.length; i++) {
+    // Keep Math.max here: the shared parser currently admits any JS number, so a simple
+    // `>` comparison would silently change NaN handling before that boundary is tightened.
+    max = Math.max(max, notes[i]!.offset);
+  }
+  return max;
+}
+
 /** Documented. */
 function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
   const renderedNotes = notes ?? EMPTY_NOTES;
 
-  // Find max offset to determine timeline width
-  const maxTime = useMemo(() => {
-    // Performance: Avoid O(N) array scan with .reduce() to find maximum offset.
-    // Instead use a simple loop which avoids callback overhead and allocates less memory.
-    let max = 10;
-    for (let i = 0; i < renderedNotes.length; i++) {
-      if (renderedNotes[i]!.offset > max) {
-        max = renderedNotes[i]!.offset;
-      }
-    }
-    return max;
-  }, [renderedNotes]);
+  const maxTime = useMemo(() => maximumNoteOffset(renderedNotes), [renderedNotes]);
 
   // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
   const uniquePitches = useMemo(() => {
@@ -128,4 +128,4 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
 const GrooveMap = memo(GrooveMapComponent);
 
-export { GrooveMap };
+export { GrooveMap, maximumNoteOffset };
