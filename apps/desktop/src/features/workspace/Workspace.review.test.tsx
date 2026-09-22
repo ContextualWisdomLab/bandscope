@@ -42,12 +42,12 @@ describe("Workspace review regressions", () => {
     expect(screen.getAllByTitle(/Tonight's entrance/)).toHaveLength(2);
   });
 
-  it("uses the selected role name in groove-map empty and loading copy", () => {
+  it("uses the selected role name in groove-map empty and loading copy without inventing progress", () => {
     const { rerender } = render(<GrooveMap roleName="Lead Guitar" notes={[]} />);
     expect(screen.getByText("No Lead Guitar transcription yet. Use it when you want to check the groove before rehearsal.")).toBeTruthy();
 
     rerender(<GrooveMap roleName="Lead Guitar" notes={[]} isLoading />);
-    expect(screen.getByText("Checking the Lead Guitar line... 45%")).toBeTruthy();
+    expect(screen.getByText("Checking the Lead Guitar line...")).toBeTruthy();
   });
 
   it("does not expose a cancel action without cancellation capability and invokes it when provided", () => {
@@ -71,7 +71,7 @@ describe("Workspace review regressions", () => {
     expect(screen.getByText(`${roleName} 채보가 아직 없습니다. 합주 전에 그루브를 확인할 때 사용하세요.`)).toBeTruthy();
 
     rerender(<GrooveMap roleName={roleName} notes={[]} isLoading onCancel={() => {}} />);
-    expect(screen.getByText(`${roleName} 파트를 확인하는 중... 45%`)).toBeTruthy();
+    expect(screen.getByText(`${roleName} 파트를 확인하는 중...`)).toBeTruthy();
     expect(screen.getByRole("button", { name: "취소" })).toBeTruthy();
 
     rerender(<Workspace song={song} />);
