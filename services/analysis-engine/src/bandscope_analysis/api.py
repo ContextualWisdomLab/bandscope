@@ -108,7 +108,7 @@ class RangePayload(TypedDict):
 
 
 class HarmonyPayload(TypedDict):
-    """Typed harmony payload nested inside rehearsal roles."""
+    """Typed harmony payload nested inside rehearsal results."""
 
     chord: str
     functionLabel: str
