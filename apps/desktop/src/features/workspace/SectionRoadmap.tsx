@@ -123,11 +123,11 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
-              {section.roles
-                .filter(role => !activeRole || role.id === activeRole)
-                .map(role => {
-                  const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
-                  return (
+              {/* Performance: Use single map with conditional rendering to avoid allocating intermediate arrays via .filter() */}
+              {section.roles.map(role => {
+                if (activeRole && role.id !== activeRole) return null;
+                const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);
+                return (
                   <div
                     key={role.id}
                     className={`rounded-xl border-l-4 p-4 transition-all hover:translate-x-1 ${getPriorityColor(role.rehearsalPriority)}`}
