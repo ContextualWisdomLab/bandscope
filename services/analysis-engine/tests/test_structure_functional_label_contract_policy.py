@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 
 import pytest
+
 import test_structure_noninferiority_policy as noninferiority_policy
 
 
