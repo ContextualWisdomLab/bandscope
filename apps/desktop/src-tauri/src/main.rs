@@ -603,9 +603,8 @@ fn run_analysis_engine(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    configure_owned_process(&mut command);
 
-    let mut process = match command.spawn() {
+    let mut process = match spawn_owned_process(&mut command) {
         Ok(process) => process,
         Err(_) => {
             return failed_status(
@@ -625,8 +624,8 @@ fn run_analysis_engine(
     if let Some(content_sha256) = source_content_sha256 {
         payload["sourceContentSha256"] = Value::String(content_sha256);
     }
-    let Some(stdout) = process.stdout.take() else {
-        terminate_owned_process(&mut process);
+    let Some(stdout) = process.take_stdout() else {
+        process.terminate();
         return failed_status(
             job_id,
             requested_at,
@@ -634,8 +633,8 @@ fn run_analysis_engine(
             "Analysis engine is unavailable.",
         );
     };
-    let Some(stderr) = process.stderr.take() else {
-        terminate_owned_process(&mut process);
+    let Some(stderr) = process.take_stderr() else {
+        process.terminate();
         return failed_status(
             job_id,
             requested_at,
@@ -707,9 +706,9 @@ fn run_analysis_engine(
         result
     });
 
-    if let Some(mut stdin) = process.stdin.take() {
+    if let Some(mut stdin) = process.take_stdin() {
         if stdin.write_all(payload.to_string().as_bytes()).is_err() {
-            terminate_owned_process(&mut process);
+            process.terminate();
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return failed_status(
@@ -730,20 +729,20 @@ fn run_analysis_engine(
     loop {
         drain_analysis_status_updates(&state, &app, &status_rx, &mut last_status);
         if cancellation_state.is_requested(&job_id) {
-            terminate_owned_process(&mut process);
+            process.terminate();
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return cancelled_status(job_id, requested_at);
         }
         match process.try_wait() {
             Ok(Some(status)) => {
-                terminate_owned_process(&mut process);
+                process.terminate();
                 exit_status = status;
                 break;
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
-                    terminate_owned_process(&mut process);
+                    process.terminate();
                     let _ = stdout_reader.join();
                     let _ = stderr_reader.join();
                     return failed_status(
@@ -761,7 +760,7 @@ fn run_analysis_engine(
                     deadline.saturating_duration_since(Instant::now()),
                 );
                 if reader_failure_rx.recv_timeout(wait_for).is_ok() {
-                    terminate_owned_process(&mut process);
+                    process.terminate();
                     let _ = stdout_reader.join();
                     let _ = stderr_reader.join();
                     return failed_status(
@@ -776,7 +775,7 @@ fn run_analysis_engine(
                 }
             }
             Err(_) => {
-                terminate_owned_process(&mut process);
+                process.terminate();
                 let _ = stdout_reader.join();
                 let _ = stderr_reader.join();
                 return failed_status(
