@@ -3,7 +3,6 @@
 import re
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CORE_TEST_ROOT = REPO_ROOT / "apps/desktop/core/tests"
 WINDOWS_WORKFLOW = "project-persistence-windows-native.yml"
@@ -76,7 +75,11 @@ def _workflow_text(name: str) -> str:
 
 
 def _discovered_core_owner_targets() -> set[str]:
-    targets = {path.stem for pattern in CORE_OWNER_TEST_PATTERNS for path in CORE_TEST_ROOT.glob(pattern)}
+    targets = {
+        path.stem
+        for pattern in CORE_OWNER_TEST_PATTERNS
+        for path in CORE_TEST_ROOT.glob(pattern)
+    }
     targets.update((CORE_TEST_ROOT / name).stem for name in CORE_OWNER_EXACT_TESTS)
     return targets
 
@@ -90,7 +93,9 @@ def _assert_exact_core_integration_targets(
     lane: str,
     expected_targets: set[str] | None = None,
 ) -> None:
-    expected = expected_targets if expected_targets is not None else _discovered_core_owner_targets()
+    expected = (
+        expected_targets if expected_targets is not None else _discovered_core_owner_targets()
+    )
     executed = _executed_core_integration_targets(workflow)
     assert executed == expected, (
         f"{lane} persistence workflow core owner drift: "
@@ -120,9 +125,10 @@ def _assert_runs_core_owner_contracts(workflow: str, lane: str) -> None:
 
 
 def _assert_checks_out_exact_source_identity(workflow: str, lane: str) -> None:
-    assert (
-        EXACT_SOURCE_REF in workflow
-    ), f"{lane} persistence workflow must test the exact PR source head rather than GitHub's merge ref"
+    assert EXACT_SOURCE_REF in workflow, (
+        f"{lane} persistence workflow must test the exact PR source head "
+        "rather than GitHub's merge ref"
+    )
 
 
 def test_owner_target_drift_guard_rejects_an_unexecuted_future_contract() -> None:
@@ -166,13 +172,15 @@ def test_macos_project_persistence_gate_tracks_contract_inputs() -> None:
 
 def test_macos_and_windows_execute_the_same_core_owner_targets() -> None:
     """Platform-specific native lanes must not silently diverge in core owner coverage."""
-    macos_targets = _executed_core_integration_targets(_workflow_text("project-persistence-macos.yml"))
+    macos_targets = _executed_core_integration_targets(
+        _workflow_text("project-persistence-macos.yml")
+    )
     windows_targets = _executed_core_integration_targets(_workflow_text(WINDOWS_WORKFLOW))
     assert macos_targets == windows_targets == _discovered_core_owner_targets()
 
 
 def test_native_warning_gate_is_owned_by_core_and_the_persistence_harness() -> None:
-    """Deny owned warnings without global RUSTFLAGS, output filtering, or dependency lint changes."""
+    """Deny owned warnings without global flags, output filters, or dependency lint changes."""
     core_manifest = (REPO_ROOT / "apps/desktop/core/Cargo.toml").read_text(encoding="utf-8")
     tauri_manifest = (REPO_ROOT / "apps/desktop/src-tauri/Cargo.toml").read_text(encoding="utf-8")
     core_root = (REPO_ROOT / "apps/desktop/core/src/root.rs").read_text(encoding="utf-8")
