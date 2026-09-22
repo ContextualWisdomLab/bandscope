@@ -50,6 +50,18 @@ describe("Workspace review regressions", () => {
     expect(screen.getByText("Checking the Lead Guitar line... 45%")).toBeTruthy();
   });
 
+  it("does not expose a cancel action without cancellation capability and invokes it when provided", () => {
+    const onCancel = vi.fn();
+    const { rerender } = render(<GrooveMap roleName="Lead Guitar" notes={[]} isLoading />);
+
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+
+    rerender(<GrooveMap roleName="Lead Guitar" notes={[]} isLoading onCancel={onCancel} />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   it("localizes GrooveMap states and the unavailable loop control", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const song = createDemoRehearsalSong();
@@ -58,7 +70,7 @@ describe("Workspace review regressions", () => {
 
     expect(screen.getByText(`${roleName} 채보가 아직 없습니다. 합주 전에 그루브를 확인할 때 사용하세요.`)).toBeTruthy();
 
-    rerender(<GrooveMap roleName={roleName} notes={[]} isLoading />);
+    rerender(<GrooveMap roleName={roleName} notes={[]} isLoading onCancel={() => {}} />);
     expect(screen.getByText(`${roleName} 파트를 확인하는 중... 45%`)).toBeTruthy();
     expect(screen.getByRole("button", { name: "취소" })).toBeTruthy();
 
