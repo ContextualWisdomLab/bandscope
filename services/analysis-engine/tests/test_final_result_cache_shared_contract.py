@@ -104,6 +104,26 @@ def test_cache_rejects_invalid_optional_role_fields(
     assert _load_candidate(tmp_path, monkeypatch, song) is None
 
 
+@pytest.mark.parametrize(
+    ("onset", "offset"),
+    [
+        (-0.001, 0.5),
+        (0.5, 0.5),
+        (1.0, 0.5),
+    ],
+)
+def test_cache_rejects_impossible_transcription_intervals(
+    tmp_path, monkeypatch, onset, offset
+) -> None:
+    """Persisted notes must obey the shared non-negative, positive-duration timing contract."""
+    song = build_demo_rehearsal_song()
+    song["sections"][0]["roles"][0]["transcription"] = [
+        {"pitch": "C4", "onset": onset, "offset": offset, "velocity": 92.0}
+    ]
+
+    assert _load_candidate(tmp_path, monkeypatch, song) is None
+
+
 def test_cache_rejects_invalid_optional_song_fields(tmp_path, monkeypatch) -> None:
     """Reject malformed collaboration and score metadata before exposing a cache hit."""
     song = build_demo_rehearsal_song()
