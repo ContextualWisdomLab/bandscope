@@ -19,6 +19,7 @@ uuid = { version = "1", features = ["v4"] }
 
 [features]
 default = []
+persistence_warning_gate = ["bandscope-desktop-core/persistence_warning_gate"]
 
 [package.metadata.opencode.coverage]
 # Baseline measured by the central Rust coverage evidence gate on PR #527.

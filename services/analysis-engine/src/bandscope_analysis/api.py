@@ -6,14 +6,27 @@ import hashlib
 import json
 import logging
 import multiprocessing as mp
+import os
 import queue
+import stat
+import tempfile
 import time
+import zipfile
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal, NotRequired, TypedDict, cast
 
 import numpy as np
 
+from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
+from bandscope_analysis.final_result_cache import (
+    _publish_synced_cache_stage as publish_synced_cache_stage,
+)
+from bandscope_analysis.final_result_cache import (
+    admitted_audio_cache_identity,
+    load_admitted_rehearsal_song,
+    store_durable_cache_payload,
+)
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
 from bandscope_analysis.sections import extract_sections
@@ -24,7 +37,16 @@ logger = logging.getLogger(__name__)
 
 MAX_SECTION_TIME_SECONDS = 4_294_967_295
 ANALYSIS_CACHE_SCHEMA_VERSION = 1
-FEATURE_CACHE_SCHEMA_VERSION = 1
+FEATURE_CACHE_SCHEMA_VERSION = 2
+FEATURE_CACHE_MANIFEST_MAX_BYTES = 64 * 1024
+FEATURE_CACHE_MAX_STEMS = 4
+FEATURE_CACHE_ARRAYS_MAX_BYTES = (
+    DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes * FEATURE_CACHE_MAX_STEMS
+    + 16 * 1024 * 1024
+)
+FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES = (
+    DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes * FEATURE_CACHE_MAX_STEMS
+)
 STEM_SEPARATION_TIMEOUT_SECONDS = 20.0
 
 logger = logging.getLogger(__name__)
@@ -192,6 +214,7 @@ class CachedFeaturePayload(TypedDict):
 
     schemaVersion: int
     source: dict[str, object]
+    arraysSha256: str
     sampleRate: int
     separation: dict[str, object]
     stemKeys: list[str]
@@ -306,8 +329,12 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
     if extension not in {"wav", "mp3", "flac", "m4a"}:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
-    if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
-        raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
+    try:
+        file_size_bytes = DEFAULT_AUDIO_RESOURCE_POLICY.validate_encoded_file_bytes(file_size_bytes)
+    except ValueError as error:
+        raise ValueError(
+            "Invalid analysis job request: invalid field 'localSource.fileSizeBytes'"
+        ) from error
 
     normalized: AnalysisJobRequest = {
         "sourceKind": source_kind,
@@ -601,15 +628,21 @@ def _analysis_cache_path(request: AnalysisJobRequest) -> Path | None:
     cache_root = request.get("cacheRoot")
     if not cache_root:
         return None
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return None
 
     local_source = request["localSource"]
-    key_payload = {
+    key_payload: dict[str, object] = {
         "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
+    if admitted_identity is not None:
+        key_payload["admittedAudio"] = admitted_identity
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -635,15 +668,21 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
     temp_root = request.get("tempRoot")
     if not temp_root:
         return None
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return None
 
     local_source = request["localSource"]
-    key_payload = {
+    key_payload: dict[str, object] = {
         "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
         "projectId": request.get("projectId", ""),
         "sourcePath": local_source["sourcePath"],
         "fileName": local_source["fileName"],
         "fileSizeBytes": local_source["fileSizeBytes"],
     }
+    if admitted_identity is not None:
+        key_payload["admittedAudio"] = admitted_identity
     digest = hashlib.sha256(
         json.dumps(key_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
@@ -651,45 +690,39 @@ def _stem_work_arrays_path(request: AnalysisJobRequest) -> Path | None:
 
 
 def _load_cached_analysis(path: Path) -> RehearsalSong | None:
-    """Load a cached rehearsal result, treating malformed cache as a miss."""
-    try:
-        with path.open("r", encoding="utf-8") as cache_file:
-            payload = json.load(cache_file)
-    except (OSError, json.JSONDecodeError):
-        return None
-
-    if not isinstance(payload, dict):
-        return None
-    if payload.get("schemaVersion") != ANALYSIS_CACHE_SCHEMA_VERSION:
-        return None
-    result = payload.get("result")
-    if not isinstance(result, dict):
-        return None
-    return cast(RehearsalSong, result)
+    """Load a bounded, source-bound rehearsal result, treating rejection as a miss."""
+    result = load_admitted_rehearsal_song(
+        path,
+        schema_version=ANALYSIS_CACHE_SCHEMA_VERSION,
+    )
+    return cast(RehearsalSong | None, result)
 
 
 def _store_cached_analysis(path: Path, request: AnalysisJobRequest, result: RehearsalSong) -> bool:
     """Persist cache metadata without storing the original absolute source path."""
     if "localSource" not in request:
         return False
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
+        return False
 
     local_source = request["localSource"]
+    source_metadata: dict[str, object] = {
+        "fileName": local_source["fileName"],
+        "extension": local_source["extension"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
+    }
+    if admitted_identity is not None:
+        source_metadata["admittedAudio"] = admitted_identity
     payload: CachedAnalysisPayload = {
         "schemaVersion": ANALYSIS_CACHE_SCHEMA_VERSION,
-        "source": {
-            "fileName": local_source["fileName"],
-            "extension": local_source["extension"],
-            "fileSizeBytes": local_source["fileSizeBytes"],
-        },
+        "source": source_metadata,
         "result": result,
     }
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_suffix(".tmp")
-        with temp_path.open("w", encoding="utf-8") as cache_file:
-            json.dump(payload, cache_file, separators=(",", ":"))
-        temp_path.replace(path)
-    except OSError:
+        store_durable_cache_payload(path, payload)
+    except (OSError, TypeError, ValueError):
         return False
     return True
 
@@ -717,50 +750,238 @@ def _normalize_stem_role_types(
     return normalized
 
 
+def _sha256_file(path: Path) -> str | None:
+    """Return a streaming SHA-256 for a derived cache artifact, or ``None`` on read failure."""
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as artifact:
+            while chunk := artifact.read(1024 * 1024):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def _valid_sha256(value: object) -> bool:
+    """Return whether a persisted digest is canonical lowercase SHA-256 hex."""
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and value == value.lower()
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _reject_duplicate_json_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Build a JSON object while rejecting ambiguous duplicate member names."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate feature-cache JSON key")
+        result[key] = value
+    return result
+
+
+def _load_bounded_feature_manifest(path: Path) -> dict[str, object] | None:
+    """Read one small regular manifest without following a final-component symlink."""
+    descriptor: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(path, flags)
+        descriptor_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(descriptor_stat.st_mode)
+            or descriptor_stat.st_size <= 0
+            or descriptor_stat.st_size > FEATURE_CACHE_MANIFEST_MAX_BYTES
+        ):
+            return None
+        with os.fdopen(descriptor, "rb", closefd=False) as manifest_file:
+            encoded = manifest_file.read(FEATURE_CACHE_MANIFEST_MAX_BYTES + 1)
+        if len(encoded) > FEATURE_CACHE_MANIFEST_MAX_BYTES:
+            return None
+        payload = json.loads(
+            encoded.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_pairs,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return None
+    finally:
+        if descriptor is not None:
+            with suppress(OSError):
+                os.close(descriptor)
+    return payload if isinstance(payload, dict) else None
+
+
+def _npz_member_declared_nbytes(
+    archive: zipfile.ZipFile,
+    info: zipfile.ZipInfo,
+) -> int | None:
+    """Return bounded declared NPY payload bytes without allocating the persisted array."""
+    try:
+        with archive.open(info) as member:
+            version = np.lib.format.read_magic(member)
+            if version == (1, 0):
+                shape, _, dtype = np.lib.format.read_array_header_1_0(member)
+            elif version == (2, 0):
+                shape, _, dtype = np.lib.format.read_array_header_2_0(member)
+            else:
+                return None
+    except (EOFError, ValueError):
+        return None
+    if dtype.hasobject or len(shape) != 1 or shape[0] <= 0 or dtype.itemsize <= 0:
+        return None
+    declared_nbytes = shape[0] * dtype.itemsize
+    if (
+        declared_nbytes > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes
+        or declared_nbytes > info.file_size
+    ):
+        return None
+    return declared_nbytes
+
+
+def _load_bounded_feature_arrays(
+    arrays_path: Path,
+    stem_keys: list[str],
+    expected_sha256: str,
+) -> dict[str, np.ndarray] | None:
+    """Admit one regular NPZ by bounded encoded and declared-uncompressed size before NumPy."""
+    descriptor: int | None = None
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(arrays_path, flags)
+        descriptor_stat = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(descriptor_stat.st_mode)
+            or descriptor_stat.st_size <= 0
+            or descriptor_stat.st_size > FEATURE_CACHE_ARRAYS_MAX_BYTES
+        ):
+            return None
+
+        with os.fdopen(descriptor, "rb", closefd=False) as arrays_file:
+            digest = hashlib.sha256()
+            observed_bytes = 0
+            while chunk := arrays_file.read(1024 * 1024):
+                observed_bytes += len(chunk)
+                if observed_bytes > FEATURE_CACHE_ARRAYS_MAX_BYTES:
+                    return None
+                digest.update(chunk)
+            if digest.hexdigest() != expected_sha256:
+                return None
+
+            arrays_file.seek(0)
+            with zipfile.ZipFile(arrays_file) as archive:
+                infos = archive.infolist()
+                expected_members = {f"stem_{stem_key}.npy" for stem_key in stem_keys}
+                if (
+                    len(infos) != len(expected_members)
+                    or {info.filename for info in infos} != expected_members
+                ):
+                    return None
+                total_uncompressed_bytes = 0
+                for info in infos:
+                    if info.is_dir() or info.file_size <= 0:
+                        return None
+                    if info.file_size > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes:
+                        return None
+                    declared_nbytes = _npz_member_declared_nbytes(archive, info)
+                    if declared_nbytes is None:
+                        return None
+                    total_uncompressed_bytes += declared_nbytes
+                    if total_uncompressed_bytes > FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES:
+                        return None
+
+            arrays_file.seek(0)
+            with np.load(arrays_file, allow_pickle=False) as stems_archive:
+                expected_archive_keys = {f"stem_{stem_key}" for stem_key in stem_keys}
+                if set(stems_archive.files) != expected_archive_keys:
+                    return None
+                stems: dict[str, np.ndarray] = {}
+                for stem_key in stem_keys:
+                    stem_array = stems_archive[f"stem_{stem_key}"]
+                    if (
+                        not isinstance(stem_array, np.ndarray)
+                        or stem_array.ndim != 1
+                        or stem_array.size == 0
+                        or not np.issubdtype(stem_array.dtype, np.floating)
+                        or stem_array.nbytes > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes
+                        or not np.isfinite(stem_array).all()
+                    ):
+                        return None
+                    stems[stem_key] = stem_array
+    except (OSError, ValueError, zipfile.BadZipFile, zipfile.LargeZipFile):
+        return None
+    finally:
+        if descriptor is not None:
+            with suppress(OSError):
+                os.close(descriptor)
+    return stems
+
+
 def _load_cached_local_audio_features(
     metadata_path: Path, arrays_path: Path
 ) -> dict[str, Any] | None:
-    """Load cached stem/features payload, treating malformed files as cache misses."""
+    """Load source-bound stem/features only after bounded manifest and NPZ admission."""
     try:
-        with metadata_path.open("r", encoding="utf-8") as metadata_file:
-            metadata_payload = json.load(metadata_file)
-    except (OSError, json.JSONDecodeError):
+        expected_identity = admitted_audio_cache_identity()
+    except ValueError:
         return None
-    if not isinstance(metadata_payload, dict):
+    metadata_payload = _load_bounded_feature_manifest(metadata_path)
+    if metadata_payload is None:
+        return None
+    allowed_manifest_keys = {
+        "schemaVersion",
+        "source",
+        "arraysSha256",
+        "sampleRate",
+        "separation",
+        "stemKeys",
+        "stemRoleTypes",
+    }
+    if set(metadata_payload) != allowed_manifest_keys:
         return None
     if metadata_payload.get("schemaVersion") != FEATURE_CACHE_SCHEMA_VERSION:
         return None
-    if not isinstance(metadata_payload.get("sampleRate"), int):
+    source = metadata_payload.get("source")
+    if not isinstance(source, dict):
+        return None
+    manifest_identity = source.get("admittedAudio")
+    if expected_identity is None:
+        if manifest_identity is not None:
+            return None
+    elif manifest_identity != expected_identity:
+        return None
+    arrays_sha256 = metadata_payload.get("arraysSha256")
+    if not _valid_sha256(arrays_sha256):
+        return None
+    sample_rate = metadata_payload.get("sampleRate")
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
         return None
     separation = metadata_payload.get("separation")
     if not isinstance(separation, dict):
         return None
     stem_keys = metadata_payload.get("stemKeys")
-    if not isinstance(stem_keys, list) or not stem_keys:
+    if (
+        not isinstance(stem_keys, list)
+        or not stem_keys
+        or len(stem_keys) > FEATURE_CACHE_MAX_STEMS
+        or len(set(stem_keys)) != len(stem_keys)
+        or not all(isinstance(stem_key, str) and stem_key for stem_key in stem_keys)
+    ):
         return None
-    if not all(isinstance(stem_key, str) and stem_key for stem_key in stem_keys):
+    raw_stem_role_types = metadata_payload.get("stemRoleTypes")
+    if not isinstance(raw_stem_role_types, dict) or set(raw_stem_role_types) != set(stem_keys):
         return None
-    stem_role_types = _normalize_stem_role_types(metadata_payload.get("stemRoleTypes"), stem_keys)
+    stem_role_types = _normalize_stem_role_types(raw_stem_role_types, stem_keys)
     if stem_role_types is None:
         return None
 
-    try:
-        with np.load(arrays_path, allow_pickle=False) as stems_archive:
-            stems: dict[str, np.ndarray] = {}
-            for stem_key in stem_keys:
-                archive_key = f"stem_{stem_key}"
-                if archive_key not in stems_archive:
-                    return None
-                stem_array = stems_archive[archive_key]
-                if not isinstance(stem_array, np.ndarray):
-                    return None
-                stems[stem_key] = stem_array
-    except (OSError, ValueError):
+    stems = _load_bounded_feature_arrays(arrays_path, stem_keys, arrays_sha256)
+    if stems is None:
         return None
 
     return {
         "stems": stems,
-        "sr": metadata_payload["sampleRate"],
+        "sr": sample_rate,
         "stem_role_types": stem_role_types,
         "separation": {
             "duration_seconds": separation.get("duration_seconds"),
@@ -772,16 +993,26 @@ def _load_cached_local_audio_features(
 
 def _serialize_stem_arrays(stems: object) -> dict[str, np.ndarray] | None:
     """Return validated stem arrays for compressed npz persistence."""
-    if not isinstance(stems, dict) or not stems:
+    if not isinstance(stems, dict) or not stems or len(stems) > FEATURE_CACHE_MAX_STEMS:
         return None
 
     serialized_stems: dict[str, np.ndarray] = {}
+    total_bytes = 0
     for stem_name, stem_value in stems.items():
         if not isinstance(stem_name, str) or not stem_name:
             return None
         if not stem_name.isidentifier():
             return None
-        if not isinstance(stem_value, np.ndarray):
+        if (
+            not isinstance(stem_value, np.ndarray)
+            or stem_value.ndim != 1
+            or stem_value.size == 0
+            or not np.issubdtype(stem_value.dtype, np.floating)
+            or stem_value.nbytes > DEFAULT_AUDIO_RESOURCE_POLICY.max_decoded_audio_bytes
+        ):
+            return None
+        total_bytes += stem_value.nbytes
+        if total_bytes > FEATURE_CACHE_UNCOMPRESSED_MAX_BYTES:
             return None
         serialized_stems[f"stem_{stem_name}"] = stem_value
     return serialized_stems
@@ -793,17 +1024,23 @@ def _store_cached_local_audio_features(
     request: AnalysisJobRequest,
     audio_features: dict[str, Any],
 ) -> bool:
-    """Persist reusable local-audio features with atomic writes."""
+    """Persist source-bound reusable features with arrays-first durable publication."""
     if "localSource" not in request:
+        return False
+    if metadata_path.parent != arrays_path.parent:
         return False
     serialized_stems = _serialize_stem_arrays(audio_features.get("stems"))
     sample_rate = audio_features.get("sr")
     if serialized_stems is None:
         return False
-    if not isinstance(sample_rate, int):
+    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or sample_rate <= 0:
         return False
     separation = audio_features.get("separation")
     if not isinstance(separation, dict):
+        return False
+    try:
+        admitted_identity = admitted_audio_cache_identity()
+    except ValueError:
         return False
 
     stem_keys = [key.replace("stem_", "", 1) for key in serialized_stems]
@@ -812,34 +1049,58 @@ def _store_cached_local_audio_features(
         return False
 
     local_source = request["localSource"]
-    metadata_payload: CachedFeaturePayload = {
-        "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
-        "source": {
-            "fileName": local_source["fileName"],
-            "extension": local_source["extension"],
-            "fileSizeBytes": local_source["fileSizeBytes"],
-        },
-        "sampleRate": sample_rate,
-        "separation": {
-            "duration_seconds": separation.get("duration_seconds"),
-            "chunk_count": separation.get("chunk_count"),
-            "notes": separation.get("notes"),
-        },
-        "stemKeys": stem_keys,
-        "stemRoleTypes": stem_role_types,
+    source_metadata: dict[str, object] = {
+        "fileName": local_source["fileName"],
+        "extension": local_source["extension"],
+        "fileSizeBytes": local_source["fileSizeBytes"],
     }
+    if admitted_identity is not None:
+        source_metadata["admittedAudio"] = admitted_identity
+
+    arrays_temp: Path | None = None
     try:
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
-        metadata_temp = metadata_path.with_name(f"{metadata_path.name}.tmp")
-        arrays_temp = arrays_path.with_name(f"{arrays_path.name}.tmp")
-        with metadata_temp.open("w", encoding="utf-8") as metadata_file:
-            json.dump(metadata_payload, metadata_file, separators=(",", ":"))
-        with arrays_temp.open("wb") as arrays_file:
-            np.savez_compressed(arrays_file, **cast(Any, serialized_stems))
-        arrays_temp.replace(arrays_path)
-        metadata_temp.replace(metadata_path)
-    except OSError:
+        arrays_path.parent.mkdir(parents=True, exist_ok=True)
+        arrays_stage = tempfile.NamedTemporaryFile(
+            mode="w+b",
+            dir=arrays_path.parent,
+            prefix=".bandscope-feature-arrays-",
+            suffix=".npz",
+            delete=False,
+        )
+        arrays_temp = Path(arrays_stage.name)
+        with arrays_stage:
+            np.savez_compressed(arrays_stage, **cast(Any, serialized_stems))
+            arrays_stage.flush()
+            os.fsync(arrays_stage.fileno())
+        arrays_stat = arrays_temp.stat()
+        if arrays_stat.st_size <= 0 or arrays_stat.st_size > FEATURE_CACHE_ARRAYS_MAX_BYTES:
+            return False
+        arrays_sha256 = _sha256_file(arrays_temp)
+        if arrays_sha256 is None:
+            return False
+
+        metadata_payload: CachedFeaturePayload = {
+            "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+            "source": source_metadata,
+            "arraysSha256": arrays_sha256,
+            "sampleRate": sample_rate,
+            "separation": {
+                "duration_seconds": separation.get("duration_seconds"),
+                "chunk_count": separation.get("chunk_count"),
+                "notes": separation.get("notes"),
+            },
+            "stemKeys": stem_keys,
+            "stemRoleTypes": stem_role_types,
+        }
+        publish_synced_cache_stage(arrays_temp, arrays_path)
+        arrays_temp = None
+        store_durable_cache_payload(metadata_path, metadata_payload)
+    except (OSError, TypeError, ValueError):
         return False
+    finally:
+        if arrays_temp is not None:
+            with suppress(OSError):
+                arrays_temp.unlink(missing_ok=True)
     return True
 
 
@@ -982,14 +1243,26 @@ def _run_stem_separation_with_timeout(
     if kind == "ok_file":
         if not isinstance(payload, dict):
             raise RuntimeError("Stem separation returned invalid metadata.")
+        arrays_output_path = Path(str(payload.get("arraysPath", "")))
+        arrays_sha256 = _sha256_file(arrays_output_path)
+        if arrays_sha256 is None:
+            raise RuntimeError("Stem separation returned unreadable stem arrays.")
+        try:
+            admitted_identity = admitted_audio_cache_identity()
+        except ValueError as error:
+            raise RuntimeError("Stem separation source identity became invalid.") from error
+        source_metadata: dict[str, object] = {}
+        if admitted_identity is not None:
+            source_metadata["admittedAudio"] = admitted_identity
         metadata_payload = {
             "schemaVersion": FEATURE_CACHE_SCHEMA_VERSION,
+            "source": source_metadata,
+            "arraysSha256": arrays_sha256,
             "sampleRate": payload.get("sampleRate"),
             "separation": payload.get("separation"),
             "stemKeys": payload.get("stemKeys"),
             "stemRoleTypes": payload.get("stemRoleTypes"),
         }
-        arrays_output_path = Path(str(payload.get("arraysPath", "")))
         metadata_temp = arrays_output_path.with_suffix(".json")
         try:
             metadata_temp.write_text(json.dumps(metadata_payload), encoding="utf-8")

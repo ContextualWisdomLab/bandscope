@@ -1,0 +1,130 @@
+use crate::project_persistence;
+use std::{fs, io::Cursor, path::PathBuf};
+
+fn test_dir(name: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!(
+        "bandscope-project-revision-{name}-{}",
+        uuid::Uuid::new_v4()
+    ));
+    fs::create_dir_all(&root).expect("revision fixture directory should be created");
+    root
+}
+
+fn digest(content: &[u8]) -> String {
+    bandscope_desktop_core::sha256_hex_reader(Cursor::new(content))
+        .expect("fixture digest should be computed")
+}
+
+#[test]
+fn first_workspace_publication_returns_revision_and_stale_revision_fails_closed() {
+    let root = test_dir("cas");
+    let target = root.join("project.bscope");
+    let first = br#"{"version":1,"song":{"id":"first"}}"#;
+    let second = br#"{"version":1,"song":{"id":"second"}}"#;
+    let stale = br#"{"version":1,"song":{"id":"stale"}}"#;
+
+    let first_revision = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        first,
+        None,
+    )
+    .expect("first workspace publication should accept an absent predecessor");
+    assert_eq!(first_revision, digest(first));
+
+    let second_revision = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        second,
+        Some(&first_revision),
+    )
+    .expect("current durable revision should authorize replacement");
+    assert_eq!(second_revision, digest(second));
+
+    let error = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        stale,
+        Some(&first_revision),
+    )
+    .expect_err("stale full-song snapshot must not overwrite the current project");
+    assert_eq!(error, "Project changed since it was opened.");
+    assert_eq!(fs::read(&target).expect("current project should remain readable"), second);
+
+    fs::remove_dir_all(root).expect("revision fixture should be removed");
+}
+
+#[test]
+fn existing_workspace_can_bind_an_absent_renderer_revision_only_when_content_is_identical() {
+    let root = test_dir("restart-bind");
+    let target = root.join("project.bscope");
+    let content = br#"{"version":1,"song":{"id":"restart"}}"#;
+    fs::write(&target, content).expect("existing workspace fixture should be written");
+
+    let revision = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        content,
+        None,
+    )
+    .expect("byte-identical reopen should bind the durable workspace revision");
+
+    assert_eq!(revision, digest(content));
+    assert_eq!(fs::read(&target).expect("bound project should remain readable"), content);
+    let stage_count = fs::read_dir(&root)
+        .expect("workspace directory should remain readable")
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".bandscope-stage-")
+        })
+        .count();
+    assert_eq!(stage_count, 0, "revision binding must not stage replacement bytes");
+
+    fs::remove_dir_all(root).expect("revision fixture should be removed");
+}
+
+#[test]
+fn restart_binding_does_not_bypass_workspace_content_admission() {
+    let root = test_dir("restart-bind-empty");
+    let target = root.join("project.bscope");
+    fs::write(&target, b"").expect("empty existing fixture should be written");
+
+    let error = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        b"",
+        None,
+    )
+    .expect_err("restart equality must not turn an empty snapshot into accepted project state");
+
+    assert_eq!(error, "Could not stage the project safely.");
+    assert_eq!(fs::read(&target).expect("existing empty fixture should remain readable"), b"");
+
+    fs::remove_dir_all(root).expect("revision fixture should be removed");
+}
+
+#[test]
+fn workspace_revision_presence_must_match_target_presence() {
+    let root = test_dir("presence");
+    let target = root.join("project.bscope");
+    let content = br#"{"version":1,"song":{"id":"presence"}}"#;
+
+    let unexpected_revision = digest(content);
+    let missing_error = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        content,
+        Some(&unexpected_revision),
+    )
+    .expect_err("a revision cannot authorize a target that does not exist");
+    assert_eq!(missing_error, "Project changed since it was opened.");
+
+    fs::write(&target, content).expect("existing project fixture should be written");
+    let existing_error = project_persistence::publish_workspace_project_file_with_expected_content(
+        &target,
+        br#"{"version":1,"song":{"id":"replacement"}}"#,
+        None,
+    )
+    .expect_err("different existing workspace bytes require an expected durable revision");
+    assert_eq!(existing_error, "Project changed since it was opened.");
+    assert_eq!(fs::read(&target).expect("existing project should remain readable"), content);
+
+    fs::remove_dir_all(root).expect("revision fixture should be removed");
+}

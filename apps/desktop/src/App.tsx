@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
+  AlertTriangle,
   AudioWaveform,
   CircleHelp,
   Clock3,
@@ -36,13 +37,15 @@ import {
   getAnalysisJobStatus,
   importYoutubeUrl,
   isSupportedYoutubeUrl,
-  loadProject,
+  loadProjectDocument,
   MAX_YOUTUBE_URL_LENGTH,
   saveProject,
   subscribeToAnalysisJobUpdates,
   selectLocalAudioSource,
-  startAnalysisJob
+  startAnalysisJob,
+  type SelectedPlaybackSource
 } from "./lib/analysis";
+import { isProjectRevisionConflict } from "./lib/projectPersistenceErrors";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
@@ -59,6 +62,7 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s"'<>]+/gi;
 const SECRET_ASSIGNMENT_PATTERN = /\b(token|secret|password|api[_-]?key|access[_-]?token)\s*[:=]\s*[^\s,;]+/gi;
 
 type RehearsalView = "workspace" | "score";
+type ProjectConflictKind = "open" | "save";
 
 const NAV_ITEMS = [
   { labelKey: "navWorkspace", icon: Home, view: "workspace" },
@@ -247,6 +251,59 @@ function priorityLabel(song: RehearsalSong | null, t: ReturnType<typeof createTr
   return song?.sections?.[0]?.label ?? t("metricPriorityFallback");
 }
 
+/** Present a fail-closed revision conflict without replacing the last accepted rehearsal state. */
+function ProjectRevisionConflictNotice({
+  kind,
+  hasAcceptedProject,
+  onDismiss,
+  onChooseProject,
+  t
+}: {
+  kind: ProjectConflictKind;
+  hasAcceptedProject: boolean;
+  onDismiss: () => void;
+  onChooseProject: () => void;
+  t: ReturnType<typeof createTranslator>;
+}) {
+  return (
+    <section
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      className="mb-4 rounded-xl border border-amber-300/30 bg-amber-950/45 p-4 text-amber-50 shadow-[0_14px_44px_rgba(0,0,0,0.22)]"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-300" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-bold text-amber-100">{t("projectConflictTitle")}</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-amber-50/80">
+            {kind === "open" ? t("projectConflictOpenDetail") : t("projectConflictSaveDetail")}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onDismiss}
+              className="min-h-11 border-amber-200/25 bg-transparent text-amber-50 hover:bg-amber-100/10 hover:text-white"
+            >
+              {hasAcceptedProject ? t("projectConflictKeepCurrent") : t("projectConflictDismiss")}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onChooseProject}
+              className="min-h-11 bg-amber-100 text-amber-950 hover:bg-amber-50"
+            >
+              <FolderOpen className="mr-2 size-4" aria-hidden="true" />
+              {t("projectConflictChooseAnother")}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /** Documented. */
 export function App() {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
@@ -254,11 +311,16 @@ export function App() {
   const [jobStatus, setJobStatus] = useState<AnalysisJobStatus | null>(null);
   const [jobResult, setJobResult] = useState<RehearsalSong | null>(null);
   const [jobResultBootstrap, setJobResultBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [jobResultPublicationProjectId, setJobResultPublicationProjectId] = useState<string | null>(null);
+  const [jobResultSelectedPlaybackSource, setJobResultSelectedPlaybackSource] = useState<SelectedPlaybackSource>("full_mix");
   const [jobError, setJobError] = useState<string | null>(null);
+  const [projectRevisionConflict, setProjectRevisionConflict] = useState<ProjectConflictKind | null>(null);
   const [renderedProgressPercent, setRenderedProgressPercent] = useState<number | undefined>(undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [selectedBootstrap, setSelectedBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [selectedPublicationProjectId, setSelectedPublicationProjectId] = useState<string | null>(null);
   const [activeAnalysisBootstrap, setActiveAnalysisBootstrap] = useState<ProjectBootstrapSummary | null>(null);
+  const [activeAnalysisPublicationProjectId, setActiveAnalysisPublicationProjectId] = useState<string | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [selectionErrorSource, setSelectionErrorSource] = useState<"local" | "youtube" | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -287,14 +349,20 @@ export function App() {
     if (nextStatus.state === "succeeded" && nextStatus.result) {
       setJobResult(nextStatus.result);
       setJobResultBootstrap(activeAnalysisBootstrap);
+      setJobResultPublicationProjectId(activeAnalysisPublicationProjectId);
+      setJobResultSelectedPlaybackSource("full_mix");
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobError(null);
+      setProjectRevisionConflict(null);
     }
     if (nextStatus.state === "failed") {
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
+      setProjectRevisionConflict(null);
       setJobError(safeErrorDetail(nextStatus.error?.message, t("analysisCouldNotStart")));
     }
-  }, [activeAnalysisBootstrap, t]);
+  }, [activeAnalysisBootstrap, activeAnalysisPublicationProjectId, t]);
 
   useEffect(() => {
     const targetPercent = jobStatus?.progressPercent;
@@ -362,6 +430,7 @@ export function App() {
           }
           const fallbackMessage = t("analysisCouldNotStart");
           setJobError(fallbackMessage);
+          setProjectRevisionConflict(null);
           setJobStatus({
             ...jobStatus,
             state: "failed",
@@ -388,11 +457,15 @@ export function App() {
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    const submittedPublicationProjectId = selectedPublicationProjectId;
     setJobError(null);
+    setProjectRevisionConflict(null);
     setJobResult(null);
     setJobResultBootstrap(null);
+    setJobResultPublicationProjectId(null);
     setJobStatus(null);
     setActiveAnalysisBootstrap(submittedBootstrap);
+    setActiveAnalysisPublicationProjectId(submittedPublicationProjectId);
     setIsStarting(true);
     try {
       const nextStatus = await startAnalysisJob(selectedRequest);
@@ -400,13 +473,17 @@ export function App() {
         setJobStatus(nextStatus);
         setJobResult(nextStatus.result);
         setJobResultBootstrap(submittedBootstrap);
+        setJobResultPublicationProjectId(submittedPublicationProjectId);
+        setJobResultSelectedPlaybackSource("full_mix");
         setActiveAnalysisBootstrap(null);
+        setActiveAnalysisPublicationProjectId(null);
       } else {
         applyJobStatus(nextStatus);
       }
     } catch {
       setJobStatus(null);
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobError(t("analysisCouldNotStart"));
     } finally {
       setIsStarting(false);
@@ -420,10 +497,12 @@ export function App() {
     const selection = await selectLocalAudioSource();
     if (selection.ok) {
       setSelectedBootstrap(selection.bootstrap);
+      setSelectedPublicationProjectId(selection.bootstrap.projectId);
       return;
     }
 
     setSelectedBootstrap(null);
+    setSelectedPublicationProjectId(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setSelectionErrorSource("local");
     setJobStatus(null);
@@ -451,6 +530,7 @@ export function App() {
       const selection = await importYoutubeUrl(normalizedUrl);
       if (selection.ok) {
         setSelectedBootstrap(selection.bootstrap);
+        setSelectedPublicationProjectId(null);
         setYoutubeUrl("");
       } else {
         setSelectionError(safeErrorDetail(selection.error.message, t("youtubeImportFailed")));
@@ -473,16 +553,27 @@ export function App() {
   /** Documented. */
   const handleLoadProject = async () => {
     try {
-      const song = await loadProject();
-      setJobResult(song);
+      const projectDocument = await loadProjectDocument();
+      setJobResult(projectDocument.song);
       setJobResultBootstrap(null);
+      setJobResultPublicationProjectId(projectDocument.sourceReference?.projectId ?? null);
+      setJobResultSelectedPlaybackSource(projectDocument.preferences.selectedPlaybackSource);
       setJobError(null);
+      setProjectRevisionConflict(null);
       setSelectedBootstrap(null);
+      setSelectedPublicationProjectId(null);
       setActiveAnalysisBootstrap(null);
+      setActiveAnalysisPublicationProjectId(null);
       setJobStatus(null);
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
+        if (isProjectRevisionConflict(e)) {
+          setJobError(null);
+          setProjectRevisionConflict("open");
+        } else {
+          setProjectRevisionConflict(null);
+          setJobError(`${t("loadProjectFailedPrefix")}: ${safeErrorDetail(e, t("loadProjectFailedFallback"))}`);
+        }
       }
     }
   };
@@ -490,20 +581,64 @@ export function App() {
   /** Documented. */
   const handleSaveProject = async () => {
     try {
-      await saveProject(jobResult!);
+      await saveProject(
+        jobResult!,
+        jobResultSelectedPlaybackSource,
+        jobResultPublicationProjectId ?? undefined
+      );
     } catch (e) {
       if (!isUserCancellation(e)) {
-        setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
+        if (isProjectRevisionConflict(e)) {
+          setJobError(null);
+          setProjectRevisionConflict("save");
+        } else {
+          setProjectRevisionConflict(null);
+          setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(e, t("saveProjectFailedFallback"))}`);
+        }
       }
     }
   };
 
-  /** Documented. */
-  const handleSongUpdate = (updatedSong: RehearsalSong) => {
-    setJobResult(updatedSong);
+  /**
+   * Accept one rehearsal mutation only after the app-owned project snapshot is durable.
+   *
+   * A local project id represents native Project Persistence authority. Renderer
+   * state is therefore acknowledgement, not the source of truth: when that id
+   * exists, the updated song is serialized and crash-safely published to the
+   * fixed workspace snapshot before React exposes the mutation. Persistence
+   * failure leaves the prior accepted song visible and surfaces a bounded error.
+   */
+  const handleSongUpdate = async (updatedSong: RehearsalSong): Promise<boolean> => {
+    const projectId = jobResultPublicationProjectId;
+    if (!projectId) {
+      setJobResult(updatedSong);
+      return true;
+    }
+
+    try {
+      await saveProject(
+        updatedSong,
+        jobResultSelectedPlaybackSource,
+        projectId,
+        true
+      );
+      setJobResult(updatedSong);
+      setJobError(null);
+      setProjectRevisionConflict(null);
+      return true;
+    } catch (error) {
+      if (isProjectRevisionConflict(error)) {
+        setJobError(null);
+        setProjectRevisionConflict("save");
+      } else {
+        setProjectRevisionConflict(null);
+        setJobError(`${t("saveProjectFailedPrefix")}: ${safeErrorDetail(error, t("saveProjectFailedFallback"))}`);
+      }
+      return false;
+    }
   };
 
-  /** Documented. */
+  /** Render the accepted workspace state; revision conflicts are rendered above every rehearsal view. */
   const renderWorkspaceState = () => {
     if (jobError) {
       return <ErrorState error={jobError} />;
@@ -841,11 +976,21 @@ export function App() {
             <MetricCard icon={<Star className="size-5 fill-amber-300 text-amber-300" aria-hidden="true" />} label={t("metricPriorityLabel")} value={priorityLabel(jobResult, t)} detail={jobResult?.exportSummary?.headline ?? t("metricPriorityPendingDetail")} accent="text-amber-300" />
           </header>
 
+          {projectRevisionConflict ? (
+            <ProjectRevisionConflictNotice
+              kind={projectRevisionConflict}
+              hasAcceptedProject={jobResult !== null}
+              onDismiss={() => setProjectRevisionConflict(null)}
+              onChooseProject={() => void handleLoadProject()}
+              t={t}
+            />
+          ) : null}
+
           <section className="animate-in fade-in duration-500 ease-out fill-mode-both">
             {currentView === "score" && jobResult ? (
               <ScoreView
                 song={jobResult}
-                projectId={jobResultBootstrap?.projectId ?? null}
+                projectId={jobResultPublicationProjectId}
                 onSongUpdate={handleSongUpdate}
               />
             ) : (

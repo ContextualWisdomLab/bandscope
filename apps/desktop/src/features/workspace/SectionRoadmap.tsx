@@ -1,5 +1,5 @@
 import type { RehearsalSong, RehearsalRole } from "@bandscope/shared-types";
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { fillRangeCopy, playableRange } from "./firstRangeSqueeze";
@@ -11,7 +11,7 @@ import { AlertCircle, CheckCircle2, Music2, Wand2, Lightbulb, Info } from "lucid
 interface SectionRoadmapProps {
   song: RehearsalSong;
   activeRole: string | null; // null means all roles
-  onSongUpdate?: (song: RehearsalSong) => void;
+  onSongUpdate?: (song: RehearsalSong) => void | boolean | Promise<void | boolean>;
 }
 
 /** Documented. */
@@ -19,6 +19,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
   const sectionRoadmapTitleId = useId();
   const locale = useMemo(() => detectPreferredLocale(), []);
   const t = useMemo(() => createTranslator(locale), [locale]);
+  const [isSongMutationPending, setIsSongMutationPending] = useState(false);
 
   /** Documented. */
   const editChordLabel = (role: RehearsalRole, sectionLabel: string): string => {
@@ -28,9 +29,15 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
       .replace("{chord}", role.harmony.chord);
   };
 
-  /** Documented. */
-  const handleChordEdit = (sectionId: string, role: RehearsalRole) => {
-    if (!onSongUpdate) return;
+  /**
+   * Persist one chord mutation before another edit can derive from the same stale song snapshot.
+   *
+   * Project Persistence owns durability and may return an asynchronous acceptance outcome. The
+   * roadmap only owns interaction serialization: while that outcome is pending, every chord edit
+   * control is disabled so a second mutation cannot be computed from the pre-commit `song` prop.
+   */
+  const handleChordEdit = async (sectionId: string, role: RehearsalRole) => {
+    if (!onSongUpdate || isSongMutationPending) return;
     const newChord = window.prompt(t("chordEditPrompt"), role.harmony.chord);
     if (newChord === null) return;
 
@@ -72,7 +79,14 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
       })
     };
 
-    if (changed) onSongUpdate(updatedSong);
+    if (!changed) return;
+
+    setIsSongMutationPending(true);
+    try {
+      await onSongUpdate(updatedSong);
+    } finally {
+      setIsSongMutationPending(false);
+    }
   };
   /** Documented. */
   const getPriorityColor = (priority: string) => {
@@ -103,6 +117,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
         role="region"
         tabIndex={0}
         aria-labelledby={sectionRoadmapTitleId}
+        aria-busy={isSongMutationPending}
       >
         {song.sections.map((section) => (
           <Card
@@ -156,7 +171,7 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                           type="button"
                           aria-label={editChordLabel(role, section.label)}
                           className={`-ml-2 rounded px-2 py-0.5 text-lg font-black tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
-                            onSongUpdate
+                            onSongUpdate && !isSongMutationPending
                               ? "cursor-pointer hover:bg-white/10"
                               : "cursor-default"
                           } ${
@@ -164,9 +179,9 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
                               ? "bg-indigo-300/15 text-indigo-200"
                               : "text-cyan-100"
                           }`}
-                          onClick={() => handleChordEdit(section.id, role)}
+                          onClick={() => void handleChordEdit(section.id, role)}
                           title={onSongUpdate ? t("chordEditTitle") : undefined}
-                          disabled={!onSongUpdate}
+                          disabled={!onSongUpdate || isSongMutationPending}
                         >
                           {role.harmony.chord}
                         </button>
