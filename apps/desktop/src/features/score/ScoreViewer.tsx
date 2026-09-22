@@ -106,30 +106,13 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
       return;
     }
 
-    let timeoutId: number;
-    let initialized = false;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        // ⚡ Bolt: Debounce container width updates to avoid excessive re-renders and
-        // heavy PDF canvas repaints while the window is being actively resized.
-        // The first update applies immediately for correct initial layout.
-        const newWidth = entry.contentRect.width;
-        if (!initialized) {
-          initialized = true;
-          setContainerWidth(newWidth);
-        } else {
-          window.clearTimeout(timeoutId);
-          timeoutId = window.setTimeout(() => {
-            setContainerWidth(newWidth);
-          }, 150);
-        }
+        setContainerWidth(entry.contentRect.width);
       }
     });
     observer.observe(container);
-    return () => {
-      observer.disconnect();
-      window.clearTimeout(timeoutId);
-    };
+    return () => observer.disconnect();
   }, [status]);
 
   useEffect(() => {
