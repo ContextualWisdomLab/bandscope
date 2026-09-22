@@ -14,6 +14,7 @@ ANALYSIS_ADAPTER_COMMAND = (
     "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
     "--test analysis_process_terminal_containment_contract -- --nocapture"
 )
+FRONTEND_BUILD_COMMAND = "npm run build --workspace @bandscope/desktop"
 REQUIRED_OWNER_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/root.rs"',
@@ -55,6 +56,19 @@ def test_process_output_native_gate_runs_the_analysis_owned_process_adapter() ->
 
     assert ANALYSIS_ADAPTER_COMMAND in workflow
     assert "Run native analysis owned-process adapter contract" in workflow
+
+
+def test_process_output_native_gate_builds_the_canonical_frontend_before_tauri_context() -> None:
+    """Tauri's generate_context macro requires the configured frontendDist to exist."""
+    workflow = _workflow_text()
+
+    assert "actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e" in workflow
+    assert 'node-version: "22.22.3"' in workflow
+    assert "corepack enable npm" in workflow
+    assert "npm run check:npm-runtime" in workflow
+    assert "npm ci" in workflow
+    assert FRONTEND_BUILD_COMMAND in workflow
+    assert workflow.index(FRONTEND_BUILD_COMMAND) < workflow.index(ANALYSIS_ADAPTER_COMMAND)
 
 
 def test_process_output_native_gate_binds_evidence_to_the_exact_source_head() -> None:
