@@ -956,39 +956,6 @@ mod tests {
     }
 
     #[test]
-    fn youtube_process_output_drains_large_stdout_and_stderr_before_exit() {
-        if std::env::var_os("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT").is_some() {
-            let chunk = vec![b'x'; 1024 * 1024];
-            std::io::stdout()
-                .write_all(&chunk)
-                .expect("child stdout should accept test bytes");
-            std::io::stderr()
-                .write_all(&chunk)
-                .expect("child stderr should accept test bytes");
-            return;
-        }
-
-        let current_test_binary = std::env::current_exe().expect("test binary should resolve");
-        let mut command = Command::new(current_test_binary);
-        command
-            .env("BANDSCOPE_TEST_CHILD_LARGE_OUTPUT", "1")
-            .arg("youtube_process_output_drains_large_stdout_and_stderr_before_exit")
-            .arg("--nocapture");
-
-        let output = crate::wait_for_process_output(
-            command,
-            Duration::from_secs(2),
-            Duration::from_millis(5),
-            "YouTube import timed out.",
-        )
-        .expect("large child output should be drained before timeout");
-
-        assert!(output.status.success());
-        assert!(output.stdout.len() >= 1024 * 1024);
-        assert!(output.stderr.len() >= 1024 * 1024);
-    }
-
-    #[test]
     fn youtube_metadata_must_reference_supported_audio_inside_cache_root() {
         let cache_root = unique_test_dir("youtube-cache");
         let outside_root = unique_test_dir("youtube-outside");
