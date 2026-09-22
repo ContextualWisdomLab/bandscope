@@ -1,9 +1,15 @@
 """Tests for the chart-style cue-sheet export builders."""
 
+import ast
+import importlib.util
+import inspect
 import json
+import textwrap
+from pathlib import Path
 from typing import Any
 
 from bandscope_analysis.exports import build_chart_text, build_cue_sheet_rows
+from bandscope_analysis.exports import chart as chart_module
 
 
 def _role(
@@ -156,6 +162,44 @@ class TestBuildChartText:
         text = build_chart_text(song)
         assert "Priorities:" not in text
         assert "Focus:" not in text
+
+    def test_footer_preserves_priority_order_unicode_and_omits_blanks(self) -> None:
+        """Render the complete ordered footer without blank priorities or cues."""
+        rehearsal_song = _demo_song()
+        verse_section = rehearsal_song["sections"][0]
+        verse_section["roles"] = [
+            _role("guitar", "기타 🎸", "", "첫 번째"),
+            _role("silent", "쉼", "", ""),
+            _role("vocals", "보컬", "후렴 진입", "두 번째"),
+            _role("guitar-copy", "기타 🎸", "중복 큐", "첫 번째"),
+        ]
+        verse_section["partGraph"] = [
+            {"role_id": role_identifier, "is_active": True}
+            for role_identifier in ("guitar", "silent", "vocals", "guitar-copy")
+        ]
+        rehearsal_song["sections"] = [verse_section]
+        rehearsal_song["exportSummary"] = {"headline": "전환 집중 🎶"}
+
+        assert build_chart_text(rehearsal_song) == (
+            "Late Night Set\n"
+            "BPM: 92\n"
+            "Key: A minor\n"
+            "Feel: Straight eighths with a late snare feel\n\n"
+            "[00:10-00:30] VERSE  (medium)  roles: 기타 🎸, 쉼, 보컬\n\n"
+            "Priorities:\n"
+            "  - 기타 🎸: 첫 번째\n"
+            "  - 보컬: 두 번째\n"
+            "Focus: 전환 집중 🎶"
+        )
+        assert build_cue_sheet_rows(rehearsal_song) == [
+            {
+                "section": "verse",
+                "start": "00:10",
+                "end": "00:30",
+                "cue": "후렴 진입; 중복 큐",
+                "roles": ["기타 🎸", "쉼", "보컬"],
+            }
+        ]
 
     def test_deterministic_output(self) -> None:
         """Two builds from equal payloads produce identical text."""
@@ -340,3 +384,236 @@ class TestNoPathLeakage:
         assert "secret-demo" not in text
         assert "/Users" not in rows_json
         assert "secret-demo" not in rows_json
+
+
+class TestPerformanceContract:
+    """Performance-related export assertions (order and duplicates)."""
+
+    def test_deduplication_preserves_insertion_order(self) -> None:
+        """Deduplication uses dictionaries to maintain insertion order."""
+        song = _demo_song()
+        # Add roles to the first section that have duplicate ids and cues,
+        # but check that the resulting roles list is correctly ordered by first-occurrence.
+        section = song["sections"][0]
+        # Overwrite partGraph to force activity evaluation
+        section["partGraph"] = [
+            {"role_id": "keys", "is_active": True},
+            {"role_id": "drums", "is_active": True},
+            {"role_id": "bass", "is_active": True},
+            {"role_id": "keys", "is_active": True},  # duplicate
+            {"role_id": "vocals", "is_active": True},
+        ]
+        # Match the roles list
+        section["roles"] = [
+            _role("keys", "Keys", "Play the progression"),
+            _role("drums", "Drums", "Four-count into the verse"),
+            _role("bass", "Bass", "Enter on the downbeat"),
+            _role("keys", "Keys Copy", "Play the progression"),  # duplicate id and cue
+            _role("vocals", "Vocals", "Sing"),
+        ]
+
+        text = build_chart_text(song)
+        # Check that the order is Keys, Drums, Bass, Vocals
+        assert "roles: Keys, Drums, Bass, Vocals" in text
+
+    def test_cues_deduplication_preserves_order(self) -> None:
+        """Duplicate cues are removed but maintain original order."""
+        song = _demo_song()
+        section = song["sections"][0]
+        section["partGraph"] = [
+            {"role_id": "r1", "is_active": True},
+            {"role_id": "r2", "is_active": True},
+            {"role_id": "r3", "is_active": True},
+        ]
+        section["roles"] = [
+            _role("r1", "R1", "First cue"),
+            _role("r2", "R2", "Second cue"),
+            _role("r3", "R3", "First cue"),  # duplicate
+        ]
+
+        rows = build_cue_sheet_rows(song)
+        assert rows[0]["cue"] == "First cue; Second cue"
+
+    def test_deduplication_handles_unicode_and_empty_values(self) -> None:
+        """Handles unicode characters and empty strings properly during deduplication."""
+        song = _demo_song()
+        section = song["sections"][0]
+        section["partGraph"] = [
+            {"role_id": "r1", "is_active": True},
+            {"role_id": "r2", "is_active": True},
+            {"role_id": "r3", "is_active": True},
+        ]
+        section["roles"] = [
+            _role("r1", "🎸 Guitar", "🚀 Intro"),
+            _role("r2", "", ""),  # Empty names/cues shouldn't break or create weird artifacts
+            _role("r3", "🎸 Guitar", "🚀 Intro"),  # Duplicate unicode
+        ]
+
+        rows = build_cue_sheet_rows(song)
+        # Empty names fall back to role_id in _active_roles logic (via _role_display_name).
+        # We test that the final output includes the correct items, deduplicated.
+        assert rows[0]["cue"] == "🚀 Intro"
+        assert rows[0]["roles"] == ["🎸 Guitar", "r2"]
+
+
+def test_deduplication_helpers_use_semantic_identifiers() -> None:
+    """Keep generic one-word locals out of optimized export helpers."""
+    deduplication_helpers = (
+        chart_module._active_role_ids,
+        chart_module._active_role_names,
+        chart_module._section_cue,
+        chart_module._footer_lines,
+    )
+    forbidden_identifiers = {
+        "active",
+        "cue",
+        "cues",
+        "entry",
+        "headline",
+        "lines",
+        "name",
+        "node",
+        "part_graph",
+        "priorities",
+        "priority",
+        "role",
+        "role_id",
+        "section",
+        "sections",
+        "song",
+        "summary",
+        "value",
+    }
+
+    for deduplication_helper in deduplication_helpers:
+        helper_tree = ast.parse(textwrap.dedent(inspect.getsource(deduplication_helper)))
+        helper_identifiers = {
+            syntax_node.id
+            for syntax_node in ast.walk(helper_tree)
+            if isinstance(syntax_node, ast.Name) and isinstance(syntax_node.ctx, ast.Store)
+        }
+        helper_identifiers.update(
+            argument_node.arg
+            for argument_node in ast.walk(helper_tree)
+            if isinstance(argument_node, ast.arg)
+        )
+        assert forbidden_identifiers.isdisjoint(helper_identifiers), (
+            deduplication_helper.__name__,
+            forbidden_identifiers & helper_identifiers,
+        )
+        assert any(
+            isinstance(syntax_node, ast.AnnAssign)
+            and isinstance(syntax_node.annotation, ast.Subscript)
+            and isinstance(syntax_node.annotation.value, ast.Name)
+            and syntax_node.annotation.value.id == "dict"
+            for syntax_node in ast.walk(helper_tree)
+        ), deduplication_helper.__name__
+        assert not any(
+            isinstance(syntax_node, ast.Compare)
+            and any(
+                isinstance(comparison_operator, ast.NotIn)
+                for comparison_operator in syntax_node.ops
+            )
+            for syntax_node in ast.walk(helper_tree)
+        ), deduplication_helper.__name__
+
+
+def test_chart_benchmark_matches_documented_measurement_method(
+    monkeypatch: Any, capsys: Any
+) -> None:
+    """Measure the documented 96x24 fixture with 100 warmups and 1,000 samples."""
+    benchmark_path = Path(__file__).with_name("benchmark_chart_export.py")
+    benchmark_spec = importlib.util.spec_from_file_location(
+        "benchmark_chart_export_contract", benchmark_path
+    )
+    assert benchmark_spec is not None
+    assert benchmark_spec.loader is not None
+    benchmark_module = importlib.util.module_from_spec(benchmark_spec)
+    benchmark_spec.loader.exec_module(benchmark_module)
+
+    fixture_signature = inspect.signature(benchmark_module.make_large_song_fixture)
+    assert fixture_signature.parameters["section_count"].default == 96
+    assert fixture_signature.parameters["roles_per_section"].default == 24
+
+    export_call_counts = {"chart_text": 0, "cue_sheet": 0}
+
+    def _empty_benchmark_song() -> dict[str, object]:
+        return {}
+
+    def _record_chart_text(_benchmark_song: object) -> str:
+        export_call_counts["chart_text"] += 1
+        return ""
+
+    def _record_cue_sheet(_benchmark_song: object) -> list[object]:
+        export_call_counts["cue_sheet"] += 1
+        return []
+
+    monkeypatch.setattr(benchmark_module, "make_large_song_fixture", _empty_benchmark_song)
+    monkeypatch.setattr(benchmark_module, "build_chart_text", _record_chart_text)
+    monkeypatch.setattr(benchmark_module, "build_cue_sheet_rows", _record_cue_sheet)
+
+    benchmark_module.chart_export_benchmark()
+
+    assert export_call_counts == {"chart_text": 1110, "cue_sheet": 1110}
+    benchmark_output = capsys.readouterr().out
+    assert "Median time per sample:" in benchmark_output
+    assert "P95 time per sample:" in benchmark_output
+
+
+def test_chart_benchmark_uses_semantic_identifiers() -> None:
+    """Keep the preserved benchmark fixture explicit about measured concepts."""
+    benchmark_path = Path(__file__).with_name("benchmark_chart_export.py")
+    benchmark_tree = ast.parse(benchmark_path.read_text(encoding="utf-8"))
+    benchmark_identifiers = {
+        syntax_node.id
+        for syntax_node in ast.walk(benchmark_tree)
+        if isinstance(syntax_node, ast.Name)
+    }
+    benchmark_identifiers.update(
+        argument_node.arg
+        for argument_node in ast.walk(benchmark_tree)
+        if isinstance(argument_node, ast.arg)
+    )
+    benchmark_identifiers.update(
+        function_node.name
+        for function_node in ast.walk(benchmark_tree)
+        if isinstance(function_node, ast.FunctionDef)
+    )
+
+    assert benchmark_identifiers.isdisjoint(
+        {
+            "current",
+            "i",
+            "iterations",
+            "j",
+            "part_graph",
+            "peak",
+            "role_id",
+            "roles",
+            "run_benchmark",
+            "sections",
+            "song",
+            "t0",
+            "t1",
+            "total_time",
+        }
+    )
+    assert {
+        "benchmark_iteration_count",
+        "benchmark_sample_durations_seconds",
+        "benchmark_sample_finished_at",
+        "benchmark_sample_started_at",
+        "benchmark_song",
+        "allocation_iteration_count",
+        "_allocation_iteration",
+        "chart_export_benchmark",
+        "_current_allocation_bytes",
+        "median_duration_seconds",
+        "part_graph_nodes",
+        "p95_duration_seconds",
+        "peak_allocation_bytes",
+        "section_index",
+        "section_roles",
+        "song_sections",
+        "total_duration_seconds",
+    } <= benchmark_identifiers
