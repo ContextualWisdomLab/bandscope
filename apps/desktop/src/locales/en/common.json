@@ -63,7 +63,7 @@
   "workspaceSoloUnavailable": "Solo stays off until isolation is honest. Set up tonight's part first.",
   "workspaceLoopAction": "Loop section",
   "workspaceLoopUnavailable": "Loop section. Looping is not ready. Set up tonight's part first.",
-  "grooveMapLoading": "Checking the {role} line... 45%",
+  "grooveMapLoading": "Checking the {role} line...",
   "grooveMapCancel": "Cancel",
   "grooveMapEmpty": "No {role} transcription yet. Use it when you want to check the groove before rehearsal.",
   "grooveMapRegionLabel": "{role} transcription groove map",
