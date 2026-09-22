@@ -1465,10 +1465,10 @@ function validateTranscriptionNote(value: unknown, path: string): string | null 
   if (typeof value.pitch !== "string") {
     return invalidField(`${path}.pitch`);
   }
-  if (typeof value.onset !== "number" || !Number.isFinite(value.onset)) {
+  if (typeof value.onset !== "number" || !Number.isFinite(value.onset) || value.onset < 0) {
     return invalidField(`${path}.onset`);
   }
-  if (typeof value.offset !== "number" || !Number.isFinite(value.offset)) {
+  if (typeof value.offset !== "number" || !Number.isFinite(value.offset) || value.offset <= value.onset) {
     return invalidField(`${path}.offset`);
   }
   if (typeof value.velocity !== "number") {
