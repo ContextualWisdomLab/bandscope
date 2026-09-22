@@ -13,6 +13,10 @@ on:
       - "apps/desktop/core/src/process_output.rs"
       - "apps/desktop/core/tests/process_output_large_streams.rs"
       - "apps/desktop/core/tests/fixtures/process_output_test_helper.rs"
+      - "apps/desktop/src-tauri/Cargo.toml"
+      - "apps/desktop/src-tauri/src/main.rs"
+      - "apps/desktop/src-tauri/tests/analysis_process_terminal_containment_contract.rs"
+      - "docs/doctoring/subprocess-containment.md"
       - "docs/doctoring/youtube-process-containment.md"
       - ".github/workflows/resource-admission-process-output-native.yml"
       - "services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"
@@ -28,6 +32,10 @@ on:
       - "apps/desktop/core/src/process_output.rs"
       - "apps/desktop/core/tests/process_output_large_streams.rs"
       - "apps/desktop/core/tests/fixtures/process_output_test_helper.rs"
+      - "apps/desktop/src-tauri/Cargo.toml"
+      - "apps/desktop/src-tauri/src/main.rs"
+      - "apps/desktop/src-tauri/tests/analysis_process_terminal_containment_contract.rs"
+      - "docs/doctoring/subprocess-containment.md"
       - "docs/doctoring/youtube-process-containment.md"
       - ".github/workflows/resource-admission-process-output-native.yml"
       - "services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"
@@ -61,3 +69,5 @@ jobs:
         run: rustup toolchain install 1.97.1 --profile minimal
       - name: Run large stdout/stderr process-output contract
         run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features process_output_test_helper --test process_output_large_streams -- --nocapture
+      - name: Run native analysis owned-process adapter contract
+        run: cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml --test analysis_process_terminal_containment_contract -- --nocapture
