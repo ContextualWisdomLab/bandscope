@@ -20,10 +20,12 @@ import numpy as np
 
 from bandscope_analysis.audio_resource_policy import DEFAULT_AUDIO_RESOURCE_POLICY
 from bandscope_analysis.final_result_cache import (
-    _publish_synced_cache_stage as publish_synced_cache_stage,
     admitted_audio_cache_identity,
     load_admitted_rehearsal_song,
     store_durable_cache_payload,
+)
+from bandscope_analysis.final_result_cache import (
+    _publish_synced_cache_stage as publish_synced_cache_stage,
 )
 from bandscope_analysis.health import HealthReport, build_health_report
 from bandscope_analysis.roles import RoleExtractor
