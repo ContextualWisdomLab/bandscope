@@ -9,6 +9,7 @@
 mod runtime_core;
 mod audio_resource;
 mod content_sha256;
+mod owned_process;
 mod process_output;
 mod publication_identity;
 mod score_pdf;

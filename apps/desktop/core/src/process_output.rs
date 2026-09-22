@@ -1,4 +1,4 @@
-use crate::runtime_core::{configure_owned_process, terminate_owned_process};
+use crate::owned_process::spawn_owned_process;
 use std::{
     io::{BufRead, BufReader, Error, ErrorKind, Read},
     process::{Command, Output, Stdio},
@@ -84,29 +84,26 @@ fn join_process_output(
 /// product error and wakes the process-control owner without waiting for its next
 /// ordinary poll. Poll waiting is clamped to the requested deadline, so a coarse
 /// poll interval cannot silently extend helper lifetime. Process ownership and
-/// descendant termination remain delegated to the shared runtime-core boundary.
-/// This output ceiling limits parent-side capture memory only; it is not an
-/// end-to-end RSS/VRAM or sandbox guarantee.
+/// descendant termination are delegated to the shared desktop-core owner before
+/// reader joins. This output ceiling limits parent-side capture memory only; it is
+/// not an end-to-end RSS/VRAM or sandbox guarantee.
 pub fn wait_for_process_output(
     mut command: Command,
     timeout: Duration,
     poll_interval: Duration,
     timeout_message: &str,
 ) -> Result<Output, String> {
-    configure_owned_process(&mut command);
-    let mut child = command
+    command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| PROCESS_START_ERROR.to_string())?;
+        .stderr(Stdio::piped());
+    let mut child =
+        spawn_owned_process(&mut command).map_err(|_| PROCESS_START_ERROR.to_string())?;
     let stdout = child
-        .stdout
-        .take()
+        .take_stdout()
         .expect("stdout should be piped for BandScope-owned helper process");
     let stderr = child
-        .stderr
-        .take()
+        .take_stderr()
         .expect("stderr should be piped for BandScope-owned helper process");
     let (reader_failure_tx, reader_failure_rx) = mpsc::channel();
     let stdout_failure_tx = reader_failure_tx.clone();
@@ -132,8 +129,8 @@ pub fn wait_for_process_output(
         match child.try_wait() {
             Ok(Some(status)) => {
                 // Preserve the direct child's observed status as product truth while the shared
-                // owner cleans any ordinary descendants before inherited pipes are joined.
-                terminate_owned_process(&mut child);
+                // owner cleans ordinary descendants before inherited pipes are joined.
+                child.terminate();
                 let stdout = join_process_output(stdout_reader)?;
                 let stderr = join_process_output(stderr_reader)?;
                 return Ok(Output {
@@ -143,7 +140,7 @@ pub fn wait_for_process_output(
                 });
             }
             Ok(None) if Instant::now() >= deadline => {
-                terminate_owned_process(&mut child);
+                child.terminate();
                 let _ = stdout_reader.join();
                 let _ = stderr_reader.join();
                 return Err(timeout_message.to_string());
@@ -154,14 +151,14 @@ pub fn wait_for_process_output(
                     deadline.saturating_duration_since(Instant::now()),
                 );
                 if reader_failure_rx.recv_timeout(wait_for).is_ok() {
-                    terminate_owned_process(&mut child);
+                    child.terminate();
                     let _ = stdout_reader.join();
                     let _ = stderr_reader.join();
                     return Err(PROCESS_EXECUTION_ERROR.to_string());
                 }
             }
             Err(_) => {
-                terminate_owned_process(&mut child);
+                child.terminate();
                 let _ = stdout_reader.join();
                 let _ = stderr_reader.join();
                 return Err(PROCESS_EXECUTION_ERROR.to_string());
