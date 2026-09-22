@@ -40,12 +40,12 @@ fn native_analysis_cancellation_contains_the_running_process_boundary() {
         "the native runner must observe cancellation at the process boundary"
     );
     assert!(
-        runner.contains("configure_owned_process(&mut command)"),
-        "the owned analysis process must use the shared core containment owner before spawn"
+        runner.contains("spawn_owned_process(&mut command)"),
+        "the owned analysis process must be created through the shared core containment owner"
     );
     assert!(
-        runner.contains("terminate_owned_process(&mut process)"),
-        "accepted cancellation and failure paths must use the shared core containment owner before reporting terminal status"
+        runner.contains("process.terminate()"),
+        "accepted cancellation and failure paths must terminate through the shared owned-process capability before reporting terminal status"
     );
     assert!(
         !runner.contains("process.kill()"),
@@ -66,12 +66,12 @@ fn analysis_process_containment_uses_the_shared_core_owner() {
     let supported_guard = "#[cfg(any(target_os = \"linux\", target_os = \"macos\"))]";
 
     assert!(
-        source.contains("configure_owned_process(&mut command)"),
-        "the Tauri analysis runner must delegate process-group configuration to desktop core"
+        source.contains("spawn_owned_process(&mut command)"),
+        "the Tauri analysis runner must delegate process creation and containment to desktop core"
     );
     assert!(
-        source.contains("terminate_owned_process(&mut process)"),
-        "the Tauri analysis runner must delegate process termination to desktop core"
+        source.contains("process.terminate()"),
+        "the Tauri analysis runner must terminate through the shared owned-process capability"
     );
     assert!(
         !source.contains("fn configure_analysis_process("),
