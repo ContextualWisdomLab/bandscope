@@ -10,6 +10,8 @@ on:
       - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/process_output.rs"
+      - "apps/desktop/core/tests/process_output_large_streams.rs"
+      - "apps/desktop/core/tests/fixtures/process_output_test_helper.rs"
       - "docs/doctoring/youtube-process-containment.md"
       - ".github/workflows/resource-admission-process-output-native.yml"
       - "services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"
@@ -22,6 +24,8 @@ on:
       - "apps/desktop/core/src/root.rs"
       - "apps/desktop/core/src/lib.rs"
       - "apps/desktop/core/src/process_output.rs"
+      - "apps/desktop/core/tests/process_output_large_streams.rs"
+      - "apps/desktop/core/tests/fixtures/process_output_test_helper.rs"
       - "docs/doctoring/youtube-process-containment.md"
       - ".github/workflows/resource-admission-process-output-native.yml"
       - "services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"
@@ -54,4 +58,4 @@ jobs:
       - name: Install Rust 1.97.1
         run: rustup toolchain install 1.97.1 --profile minimal
       - name: Run large stdout/stderr process-output contract
-        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --lib youtube_process_output_drains_large_stdout_and_stderr_before_exit -- --nocapture
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --features process_output_test_helper --test process_output_large_streams -- --nocapture
