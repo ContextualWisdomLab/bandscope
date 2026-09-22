@@ -841,9 +841,6 @@ function validateMetadataHandoffSection(value: unknown, path: string): string | 
   if (confidenceError) {
     return confidenceError;
   }
-  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) {
-    return invalidField(`${path}.rehearsalPriority`);
-  }
   if (!isDenseArray(value.roleBuckets)) {
     return invalidField(`${path}.roleBuckets`);
   }
