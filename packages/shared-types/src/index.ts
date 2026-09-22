@@ -841,6 +841,9 @@ function validateMetadataHandoffSection(value: unknown, path: string): string | 
   if (confidenceError) {
     return confidenceError;
   }
+  if (!isOneOf(REHEARSAL_PRIORITIES, value.rehearsalPriority)) {
+    return invalidField(`${path}.rehearsalPriority`);
+  }
   if (!isDenseArray(value.roleBuckets)) {
     return invalidField(`${path}.roleBuckets`);
   }
@@ -1465,10 +1468,10 @@ function validateTranscriptionNote(value: unknown, path: string): string | null 
   if (typeof value.pitch !== "string") {
     return invalidField(`${path}.pitch`);
   }
-  if (typeof value.onset !== "number") {
+  if (typeof value.onset !== "number" || !Number.isFinite(value.onset)) {
     return invalidField(`${path}.onset`);
   }
-  if (typeof value.offset !== "number") {
+  if (typeof value.offset !== "number" || !Number.isFinite(value.offset)) {
     return invalidField(`${path}.offset`);
   }
   if (typeof value.velocity !== "number") {
