@@ -2,20 +2,21 @@
 
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 WORKFLOW_NAME = "resource-admission-process-output-native.yml"
 EXACT_SOURCE_REF = "ref: ${{ github.event.pull_request.head.sha || github.sha }}"
-FOCUSED_TEST = "youtube_process_output_drains_large_stdout_and_stderr_before_exit"
+HELPER_FEATURE = "process_output_test_helper"
 FOCUSED_COMMAND = (
     "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
-    f"--lib {FOCUSED_TEST} -- --nocapture"
+    f"--features {HELPER_FEATURE} --test process_output_large_streams -- --nocapture"
 )
 REQUIRED_OWNER_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/root.rs"',
     '"apps/desktop/core/src/lib.rs"',
     '"apps/desktop/core/src/process_output.rs"',
+    '"apps/desktop/core/tests/process_output_large_streams.rs"',
+    '"apps/desktop/core/tests/fixtures/process_output_test_helper.rs"',
     '"docs/doctoring/youtube-process-containment.md"',
     f'".github/workflows/{WORKFLOW_NAME}"',
     '"services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"',
@@ -54,3 +55,13 @@ def test_process_output_native_gate_tracks_its_owner_inputs() -> None:
 
     for required_path in REQUIRED_OWNER_PATHS:
         assert required_path in workflow, f"process-output native gate misses {required_path}"
+
+
+def test_process_output_helper_is_test_only_and_feature_gated() -> None:
+    """Keep the exact-limit child executable out of ordinary product/package targets."""
+    manifest = (REPO_ROOT / "apps/desktop/core/Cargo.toml").read_text(encoding="utf-8")
+
+    assert f"{HELPER_FEATURE} = []" in manifest
+    assert 'name = "bandscope-process-output-test-helper"' in manifest
+    assert 'path = "tests/fixtures/process_output_test_helper.rs"' in manifest
+    assert f'required-features = ["{HELPER_FEATURE}"]' in manifest
