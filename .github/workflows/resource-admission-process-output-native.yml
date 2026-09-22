@@ -1,0 +1,57 @@
+name: resource-admission-process-output-native
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/root.rs"
+      - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/src/process_output.rs"
+      - "docs/doctoring/youtube-process-containment.md"
+      - ".github/workflows/resource-admission-process-output-native.yml"
+      - "services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/root.rs"
+      - "apps/desktop/core/src/lib.rs"
+      - "apps/desktop/core/src/process_output.rs"
+      - "docs/doctoring/youtube-process-containment.md"
+      - ".github/workflows/resource-admission-process-output-native.yml"
+      - "services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"
+
+permissions:
+  contents: read
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
+jobs:
+  process-output-large-streams:
+    name: test / resource-admission / process-output / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2025
+          - macos-15
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Run large stdout/stderr process-output contract
+        run: cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml --lib youtube_process_output_drains_large_stdout_and_stderr_before_exit -- --nocapture
