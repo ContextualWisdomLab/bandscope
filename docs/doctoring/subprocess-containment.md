@@ -26,6 +26,12 @@ Production `5533cbc95eb6d7b90c7422c9d0f50540ccb31037` exposes only the narrow `O
 
 No hosted RED is claimed for `6025e120...`: the RED and production changes are ordinary forward descendants in one owner lane. Exact-head hosted GREEN is claimed only after the final documentation head has completed the dedicated Windows Server 2025 and macOS 15 workflow.
 
+## Hosted Tauri test-harness RCA
+
+Exact `7a10a43bb643827c8674677e58ba42c64b81ac1a`, run `35689880708`, proved the core executable contract on macOS before the newly added Tauri adapter step failed during compilation. The adapter test itself did not run: `tauri::generate_context!()` rejected `frontendDist: "../dist"` because `apps/desktop/dist` had not been built in the focused workflow. The failure was therefore a missing workflow prerequisite, not evidence against the `OwnedProcess` repair.
+
+The canonical repository `ci / rust-check` lane installs the pinned Node/npm runtime, runs `npm ci`, builds `@bandscope/desktop`, and only then checks/tests the Tauri shell. A fake empty `dist` directory was rejected because it would satisfy the macro's filesystem precondition without proving the same build prerequisite used by repository CI. `8a6a17add9a4e36d8280c780f3c22bbc36a91f6f` adopts that canonical sequence in the focused Windows/macOS workflow, and `85b346e227785f07d0b1fc02b9d2d13f0aff6385` makes the workflow-policy regression require the pinned Node setup, npm runtime verification, frozen dependency install, and frontend build before the Tauri adapter command.
+
 ## Output, timeout and protocol admission
 
 Captured helper output is an admission boundary, not a diagnostics sink. stdout and stderr are each limited to 1 MiB plus one overflow-probe byte. A reader failure wakes the single process-control owner through standard-library MPSC; the owner terminates the process boundary before joining readers. The wait interval is clamped to the smaller of the configured poll interval and the remaining monotonic deadline, so a coarse poll interval cannot add a full interval of avoidable timeout overshoot.
@@ -40,7 +46,7 @@ Historical protocol repairs retained by this contract include native timestamp a
 
 `apps/desktop/core/tests/process_output_large_streams.rs` uses the feature-gated standalone `bandscope-process-output-test-helper`, not libtest self-reentry, to exercise the actual `wait_for_process_output` owner. It covers exact 1 MiB stdout and stderr and a successful parent that leaves a five-second descendant holding inherited output handles. The latter must return in under two seconds because `OwnedProcess` terminates ordinary descendants before reader join.
 
-The dedicated workflow `.github/workflows/resource-admission-process-output-native.yml` runs that executable contract on `windows-2025` and `macos-15` from `${{ github.event.pull_request.head.sha || github.sha }}` with credentials persistence disabled. It then runs `apps/desktop/src-tauri/tests/analysis_process_terminal_containment_contract.rs` on the same matrix, proving the native analysis adapter still enters the same owner boundary and cleans it before reader joins.
+The dedicated workflow `.github/workflows/resource-admission-process-output-native.yml` runs that executable contract on `windows-2025` and `macos-15` from `${{ github.event.pull_request.head.sha || github.sha }}` with credentials persistence disabled. Before compiling the Tauri package it reproduces the repository's pinned frontend build prerequisite, then runs `apps/desktop/src-tauri/tests/analysis_process_terminal_containment_contract.rs` on the same matrix. That contract proves the native analysis adapter still enters the same owner boundary and cleans it before reader joins.
 
 Earlier exact `c0c3956d10edb6e21a154c9c5de075dd2bde3217`, run `35686172417`, was GREEN on Windows Server 2025 and macOS 15 for the timed-import exact-limit and descendant-handle contract. That predecessor result explains the owner semantics but does not transfer to the later Tauri migration. The current final head requires its own generation.
 
