@@ -317,7 +317,9 @@ def _valid_transcription_note(value: object) -> bool:
         and _has_only_allowed_keys(value, _TRANSCRIPTION_NOTE_KEYS)
         and isinstance(value.get("pitch"), str)
         and _finite_number(value.get("onset"))
+        and value["onset"] >= 0
         and _finite_number(value.get("offset"))
+        and value["offset"] > value["onset"]
         and _finite_number(value.get("velocity"))
     )
 
