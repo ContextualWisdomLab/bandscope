@@ -31,10 +31,11 @@ export function configureScorePdfWorker(): void {
  * to a no-op hook and unknown named entities are preserved literally rather
  * than dereferenced, so no external-entity resolver is exposed by this API.
  */
-export function loadScorePdf(data: Uint8Array): PDFDocumentLoadingTask {
+export function loadScorePdf(scorePdfBytes: Uint8Array): PDFDocumentLoadingTask {
   configureScorePdfWorker();
   return getDocument({
-    data: new Uint8Array(data),
+    // `data` is the pdf.js vendor contract; keep it at this adapter boundary.
+    data: new Uint8Array(scorePdfBytes),
     enableXfa: false,
     useWorkerFetch: false
   });

@@ -94,25 +94,28 @@ def _safe_default() -> TempoStability:
     }
 
 
-def _classify_stability(cv: float) -> Literal["steady", "loose", "variable"]:
+def _classify_stability(
+    bpm_variation_coefficient: float,
+) -> Literal["steady", "loose", "variable"]:
     """Map a coefficient of variation to a stability label.
 
     Args:
-        cv: Coefficient of variation of the local BPM series.
+        bpm_variation_coefficient: Coefficient of variation of the local BPM series.
 
     Returns:
-        "steady" if cv < 0.04, "loose" if cv < 0.10, else "variable".
+        "steady" if the coefficient is below 0.04, "loose" if it is below
+        0.10, else "variable".
     """
-    if cv < STEADY_CV_THRESHOLD:
+    if bpm_variation_coefficient < STEADY_CV_THRESHOLD:
         return "steady"
-    if cv < LOOSE_CV_THRESHOLD:
+    if bpm_variation_coefficient < LOOSE_CV_THRESHOLD:
         return "loose"
     return "variable"
 
 
 def _summarize_run(
-    run: list[tuple[int, float, float, float]],
-    beats: NDArray[np.float64],
+    tempo_change_run: list[tuple[int, float, float, float]],
+    beat_times_array: NDArray[np.float64],
 ) -> TempoChange:
     """Collapse a run of adjacent flagged boundaries into one tempo change.
 
@@ -121,26 +124,31 @@ def _summarize_run(
     chosen so the reported time sits at the center of the transition.
 
     Args:
-        run: Adjacent flagged boundaries as (index, deviation, before
-            median BPM, after median BPM) tuples, in ascending index order.
-        beats: Beat times in seconds, aligned with boundary indices.
+        tempo_change_run: Adjacent flagged boundaries as (index, deviation,
+            before median BPM, after median BPM) tuples, in ascending index
+            order.
+        beat_times_array: Beat times in seconds, aligned with boundary indices.
 
     Returns:
         The merged TempoChange with rounded outputs.
     """
-    max_deviation = max(entry[1] for entry in run)
-    ties = [entry for entry in run if entry[1] >= max_deviation - 1e-9]
-    index, _, before_bpm, after_bpm = ties[len(ties) // 2]
+    max_deviation = max(flagged_boundary[1] for flagged_boundary in tempo_change_run)
+    tied_boundaries = [
+        flagged_boundary
+        for flagged_boundary in tempo_change_run
+        if flagged_boundary[1] >= max_deviation - 1e-9
+    ]
+    boundary_index, _, before_bpm, after_bpm = tied_boundaries[len(tied_boundaries) // 2]
     return {
-        "time": round(float(beats[index]), 3),
+        "time": round(float(beat_times_array[boundary_index]), 3),
         "from_bpm": round(before_bpm, 1),
         "to_bpm": round(after_bpm, 1),
     }
 
 
 def _detect_tempo_changes(
-    bpms: NDArray[np.float64],
-    beats: NDArray[np.float64],
+    local_bpm_values: NDArray[np.float64],
+    beat_times_array: NDArray[np.float64],
 ) -> list[TempoChange]:
     """Detect sustained tempo shifts in a local BPM series.
 
@@ -150,37 +158,65 @@ def _detect_tempo_changes(
     merged into a single change.
 
     Args:
-        bpms: Per-beat local BPM series (one value per inter-beat
-            interval); ``bpms[i]`` spans beats ``i`` to ``i + 1``.
-        beats: Beat times in seconds; ``len(beats) == len(bpms) + 1``.
+        local_bpm_values: Per-beat local BPM series (one value per inter-beat
+            interval); each value spans one consecutive beat interval.
+        beat_times_array: Beat times in seconds; there is one more beat time
+            than local BPM value.
 
     Returns:
         Detected tempo changes in chronological order; empty if the track
         is too short for a robust window comparison.
     """
-    n_bpm = len(bpms)
-    window = min(CHANGE_WINDOW_BEATS, n_bpm // 2)
-    if window < MIN_CHANGE_WINDOW_BEATS:
+    bpm_value_count = len(local_bpm_values)
+    comparison_window_beats = min(CHANGE_WINDOW_BEATS, bpm_value_count // 2)
+    if comparison_window_beats < MIN_CHANGE_WINDOW_BEATS:
         return []
 
-    flagged: list[tuple[int, float, float, float]] = []
-    for k in range(window, n_bpm - window + 1):
-        before = float(np.median(bpms[k - window : k]))
-        after = float(np.median(bpms[k : k + window]))
-        deviation = abs(after - before) / before
-        if deviation > CHANGE_RATIO_THRESHOLD:
-            flagged.append((k, deviation, before, after))
+    flagged_boundaries: list[tuple[int, float, float, float]] = []
+    for boundary_index in range(
+        comparison_window_beats,
+        bpm_value_count - comparison_window_beats + 1,
+    ):
+        before_bpm_median = float(
+            np.median(
+                local_bpm_values[
+                    boundary_index - comparison_window_beats : boundary_index
+                ]
+            )
+        )
+        after_bpm_median = float(
+            np.median(
+                local_bpm_values[
+                    boundary_index : boundary_index + comparison_window_beats
+                ]
+            )
+        )
+        relative_bpm_deviation = (
+            abs(after_bpm_median - before_bpm_median) / before_bpm_median
+        )
+        if relative_bpm_deviation > CHANGE_RATIO_THRESHOLD:
+            flagged_boundaries.append(
+                (
+                    boundary_index,
+                    relative_bpm_deviation,
+                    before_bpm_median,
+                    after_bpm_median,
+                )
+            )
 
-    changes: list[TempoChange] = []
-    run: list[tuple[int, float, float, float]] = []
-    for entry in flagged:
-        if run and entry[0] != run[-1][0] + 1:
-            changes.append(_summarize_run(run, beats))
-            run = []
-        run.append(entry)
-    if run:
-        changes.append(_summarize_run(run, beats))
-    return changes
+    tempo_changes: list[TempoChange] = []
+    tempo_change_run: list[tuple[int, float, float, float]] = []
+    for flagged_boundary in flagged_boundaries:
+        if (
+            tempo_change_run
+            and flagged_boundary[0] != tempo_change_run[-1][0] + 1
+        ):
+            tempo_changes.append(_summarize_run(tempo_change_run, beat_times_array))
+            tempo_change_run = []
+        tempo_change_run.append(flagged_boundary)
+    if tempo_change_run:
+        tempo_changes.append(_summarize_run(tempo_change_run, beat_times_array))
+    return tempo_changes
 
 
 def analyze_tempo_stability(
@@ -203,28 +239,28 @@ def analyze_tempo_stability(
         beats, non-finite values, or non-increasing times) yields the
         safe default instead of raising.
     """
-    beats: NDArray[np.float64] = np.asarray(beat_times, dtype=np.float64)
-    if beats.ndim != 1 or len(beats) < MIN_BEATS:
+    beat_times_array: NDArray[np.float64] = np.asarray(beat_times, dtype=np.float64)
+    if beat_times_array.ndim != 1 or len(beat_times_array) < MIN_BEATS:
         return _safe_default()
-    if not np.all(np.isfinite(beats)):
+    if not np.all(np.isfinite(beat_times_array)):
         return _safe_default()
 
-    intervals = np.diff(beats)
-    if not np.all(intervals > 0.0):
+    beat_intervals = np.diff(beat_times_array)
+    if not np.all(beat_intervals > 0.0):
         return _safe_default()
 
     with np.errstate(divide="ignore", over="ignore"):
-        bpms: NDArray[np.float64] = 60.0 / intervals
-    if not np.all(np.isfinite(bpms)):
+        local_bpm_values: NDArray[np.float64] = 60.0 / beat_intervals
+    if not np.all(np.isfinite(local_bpm_values)):
         return _safe_default()
 
-    bpm_median = float(np.median(bpms))
-    bpm_stdev = float(np.std(bpms))
-    cv = bpm_stdev / bpm_median
+    bpm_median = float(np.median(local_bpm_values))
+    bpm_stdev = float(np.std(local_bpm_values))
+    bpm_variation_coefficient = bpm_stdev / bpm_median
 
     return {
         "bpm_median": round(bpm_median, 2),
         "bpm_stdev": round(bpm_stdev, 2),
-        "stability": _classify_stability(cv),
-        "tempo_changes": _detect_tempo_changes(bpms, beats),
+        "stability": _classify_stability(bpm_variation_coefficient),
+        "tempo_changes": _detect_tempo_changes(local_bpm_values, beat_times_array),
     }

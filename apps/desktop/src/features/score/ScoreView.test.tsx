@@ -9,16 +9,16 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("./ScoreViewer", () => ({
-  ScoreViewer: ({ data, fileName }: { data: Uint8Array | null; fileName?: string }) => (
+  ScoreViewer: ({ scorePdfBytes, fileName }: { scorePdfBytes: Uint8Array | null; fileName?: string }) => (
     <div data-testid="score-viewer">
-      {data ? `bytes:${data.length}` : "no-data"}
+      {scorePdfBytes ? `bytes:${scorePdfBytes.length}` : "no-data"}
       {fileName ? `:${fileName}` : ""}
     </div>
   )
 }));
 
 vi.mock("../../i18n", () => ({
-  createTranslator: () => (key: string) =>
+  createTranslator: () => (translationKey: string) =>
     ({
       scoreViewTitle: "Score",
       scoreViewSubtitle: "Attach validated PDF scores to the current song.",
@@ -34,7 +34,7 @@ vi.mock("../../i18n", () => ({
       scoreReadFailed: "Could not open the score PDF.",
       scoreRemoveFailed: "Could not remove the score PDF.",
       scoreRequiresProject: "Scores attach to the active analysis project."
-    })[key] ?? key,
+    })[translationKey] ?? translationKey,
   detectPreferredLocale: () => "en"
 }));
 
