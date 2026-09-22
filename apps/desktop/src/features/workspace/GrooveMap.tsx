@@ -12,10 +12,11 @@ interface GrooveMapProps {
   isLoading?: boolean;
   entranceOnset?: number;
   roleName: string;
+  onCancel?: () => void;
 }
 
 /** Render the selected role's transcription and optional first-entrance emphasis. */
-function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: GrooveMapProps) {
+function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName, onCancel }: GrooveMapProps) {
   const renderedNotes = notes ?? EMPTY_NOTES;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
@@ -57,9 +58,17 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName }: Groov
           <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
           {fillTranslation(t("grooveMapLoading"), { role: roleName })}
         </span>
-        <Button variant="outline" size="sm" className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white">
-          {t("grooveMapCancel")}
-        </Button>
+        {onCancel ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white"
+          >
+            {t("grooveMapCancel")}
+          </Button>
+        ) : null}
       </div>
     );
   }
