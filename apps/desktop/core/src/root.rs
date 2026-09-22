@@ -20,6 +20,7 @@ pub use audio_resource::{
     LocalAudioCopyReceipt, MAX_LOCAL_AUDIO_FILE_BYTES,
 };
 pub use content_sha256::sha256_hex_reader;
+pub use owned_process::{spawn_owned_process, OwnedProcess};
 pub use process_output::{
     read_bounded_process_lines, read_bounded_process_output, wait_for_process_output,
     MAX_PROCESS_OUTPUT_BYTES,
