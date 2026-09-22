@@ -551,13 +551,13 @@ def test_run_analysis_job_updates_report_progress_and_cache(tmp_path) -> None:
     ):
         separator.return_value = {
             "stems": {
-                "vocals": np.zeros(1024),
-                "bass": np.zeros(1024),
-                "drums": np.zeros(1024),
-                "other": np.zeros(1024),
+                "vocals": np.zeros(1024, dtype=np.float32),
+                "bass": np.zeros(1024, dtype=np.float32),
+                "drums": np.zeros(1024, dtype=np.float32),
+                "other": np.zeros(1024, dtype=np.float32),
             },
             "sample_rate": 22050,
-            "duration_seconds": 1.0,
+            "duration_seconds": 1024 / 22050,
             "chunk_count": 1,
             "stem_role_types": {
                 "vocals": "vocal",
@@ -636,9 +636,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "message": "Stem separation failed",
     }
     assert "/Users/test/Music" not in str(updates[-1]["error"])
-    logger.exception.assert_called_once_with(
-        "Stem separation failed before analysis job completion."
-    )
+    logger.error.assert_called_once_with("Stem separation failed before analysis job completion.")
 
 
 def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
@@ -713,10 +711,10 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
 
     features = {
         "stems": {
-            "vocals": np.zeros(256),
-            "bass": np.zeros(256),
-            "drums": np.zeros(256),
-            "other": np.zeros(256),
+            "vocals": np.zeros(256, dtype=np.float32),
+            "bass": np.zeros(256, dtype=np.float32),
+            "drums": np.zeros(256, dtype=np.float32),
+            "other": np.zeros(256, dtype=np.float32),
         },
         "sr": 22050,
         "stem_role_types": {
@@ -726,7 +724,7 @@ def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_pat
             "other": "instrument",
         },
         "separation": {
-            "duration_seconds": 1.0,
+            "duration_seconds": 256 / 22050,
             "chunk_count": 1,
             "notes": "Separated selected local audio into 4 canonical stems.",
         },
@@ -1031,7 +1029,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
         assert fake_queue.items == [(expected_kind, expected_message)]
         assert "/secret" not in str(fake_queue.items)
-        logger.exception.assert_called_once_with(expected_log_message)
+        logger.error.assert_called_once_with(expected_log_message)
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -1146,7 +1144,11 @@ def test_stem_separation_process_helper_maps_worker_results(tmp_path) -> None:
     file_payload = {
         "arraysPath": str(arrays_path),
         "sampleRate": 22050,
-        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "ok"},
+        "separation": {
+            "duration_seconds": 4 / 22050,
+            "chunk_count": 1,
+            "notes": "ok",
+        },
         "stemKeys": ["bass"],
         "stemRoleTypes": {"bass": "instrument"},
     }

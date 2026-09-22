@@ -3,6 +3,7 @@ fn main() {
         tauri_build::AppManifest::new().commands(&[
             "start_analysis_job",
             "get_analysis_job_status",
+            "cancel_analysis_job",
             "select_local_audio_source",
             "import_youtube_url",
             "save_project",

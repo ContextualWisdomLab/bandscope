@@ -7,7 +7,15 @@ publish = false
 
 [lib]
 name = "bandscope_desktop_core"
-path = "src/lib.rs"
+path = "src/root.rs"
+
+[features]
+process_output_test_helper = []
+
+[[bin]]
+name = "bandscope-process-output-test-helper"
+path = "tests/fixtures/process_output_test_helper.rs"
+required-features = ["process_output_test_helper"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
