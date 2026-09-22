@@ -1,6 +1,6 @@
 use std::{
     io,
-    process::{Child, ChildStderr, ChildStdout, Command, ExitStatus},
+    process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus},
 };
 
 #[cfg(not(windows))]
@@ -112,30 +112,35 @@ extern "system" {
 /// On Windows the retained Job Object handle keeps the direct child and its ordinary
 /// descendants in one lifetime boundary. On other platforms termination delegates to
 /// the existing process-group owner in `runtime_core`.
-pub(crate) struct OwnedProcess {
+pub struct OwnedProcess {
     child: Child,
     #[cfg(windows)]
     job: OwnedHandle,
 }
 
 impl OwnedProcess {
+    /// Take the child's captured stdin pipe exactly once.
+    pub fn take_stdin(&mut self) -> Option<ChildStdin> {
+        self.child.stdin.take()
+    }
+
     /// Take the child's captured stdout pipe exactly once.
-    pub(crate) fn take_stdout(&mut self) -> Option<ChildStdout> {
+    pub fn take_stdout(&mut self) -> Option<ChildStdout> {
         self.child.stdout.take()
     }
 
     /// Take the child's captured stderr pipe exactly once.
-    pub(crate) fn take_stderr(&mut self) -> Option<ChildStderr> {
+    pub fn take_stderr(&mut self) -> Option<ChildStderr> {
         self.child.stderr.take()
     }
 
     /// Observe direct-child completion without waiting for descendant cleanup.
-    pub(crate) fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         self.child.try_wait()
     }
 
     /// Terminate the owned process boundary and reap the directly owned child.
-    pub(crate) fn terminate(&mut self) {
+    pub fn terminate(&mut self) {
         #[cfg(windows)]
         {
             // SAFETY: `job` is a live handle created by `CreateJobObjectW` and retained
@@ -240,7 +245,7 @@ fn resume_suspended_child(process_id: u32) -> io::Result<()> {
 /// assignment succeeds. Child code therefore cannot create an ordinary descendant before
 /// Job membership exists. Non-Windows targets preserve the existing pre-spawn process-group
 /// configuration. Renderer code never receives a PID, Job handle, or generic kill capability.
-pub(crate) fn spawn_owned_process(command: &mut Command) -> io::Result<OwnedProcess> {
+pub fn spawn_owned_process(command: &mut Command) -> io::Result<OwnedProcess> {
     #[cfg(windows)]
     {
         let job = create_kill_on_close_job()?;
