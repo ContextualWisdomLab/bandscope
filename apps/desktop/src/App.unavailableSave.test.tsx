@@ -33,3 +33,26 @@ it("keeps unavailable Save focusable without native-title-only help", () => {
     languageSpy.mockRestore();
   }
 });
+
+it("keeps App icon tooltip triggers free of native title fallbacks", () => {
+  const languageSpy = vi.spyOn(window.navigator, "language", "get").mockReturnValue("en-US");
+
+  try {
+    render(<App />);
+
+    const settingsButton = screen.getByRole("button", { name: /settings coming soon/i });
+    const helpButton = screen.getByRole("button", { name: /help coming soon/i });
+    expect(settingsButton).not.toHaveAttribute("title");
+    expect(helpButton).not.toHaveAttribute("title");
+
+    const youtubeInput = screen.getByRole("textbox", { name: /youtube url/i });
+    fireEvent.change(youtubeInput, {
+      target: { value: "https://youtube.com/watch?v=abc123DEF45" }
+    });
+
+    const clearButton = screen.getByRole("button", { name: /clear youtube url/i });
+    expect(clearButton).not.toHaveAttribute("title");
+  } finally {
+    languageSpy.mockRestore();
+  }
+});
