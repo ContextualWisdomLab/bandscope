@@ -10,6 +10,10 @@ FOCUSED_COMMAND = (
     "cargo +1.97.1 test --manifest-path apps/desktop/core/Cargo.toml "
     f"--features {HELPER_FEATURE} --test process_output_large_streams -- --nocapture"
 )
+ANALYSIS_ADAPTER_COMMAND = (
+    "cargo +1.97.1 test --manifest-path apps/desktop/src-tauri/Cargo.toml "
+    "--test analysis_process_terminal_containment_contract -- --nocapture"
+)
 REQUIRED_OWNER_PATHS = (
     '"apps/desktop/core/Cargo.toml"',
     '"apps/desktop/core/src/root.rs"',
@@ -18,6 +22,10 @@ REQUIRED_OWNER_PATHS = (
     '"apps/desktop/core/src/process_output.rs"',
     '"apps/desktop/core/tests/process_output_large_streams.rs"',
     '"apps/desktop/core/tests/fixtures/process_output_test_helper.rs"',
+    '"apps/desktop/src-tauri/Cargo.toml"',
+    '"apps/desktop/src-tauri/src/main.rs"',
+    '"apps/desktop/src-tauri/tests/analysis_process_terminal_containment_contract.rs"',
+    '"docs/doctoring/subprocess-containment.md"',
     '"docs/doctoring/youtube-process-containment.md"',
     f'".github/workflows/{WORKFLOW_NAME}"',
     '"services/analysis-engine/tests/test_resource_admission_process_output_workflow_policy.py"',
@@ -39,6 +47,14 @@ def test_process_output_native_gate_runs_the_real_large_output_contract_cross_pl
     assert FOCUSED_COMMAND in workflow
     assert "--exact" not in workflow
     assert "runtime_core::tests::" not in workflow
+
+
+def test_process_output_native_gate_runs_the_analysis_owned_process_adapter() -> None:
+    """Bind the Tauri analysis call site to the same owned-process implementation."""
+    workflow = _workflow_text()
+
+    assert ANALYSIS_ADAPTER_COMMAND in workflow
+    assert "Run native analysis owned-process adapter contract" in workflow
 
 
 def test_process_output_native_gate_binds_evidence_to_the_exact_source_head() -> None:
