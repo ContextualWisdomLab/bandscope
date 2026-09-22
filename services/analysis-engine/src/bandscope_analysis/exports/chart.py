@@ -7,7 +7,7 @@ cue-sheet rows suitable for CSV/JSON export.
 Security Notes:
     - Pure dict-to-string transformation: no file, network, or process I/O.
     - Never reads source-path fields and never emits filesystem paths.
-    - Safe failure: ``None``, empty, or malformed input yields ``""`` / ``[]``;
+    - Safe failure: ``None``, empty, or malformed input yields ``\"\"`` / ``[]``;
       missing or malformed keys are skipped and no exceptions escape.
 """
 
@@ -73,22 +73,34 @@ def _section_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
     return [role for role in roles if isinstance(role, Mapping)]
 
 
-def _active_role_ids(section: Mapping[str, object]) -> list[str] | None:
+def _hashable_text(raw_text_value: object) -> str | None:
+    """Return compatible string-like text as a safe built-in mapping key."""
+    if not isinstance(raw_text_value, str):
+        return None
+    try:
+        hash(raw_text_value)
+        normalized_text = str.__str__(raw_text_value)
+    except Exception:
+        return None
+    return normalized_text if normalized_text else None
+
+
+def _active_role_ids(section_payload: Mapping[str, object]) -> list[str] | None:
     """Return active role ids from the part graph, or ``None`` when absent."""
-    part_graph = section.get("partGraph")
+    part_graph = section_payload.get("partGraph")
     if not isinstance(part_graph, list):
         return None
-    active: list[str] = []
-    for node in part_graph:
-        if not isinstance(node, Mapping) or node.get("is_active") is not True:
+    active_role_ids_by_id: dict[str, None] = {}
+    for part_graph_node in part_graph:
+        if not isinstance(part_graph_node, Mapping) or part_graph_node.get("is_active") is not True:
             continue
-        role_id = node.get("role_id")
-        if isinstance(role_id, str) and role_id and role_id not in active:
-            active.append(role_id)
-    return active
+        role_id = _hashable_text(part_graph_node.get("role_id"))
+        if role_id is not None:
+            active_role_ids_by_id[role_id] = None
+    return list(active_role_ids_by_id)
 
 
-def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
+def _active_roles(section_payload: Mapping[str, object]) -> list[Mapping[str, object]]:
     """Return the section's active role payloads.
 
     Activity is derived from the part graph's ``is_active`` flags; when the
@@ -96,50 +108,50 @@ def _active_roles(section: Mapping[str, object]) -> list[Mapping[str, object]]:
     graph nodes without a matching role payload keep their ``role_id`` as a
     display name.
     """
-    roles = _section_roles(section)
-    active_ids = _active_role_ids(section)
-    if active_ids is None:
-        return roles
-    by_id: dict[str, Mapping[str, object]] = {}
-    for role in roles:
-        role_id = role.get("id")
-        if isinstance(role_id, str) and role_id not in by_id:
-            by_id[role_id] = role
-    return [by_id.get(role_id, {"id": role_id, "name": role_id}) for role_id in active_ids]
+    section_role_payloads = _section_roles(section_payload)
+    active_role_ids = _active_role_ids(section_payload)
+    if active_role_ids is None:
+        return section_role_payloads
+    role_payload_by_id: dict[str, Mapping[str, object]] = {}
+    for role_payload in section_role_payloads:
+        role_id = _hashable_text(role_payload.get("id"))
+        if role_id is not None and role_id not in role_payload_by_id:
+            role_payload_by_id[role_id] = role_payload
+    return [
+        role_payload_by_id.get(role_id, {"id": role_id, "name": role_id})
+        for role_id in active_role_ids
+    ]
 
 
-def _role_display_name(role: Mapping[str, object]) -> str | None:
-    """Return the role's display name, falling back to its id."""
-    name = role.get("name")
-    if isinstance(name, str) and name:
-        return name
-    role_id = role.get("id")
-    if isinstance(role_id, str) and role_id:
-        return role_id
-    return None
+def _role_display_name(role_payload: Mapping[str, object]) -> str | None:
+    """Return a hashable display name, falling back to a hashable role id."""
+    display_name = _hashable_text(role_payload.get("name"))
+    if display_name is not None:
+        return display_name
+    return _hashable_text(role_payload.get("id"))
 
 
-def _active_role_names(section: Mapping[str, object]) -> list[str]:
+def _active_role_names(section_payload: Mapping[str, object]) -> list[str]:
     """Return de-duplicated display names for the section's active roles."""
-    names: list[str] = []
-    for role in _active_roles(section):
-        name = _role_display_name(role)
-        if name is not None and name not in names:
-            names.append(name)
-    return names
+    active_role_names_by_name: dict[str, None] = {}
+    for role_payload in _active_roles(section_payload):
+        display_name = _role_display_name(role_payload)
+        if display_name is not None:
+            active_role_names_by_name[display_name] = None
+    return list(active_role_names_by_name)
 
 
-def _section_cue(section: Mapping[str, object]) -> str:
+def _section_cue(section_payload: Mapping[str, object]) -> str:
     """Join the active roles' cue values into a single cue string."""
-    cues: list[str] = []
-    for role in _active_roles(section):
-        cue = role.get("cue")
-        if not isinstance(cue, Mapping):
+    active_cue_values: dict[str, None] = {}
+    for role_payload in _active_roles(section_payload):
+        cue_payload = role_payload.get("cue")
+        if not isinstance(cue_payload, Mapping):
             continue
-        value = cue.get("value")
-        if isinstance(value, str) and value and value not in cues:
-            cues.append(value)
-    return "; ".join(cues)
+        cue_value = _hashable_text(cue_payload.get("value"))
+        if cue_value is not None:
+            active_cue_values[cue_value] = None
+    return "; ".join(active_cue_values)
 
 
 def _confidence_level(section: Mapping[str, object]) -> str | None:
@@ -185,28 +197,30 @@ def _section_lines(sections: list[Mapping[str, object]]) -> list[str]:
     return lines
 
 
-def _footer_lines(song: Mapping[str, object], sections: list[Mapping[str, object]]) -> list[str]:
+def _footer_lines(
+    song_payload: Mapping[str, object],
+    section_payloads: list[Mapping[str, object]],
+) -> list[str]:
     """Build the footer: per-role rehearsal priorities and the export focus."""
-    lines: list[str] = []
-    priorities: list[str] = []
-    for section in sections:
-        for role in _section_roles(section):
-            name = _role_display_name(role)
-            priority = role.get("rehearsalPriority")
-            if name is None or not isinstance(priority, str) or not priority:
+    footer_lines: list[str] = []
+    rehearsal_priority_lines: dict[str, None] = {}
+    for section_payload in section_payloads:
+        for role_payload in _section_roles(section_payload):
+            display_name = _role_display_name(role_payload)
+            rehearsal_priority = _hashable_text(role_payload.get("rehearsalPriority"))
+            if display_name is None or rehearsal_priority is None:
                 continue
-            entry = f"  - {name}: {priority}"
-            if entry not in priorities:
-                priorities.append(entry)
-    if priorities:
-        lines.append("Priorities:")
-        lines.extend(priorities)
-    summary = song.get("exportSummary")
-    if isinstance(summary, Mapping):
-        headline = summary.get("headline")
-        if isinstance(headline, str) and headline:
-            lines.append(f"Focus: {headline}")
-    return lines
+            priority_line = f"  - {display_name}: {rehearsal_priority}"
+            rehearsal_priority_lines[priority_line] = None
+    if rehearsal_priority_lines:
+        footer_lines.append("Priorities:")
+        footer_lines.extend(rehearsal_priority_lines)
+    export_summary = song_payload.get("exportSummary")
+    if isinstance(export_summary, Mapping):
+        focus_headline = export_summary.get("headline")
+        if isinstance(focus_headline, str) and focus_headline:
+            footer_lines.append(f"Focus: {focus_headline}")
+    return footer_lines
 
 
 def build_chart_text(song: Mapping[str, object] | None) -> str:
@@ -216,7 +230,7 @@ def build_chart_text(song: Mapping[str, object] | None) -> str:
     section (``[mm:ss-mm:ss] LABEL  (confidence)  roles: ...``), and a footer
     with rehearsal priorities and the export focus headline. Output is
     deterministic and never contains filesystem paths. Malformed input
-    yields ``""``.
+    yields ``\"\"``.
     """
     if not isinstance(song, Mapping):
         return ""
