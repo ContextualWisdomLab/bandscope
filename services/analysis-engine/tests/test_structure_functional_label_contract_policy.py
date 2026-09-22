@@ -5,8 +5,12 @@ from __future__ import annotations
 import copy
 
 import pytest
-from test_structure_noninferiority_policy import _metrics, _registration, _validator
+import test_structure_noninferiority_policy as noninferiority_policy
 
+
+_metrics = noninferiority_policy._metrics
+_registration = noninferiority_policy._registration
+_validator = noninferiority_policy._validator
 
 _MIREX_2025_ACC_IMPLEMENTATION = (
     "ismir-mirex/mirex-evaluation@"
