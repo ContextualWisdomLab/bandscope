@@ -13,37 +13,49 @@ function songWithTiming(onset: number, offset: number): RehearsalSong {
   return song;
 }
 
+const transcriptionTimingPath = "sections[0].roles[0].transcription[0]";
+
 describe("transcription timing admission", () => {
   for (const nonFinite of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
     it(`rejects non-finite onset ${String(nonFinite)}`, () => {
       const song = songWithTiming(nonFinite, 1);
 
       expect(isRehearsalSong(song)).toBe(false);
-      expect(() => parseRehearsalSong(song)).toThrow(
-        "sections[0].roles[0].transcription[0].onset"
-      );
+      expect(() => parseRehearsalSong(song)).toThrow(`${transcriptionTimingPath}.onset`);
     });
 
     it(`rejects non-finite offset ${String(nonFinite)}`, () => {
       const song = songWithTiming(0, nonFinite);
 
       expect(isRehearsalSong(song)).toBe(false);
-      expect(() => parseRehearsalSong(song)).toThrow(
-        "sections[0].roles[0].transcription[0].offset"
-      );
+      expect(() => parseRehearsalSong(song)).toThrow(`${transcriptionTimingPath}.offset`);
     });
   }
 
-  it("preserves the existing finite timing domain", () => {
-    const finiteCases = [
-      songWithTiming(0, 1),
-      songWithTiming(-1, -0.5),
-      songWithTiming(2, 1)
-    ];
+  it.each([
+    ["negative onset", -0.001, 0.5, "onset"],
+    ["zero-duration interval", 0.5, 0.5, "offset"],
+    ["inverted interval", 1, 0.5, "offset"]
+  ] as const)("rejects %s", (_label, onset, offset, field) => {
+    const song = songWithTiming(onset, offset);
 
-    for (const song of finiteCases) {
+    expect(isRehearsalSong(song)).toBe(false);
+    expect(() => parseRehearsalSong(song)).toThrow(`${transcriptionTimingPath}.${field}`);
+  });
+
+  it("accepts zero and negative-zero onset with positive duration", () => {
+    for (const onset of [0, -0]) {
+      const song = songWithTiming(onset, 0.25);
+
       expect(isRehearsalSong(song)).toBe(true);
       expect(parseRehearsalSong(song)).toEqual(song);
     }
+  });
+
+  it("accepts ordinary positive audio-relative intervals", () => {
+    const song = songWithTiming(2, 2.125);
+
+    expect(isRehearsalSong(song)).toBe(true);
+    expect(parseRehearsalSong(song)).toEqual(song);
   });
 });
