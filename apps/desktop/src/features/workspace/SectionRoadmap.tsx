@@ -123,7 +123,6 @@ export function SectionRoadmap({ song, activeRole, onSongUpdate }: SectionRoadma
             </CardHeader>
 
             <CardContent className="p-4 space-y-4">
-              {/* Performance: Use single map with conditional rendering to avoid allocating intermediate arrays via .filter() */}
               {section.roles.map(role => {
                 if (activeRole && role.id !== activeRole) return null;
                 const validatedRange = playableRange(role.range.lowestNote, role.range.highestNote);

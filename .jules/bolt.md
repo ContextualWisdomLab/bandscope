@@ -61,6 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-## 2026-09-22 - O(1) Memory Array Allocation in Render
-**Learning:** Using `.filter().map()` creates intermediate arrays, wasting memory and increasing garbage collection overhead, particularly inside frequent render cycles like mapping over `section.roles`.
-**Action:** Replaced `.filter().map()` with a single `.map()` containing an early `return null` condition for filtering to maintain functionality with O(1) memory and O(K) allocation time.
