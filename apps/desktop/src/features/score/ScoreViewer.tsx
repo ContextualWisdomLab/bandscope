@@ -12,9 +12,8 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { loadScorePdf } from "./pdfjs";
 
 /** Viewer lifecycle states following the clearfolio LOADING/FAILED/READY contract. */
@@ -254,26 +253,24 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger
-                className={buttonVariants({ variant: "outline", size: "icon-lg", className: "size-12" })}
-                aria-label={t("scoreViewerZoomOut")}
-                onClick={zoomOut}
-              >
-                <ZoomOut aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>{t("scoreViewerZoomOut")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                className={buttonVariants({ variant: "outline", size: "icon-lg", className: "size-12" })}
-                aria-label={t("scoreViewerZoomIn")}
-                onClick={zoomIn}
-              >
-                <ZoomIn aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>{t("scoreViewerZoomIn")}</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-12"
+              aria-label={t("scoreViewerZoomOut")}
+              onClick={zoomOut}
+            >
+              <ZoomOut aria-hidden="true" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-12"
+              aria-label={t("scoreViewerZoomIn")}
+              onClick={zoomIn}
+            >
+              <ZoomIn aria-hidden="true" />
+            </Button>
             <Button
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
@@ -290,43 +287,29 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <Tooltip>
-            <TooltipTrigger
-              className={buttonVariants({ variant: "outline", size: "icon-lg", className: "size-14" })}
-              aria-label={t("scoreViewerPrevPage")}
-              aria-disabled={pageNumber <= 1 ? "true" : undefined}
-              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                if (e.currentTarget.getAttribute("aria-disabled") === "true") {
-                  e.preventDefault();
-                  return;
-                }
-                goToPreviousPage();
-              }}
-            >
-              <ChevronLeft className="size-6" aria-hidden="true" />
-            </TooltipTrigger>
-            <TooltipContent>{t("scoreViewerPrevPage")}</TooltipContent>
-          </Tooltip>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            className="size-14"
+            aria-label={t("scoreViewerPrevPage")}
+            disabled={pageNumber <= 1}
+            onClick={goToPreviousPage}
+          >
+            <ChevronLeft className="size-6" aria-hidden="true" />
+          </Button>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <Tooltip>
-            <TooltipTrigger
-              className={buttonVariants({ variant: "outline", size: "icon-lg", className: "size-14" })}
-              aria-label={t("scoreViewerNextPage")}
-              aria-disabled={pageNumber >= pageCount ? "true" : undefined}
-              onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
-                if (e.currentTarget.getAttribute("aria-disabled") === "true") {
-                  e.preventDefault();
-                  return;
-                }
-                goToNextPage();
-              }}
-            >
-              <ChevronRight className="size-6" aria-hidden="true" />
-            </TooltipTrigger>
-            <TooltipContent>{t("scoreViewerNextPage")}</TooltipContent>
-          </Tooltip>
+          <Button
+            variant="outline"
+            size="icon-lg"
+            className="size-14"
+            aria-label={t("scoreViewerNextPage")}
+            disabled={pageNumber >= pageCount}
+            onClick={goToNextPage}
+          >
+            <ChevronRight className="size-6" aria-hidden="true" />
+          </Button>
         </div>
       </CardContent>
     </Card>
