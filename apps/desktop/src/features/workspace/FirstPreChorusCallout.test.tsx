@@ -78,25 +78,6 @@ describe("FirstPreChorusCallout", () => {
     ).toBeNull();
   });
 
-  it("keeps workspace-scroll authoritative even when a playback callback is also supplied", () => {
-    const { grid, scrollIntoView } = appendSongStructureTarget();
-    const onHearPreChorus = vi.fn();
-
-    render(
-      <FirstPreChorusCallout
-        song={songWithPreChorus()}
-        actionMode="workspace-scroll"
-        onHearPreChorus={onHearPreChorus}
-      />
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal pre-chorus at 0:20" }));
-    expect(onHearPreChorus).not.toHaveBeenCalled();
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
-
-    grid.remove();
-  });
-
   it("navigates by renderer-owned section position instead of untrusted analysis ids", () => {
     const song = songWithPreChorus();
     song.sections[0]!.id = "analysis section / duplicate";
@@ -188,25 +169,6 @@ describe("FirstPreChorusCallout", () => {
     render(<FirstPreChorusCallout song={song} />);
     expect(screen.getByRole("button", { name: "Open the first pre-chorus at 0:20" })).toBeTruthy();
     expect(screen.getByText("The band carries the pre-chorus at 0:20.")).toBeTruthy();
-  });
-
-  it("renders Hear only in callback-only mode when a seek callback exists", () => {
-    const onHearPreChorus = vi.fn();
-    render(
-      <FirstPreChorusCallout
-        song={songWithPreChorus()}
-        actionMode="callback-only"
-        onHearPreChorus={onHearPreChorus}
-      />
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Hear Lead Vocal pre-chorus at 0:20" }));
-    expect(onHearPreChorus).toHaveBeenCalledWith(20);
-  });
-
-  it("hides the Hear action in callback-only mode without a seek callback", () => {
-    render(<FirstPreChorusCallout song={songWithPreChorus()} actionMode="callback-only" />);
-    expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.getByText("Lead Vocal carries the pre-chorus at 0:20.")).toBeTruthy();
   });
 
   it("localizes the pre-chorus form label instead of exposing its raw enum in Korean copy", () => {

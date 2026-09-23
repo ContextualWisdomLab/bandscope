@@ -11,8 +11,6 @@ import { formatPreChorusTime, resolveFirstPreChorus } from "./firstPreChorus";
 /** Props for the first-pre-chorus rehearsal callout. */
 export interface FirstPreChorusCalloutProps {
   song: RehearsalSong;
-  actionMode?: "workspace-scroll" | "callback-only";
-  onHearPreChorus?: (atSeconds: number) => void;
 }
 
 type PreChorusCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
@@ -55,12 +53,8 @@ function preferredPreChorusScrollBehavior(): ScrollBehavior {
     : "smooth";
 }
 
-/** Name tonight's first labeled pre-chorus and offer only an action that the current surface can execute. */
-export function FirstPreChorusCallout({
-  song,
-  actionMode = "workspace-scroll",
-  onHearPreChorus
-}: FirstPreChorusCalloutProps) {
+/** Name tonight's first labeled pre-chorus and open its renderer-owned map section. */
+export function FirstPreChorusCallout({ song }: FirstPreChorusCalloutProps) {
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
@@ -109,30 +103,11 @@ export function FirstPreChorusCallout({
   };
   const hasRole = preChorus.holdingRole !== null;
   const actionLabel = formatPreChorusCopy(
-    t(
-      actionMode === "callback-only"
-        ? hasRole
-          ? "firstPreChorusAction"
-          : "firstPreChorusActionBand"
-        : hasRole
-          ? "firstPreChorusOpenAction"
-          : "firstPreChorusOpenActionBand"
-    ),
+    t(hasRole ? "firstPreChorusOpenAction" : "firstPreChorusOpenActionBand"),
     copyValues
   );
   const body = formatPreChorusCopy(t(hasRole ? "firstPreChorusBody" : "firstPreChorusBodyBand"), copyValues);
   const armed = formatPreChorusCopy(t(hasRole ? "firstPreChorusArmed" : "firstPreChorusArmedBand"), copyValues);
-  const canExecuteAction = actionMode === "workspace-scroll" || typeof onHearPreChorus === "function";
-  /** Record completion only after the owning surface has executed the selected pre-chorus action. */
-  const markPreChorusActionComplete = () => {
-    setHeardPreChorus({
-      songIdentity,
-      sectionId: preChorus.section.id,
-      sectionIndex: preChorusSectionIndex,
-      holdingRoleId: preChorus.holdingRole?.id ?? null,
-      atSeconds: preChorus.atSeconds
-    });
-  };
 
   return (
     <aside
@@ -142,31 +117,30 @@ export function FirstPreChorusCallout({
     >
       <p className="text-xs font-black uppercase tracking-[0.24em] text-sky-200">{t("firstPreChorusLabel")}</p>
       <p className="mt-2 text-sm leading-6 text-slate-300">{heard ? armed : body}</p>
-      {canExecuteAction ? (
-        <Button
-          type="button"
-          className="mt-3 min-h-11 bg-gradient-to-r from-sky-300 to-amber-300 font-black text-slate-950"
-          onClick={() => {
-            if (actionMode === "callback-only") {
-              onHearPreChorus!(preChorus.atSeconds);
-              markPreChorusActionComplete();
-              return;
-            }
-            const grid = document.querySelector('[data-testid="song-structure-grid"]');
-            const target = preChorusSectionIndex >= 0 ? grid?.children.item(preChorusSectionIndex) : null;
-            if (typeof target?.scrollIntoView !== "function") {
-              return;
-            }
-            target.scrollIntoView({
-              block: "nearest",
-              behavior: preferredPreChorusScrollBehavior()
-            });
-            markPreChorusActionComplete();
-          }}
-        >
-          {actionLabel}
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        className="mt-3 min-h-11 bg-gradient-to-r from-sky-300 to-amber-300 font-black text-slate-950"
+        onClick={() => {
+          const grid = document.querySelector('[data-testid="song-structure-grid"]');
+          const target = preChorusSectionIndex >= 0 ? grid?.children.item(preChorusSectionIndex) : null;
+          if (typeof target?.scrollIntoView !== "function") {
+            return;
+          }
+          target.scrollIntoView({
+            block: "nearest",
+            behavior: preferredPreChorusScrollBehavior()
+          });
+          setHeardPreChorus({
+            songIdentity,
+            sectionId: preChorus.section.id,
+            sectionIndex: preChorusSectionIndex,
+            holdingRoleId: preChorus.holdingRole?.id ?? null,
+            atSeconds: preChorus.atSeconds
+          });
+        }}
+      >
+        {actionLabel}
+      </Button>
     </aside>
   );
 }
