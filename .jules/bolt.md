@@ -40,7 +40,7 @@
 
 ## 2025-02-15 - Replace Array.from(map.values()).map with a for...of loop
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
-**Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
+**Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate allocations.
 
 ## 2026-07-09 - [Array density check optimization]
 **Learning:** [Using Array.from().every() to check for array density creates O(N) intermediate array allocations which add unnecessary garbage collection overhead on the critical path.]
@@ -61,8 +61,3 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
-
-## 2026-09-23 - Replace reduce with for...of loop on large arrays
-
-**Learning:** Using `Array.prototype.reduce()` on large arrays incurs significant callback function call overhead in tight loops.
-**Action:** Replace `.reduce()` with a `for...of` loop to iterate and compute the accumulated value directly, resulting in faster execution by avoiding massive O(N) callback overhead on critical paths.
