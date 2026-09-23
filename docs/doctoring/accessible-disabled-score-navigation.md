@@ -4,7 +4,7 @@
 
 BandScope keeps selected score actions discoverable when they are unavailable by using `aria-disabled="true"` plus guarded click handlers instead of native `disabled`. The contract covers the Add score control when no active project exists, existing-score Open/Remove controls without an active project, and score-viewer Previous/Next page controls at pagination boundaries.
 
-For project-bound actions, the visible localized project requirement is associated programmatically through `aria-describedby`; Add/Open/Remove therefore expose the same recovery information to assistive technology while remaining keyboard-focusable. For pagination boundaries, the localized first/last-page reason is rendered as an in-document `role="tooltip"` associated through `aria-describedby` with a renderer-owned `useId()` target. The tooltip becomes visually available on pointer hover or keyboard focus. Its hidden state does not intercept pointer input; once hover/focus reveals it, pointer hit testing is enabled and the popup is adjacent to the owning control so the pointer can move continuously onto the explanation without crossing a dead gap. `Escape` dismisses the tooltip and its description reference without moving pointer hover or keyboard focus. Re-entering the control with the pointer or returning keyboard focus makes the currently valid boundary reason available again. Native `title` is not used as the unavailable-state explanation, avoiding a second competing description channel and a keyboard/touch-only gap.
+For project-bound actions, the visible localized project requirement is associated programmatically through `aria-describedby`; Add/Open/Remove therefore expose the same recovery information to assistive technology while remaining keyboard-focusable. For pagination boundaries, the localized first/last-page reason is rendered as persistent screen-reader-only text associated through `aria-describedby` with a renderer-owned `useId()` target. The visible hover/focus explanation uses the shared Base UI-backed `Tooltip` component instead of maintaining a second Score-specific tooltip state machine. This keeps the assistive description stable when the visual tooltip is dismissed with `Escape` and delegates hover/focus persistence, portal positioning, pointer interaction and dismissal semantics to the reusable UI primitive. Native `title` is not used for icon-only page or zoom controls, avoiding a competing description channel and a keyboard/touch-only dependency.
 
 The Add score control is also action-guarded while an attachment operation is already pending. It remains rendered and exposes `aria-disabled="true"`, while the click boundary rejects duplicate activation so one in-flight attach cannot start a second native picker/storage mutation.
 
@@ -17,12 +17,11 @@ This document records the accessibility rationale for PR #731 only. It does not 
 - Project-bound unavailable actions use `aria-describedby` to point to the visible localized project requirement rather than duplicating hidden recovery copy.
 - The Add score action also blocks repeated activation while an attach is already pending; no second bridge request is issued from the guarded branch.
 - A boundary page-navigation button remains keyboard-focusable so its presence and unavailable state can be discovered.
-- Boundary `aria-describedby` points to a localized `role="tooltip"` explanation only while that exact navigation action is unavailable and the explanation has not been dismissed.
+- Boundary `aria-describedby` points to persistent localized screen-reader-only reason text for as long as that exact navigation action is unavailable.
 - EN boundary copy states the actual reason: `Already at the first page` / `Already at the last page`. KO uses `첫 번째 페이지입니다` / `마지막 페이지입니다`.
-- Pointer hover and keyboard focus reveal the unavailable pagination explanation. Hidden tooltip content starts with `pointer-events-none`; `group-hover`/`group-focus-within` switch it to pointer-active at the same time it becomes visible, so an invisible popup cannot steal input.
-- The popup is positioned directly against the control's hover geometry rather than across a margin gap, allowing the pointer to move from the control onto the explanation while the parent hover state remains active.
-- Pressing `Escape` removes the author-controlled tooltip and `aria-describedby` reference while focus/hover can remain in place. A later pointer re-entry or keyboard refocus restores the currently valid explanation.
-- Enabled pagination controls may keep their ordinary action title but do not retain stale disabled-state descriptions or tooltips.
+- Zoom and pagination icon buttons use the shared `Tooltip` / `TooltipTrigger` / `TooltipContent` primitive. Enabled pagination tooltips carry the action label; unavailable pagination tooltips combine the action and reason.
+- The shared tooltip appears on pointer hover or keyboard focus and is dismissible with `Escape`; dismissing visual hover/focus content does not remove the persistent `aria-describedby` recovery reason.
+- Boundary activation is guarded in application code. Clicking an `aria-disabled` page action does not navigate even though the control remains focusable.
 - Description IDs are renderer-owned and generated with React `useId()`; analysis or file metadata never becomes DOM-ID authority.
 
 ## Verification
@@ -31,13 +30,20 @@ This document records the accessibility rationale for PR #731 only. It does not 
 
 `apps/desktop/src/features/score/ScoreView.test.tsx` independently verifies the project-missing guarded branches and the in-flight Add score branch: a repeated click while the first attach promise is pending is prevented and does not issue a second attach request.
 
-`apps/desktop/src/features/score/ScoreViewer.disabled-navigation-accessibility.test.tsx` verifies both ends of a three-page document. The unavailable Previous action on page 1 and unavailable Next action on page 3 each resolve `aria-describedby` to the reason-specific localized `role="tooltip"`, omit a competing unavailable-state native title, remain focusable, expose focus/hover visibility classes, and require state-dependent pointer hit testing with no margin dead gap. The page-1 contract also presses `Escape`, requires the tooltip and description reference to disappear without navigation, then re-focuses the same control and requires the valid reason to return.
+`apps/desktop/src/features/score/ScoreViewer.disabled-navigation-accessibility.test.tsx` verifies the reusable-tooltip contract on a three-page document. At page 1, Previous remains focusable and `aria-disabled`, its persistent `aria-describedby` target contains the first-page reason, keyboard focus opens shared tooltip content that combines action and reason, `Escape` dismisses only the visual tooltip, and boundary activation remains inert. The same test verifies an enabled Next tooltip and then the persistent last-page reason after navigation reaches page 3.
 
-The RED→fix evidence for the WCAG 1.4.13 repairs is intentionally split:
+The current reusable-component repair is test-first:
 
-- `8e0012d46cc0603a836119e47cc191f462c7dc1b` first required pointer access to the boundary tooltip before `78a5e60a1de7a259c45798959ca497456994fb2f` removed unconditional pointer suppression.
-- `b13c3859712f94cb66bbbbe24440f7682b3c47e7` required Escape dismissal before `1a92b71f168a6bec64ad75de2f64f3a6fef4afa5` added dismiss-and-retrigger behavior.
-- A further geometry/input review found that unconditional pointer hit testing makes the invisible tooltip an input target and that a visual margin can create a hover dead zone. RED `a150059cf73540078741fbc8e15ab11f65a0893c` requires pointer hit testing only while the popup is revealed and no `mb-2` gap; fix `a941cf176d15d98ed2f31751a61dcb798eb36daa` implements that continuous hover path.
+- RED `e89ba127b18ad9f372ce6796573df36cb372f561` requires the boundary reason to remain available to assistive technology while visible hover/focus content is supplied by the shared tooltip and can be independently dismissed.
+- Fix `c26fbe4269ca46d9c56db02a30b259ec653e5289` removes the Score-specific tooltip state machine and manual hover geometry, keeps persistent `aria-describedby` reason nodes, and moves zoom/page icon hover/focus content onto the shared Base UI-backed tooltip primitive.
+
+The earlier WCAG 1.4.13 repair lineage remains useful evidence for the interaction requirements that motivated this consolidation:
+
+- `8e0012d46cc0603a836119e47cc191f462c7dc1b` → `78a5e60a1de7a259c45798959ca497456994fb2f` established pointer access to author-controlled boundary content.
+- `b13c3859712f94cb66bbbbe24440f7682b3c47e7` → `1a92b71f168a6bec64ad75de2f64f3a6fef4afa5` established Escape dismissal.
+- `a150059cf73540078741fbc8e15ab11f65a0893c` → `a941cf176d15d98ed2f31751a61dcb798eb36daa` removed invisible pointer interception and hover dead-zone geometry.
+
+Those predecessor mechanics are no longer duplicated in `ScoreViewer`; the shared tooltip component now owns visual tooltip behavior while ScoreViewer owns only the pagination availability/reason semantics.
 
 ## Standards and guidance boundary
 
