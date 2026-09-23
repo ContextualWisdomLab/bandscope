@@ -21,6 +21,14 @@ function songWithArticulationPlan() {
 }
 
 describe("resolveFirstArticulationPlan inherited metadata", () => {
+  it("resolves the unmodified fixture so rejection tests exercise the intended boundary", () => {
+    const { song } = songWithArticulationPlan();
+    const resolved = resolveFirstArticulationPlan(song);
+
+    expect(resolved?.section.id).toBe("articulation-own");
+    expect(resolved?.holdingRole.id).toBe("bass-guitar");
+  });
+
   it("rejects a song or section whose required metadata is inherited", () => {
     const { song, section } = songWithArticulationPlan();
     const inheritedSong = Object.create({ sections: song.sections }) as typeof song;
