@@ -12,9 +12,8 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { loadScorePdf } from "./pdfjs";
 
 /** Viewer lifecycle states following the clearfolio LOADING/FAILED/READY contract. */
@@ -246,10 +245,8 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
     .replace("{total}", String(pageCount));
   const previousPageUnavailable = pageNumber <= 1;
   const nextPageUnavailable = pageNumber >= pageCount;
-  const previousPageActionLabel = t("scoreViewerPrevPage");
-  const nextPageActionLabel = t("scoreViewerNextPage");
-  const previousPageUnavailableReason = t("scoreViewerPrevPageDisabled");
-  const nextPageUnavailableReason = t("scoreViewerNextPageDisabled");
+  const unavailableReasonClassName =
+    "pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-max max-w-48 -translate-x-1/2 rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-center text-xs text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none group-hover:opacity-100 group-focus-within:opacity-100";
 
   return (
     <Card className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl">
@@ -262,36 +259,26 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <Tooltip>
-              <TooltipTrigger
-                type="button"
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "icon-lg",
-                  className: "size-12"
-                })}
-                aria-label={t("scoreViewerZoomOut")}
-                onClick={zoomOut}
-              >
-                <ZoomOut aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>{t("scoreViewerZoomOut")}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                type="button"
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "icon-lg",
-                  className: "size-12"
-                })}
-                aria-label={t("scoreViewerZoomIn")}
-                onClick={zoomIn}
-              >
-                <ZoomIn aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>{t("scoreViewerZoomIn")}</TooltipContent>
-            </Tooltip>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-12"
+              aria-label={t("scoreViewerZoomOut")}
+              title={t("scoreViewerZoomOut")}
+              onClick={zoomOut}
+            >
+              <ZoomOut aria-hidden="true" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-12"
+              aria-label={t("scoreViewerZoomIn")}
+              title={t("scoreViewerZoomIn")}
+              onClick={zoomIn}
+            >
+              <ZoomIn aria-hidden="true" />
+            </Button>
             <Button
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
@@ -309,79 +296,69 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <div className="relative inline-flex">
-            <Tooltip>
-              <TooltipTrigger
-                type="button"
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "icon-lg",
-                  className: "size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                })}
-                aria-label={previousPageActionLabel}
-                aria-describedby={
-                  previousPageUnavailable ? previousDisabledDescriptionId : undefined
-                }
-                aria-disabled={previousPageUnavailable ? "true" : undefined}
-                onClick={(event) => {
-                  if (previousPageUnavailable) {
-                    event.preventDefault();
-                    return;
-                  }
+          <span className="group relative inline-flex">
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+              aria-label={t("scoreViewerPrevPage")}
+              aria-describedby={
+                previousPageUnavailable ? previousDisabledDescriptionId : undefined
+              }
+              title={previousPageUnavailable ? undefined : t("scoreViewerPrevPage")}
+              aria-disabled={previousPageUnavailable}
+              onClick={(e) => {
+                if (previousPageUnavailable) {
+                  e.preventDefault();
+                } else {
                   goToPreviousPage();
-                }}
+                }
+              }}
+            >
+              <ChevronLeft className="size-6" aria-hidden="true" />
+            </Button>
+            {previousPageUnavailable && (
+              <span
+                id={previousDisabledDescriptionId}
+                role="tooltip"
+                className={unavailableReasonClassName}
               >
-                <ChevronLeft className="size-6" aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>
-                {previousPageUnavailable
-                  ? `${previousPageActionLabel}: ${previousPageUnavailableReason}`
-                  : previousPageActionLabel}
-              </TooltipContent>
-            </Tooltip>
-            {previousPageUnavailable ? (
-              <span id={previousDisabledDescriptionId} className="sr-only">
-                {previousPageUnavailableReason}
+                {t("scoreViewerPrevPageDisabled")}
               </span>
-            ) : null}
-          </div>
+            )}
+          </span>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <div className="relative inline-flex">
-            <Tooltip>
-              <TooltipTrigger
-                type="button"
-                className={buttonVariants({
-                  variant: "outline",
-                  size: "icon-lg",
-                  className: "size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-                })}
-                aria-label={nextPageActionLabel}
-                aria-describedby={nextPageUnavailable ? nextDisabledDescriptionId : undefined}
-                aria-disabled={nextPageUnavailable ? "true" : undefined}
-                onClick={(event) => {
-                  if (nextPageUnavailable) {
-                    event.preventDefault();
-                    return;
-                  }
+          <span className="group relative inline-flex">
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+              aria-label={t("scoreViewerNextPage")}
+              aria-describedby={nextPageUnavailable ? nextDisabledDescriptionId : undefined}
+              title={nextPageUnavailable ? undefined : t("scoreViewerNextPage")}
+              aria-disabled={nextPageUnavailable}
+              onClick={(e) => {
+                if (nextPageUnavailable) {
+                  e.preventDefault();
+                } else {
                   goToNextPage();
-                }}
+                }
+              }}
+            >
+              <ChevronRight className="size-6" aria-hidden="true" />
+            </Button>
+            {nextPageUnavailable && (
+              <span
+                id={nextDisabledDescriptionId}
+                role="tooltip"
+                className={unavailableReasonClassName}
               >
-                <ChevronRight className="size-6" aria-hidden="true" />
-              </TooltipTrigger>
-              <TooltipContent>
-                {nextPageUnavailable
-                  ? `${nextPageActionLabel}: ${nextPageUnavailableReason}`
-                  : nextPageActionLabel}
-              </TooltipContent>
-            </Tooltip>
-            {nextPageUnavailable ? (
-              <span id={nextDisabledDescriptionId} className="sr-only">
-                {nextPageUnavailableReason}
+                {t("scoreViewerNextPageDisabled")}
               </span>
-            ) : null}
-          </div>
+            )}
+          </span>
         </div>
       </CardContent>
     </Card>

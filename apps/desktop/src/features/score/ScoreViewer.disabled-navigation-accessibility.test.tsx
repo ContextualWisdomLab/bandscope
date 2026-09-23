@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 import { ScoreViewer } from "./ScoreViewer";
@@ -17,8 +17,8 @@ vi.mock("../../i18n", () => ({
       scoreViewerZoomIn: "Zoom in",
       scoreViewerZoomOut: "Zoom out",
       scoreViewerFitWidth: "Fit width",
-      scoreViewerPrevPageDisabled: "Already at the first page",
-      scoreViewerNextPageDisabled: "Already at the last page"
+      scoreViewerPrevPageDisabled: "Previous page (Unavailable)",
+      scoreViewerNextPageDisabled: "Next page (Unavailable)"
     })[key] ?? key,
   detectPreferredLocale: () => "en"
 }));
@@ -52,7 +52,7 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     } as unknown as PDFDocumentLoadingTask);
   });
 
-  it("uses the shared tooltip while keeping a persistent assistive boundary reason", async () => {
+  it("shows the unavailable boundary explanation on pointer hover or keyboard focus", async () => {
     render(<ScoreViewer data={SAMPLE_BYTES} />);
 
     expect(await screen.findByText("Page 1 of 3")).toBeInTheDocument();
@@ -61,34 +61,20 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
     const previousDescriptionId = previousButton.getAttribute("aria-describedby");
 
     expect(previousButton).toHaveAttribute("aria-disabled", "true");
-    expect(previousButton).not.toBeDisabled();
     expect(previousButton).not.toHaveAttribute("title");
     expect(previousDescriptionId).toBeTruthy();
-    expect(document.getElementById(previousDescriptionId ?? "")).toHaveTextContent(
-      "Already at the first page"
+
+    const previousReason = screen.getByRole("tooltip");
+    expect(previousReason).toHaveAttribute("id", previousDescriptionId);
+    expect(previousReason).toHaveTextContent("Previous page (Unavailable)");
+    expect(previousReason).toHaveClass(
+      "group-hover:opacity-100",
+      "group-focus-within:opacity-100",
+      "motion-reduce:transition-none"
     );
-    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-
-    fireEvent.focus(previousButton);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Previous page: Already at the first page"
-    );
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => {
-      expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-    });
-    expect(previousButton).toHaveAttribute("aria-describedby", previousDescriptionId ?? undefined);
-    expect(document.getElementById(previousDescriptionId ?? "")).toHaveTextContent(
-      "Already at the first page"
-    );
-
-    fireEvent.click(previousButton);
-    expect(screen.getByText("Page 1 of 3")).toBeInTheDocument();
-
-    fireEvent.mouseMove(nextButton);
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("Next page");
-    fireEvent.mouseLeave(nextButton);
+    previousButton.focus();
+    expect(previousButton).toHaveFocus();
+    expect(nextButton).not.toHaveAttribute("aria-describedby");
 
     fireEvent.click(nextButton);
     fireEvent.click(nextButton);
@@ -96,10 +82,19 @@ describe("ScoreViewer disabled page navigation accessibility", () => {
 
     const nextDescriptionId = nextButton.getAttribute("aria-describedby");
     expect(nextButton).toHaveAttribute("aria-disabled", "true");
-    expect(nextButton).not.toBeDisabled();
+    expect(nextButton).not.toHaveAttribute("title");
     expect(nextDescriptionId).toBeTruthy();
-    expect(document.getElementById(nextDescriptionId ?? "")).toHaveTextContent(
-      "Already at the last page"
+
+    const nextReason = screen.getByRole("tooltip");
+    expect(nextReason).toHaveAttribute("id", nextDescriptionId);
+    expect(nextReason).toHaveTextContent("Next page (Unavailable)");
+    expect(nextReason).toHaveClass(
+      "group-hover:opacity-100",
+      "group-focus-within:opacity-100",
+      "motion-reduce:transition-none"
     );
+    nextButton.focus();
+    expect(nextButton).toHaveFocus();
+    expect(previousButton).not.toHaveAttribute("aria-describedby");
   });
 });
