@@ -17,22 +17,30 @@ function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
 
   // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
-    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
+    let max = 10;
+    for (let i = 0; i < renderedNotes.length; i++) {
+      if (renderedNotes[i].offset > max) {
+        max = renderedNotes[i].offset;
+      }
+    }
+    return max;
   }, [renderedNotes]);
 
   // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
   const uniquePitches = useMemo(() => {
     // Performance: Use a loop to populate the Set to avoid allocating an intermediate array from .map()
     const pitches = new Set<string>();
-    for (const note of renderedNotes) {
-      pitches.add(note.pitch);
+    for (let i = 0; i < renderedNotes.length; i++) {
+      pitches.add(renderedNotes[i].pitch);
     }
     return Array.from(pitches).sort();
   }, [renderedNotes]);
 
   const pitchIndexMap = useMemo(() => {
     const map = new Map<string, number>();
-    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
+    for (let i = 0; i < uniquePitches.length; i++) {
+      map.set(uniquePitches[i], i);
+    }
     return map;
   }, [uniquePitches]);
 
