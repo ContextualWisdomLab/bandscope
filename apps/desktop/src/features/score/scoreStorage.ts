@@ -16,28 +16,6 @@ export type ScoreAttachResult = ScoreAttachment & { fileSizeBytes: number };
 
 const BRIDGE_UNAVAILABLE_MESSAGE = "Score PDFs are only available in the desktop app.";
 const INVALID_RESPONSE_MESSAGE = "Invalid score bridge response";
-// Keep renderer-side admission bounded independently of the bridge implementation.
-// The cap matches the native Score Storage maximum so malformed IPC cannot create
-// a second oversized buffer or persist impossible attachment-size metadata.
-const MAX_SCORE_PDF_BRIDGE_BYTES = 25 * 1024 * 1024;
-// Native project storage mints `project-<nanos>-<counter>` and rejects any other
-// shape before project identity can influence an app-owned filesystem path. Mirror
-// that syntax at the WebView boundary so impossible project identities never cross
-// a privileged score-storage IPC call; native validation remains authoritative.
-const PROJECT_ID_PATTERN = /^project-[0-9]+-[0-9]+$/;
-// Native Score Storage mints lowercase hyphenated UUID identities and later read/remove
-// commands admit only that exact shape. Revalidate identities at both IPC directions so
-// malformed project metadata cannot reach a privileged native score command and malformed
-// bridge responses cannot enter project state.
-const SCORE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-function isValidProjectId(value: unknown): value is string {
-  return typeof value === "string" && PROJECT_ID_PATTERN.test(value);
-}
-
-function isValidScoreId(value: unknown): value is string {
-  return typeof value === "string" && SCORE_ID_PATTERN.test(value);
-}
 
 /**
  * Resolve the desktop invoke bridge following the same detection rules as
@@ -78,76 +56,43 @@ async function invokeScoreCommand(command: string, args: Record<string, unknown>
  * Open the native PDF picker and copy the validated score into the
  * app-owned project workspace. Security Notes: the file path never crosses
  * the IPC boundary from JS; the Rust command owns the dialog, validation
- * (magic bytes, size cap, no symlinks), and the copy destination. The
- * renderer revalidates project/song call context plus returned identity,
- * presentation, and size metadata before accepting it into project state.
+ * (magic bytes, size cap, no symlinks), and the copy destination.
  */
 export async function attachScorePdf(projectId: string, songId: string): Promise<ScoreAttachResult> {
-  if (!isValidProjectId(projectId) || songId.trim().length === 0) {
-    throw new Error(INVALID_RESPONSE_MESSAGE);
-  }
-
   const response = await invokeScoreCommand("attach_score_pdf", { projectId, songId });
-  if (typeof response !== "object" || response === null) {
-    throw new Error(INVALID_RESPONSE_MESSAGE);
-  }
-
-  const payload = response as Record<string, unknown>;
-  const scoreId = payload.scoreId;
-  const fileName = payload.fileName;
-  const fileSizeBytes = payload.fileSizeBytes;
   if (
-    !isValidScoreId(scoreId) ||
-    typeof fileName !== "string" ||
-    fileName.trim().length === 0 ||
-    typeof fileSizeBytes !== "number" ||
-    !Number.isSafeInteger(fileSizeBytes) ||
-    fileSizeBytes <= 0 ||
-    fileSizeBytes > MAX_SCORE_PDF_BRIDGE_BYTES
+    typeof response !== "object" ||
+    response === null ||
+    typeof (response as Record<string, unknown>).scoreId !== "string" ||
+    typeof (response as Record<string, unknown>).fileName !== "string" ||
+    typeof (response as Record<string, unknown>).fileSizeBytes !== "number"
   ) {
     throw new Error(INVALID_RESPONSE_MESSAGE);
   }
 
+  const payload = response as { scoreId: string; fileName: string; fileSizeBytes: number };
   return {
-    id: scoreId,
-    fileName,
-    fileSizeBytes
+    id: payload.scoreId,
+    fileName: payload.fileName,
+    fileSizeBytes: payload.fileSizeBytes
   };
 }
 
 /**
  * Read the validated score PDF bytes for a previously attached score.
- * Security Notes: only allowlisted project/score ids cross the IPC boundary;
- * the Rust command independently rebuilds and canonicalizes the path inside
- * the app-owned root. The renderer rejects empty or oversized byte containers
- * before copying or parsing.
+ * Security Notes: only allowlisted ids cross the IPC boundary; the Rust
+ * command rebuilds and canonicalizes the path inside the app-owned root.
  */
 export async function readScorePdf(projectId: string, scoreId: string): Promise<Uint8Array> {
-  if (!isValidProjectId(projectId) || !isValidScoreId(scoreId)) {
-    throw new Error(INVALID_RESPONSE_MESSAGE);
-  }
-
   const response = await invokeScoreCommand("read_score_pdf", { projectId, scoreId });
   if (response instanceof Uint8Array) {
-    const byteLength = response.byteLength;
-    if (byteLength > 0 && byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
-      return response;
-    }
-    throw new Error(INVALID_RESPONSE_MESSAGE);
+    return response;
   }
   if (response instanceof ArrayBuffer) {
-    const byteLength = response.byteLength;
-    if (byteLength > 0 && byteLength <= MAX_SCORE_PDF_BRIDGE_BYTES) {
-      return new Uint8Array(response);
-    }
-    throw new Error(INVALID_RESPONSE_MESSAGE);
+    return new Uint8Array(response);
   }
   if (Array.isArray(response)) {
     const len = response.length;
-    if (len === 0 || len > MAX_SCORE_PDF_BRIDGE_BYTES) {
-      throw new Error(INVALID_RESPONSE_MESSAGE);
-    }
-
     const arr = new Uint8Array(len);
     let isValid = true;
     for (let i = 0; i < len; i++) {
@@ -168,15 +113,9 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
 
 /**
  * Delete the stored score PDF copy. Resolves to false when the file was
- * already gone so callers can treat removal as idempotent. Malformed project
- * or score identities are rejected before the renderer invokes the privileged
- * command; native validation remains the authoritative filesystem guard.
+ * already gone so callers can treat removal as idempotent.
  */
 export async function removeScorePdf(projectId: string, scoreId: string): Promise<boolean> {
-  if (!isValidProjectId(projectId) || !isValidScoreId(scoreId)) {
-    throw new Error(INVALID_RESPONSE_MESSAGE);
-  }
-
   const response = await invokeScoreCommand("remove_score_pdf", { projectId, scoreId });
   if (typeof response !== "boolean") {
     throw new Error(INVALID_RESPONSE_MESSAGE);
