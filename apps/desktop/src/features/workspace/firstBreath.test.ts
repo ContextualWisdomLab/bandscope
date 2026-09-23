@@ -18,7 +18,7 @@ function withSectionTime(
   };
 }
 
-describe("formatBreathTime", () => {
+describe("legacy section-finish compatibility aliases", () => {
   it("formats bounded whole seconds as m:ss", () => {
     expect(formatBreathTime(0)).toBe("0:00");
     expect(formatBreathTime(30)).toBe("0:30");
@@ -31,10 +31,8 @@ describe("formatBreathTime", () => {
       expect(formatBreathTime(value)).toBeNull();
     }
   });
-});
 
-describe("firstBreath", () => {
-  it("names the first last-line breath from existing time-range evidence", () => {
+  it("returns structural first-section-finish evidence through the legacy alias", () => {
     expect(firstBreath(createDemoRehearsalSong())).toEqual({
       sectionLabel: "verse",
       endTime: "0:30"
@@ -55,7 +53,7 @@ describe("firstBreath", () => {
     ).toBeNull();
   });
 
-  it("keeps the selected active part on tonight's first breath", () => {
+  it("keeps the selected active part on the first section finish", () => {
     expect(firstBreath(createDemoRehearsalSong(), "lead-vocal")).toEqual({
       sectionLabel: "verse",
       endTime: "0:30"
@@ -82,7 +80,7 @@ describe("firstBreath", () => {
   });
 });
 
-describe("breath copy filling", () => {
+describe("section-finish copy filling", () => {
   it("keeps rehearsal values literal", () => {
     expect(
       fillRangeCopy("{sectionLabel} ends at {endTime}.", {
