@@ -1,0 +1,5 @@
+# BandScope structure noninferiority research-metric overlay.
+# Install only after the frozen analysis-engine environment is synced, using --no-deps.
+# Upstream source: mir-evaluation/mir_eval@8db0b3812e2032544c1fc00d02d4256cab043f3d
+# PyPI Sigstore transparency entry: 174236906
+mir-eval @ https://files.pythonhosted.org/packages/1b/5a/69ce896a32ebc8c75deae00b1fba9837567405fa6ef37b377f2e85b856ae/mir_eval-0.8.2-py3-none-any.whl#sha256=114cda33d8e17408c170598e0b36ed0d71ff4a2fee8eaf9e165b58ecf1c87170
