@@ -52,4 +52,20 @@ describe("GrooveMap", () => {
     expect(screen.getByText("C4")).toBeInTheDocument();
     expect(screen.getByText("D4")).toBeInTheDocument();
   });
+
+  it("uses an offset beyond the ten-second floor for rendered note geometry", () => {
+    render(
+      <GrooveMap
+        notes={[
+          { onset: 0, offset: 5, pitch: "C4", velocity: 100 },
+          { onset: 10, offset: 20, pitch: "D4", velocity: 100 }
+        ]}
+      />
+    );
+
+    expect(screen.getByTitle("D4 (10.00s - 20.00s)")).toHaveStyle({
+      left: "50%",
+      width: "50%"
+    });
+  });
 });
