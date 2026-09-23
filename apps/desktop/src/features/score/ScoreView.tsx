@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { FileMusic, FilePlus2, Loader2, Trash2 } from "lucide-react";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -29,7 +29,14 @@ export interface ScoreViewProps {
 function bridgeErrorDetail(error: unknown, fallback: string): string {
   const raw = error instanceof Error ? error.message : typeof error === "string" ? error : null;
   const firstLine = raw?.split(/\r?\n/)[0]?.trim();
-  return firstLine ? firstLine : fallback;
+  if (!firstLine) return fallback;
+
+  // Protect against dependency information leakage (paths and secrets)
+  if (firstLine.includes("/") || firstLine.includes("\\") || firstLine.toLowerCase().includes("token=")) {
+    return fallback;
+  }
+
+  return firstLine;
 }
 
 /**
@@ -39,6 +46,7 @@ function bridgeErrorDetail(error: unknown, fallback: string): string {
  */
 export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const scoreRequiresProjectId = useId();
   const attachments = useMemo(() => song.scoreAttachments ?? [], [song.scoreAttachments]);
   const [selected, setSelected] = useState<ScoreAttachment | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
@@ -78,8 +86,8 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
 
   /**
    * Attach a new score PDF via the native picker and open it. The attach
-   * control is disabled while `isAttaching`, so overlapping attaches cannot be
-   * started; the active project id is supplied by the enabled control.
+   * control is action-guarded while `isAttaching`, so overlapping attaches
+   * cannot be started; the active project id is supplied by the enabled control.
    */
   const handleAttach = async (activeProjectId: string) => {
     setError(null);
@@ -134,10 +142,18 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
               <p className="mt-1 max-w-2xl text-sm text-slate-400">{t("scoreViewSubtitle")}</p>
             </div>
             <Button
-              onClick={projectId ? () => void handleAttach(projectId) : undefined}
-              disabled={!projectId || isAttaching}
+              onClick={(e) => {
+                if (!projectId || isAttaching) {
+                  e.preventDefault();
+                } else {
+                  void handleAttach(projectId);
+                }
+              }}
+              aria-disabled={!projectId || isAttaching}
+              aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
+              title={!projectId ? t("scoreNavDisabledHint") : undefined}
               variant="secondary"
-              className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20"
+              className="min-h-11 border border-cyan-300/20 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             >
               {isAttaching ? (
                 <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
@@ -149,7 +165,10 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
           </div>
 
           {!projectId && (
-            <p className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100">
+            <p
+              id={scoreRequiresProjectId}
+              className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm font-medium text-amber-100"
+            >
               {t("scoreRequiresProject")}
             </p>
           )}
@@ -183,11 +202,19 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                   >
                     <button
                       type="button"
-                      onClick={projectId ? () => void openAttachment(projectId, attachment) : undefined}
-                      disabled={!projectId}
+                      onClick={(e) => {
+                        if (!projectId) {
+                          e.preventDefault();
+                        } else {
+                          void openAttachment(projectId, attachment);
+                        }
+                      }}
+                      aria-disabled={!projectId}
+                      aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       aria-current={selected?.id === attachment.id ? "true" : undefined}
                       aria-label={`${t("scoreOpen")}: ${attachment.fileName}`}
-                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                      title={!projectId ? t("scoreNavDisabledHint") : `${t("scoreOpen")}: ${attachment.fileName}`}
+                      className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
@@ -195,10 +222,18 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
-                      disabled={!projectId}
+                      onClick={(e) => {
+                        if (!projectId) {
+                          e.preventDefault();
+                        } else {
+                          void handleRemove(projectId, attachment);
+                        }
+                      }}
+                      aria-disabled={!projectId}
+                      aria-describedby={!projectId ? scoreRequiresProjectId : undefined}
                       aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
+                      title={!projectId ? t("scoreNavDisabledHint") : `${t("scoreRemove")}: ${attachment.fileName}`}
+                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                     >
                       <Trash2 className="size-4" aria-hidden="true" />
                     </Button>

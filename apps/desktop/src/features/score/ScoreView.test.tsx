@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { invoke } from "@tauri-apps/api/core";
@@ -90,17 +90,103 @@ describe("ScoreView", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
-  it("disables score storage actions when no project workspace is active", () => {
+  it("ignores clicks while attaching", async () => {
+    const song = makeSong([]);
+    render(<ScoreView song={song} projectId="123" onSongUpdate={vi.fn()} />);
+    const addBtn = screen.getByRole("button", { name: "Add score" });
+
+    // In our mock, attachScorePdf returns a promise.
+    // We can mock it to not resolve immediately, simulating a pending attach
+    let resolveAttach: (val: unknown) => void;
+    mockInvoke.mockReturnValueOnce(new Promise((resolve) => {
+        resolveAttach = resolve;
+    }));
+
+    await act(async () => {
+        fireEvent.click(addBtn);
+    });
+
+    // Second click should hit `!isAttaching` branch and do nothing
+    await act(async () => {
+        fireEvent.click(addBtn);
+    });
+
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+
+    // Resolve the promise to cleanup
+    await act(async () => {
+        resolveAttach({ id: "new-score", fileName: "new.pdf" });
+    });
+  });
+
+  it("keeps unavailable score storage actions focusable when no project workspace is active", () => {
     const song = makeSong([{ id: SCORE_ID, fileName: "opener.pdf" }]);
     render(<ScoreView song={song} projectId={null} onSongUpdate={vi.fn()} />);
 
     expect(screen.getByText("Scores attach to the active analysis project.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Open score: opener.pdf" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Remove: opener.pdf" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Open score: opener.pdf" }));
+    const addBtn = screen.getByRole("button", { name: "Add score" });
+    expect(addBtn).toHaveAttribute("aria-disabled", "true");
+    expect(addBtn).toHaveAttribute("aria-describedby");
+    expect(addBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
+    expect(addBtn).toHaveAttribute("title", "scoreNavDisabledHint");
+    expect(addBtn).not.toBeDisabled();
+
+    const openBtn = screen.getByRole("button", { name: "Open score: opener.pdf" });
+    expect(openBtn).toHaveAttribute("aria-disabled", "true");
+    expect(openBtn).toHaveAttribute("aria-describedby");
+    expect(openBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
+    expect(openBtn).toHaveAttribute("title", "scoreNavDisabledHint");
+
+    const removeBtn = screen.getByRole("button", { name: "Remove: opener.pdf" });
+    expect(removeBtn).toHaveAttribute("aria-disabled", "true");
+    expect(removeBtn).toHaveAttribute("aria-describedby");
+    expect(removeBtn).toHaveClass("aria-disabled:cursor-not-allowed", "aria-disabled:opacity-60");
+    expect(removeBtn).toHaveAttribute("title", "scoreNavDisabledHint");
+
+    const addClickEvent = createEvent.click(addBtn);
+    fireEvent(addBtn, addClickEvent);
+    expect(addClickEvent.defaultPrevented).toBe(true);
     expect(mockInvoke).not.toHaveBeenCalled();
+
+    const openClickEvent = createEvent.click(openBtn);
+    fireEvent(openBtn, openClickEvent);
+    expect(openClickEvent.defaultPrevented).toBe(true);
+    expect(mockInvoke).not.toHaveBeenCalled();
+
+    const clickEvent = createEvent.click(removeBtn);
+    fireEvent(removeBtn, clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(true);
+  });
+
+  it("blocks repeated attach activation while an attach is already pending", async () => {
+    let resolveAttach!: (value: unknown) => void;
+    mockInvoke
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveAttach = resolve; }))
+      .mockResolvedValueOnce([1, 2, 3]);
+    const onSongUpdate = vi.fn();
+
+    render(<ScoreView song={makeSong()} projectId="project-1-2" onSongUpdate={onSongUpdate} />);
+
+    const addBtn = screen.getByRole("button", { name: "Add score" });
+    fireEvent.click(addBtn);
+
+    await waitFor(() => {
+      expect(addBtn).toHaveAttribute("aria-disabled", "true");
+    });
+
+    const repeatedClick = createEvent.click(addBtn);
+    fireEvent(addBtn, repeatedClick);
+    expect(repeatedClick.defaultPrevented).toBe(true);
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+
+    resolveAttach(attachResponse());
+
+    await waitFor(() => {
+      expect(screen.getByTestId("score-viewer")).toHaveTextContent("bytes:3:opener.pdf");
+    });
+    expect(mockInvoke).toHaveBeenCalledTimes(2);
+    expect(onSongUpdate).toHaveBeenCalledTimes(1);
   });
 
   it("attaches a score, persists the metadata, and opens the new PDF", async () => {
