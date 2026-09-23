@@ -30,6 +30,11 @@ function Slider({ className, ...props }: SliderPrimitive.Root.Props) {
   )
 }
 
+/** Render a visible label that Base UI associates with the slider thumbs. */
+function SliderLabel(props: SliderPrimitive.Label.Props) {
+  return <SliderPrimitive.Label data-slot="slider-label" {...props} />
+}
+
 /** Render the interactive control area of the slider. */
 function SliderControl({ className, ...props }: SliderPrimitive.Control.Props) {
   return (
@@ -129,4 +134,11 @@ function SliderThumb({ className, ...props }: SliderPrimitive.Thumb.Props) {
   )
 }
 
-export { Slider, SliderControl, SliderTrack, SliderIndicator, SliderThumb }
+export {
+  Slider,
+  SliderLabel,
+  SliderControl,
+  SliderTrack,
+  SliderIndicator,
+  SliderThumb,
+}
