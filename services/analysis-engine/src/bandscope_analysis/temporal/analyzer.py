@@ -73,7 +73,7 @@ class TemporalAnalyzer:
         if not path.exists() or not path.is_file():
             raise FileNotFoundError(f"Audio file not found: {path_str}")
 
-        logger.info(f"Loading and decoding audio: {path_str}")
+        logger.info("Loading and decoding audio: %s", repr(path_str))
 
         try:
             with path.open("rb") as fileobj:
@@ -140,5 +140,5 @@ class TemporalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
+            logger.error("Failed to analyze audio %s: %s", repr(path_str), e)
             raise ValueError(f"Temporal analysis failed: {e}") from e
