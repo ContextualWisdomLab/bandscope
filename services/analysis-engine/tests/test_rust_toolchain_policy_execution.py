@@ -70,7 +70,7 @@ def test_rust_toolchain_policy_rejects_required_command_present_only_in_comment(
     (workflows_path / "security-audit.yml").write_text(
         "jobs:\n"
         + _job(
-            "audit",
+            "security-backstop",
             install,
             f"cargo +{version} install cargo-audit --locked",
             f"cargo +{version} audit",

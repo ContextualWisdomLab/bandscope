@@ -24,7 +24,7 @@ def _supporting_workflow_contracts(version: str) -> dict[str, str]:
         "security-audit.yml": (
             "jobs:\n"
             + _job(
-                "audit",
+                "security-backstop",
                 install,
                 f"cargo +{version} install cargo-audit --locked",
                 f"cargo +{version} audit",

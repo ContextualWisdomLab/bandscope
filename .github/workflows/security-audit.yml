@@ -56,13 +56,13 @@ jobs:
       - name: Run Bandit
         working-directory: services/analysis-engine
         run: uv run bandit -c pyproject.toml -r src
-      - name: Install stable Rust toolchain
-        run: rustup toolchain install stable --profile minimal
+      - name: Install Rust 1.97.1 toolchain
+        run: rustup toolchain install 1.97.1 --profile minimal
       - name: Install cargo-audit
-        run: cargo +stable install cargo-audit --locked
+        run: cargo +1.97.1 install cargo-audit --locked
       - name: Audit Rust dependencies
         working-directory: apps/desktop/src-tauri
-        run: cargo +stable audit
+        run: cargo +1.97.1 audit
       - name: Scan for common hardcoded secrets
         run: |
           ! git grep -nE '(g[h]p_|g[h]o_|A[K]IA[0-9A-Z]{16}|A[I]za[0-9A-Za-z\-_]{35}|BEGIN (R[S]A|E[C]|OPENS[S]H|P[G]P) PRIVATE KEY)' -- . ':(exclude)package-lock.json' ':(exclude)node_modules/**'

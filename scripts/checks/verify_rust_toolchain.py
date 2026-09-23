@@ -153,7 +153,7 @@ def _required_workflow_jobs() -> dict[str, dict[str, tuple[str, ...]]]:
         },
         "release.yml": {"release-preflight": (install,)},
         "security-audit.yml": {
-            "audit": (
+            "security-backstop": (
                 install,
                 f"cargo +{EXPECTED_TOOLCHAIN} install cargo-audit --locked",
                 f"cargo +{EXPECTED_TOOLCHAIN} audit",
