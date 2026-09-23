@@ -12,8 +12,9 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { loadScorePdf } from "./pdfjs";
 
 /** Viewer lifecycle states following the clearfolio LOADING/FAILED/READY contract. */
@@ -58,7 +59,6 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
   const [fitWidth, setFitWidth] = useState(true);
   const [containerWidth, setContainerWidth] = useState(0);
   const [retryToken, setRetryToken] = useState(0);
-  const [boundaryReasonDismissed, setBoundaryReasonDismissed] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -67,16 +67,6 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
       onStatusChange?.(status);
     }
   }, [data, status, onStatusChange]);
-
-  useEffect(() => {
-    const dismissBoundaryReason = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setBoundaryReasonDismissed(true);
-      }
-    };
-    document.addEventListener("keydown", dismissBoundaryReason);
-    return () => document.removeEventListener("keydown", dismissBoundaryReason);
-  }, []);
 
   useEffect(() => {
     if (data === null) {
@@ -97,7 +87,6 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
         setPdfDocument(loadedDocument);
         setPageCount(loadedDocument.numPages);
         setPageNumber(1);
-        setBoundaryReasonDismissed(false);
         setStatus("READY");
       })
       .catch((error: unknown) => {
@@ -167,13 +156,11 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
 
   /** Move to the previous page, clamped at the first page. */
   const goToPreviousPage = () => {
-    setBoundaryReasonDismissed(false);
     setPageNumber((current) => Math.max(1, current - 1));
   };
 
   /** Move to the next page, clamped at the last page. */
   const goToNextPage = () => {
-    setBoundaryReasonDismissed(false);
     setPageNumber((current) => Math.min(pageCount, current + 1));
   };
 
@@ -196,7 +183,6 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
 
   /** Re-run the load state machine with the same validated bytes. */
   const retry = () => {
-    setBoundaryReasonDismissed(false);
     setRetryToken((current) => current + 1);
   };
 
@@ -260,8 +246,10 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
     .replace("{total}", String(pageCount));
   const previousPageUnavailable = pageNumber <= 1;
   const nextPageUnavailable = pageNumber >= pageCount;
-  const unavailableReasonClassName =
-    "pointer-events-none absolute bottom-full left-1/2 z-10 w-max max-w-48 -translate-x-1/2 rounded-md border border-white/10 bg-slate-950 px-2 py-1 text-center text-xs text-slate-100 opacity-0 shadow-lg transition-opacity motion-reduce:transition-none group-hover:pointer-events-auto group-focus-within:pointer-events-auto group-hover:opacity-100 group-focus-within:opacity-100";
+  const previousPageActionLabel = t("scoreViewerPrevPage");
+  const nextPageActionLabel = t("scoreViewerNextPage");
+  const previousPageUnavailableReason = t("scoreViewerPrevPageDisabled");
+  const nextPageUnavailableReason = t("scoreViewerNextPageDisabled");
 
   return (
     <Card className="border-cyan-300/20 bg-slate-950/75 backdrop-blur-xl">
@@ -274,26 +262,36 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-12"
-              aria-label={t("scoreViewerZoomOut")}
-              title={t("scoreViewerZoomOut")}
-              onClick={zoomOut}
-            >
-              <ZoomOut aria-hidden="true" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-12"
-              aria-label={t("scoreViewerZoomIn")}
-              title={t("scoreViewerZoomIn")}
-              onClick={zoomIn}
-            >
-              <ZoomIn aria-hidden="true" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                type="button"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "icon-lg",
+                  className: "size-12"
+                })}
+                aria-label={t("scoreViewerZoomOut")}
+                onClick={zoomOut}
+              >
+                <ZoomOut aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent>{t("scoreViewerZoomOut")}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                type="button"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "icon-lg",
+                  className: "size-12"
+                })}
+                aria-label={t("scoreViewerZoomIn")}
+                onClick={zoomIn}
+              >
+                <ZoomIn aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent>{t("scoreViewerZoomIn")}</TooltipContent>
+            </Tooltip>
             <Button
               variant={fitWidth ? "secondary" : "outline"}
               className="h-12 px-4 text-base"
@@ -311,83 +309,79 @@ export function ScoreViewer({ data, fileName, onStatusChange }: ScoreViewerProps
           <canvas ref={canvasRef} className="mx-auto block max-w-none" />
         </div>
         <div className="flex items-center justify-center gap-4">
-          <span
-            className="group relative inline-flex"
-            onMouseEnter={() => setBoundaryReasonDismissed(false)}
-          >
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-              aria-label={t("scoreViewerPrevPage")}
-              aria-describedby={
-                previousPageUnavailable && !boundaryReasonDismissed
-                  ? previousDisabledDescriptionId
-                  : undefined
-              }
-              title={previousPageUnavailable ? undefined : t("scoreViewerPrevPage")}
-              aria-disabled={previousPageUnavailable}
-              onFocus={() => setBoundaryReasonDismissed(false)}
-              onClick={(e) => {
-                if (previousPageUnavailable) {
-                  e.preventDefault();
-                } else {
-                  goToPreviousPage();
+          <div className="relative inline-flex">
+            <Tooltip>
+              <TooltipTrigger
+                type="button"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "icon-lg",
+                  className: "size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                })}
+                aria-label={previousPageActionLabel}
+                aria-describedby={
+                  previousPageUnavailable ? previousDisabledDescriptionId : undefined
                 }
-              }}
-            >
-              <ChevronLeft className="size-6" aria-hidden="true" />
-            </Button>
-            {previousPageUnavailable && !boundaryReasonDismissed && (
-              <span
-                id={previousDisabledDescriptionId}
-                role="tooltip"
-                className={unavailableReasonClassName}
+                aria-disabled={previousPageUnavailable ? "true" : undefined}
+                onClick={(event) => {
+                  if (previousPageUnavailable) {
+                    event.preventDefault();
+                    return;
+                  }
+                  goToPreviousPage();
+                }}
               >
-                {t("scoreViewerPrevPageDisabled")}
+                <ChevronLeft className="size-6" aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent>
+                {previousPageUnavailable
+                  ? `${previousPageActionLabel}: ${previousPageUnavailableReason}`
+                  : previousPageActionLabel}
+              </TooltipContent>
+            </Tooltip>
+            {previousPageUnavailable ? (
+              <span id={previousDisabledDescriptionId} className="sr-only">
+                {previousPageUnavailableReason}
               </span>
-            )}
-          </span>
+            ) : null}
+          </div>
           <span className="min-w-28 text-center text-sm font-semibold text-slate-200">
             {pageIndicator}
           </span>
-          <span
-            className="group relative inline-flex"
-            onMouseEnter={() => setBoundaryReasonDismissed(false)}
-          >
-            <Button
-              variant="outline"
-              size="icon-lg"
-              className="size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-              aria-label={t("scoreViewerNextPage")}
-              aria-describedby={
-                nextPageUnavailable && !boundaryReasonDismissed
-                  ? nextDisabledDescriptionId
-                  : undefined
-              }
-              title={nextPageUnavailable ? undefined : t("scoreViewerNextPage")}
-              aria-disabled={nextPageUnavailable}
-              onFocus={() => setBoundaryReasonDismissed(false)}
-              onClick={(e) => {
-                if (nextPageUnavailable) {
-                  e.preventDefault();
-                } else {
+          <div className="relative inline-flex">
+            <Tooltip>
+              <TooltipTrigger
+                type="button"
+                className={buttonVariants({
+                  variant: "outline",
+                  size: "icon-lg",
+                  className: "size-14 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                })}
+                aria-label={nextPageActionLabel}
+                aria-describedby={nextPageUnavailable ? nextDisabledDescriptionId : undefined}
+                aria-disabled={nextPageUnavailable ? "true" : undefined}
+                onClick={(event) => {
+                  if (nextPageUnavailable) {
+                    event.preventDefault();
+                    return;
+                  }
                   goToNextPage();
-                }
-              }}
-            >
-              <ChevronRight className="size-6" aria-hidden="true" />
-            </Button>
-            {nextPageUnavailable && !boundaryReasonDismissed && (
-              <span
-                id={nextDisabledDescriptionId}
-                role="tooltip"
-                className={unavailableReasonClassName}
+                }}
               >
-                {t("scoreViewerNextPageDisabled")}
+                <ChevronRight className="size-6" aria-hidden="true" />
+              </TooltipTrigger>
+              <TooltipContent>
+                {nextPageUnavailable
+                  ? `${nextPageActionLabel}: ${nextPageUnavailableReason}`
+                  : nextPageActionLabel}
+              </TooltipContent>
+            </Tooltip>
+            {nextPageUnavailable ? (
+              <span id={nextDisabledDescriptionId} className="sr-only">
+                {nextPageUnavailableReason}
               </span>
-            )}
-          </span>
+            ) : null}
+          </div>
         </div>
       </CardContent>
     </Card>
