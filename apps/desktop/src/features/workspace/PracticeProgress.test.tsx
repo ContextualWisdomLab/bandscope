@@ -17,9 +17,6 @@ describe("PracticeProgress", () => {
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
 
-    // Check tooltip content exists (it's hidden initially but rendered in the DOM by Radix UI/Base UI sometimes, or we can check the presence of the tooltip content string)
-    // Actually the tooltip content is rendered via Portal but we can check if it exists in document when we interact or just rely on the component integration.
-
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
     expect(clickEvent.defaultPrevented).toBe(true);
@@ -106,8 +103,6 @@ describe("PracticeProgress", () => {
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
-
-    // Check that we've replaced the native title attribute with Tooltip (no title attr on the button)
     expect(increaseBtn).not.toHaveAttribute("title");
 
     const clickEvent = createEvent.click(increaseBtn);
@@ -122,7 +117,6 @@ describe("PracticeProgress", () => {
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
 
-    // We expect the native title to not be present because we are using Tooltip wrapper
     expect(decreaseBtn).not.toHaveAttribute("title");
     expect(increaseBtn).not.toHaveAttribute("title");
   });
