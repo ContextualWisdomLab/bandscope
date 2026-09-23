@@ -18,12 +18,26 @@ export interface FirstPreChorusCalloutProps {
 type PreChorusCopyValues = Readonly<Record<"role" | "section" | "at", string>>;
 
 type HeardPreChorus = Readonly<{
-  song: RehearsalSong;
+  songIdentity: string | RehearsalSong;
   sectionId: string;
   sectionIndex: number;
   holdingRoleId: string | null;
   atSeconds: number;
 }>;
+
+/** Use a plain own song id when available; malformed/accessor-backed runtime ids fall back to object identity. */
+function preChorusSongIdentity(song: RehearsalSong): string | RehearsalSong {
+  const descriptor = Object.getOwnPropertyDescriptor(song, "id");
+  if (
+    descriptor &&
+    "value" in descriptor &&
+    typeof descriptor.value === "string" &&
+    descriptor.value.trim().length > 0
+  ) {
+    return descriptor.value;
+  }
+  return song;
+}
 
 /** Interpolate pre-chorus placeholders once so rehearsal data is never rescanned as template syntax. */
 function formatPreChorusCopy(template: string, values: PreChorusCopyValues): string {
@@ -50,6 +64,7 @@ export function FirstPreChorusCallout({
   const locale = detectPreferredLocale();
   const t = createTranslator(locale);
   const runtimeSong = song as unknown as Partial<RehearsalSong> | null;
+  const songIdentity = preChorusSongIdentity(song);
   const preChorus = resolveFirstPreChorus(song);
   const preChorusSectionIndex =
     preChorus && Array.isArray(runtimeSong?.sections)
@@ -59,7 +74,13 @@ export function FirstPreChorusCallout({
 
   useEffect(() => {
     setHeardPreChorus(null);
-  }, [song, preChorusSectionIndex, preChorus?.section.id, preChorus?.holdingRole?.id, preChorus?.atSeconds]);
+  }, [
+    songIdentity,
+    preChorusSectionIndex,
+    preChorus?.section.id,
+    preChorus?.holdingRole?.id,
+    preChorus?.atSeconds
+  ]);
 
   if (!preChorus) {
     return (
@@ -75,7 +96,7 @@ export function FirstPreChorusCallout({
   }
 
   const heard =
-    heardPreChorus?.song === song &&
+    heardPreChorus?.songIdentity === songIdentity &&
     heardPreChorus.sectionId === preChorus.section.id &&
     heardPreChorus.sectionIndex === preChorusSectionIndex &&
     heardPreChorus.holdingRoleId === (preChorus.holdingRole?.id ?? null) &&
@@ -105,7 +126,7 @@ export function FirstPreChorusCallout({
   /** Record completion only after the owning surface has executed the selected pre-chorus action. */
   const markPreChorusActionComplete = () => {
     setHeardPreChorus({
-      song,
+      songIdentity,
       sectionId: preChorus.section.id,
       sectionIndex: preChorusSectionIndex,
       holdingRoleId: preChorus.holdingRole?.id ?? null,
