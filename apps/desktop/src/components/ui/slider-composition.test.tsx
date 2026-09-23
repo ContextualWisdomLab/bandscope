@@ -5,11 +5,30 @@ import {
   Slider,
   SliderControl,
   SliderIndicator,
+  SliderLabel,
   SliderThumb,
   SliderTrack,
 } from "./slider"
 
 describe("Slider canonical composition", () => {
+  it("associates a visible SliderLabel with the nested range input", () => {
+    render(
+      <Slider defaultValue={50}>
+        <SliderLabel>Practice progress</SliderLabel>
+        <SliderControl>
+          <SliderTrack>
+            <SliderIndicator />
+            <SliderThumb />
+          </SliderTrack>
+        </SliderControl>
+      </Slider>
+    )
+
+    expect(screen.getByRole("slider", { name: "Practice progress" })).toHaveAccessibleName(
+      "Practice progress"
+    )
+  })
+
   it("keeps range thumbs inside a usable track-press area without clipping their pointer targets", () => {
     const { container } = render(
       <Slider defaultValue={[25, 75]}>
