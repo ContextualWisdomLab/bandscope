@@ -1,10 +1,6 @@
 name: release
 
 on:
-  pull_request:
-    branches:
-      - develop
-      - main
   push:
     branches:
       - develop
@@ -12,6 +8,10 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -42,8 +42,8 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust 1.97.1
-        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
       - name: Activate and verify pinned npm runtime
         run: |
           corepack enable npm

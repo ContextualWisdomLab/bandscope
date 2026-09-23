@@ -12,6 +12,12 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: >-
+    ${{ github.workflow }}-${{ github.repository }}-${{
+    github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
@@ -47,10 +53,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust 1.97.1
-        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
       - name: Add Windows target
-        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain 1.97.1
+        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain stable
       - name: Verify Windows antivirus baseline
         shell: pwsh
         run: |
@@ -146,10 +152,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust 1.97.1
-        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
       - name: Add Windows arm target
-        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain 1.97.1
+        run: rustup target add $env:BANDSCOPE_TARGET_TRIPLE --toolchain stable
       - name: Verify Windows antivirus baseline
         shell: pwsh
         run: |
@@ -256,10 +262,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust 1.97.1
-        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
       - name: Add macOS Intel target
-        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain 1.97.1
+        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Activate and verify pinned npm runtime
@@ -288,9 +294,11 @@ jobs:
       - name: Explain non-blocking macOS amd64 artifact upload failure
         if: ${{ steps.upload-macos-amd64.outcome == 'failure' }}
         run: |
-          echo "Artifact upload failed after the macOS amd64 bundle was packaged." >> "$GITHUB_STEP_SUMMARY"
-          echo "Pull request builds keep artifact upload non-blocking because GitHub artifact service or DNS failures do not invalidate the build evidence." >> "$GITHUB_STEP_SUMMARY"
-          echo "Tag and release builds remain blocking because release publication requires uploaded artifacts." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "Artifact upload failed after the macOS amd64 bundle was packaged."
+            echo "Pull request builds keep artifact upload non-blocking because GitHub artifact service or DNS failures do not invalidate the build evidence."
+            echo "Tag and release builds remain blocking because release publication requires uploaded artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   build-macos-arm64:
     name: build / macos / arm64
@@ -318,10 +326,10 @@ jobs:
         with:
           version: "0.8.6"
           enable-cache: false
-      - name: Install Rust 1.97.1
-        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal
       - name: Add macOS arm target
-        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain 1.97.1
+        run: rustup target add "$BANDSCOPE_TARGET_TRIPLE" --toolchain stable
       - name: Install create-dmg
         run: brew install create-dmg
       - name: Activate and verify pinned npm runtime
@@ -350,9 +358,11 @@ jobs:
       - name: Explain non-blocking macOS arm64 artifact upload failure
         if: ${{ steps.upload-macos-arm64.outcome == 'failure' }}
         run: |
-          echo "Artifact upload failed after the macOS arm64 bundle was packaged." >> "$GITHUB_STEP_SUMMARY"
-          echo "Pull request builds keep artifact upload non-blocking because GitHub artifact service or DNS failures do not invalidate the build evidence." >> "$GITHUB_STEP_SUMMARY"
-          echo "Tag and release builds remain blocking because release publication requires uploaded artifacts." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "Artifact upload failed after the macOS arm64 bundle was packaged."
+            echo "Pull request builds keep artifact upload non-blocking because GitHub artifact service or DNS failures do not invalidate the build evidence."
+            echo "Tag and release builds remain blocking because release publication requires uploaded artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   gate-macos:
     name: gate / build / macos

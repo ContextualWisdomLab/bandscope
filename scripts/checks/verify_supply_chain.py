@@ -18,13 +18,11 @@ REQUIRED_FILES = [
     Path("apps/desktop/src-tauri/Cargo.lock"),
     Path(".github/dependabot.yml"),
     # Dependency review runs via the org-level required workflow in
-    # ContextualWisdomLab/.github; repo-local CodeQL and Scorecard stay push-only
-    # so GitHub/Scorecard can still observe SAST and supply-chain security tabs.
+    # ContextualWisdomLab/.github; one repo-local security backstop and
+    # Scorecard stay push/schedule-only while central workflows own PR scans.
     Path(".github/workflows/security-audit.yml"),
-    Path(".github/workflows/codeql.yml"),
     Path(".github/workflows/sbom.yml"),
     Path(".github/workflows/release.yml"),
-    Path(".github/workflows/secret-scan-gate.yml"),
     Path(".github/workflows/build-baseline.yml"),
     Path(".github/workflows/ossf-scorecard.yml"),
     Path(".trivyignore"),
@@ -142,7 +140,6 @@ RUST_GLIB_LEGACY_EXPECTED_CHAIN_NAMES = (
     "glib",
 )
 RUST_FASTRAND_YANKED_VERSION = "2.4.0"
-RUST_AUDIT_COMMAND = "cargo +1.97.1 audit"
 RUST_AUDIT_CONFIG = Path("apps/desktop/src-tauri/.cargo/audit.toml")
 RUST_OSV_SCANNER_CONFIG = Path("apps/desktop/src-tauri/osv-scanner.toml")
 TRIVY_IGNORE_CONFIG = Path(".trivyignore")
@@ -1219,7 +1216,7 @@ def _verify_dependency_review_coverage(missing: list[str]) -> None:
 
 def _verify_security_audit_coverage(missing: list[str]) -> None:
     audit = read_workflow(Path(".github/workflows/security-audit.yml"), "security audit", missing)
-    for token in ["develop", "main", "pull_request", "push"]:
+    for token in ["develop", "main", "push", "bandit", "git grep", "trivy-action"]:
         if audit and token not in audit:
             missing.append(f"security audit workflow missing trigger token: {token}")
     audit_run_commands: list[str] = []
@@ -1233,7 +1230,7 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
     for token in [
         "npm audit --workspaces --audit-level=high",
         "pip-audit --local --strict",
-        RUST_AUDIT_COMMAND,
+        "cargo +stable audit",
     ]:
         if audit and not any(
             command_contains_token_sequence(command, token) for command in audit_run_commands
@@ -1241,13 +1238,20 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
             missing.append(f"security audit workflow missing vulnerability audit token: {token}")
 
 
+def _verify_bandit_coverage(missing: list[str]) -> None:
+    bandit = read_workflow(Path(".github/workflows/security-audit.yml"), "bandit", missing)
+    for token in ["develop", "main", "push", "bandit"]:
+        if bandit and token not in bandit:
+            missing.append(f"bandit workflow missing token: {token}")
+    if bandit and "pull_request:" in bandit:
+        missing.append(
+            "bandit workflow must stay push/manual-only; central SAST owns PR scanning"
+        )
+
+
 def _verify_codeql_coverage(missing: list[str]) -> None:
-    codeql = read_workflow(
-        Path(".github/workflows/codeql.yml"), "codeql", missing, optional=True
-    )
-    for token in ["develop", "main", "push", "codeql"]:
-        if codeql and token not in codeql:
-            missing.append(f"codeql workflow missing token: {token}")
+    if Path(".github/workflows/codeql.yml").exists():
+        missing.append("repo-local codeql workflow duplicates GitHub default setup")
 
 
 def _verify_release_coverage(missing: list[str]) -> None:
@@ -1255,7 +1259,6 @@ def _verify_release_coverage(missing: list[str]) -> None:
     for token in [
         "develop",
         "main",
-        "pull_request",
         "push",
         "tags:",
         "release-preflight",
@@ -1266,9 +1269,9 @@ def _verify_release_coverage(missing: list[str]) -> None:
 
 def _verify_secret_scan_coverage(missing: list[str]) -> None:
     secret_scan = read_workflow(
-        Path(".github/workflows/secret-scan-gate.yml"), "secret scan", missing
+        Path(".github/workflows/security-audit.yml"), "secret scan", missing
     )
-    for token in ["develop", "main", "pull_request", "push", "secret-scan-gate"]:
+    for token in ["develop", "main", "push", "git grep"]:
         if secret_scan and token not in secret_scan:
             missing.append(f"secret scan workflow missing token: {token}")
 
@@ -1353,6 +1356,7 @@ def verify_workflow_coverage() -> list[str]:
     missing: list[str] = []
     _verify_ci_coverage(missing)
     _verify_sbom_coverage(missing)
+    _verify_bandit_coverage(missing)
     _verify_security_audit_coverage(missing)
     _verify_codeql_coverage(missing)
     _verify_release_coverage(missing)

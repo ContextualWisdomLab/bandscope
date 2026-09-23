@@ -10,8 +10,8 @@
 
 ### Changed
 
+- Consolidated Bandit, dependency audits, supplemental secret checks, and Trivy into one trusted-branch security backstop, delegated CodeQL to GitHub default setup, and removed duplicate local PR security and release-preflight runs.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
-- Pin repository-owned Rust build, audit, release, and native packaging evidence to Rust 1.97.1, and fail closed when required Rust commands are hidden in non-executing text, borrowed from another workflow/job, or chained through shell control flow that can mask their exit status.
 
 ### Fixed
 
