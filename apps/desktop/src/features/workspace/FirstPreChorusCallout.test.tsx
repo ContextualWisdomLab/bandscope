@@ -128,6 +128,27 @@ describe("FirstPreChorusCallout", () => {
     grid.remove();
   });
 
+  it("keeps completed guidance across an unrelated update to the same stable song", () => {
+    const initialSong = songWithPreChorus();
+    const { grid } = appendSongStructureTarget();
+    const { rerender } = render(<FirstPreChorusCallout song={initialSong} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Lead Vocal pre-chorus at 0:20" }));
+    expect(
+      screen.getByText(/Learn Lead Vocal's pre-chorus at 0:20. Play the lift into the chorus./)
+    ).toBeTruthy();
+
+    const updatedSong = structuredClone(initialSong);
+    updatedSong.title = `${initialSong.title} (edited)`;
+    rerender(<FirstPreChorusCallout song={updatedSong} />);
+
+    expect(
+      screen.getByText(/Learn Lead Vocal's pre-chorus at 0:20. Play the lift into the chorus./)
+    ).toBeTruthy();
+
+    grid.remove();
+  });
+
   it("does not carry completed guidance into a replacement song with an invalid runtime id", () => {
     const firstSong = songWithPreChorus();
     const replacementSong = songWithPreChorus();
