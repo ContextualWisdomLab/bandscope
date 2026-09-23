@@ -1,15 +1,23 @@
 import { memo, useCallback, useId } from "react";
 import { Minus, Plus } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Slider,
+  SliderControl,
+  SliderIndicator,
+  SliderLabel,
+  SliderThumb,
+  SliderTrack,
+} from "../../components/ui/slider";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-/** Documented. */
+/** Properties for the rehearsal practice-progress control. */
 interface PracticeProgressProps {
   progress?: number;
   onChange: (newProgress: number) => void;
 }
 
-/** Documented. */
+/** Render the rehearsal practice-progress controls and accessible boundary cues. */
 function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressProps) {
   const t = createTranslator(detectPreferredLocale());
   const decreaseLimitDescriptionId = useId();
@@ -33,11 +41,12 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
     onChange(Math.min(100, progress + 10));
   }, [progress, onChange]);
 
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value, 10);
-    if (!Number.isNaN(value)) {
-      onChange(Math.max(0, Math.min(100, value)));
+  const handleSliderChange = useCallback((value: number | readonly number[]) => {
+    const numericValue = Array.isArray(value) ? value[0] : value;
+    if (typeof numericValue !== "number" || !Number.isFinite(numericValue)) {
+      return;
     }
+    onChange(Math.max(0, Math.min(100, numericValue)));
   }, [onChange]);
 
   const decreaseActionLabel = t("decreasePracticeProgressLabel");
@@ -51,78 +60,72 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
       role="region"
       aria-label={t("practiceProgressRegionLabel")}
     >
-      <div className="mb-2 flex items-center justify-between">
-        <label htmlFor="practice-progress-slider" className="text-xs font-black uppercase tracking-[0.24em] text-indigo-200">
-          {t("practiceProgressLabel")}
-        </label>
-        <span className="text-sm font-semibold text-slate-200">{progress}%</span>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <Tooltip>
-          <TooltipTrigger
-            type="button"
-            onClick={handleDecrease}
-            aria-disabled={atMinimum ? "true" : undefined}
-            aria-describedby={atMinimum ? decreaseLimitDescriptionId : undefined}
-            className="flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-label={decreaseActionLabel}
-          >
-            <Minus className="size-4" aria-hidden="true" />
-          </TooltipTrigger>
-          <TooltipContent>
-            {atMinimum ? `${decreaseActionLabel}: ${minimumReason}` : decreaseActionLabel}
-          </TooltipContent>
-        </Tooltip>
-        {atMinimum ? (
-          <span id={decreaseLimitDescriptionId} className="sr-only">
-            {minimumReason}
-          </span>
-        ) : null}
-
-        <div className="relative h-11 flex-1">
-          <div className="absolute inset-x-0 top-1/2 h-3 -translate-y-1/2 overflow-hidden rounded-full bg-slate-900/50 shadow-inner">
-            <div
-              className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <input
-            id="practice-progress-slider"
-            type="range"
-            min="0"
-            max="100"
-            step="1"
-            value={progress}
-            onChange={handleSliderChange}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          />
+      <Slider
+        min={0}
+        max={100}
+        step={1}
+        value={progress}
+        onValueChange={handleSliderChange}
+        className="block w-full"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <SliderLabel className="text-xs font-black uppercase tracking-[0.24em] text-indigo-200">
+            {t("practiceProgressLabel")}
+          </SliderLabel>
+          <span className="text-sm font-semibold text-slate-200">{progress}%</span>
         </div>
 
-        <Tooltip>
-          <TooltipTrigger
-            type="button"
-            onClick={handleIncrease}
-            aria-disabled={atMaximum ? "true" : undefined}
-            aria-describedby={atMaximum ? increaseLimitDescriptionId : undefined}
-            className="flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-label={increaseActionLabel}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-          </TooltipTrigger>
-          <TooltipContent>
-            {atMaximum ? `${increaseActionLabel}: ${maximumReason}` : increaseActionLabel}
-          </TooltipContent>
-        </Tooltip>
-        {atMaximum ? (
-          <span id={increaseLimitDescriptionId} className="sr-only">
-            {maximumReason}
-          </span>
-        ) : null}
-      </div>
+        <div className="flex items-center gap-4">
+          <Tooltip>
+            <TooltipTrigger
+              type="button"
+              onClick={handleDecrease}
+              aria-disabled={atMinimum ? "true" : undefined}
+              aria-describedby={atMinimum ? decreaseLimitDescriptionId : undefined}
+              className="flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              aria-label={decreaseActionLabel}
+            >
+              <Minus className="size-4" aria-hidden="true" />
+            </TooltipTrigger>
+            <TooltipContent>
+              {atMinimum ? `${decreaseActionLabel}: ${minimumReason}` : decreaseActionLabel}
+            </TooltipContent>
+          </Tooltip>
+          {atMinimum ? (
+            <span id={decreaseLimitDescriptionId} className="sr-only">
+              {minimumReason}
+            </span>
+          ) : null}
+
+          <SliderControl className="h-11 min-h-11 flex-1">
+            <SliderTrack className="h-3 bg-slate-900/50 shadow-inner">
+              <SliderIndicator className="bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200 ease-out" />
+              <SliderThumb />
+            </SliderTrack>
+          </SliderControl>
+
+          <Tooltip>
+            <TooltipTrigger
+              type="button"
+              onClick={handleIncrease}
+              aria-disabled={atMaximum ? "true" : undefined}
+              aria-describedby={atMaximum ? increaseLimitDescriptionId : undefined}
+              className="flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              aria-label={increaseActionLabel}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+            </TooltipTrigger>
+            <TooltipContent>
+              {atMaximum ? `${increaseActionLabel}: ${maximumReason}` : increaseActionLabel}
+            </TooltipContent>
+          </Tooltip>
+          {atMaximum ? (
+            <span id={increaseLimitDescriptionId} className="sr-only">
+              {maximumReason}
+            </span>
+          ) : null}
+        </div>
+      </Slider>
     </div>
   );
 }

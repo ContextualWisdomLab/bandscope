@@ -1,20 +1,19 @@
-import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
 
-// Mock the i18n functions
 vi.mock("../../i18n", () => ({
   createTranslator: () => (key: string) => key,
   detectPreferredLocale: () => "en-US",
 }));
 
 describe("PracticeProgress", () => {
-  it("renders with default progress 0 when no progress is provided", () => {
+  it("renders the minimum boundary with a persistent accessible reason", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress onChange={handleChange} />);
 
     expect(screen.getByText("0%")).toBeTruthy();
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
     expect(decreaseBtn).not.toHaveAttribute("title");
 
@@ -25,12 +24,14 @@ describe("PracticeProgress", () => {
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
     expect(clickEvent.defaultPrevented).toBe(true);
+    expect(handleChange).not.toHaveBeenCalled();
   });
 
-  it("renders provided progress", () => {
+  it("uses the visible practice-progress label as the slider accessible name", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
+    expect(screen.getByRole("slider", { name: "practiceProgressLabel" })).toBeInTheDocument();
     expect(screen.getByText("50%")).toBeTruthy();
   });
 
@@ -41,10 +42,9 @@ describe("PracticeProgress", () => {
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.focus(decreaseBtn);
 
-    const tooltip = await screen.findByText(
-      "decreasePracticeProgressLabel: practiceProgressAtMin",
-    );
-    expect(tooltip).toBeInTheDocument();
+    expect(
+      await screen.findByText("decreasePracticeProgressLabel: practiceProgressAtMin"),
+    ).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => {
@@ -64,71 +64,60 @@ describe("PracticeProgress", () => {
     expect(await screen.findByText("increasePracticeProgressLabel")).toBeInTheDocument();
   });
 
-  it("calls onChange with increased value when increase button is clicked", () => {
+  it("changes progress from the increment and decrement controls", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
-    fireEvent.click(increaseBtn);
+    fireEvent.click(screen.getByRole("button", { name: "increasePracticeProgressLabel" }));
+    expect(handleChange).toHaveBeenLastCalledWith(60);
 
-    expect(handleChange).toHaveBeenCalledWith(60);
+    fireEvent.click(screen.getByRole("button", { name: "decreasePracticeProgressLabel" }));
+    expect(handleChange).toHaveBeenLastCalledWith(40);
   });
 
-  it("calls onChange with decreased value when decrease button is clicked", () => {
+  it("clamps button changes to the 0-100 range", () => {
+    const handleIncrease = vi.fn();
+    const { rerender } = render(<PracticeProgress progress={95} onChange={handleIncrease} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "increasePracticeProgressLabel" }));
+    expect(handleIncrease).toHaveBeenCalledWith(100);
+
+    const handleDecrease = vi.fn();
+    rerender(<PracticeProgress progress={5} onChange={handleDecrease} />);
+    fireEvent.click(screen.getByRole("button", { name: "decreasePracticeProgressLabel" }));
+    expect(handleDecrease).toHaveBeenCalledWith(0);
+  });
+
+  it("changes progress through the Base UI slider keyboard contract", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
-    fireEvent.click(decreaseBtn);
+    const slider = screen.getByRole("slider", { name: "practiceProgressLabel" });
+    await act(async () => {
+      slider.focus();
+      fireEvent.keyDown(slider, { key: "ArrowRight", code: "ArrowRight" });
+    });
 
-    expect(handleChange).toHaveBeenCalledWith(40);
+    expect(handleChange).toHaveBeenCalledWith(51);
   });
 
-  it("does not exceed 100 when increasing", () => {
+  it("keeps 44 CSS px interaction envelopes without making the visible track oversized", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={95} onChange={handleChange} />);
-
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
-    fireEvent.click(increaseBtn);
-
-    expect(handleChange).toHaveBeenCalledWith(100);
-  });
-
-  it("does not go below 0 when decreasing", () => {
-    const handleChange = vi.fn();
-    render(<PracticeProgress progress={5} onChange={handleChange} />);
-
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
-    fireEvent.click(decreaseBtn);
-
-    expect(handleChange).toHaveBeenCalledWith(0);
-  });
-
-  it("calls onChange when slider is changed", () => {
-    const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
-
-    const slider = screen.getByRole("slider");
-    fireEvent.change(slider, { target: { value: "75" } });
-
-    expect(handleChange).toHaveBeenCalledWith(75);
-  });
-
-  it("gives every practice-progress pointer control a 44 CSS px target", () => {
-    const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    const { container } = render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
-    const slider = screen.getByRole("slider");
-    const pointerTarget = slider.parentElement;
+    const slider = screen.getByRole("slider", { name: "practiceProgressLabel" });
+    const thumb = slider.parentElement;
+    const control = container.querySelector('[data-slot="slider-control"]');
+    const track = container.querySelector('[data-slot="slider-track"]');
 
     expect(decreaseBtn).toHaveClass("size-11");
     expect(increaseBtn).toHaveClass("size-11");
-    expect(pointerTarget).not.toBeNull();
-    expect(pointerTarget).toHaveClass("h-11");
-    expect(pointerTarget?.firstElementChild).toHaveClass("h-3");
-    expect(slider).toHaveClass("inset-0", "h-full", "w-full");
+    expect(control).toHaveClass("h-11", "min-h-11");
+    expect(track).toHaveClass("h-3");
+    expect(track).not.toHaveClass("overflow-hidden");
+    expect(thumb).toHaveClass("after:inset-[-12px]");
   });
 
   it("keeps focus on interactive controls instead of the progress region", () => {
@@ -136,24 +125,14 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     expect(screen.getByRole("region", { name: "practiceProgressRegionLabel" })).not.toHaveAttribute("tabindex");
-    expect(screen.getByRole("slider")).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "practiceProgressLabel" })).toBeInTheDocument();
   });
 
-  it("ignores invalid slider input gracefully", () => {
-    const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
-
-    const slider = screen.getByRole("slider");
-    fireEvent.change(slider, { target: { value: "invalid" } });
-
-    expect(handleChange).not.toHaveBeenCalled();
-  });
-
-  it("disables increase button when progress is 100", () => {
+  it("keeps the maximum boundary focusable with a persistent accessible reason", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={100} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
     expect(increaseBtn).not.toHaveAttribute("title");
 
@@ -164,5 +143,6 @@ describe("PracticeProgress", () => {
     const clickEvent = createEvent.click(increaseBtn);
     fireEvent(increaseBtn, clickEvent);
     expect(clickEvent.defaultPrevented).toBe(true);
+    expect(handleChange).not.toHaveBeenCalled();
   });
 });
