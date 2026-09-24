@@ -91,21 +91,8 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  if (Array.isArray(response)) {
-    // Performance: Avoid Array.every() and Uint8Array.from() to prevent O(N) callback overhead
-    // and intermediate array allocations when parsing potentially large PDF byte arrays.
-    const uint8Arr = new Uint8Array(response.length);
-    let allNumbers = true;
-    for (let i = 0; i < response.length; i++) {
-      if (typeof response[i] !== "number") {
-        allNumbers = false;
-        break;
-      }
-      uint8Arr[i] = response[i] as number;
-    }
-    if (allNumbers) {
-      return uint8Arr;
-    }
+  if (Array.isArray(response) && response.every((byte) => typeof byte === "number")) {
+    return Uint8Array.from(response as number[]);
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
