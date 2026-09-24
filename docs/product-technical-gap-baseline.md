@@ -244,6 +244,14 @@ Project Persistence and analysis authority do not imply audible authority. On re
 
 The material UI must prove source selection, play/pause/seek/stop/loop/count-in/rate/cue navigation, source replacement, stale async/media events, persistence/reload, and exact accessible alternatives with actual admitted media.
 
+### 7.4.1 Workspace/GrooveMap canonical composition — 2026-09-25
+
+Buyer-visible Workspace/GrooveMap setup, loading/cancellation truth, localization, role-aware rendering and first-entrance semantics are owned by #910. Exact #910 head `07d9dc86ef5c69957b2bc980950b185e9d4cca76` now carries #1170 exact `be321e36bfe6c34c228c1019674470843e3bb461` as explicit second-parent ancestry with the same tree. Fresh comparison from the successor to #1170 is behind-only with no file delta, so #1170's unique max-offset helper, focused ten-second-floor/non-finite/20-second geometry tests and performance doctoring are completely succeeded into #910 rather than duplicated as a parallel GrooveMap writer.
+
+The max-offset change replaces reducer callback dispatch with an indexed `Math.max` fold but remains O(N). It intentionally preserves the current ten-second floor and `NaN` / positive-infinity behavior until shared transcription timing admission owns stricter input validity. No buyer-visible latency, heap, GC or main-thread improvement is claimed without representative packaged Chromium/Electron profiling with identical rendered output and repeated median/p95 evidence.
+
+This is Draft lineage, not shipped truth. Protected product truth remains `develop@314ddeae7b775a4957594b599358c8255617eb2e`; #910 is stacked on canonical formatter prerequisite #1176 and its current exact head has no repository-owned PR workflow generation. Zero workflow runs are missing evidence, not GREEN. Final acceptance still requires ordinary protected reconciliation, fresh exact-head CI/security/review evidence and the material UI/browser/accessibility evidence required above.
+
 ### 7.5 Signal/MIR model admission and distribution boundary
 
 #970's Draft compatibility path for Demucs local model loading is not release provenance. It rejects missing/non-regular/symlinked/empty/oversized/checksum-mismatched cache objects before resolution, materializes only the preflight descriptor size into a private temporary `LocalRepo`, rejects early EOF or any extra post-`fstat` byte, and resolves locally so mutation/deletion of the original cache pathname cannot change bytes for that load or reactivate `RemoteRepo`.
