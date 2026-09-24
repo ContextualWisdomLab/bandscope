@@ -4,7 +4,6 @@
 
 ### Added
 
-- `@base-ui/react` 기반의 재사용 가능한 Slider UI 컴포넌트를 새롭게 구현하였으며, 연습 진척도(`PracticeProgress`) 컨트롤에 적용하여 접근성과 터치 경험을 개선했습니다.
 - Name tonight's first playable range on the ready rehearsal map and tell the player to check that span on their instrument before the section.
 - Display the analyzed song tempo (BPM) as a badge in the rehearsal workspace.
 - 각 합주 역할(Role)별 개인 연습 진행도를 0~100% 범위로 기록 및 시각화할 수 있는 연습 진척도(`practiceProgress`) 트래커 기능 추가. UI 컨트롤(슬라이더 및 +/- 버튼)과 한/영 다국어 지원 포함.
@@ -40,8 +39,6 @@
 
 ### Added
 
-
-
 - Implemented rehearsal workspace design (Issue #107)
 - Add capo and tuning detection heuristics (Issue #103)
 - Add bandit security scan workflow
@@ -57,8 +54,6 @@
 ## [0.1.0] - 2026-03-27
 
 ### Added
-
-
 
 - Issue #29: Defined core `song -> section -> role` rehearsal domain contracts
 - Issue #38: Added cross-architecture build support (Windows/macOS arm64+amd64)
