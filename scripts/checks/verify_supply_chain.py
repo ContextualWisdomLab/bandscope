@@ -1230,7 +1230,7 @@ def _verify_security_audit_coverage(missing: list[str]) -> None:
     for token in [
         "npm audit --workspaces --audit-level=high",
         "pip-audit --local --strict",
-        "cargo +stable audit",
+        "cargo +1.97.1 audit",
     ]:
         if audit and not any(
             command_contains_token_sequence(command, token) for command in audit_run_commands
