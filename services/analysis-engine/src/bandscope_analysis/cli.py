@@ -90,7 +90,7 @@ def main() -> int:
             try:
                 temporal_analyzer = TemporalAnalyzer()
                 features = temporal_analyzer.analyze(audio_path)
-                logging.info(f"Extracted BPM: {features['bpm']}")
+                logging.info("Extracted BPM: %s", features['bpm'])
             except Exception:
                 logging.warning(
                     "Temporal analysis failed for %s; continuing with safe fallback.",
