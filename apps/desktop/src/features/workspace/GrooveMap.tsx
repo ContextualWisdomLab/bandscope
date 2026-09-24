@@ -6,6 +6,17 @@ import { createTranslator, detectPreferredLocale, fillTranslation } from "../../
 
 const EMPTY_NOTES: TranscriptionNote[] = [];
 
+/** Preserve the former reduction semantics while avoiding reducer callback dispatch. */
+function maximumNoteOffset(notes: readonly TranscriptionNote[]): number {
+  let max = 10;
+  for (let i = 0; i < notes.length; i++) {
+    // Keep Math.max here: shared timing admission does not yet reject every non-finite value.
+    // A simple `>` comparison would therefore silently change NaN handling at this UI boundary.
+    max = Math.max(max, notes[i]!.offset);
+  }
+  return max;
+}
+
 /** Inputs for the selected role's rehearsal groove map. */
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
@@ -20,10 +31,7 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName, onCance
   const renderedNotes = notes ?? EMPTY_NOTES;
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
-  // Find max offset to determine timeline width
-  const maxTime = useMemo(() => {
-    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
-  }, [renderedNotes]);
+  const maxTime = useMemo(() => maximumNoteOffset(renderedNotes), [renderedNotes]);
 
   // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
   const uniquePitches = useMemo(() => {
@@ -144,4 +152,4 @@ function GrooveMapComponent({ notes, isLoading, entranceOnset, roleName, onCance
 
 const GrooveMap = memo(GrooveMapComponent);
 
-export { GrooveMap };
+export { GrooveMap, maximumNoteOffset };
