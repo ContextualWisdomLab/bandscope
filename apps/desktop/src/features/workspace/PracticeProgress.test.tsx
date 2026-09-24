@@ -1,6 +1,7 @@
 import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Mock the i18n functions
 vi.mock("../../i18n", () => ({
@@ -11,14 +12,15 @@ vi.mock("../../i18n", () => ({
 describe("PracticeProgress", () => {
   it("renders with default progress 0 when no progress is provided", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     expect(screen.getByText("0%")).toBeTruthy();
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
-
-    // Check tooltip content exists (it's hidden initially but rendered in the DOM by Radix UI/Base UI sometimes, or we can check the presence of the tooltip content string)
-    // Actually the tooltip content is rendered via Portal but we can check if it exists in document when we interact or just rely on the component integration.
 
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
@@ -27,14 +29,22 @@ describe("PracticeProgress", () => {
 
   it("renders provided progress", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     expect(screen.getByText("50%")).toBeTruthy();
   });
 
   it("calls onChange with increased value when increase button is clicked", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
     fireEvent.click(increaseBtn);
@@ -44,7 +54,11 @@ describe("PracticeProgress", () => {
 
   it("calls onChange with decreased value when decrease button is clicked", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.click(decreaseBtn);
@@ -54,7 +68,11 @@ describe("PracticeProgress", () => {
 
   it("does not exceed 100 when increasing", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={95} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={95} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
     fireEvent.click(increaseBtn);
@@ -64,7 +82,11 @@ describe("PracticeProgress", () => {
 
   it("does not go below 0 when decreasing", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={5} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={5} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.click(decreaseBtn);
@@ -74,7 +96,11 @@ describe("PracticeProgress", () => {
 
   it("calls onChange when slider is changed", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const slider = screen.getByRole("slider");
     fireEvent.change(slider, { target: { value: "75" } });
@@ -84,7 +110,11 @@ describe("PracticeProgress", () => {
 
   it("keeps focus on interactive controls instead of the progress region", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     expect(screen.getByRole("region", { name: "practiceProgressRegionLabel" })).not.toHaveAttribute("tabindex");
     expect(screen.getByRole("slider")).toBeInTheDocument();
@@ -92,7 +122,11 @@ describe("PracticeProgress", () => {
 
   it("ignores invalid slider input gracefully", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const slider = screen.getByRole("slider");
     fireEvent.change(slider, { target: { value: "invalid" } });
@@ -102,12 +136,14 @@ describe("PracticeProgress", () => {
 
   it("disables increase button when progress is 100", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={100} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={100} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
-
-    // Check that we've replaced the native title attribute with Tooltip (no title attr on the button)
     expect(increaseBtn).not.toHaveAttribute("title");
 
     const clickEvent = createEvent.click(increaseBtn);
@@ -117,12 +153,15 @@ describe("PracticeProgress", () => {
 
   it("renders Tooltip components for decrease and increase buttons instead of native titles", () => {
     const handleChange = vi.fn();
-    render(<PracticeProgress progress={50} onChange={handleChange} />);
+    render(
+      <TooltipProvider>
+        <PracticeProgress progress={50} onChange={handleChange} />
+      </TooltipProvider>
+    );
 
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
 
-    // We expect the native title to not be present because we are using Tooltip wrapper
     expect(decreaseBtn).not.toHaveAttribute("title");
     expect(increaseBtn).not.toHaveAttribute("title");
   });

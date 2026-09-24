@@ -52,11 +52,15 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
       <div className="flex items-center gap-4">
         <Tooltip>
           <TooltipTrigger
-            type="button"
-            onClick={handleDecrease}
-            aria-disabled={progress <= 0 ? "true" : undefined}
-            className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-label={t("decreasePracticeProgressLabel")}
+            render={
+              <button
+                type="button"
+                onClick={handleDecrease}
+                aria-disabled={progress <= 0 ? "true" : undefined}
+                className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                aria-label={t("decreasePracticeProgressLabel")}
+              />
+            }
           >
             <Minus className="size-4" aria-hidden="true" />
           </TooltipTrigger>
@@ -85,11 +89,15 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
 
         <Tooltip>
           <TooltipTrigger
-            type="button"
-            onClick={handleIncrease}
-            aria-disabled={progress >= 100 ? "true" : undefined}
-            className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-label={t("increasePracticeProgressLabel")}
+            render={
+              <button
+                type="button"
+                onClick={handleIncrease}
+                aria-disabled={progress >= 100 ? "true" : undefined}
+                className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                aria-label={t("increasePracticeProgressLabel")}
+              />
+            }
           >
             <Plus className="size-4" aria-hidden="true" />
           </TooltipTrigger>
