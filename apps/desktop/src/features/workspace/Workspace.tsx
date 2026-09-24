@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useCallback, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -165,7 +165,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     : t("workspaceFirstRangeMissing");
 
   /** Handle the practice progress change internally by immutably updating the song state. */
-  const handlePracticeProgressChange = (newProgress: number) => {
+  const handlePracticeProgressChange = useCallback((newProgress: number) => {
     if (!activeRole || !onSongUpdate) return;
 
     // Performance: Use shallow copying to avoid expensive structuredClone
@@ -189,7 +189,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     };
 
     onSongUpdate(nextSong);
-  };
+  }, [song, activeRole, onSongUpdate]);
   const collaborationAssignments = useMemo(
     () => (Array.isArray(song.collaboration?.assignments) ? song.collaboration.assignments : []),
     [song.collaboration]
