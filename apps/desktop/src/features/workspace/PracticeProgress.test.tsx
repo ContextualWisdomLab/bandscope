@@ -1,6 +1,7 @@
 import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("../../i18n", () => ({
   createTranslator: () => (key: string) => key,
@@ -59,7 +60,7 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
-    fireEvent.mouseMove(increaseBtn);
+    await userEvent.hover(increaseBtn);
 
     expect(await screen.findByText("increasePracticeProgressLabel")).toBeInTheDocument();
   });
