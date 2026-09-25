@@ -225,7 +225,7 @@ describe("App", () => {
     for (const name of ["Import", "Export"]) {
       const navButton = within(primaryNav).getByRole("button", { name });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
-      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).not.toHaveAttribute("title");
       expect(navButton).not.toBeDisabled();
     }
     fireEvent.click(within(primaryNav).getByRole("button", { name: "Import" }));
@@ -236,7 +236,7 @@ describe("App", () => {
     for (const name of ["Import", "Export"]) {
       const navButton = within(compactNav).getByRole("button", { name: `${name} compact view` });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
-      expect(navButton).toHaveAttribute("title", "Coming soon");
+      expect(navButton).not.toHaveAttribute("title");
       expect(navButton).not.toBeDisabled();
     }
     fireEvent.click(within(compactNav).getByRole("button", { name: "Import compact view" }));
@@ -1139,11 +1139,13 @@ describe("App", () => {
     fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
 
     const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
-    clearButton.focus();
+    act(() => clearButton.focus());
     fireEvent.click(clearButton);
 
     expect(input).toHaveValue("");
-    expect(document.activeElement).toBe(input);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(input);
+    });
     expect(screen.queryByRole("button", { name: /Clear YouTube URL/i })).toBeNull();
     expect(screen.getByRole("alert")).toHaveTextContent(/choose a wav, mp3, flac, or m4a file/i);
     expect(input).not.toHaveAttribute("aria-invalid");
