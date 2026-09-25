@@ -1139,6 +1139,7 @@ describe("App", () => {
     fireEvent.change(input, { target: { value: "https://youtube.com/watch?v=abc123DEF45" } });
 
     const clearButton = screen.getByRole("button", { name: /Clear YouTube URL/i });
+    expect(clearButton).not.toHaveAttribute("title");
     clearButton.focus();
     fireEvent.click(clearButton);
 
@@ -1559,8 +1560,10 @@ describe("App", () => {
     const helpButton = screen.getByRole("button", { name: "Help coming soon" });
     expect(settingsButton).toHaveAttribute("aria-disabled", "true");
     expect(settingsButton).not.toHaveAttribute("disabled");
+    expect(settingsButton).not.toHaveAttribute("title");
     expect(helpButton).toHaveAttribute("aria-disabled", "true");
     expect(helpButton).not.toHaveAttribute("disabled");
+    expect(helpButton).not.toHaveAttribute("title");
   });
 
   it("keeps the Score view disabled until a song is loaded", () => {
