@@ -225,3 +225,36 @@ def test_estimate_downbeats_too_few_beats_returns_first() -> None:
     """Fewer beats than a bar falls back to the first beat as the downbeat."""
     onset = np.ones(50)
     assert _estimate_downbeats(onset, np.array([0, 10]), np.array([0.0, 0.5])) == [0.0]
+
+
+def test_temporal_analyzer_logs_path_safely(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ensure path_str is not leaked when logged to avoid log injection and preserve path-free boundary."""
+    import librosa
+    from unittest.mock import Mock
+    from bandscope_analysis.temporal.analyzer import TemporalAnalyzer
+    import bandscope_analysis.temporal.analyzer as analyzer_module
+
+    fake_logger = Mock()
+    monkeypatch.setattr(analyzer_module, "logger", fake_logger)
+
+    def fake_load(*args, **kwargs):
+        return np.zeros(44100, dtype=float), 44100
+
+    def fake_beat_track(y, sr):
+        return np.array([120.0]), np.array([0])
+
+    monkeypatch.setattr(librosa, "load", fake_load)
+    monkeypatch.setattr(librosa.beat, "beat_track", fake_beat_track)
+    monkeypatch.setattr(librosa, "frames_to_time", lambda frames, sr: np.array([0.0]))
+
+    # Using a path with a newline character to simulate untrusted input
+    test_wav = tmp_path / "test\n_path.wav"
+    test_wav.write_bytes(b"dummy")
+
+    analyzer = TemporalAnalyzer()
+    analyzer.analyze(test_wav)
+
+    # Verify the logger was called without the path
+    fake_logger.info.assert_any_call("Loading and decoding audio")
