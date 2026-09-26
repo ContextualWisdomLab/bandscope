@@ -33,3 +33,27 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 });
+
+  it("handles valid arrays of numbers", async () => {
+    vi.stubGlobal("window", {
+      __TAURI_INTERNALS__: {
+        invoke: async () => [1, 2, 3],
+      },
+    });
+
+    const result = await readScorePdf("project-1", "score-1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result).toEqual(Uint8Array.from([1, 2, 3]));
+  });
+
+  it("throws error when array contains non-numbers", async () => {
+    vi.stubGlobal("window", {
+      __TAURI_INTERNALS__: {
+        invoke: async () => [1, "2", 3],
+      },
+    });
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow(
+      "Invalid score bridge response"
+    );
+  });
