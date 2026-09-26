@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-08-17 - Rejected graph traversal memoization
+**Learning:** Applying a shared DP cache `(node, matched_count)` to a simple-path dependency graph traversal is unsafe because cycles allow a single package instance to satisfy multiple path positions, violating simple-path semantics.
+**Action:** Use path-local tracking (like `frozenset` in the BFS/DFS queue) for strict simple-path verification, even if it incurs higher memory allocation.
