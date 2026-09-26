@@ -128,7 +128,11 @@ class TemporalAnalyzer:
 
             bpm_val = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
 
-            logger.info("Analysis complete: %.1f BPM, %d beats detected.", bpm_val, len(beat_times))
+            logger.info(
+                "Analysis complete: %.1f BPM, %d beats detected.",
+                bpm_val,
+                len(beat_times),
+            )
 
             return {
                 "bpm": bpm_val,
