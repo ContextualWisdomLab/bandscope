@@ -94,16 +94,16 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (Array.isArray(response)) {
     // Performance: massive PDF byte arrays cause significant O(N) main-thread blocking when
     // using .every() callback loops; a native for loop scales much better.
-    let allNumbers = true;
-    for (let i = 0; i < response.length; i++) {
-      if (typeof response[i] !== "number") {
-        allNumbers = false;
-        break;
+    const length = response.length;
+    const bytes = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+      const byte = response[i];
+      if (typeof byte !== "number") {
+        throw new Error(INVALID_RESPONSE_MESSAGE);
       }
+      bytes[i] = byte;
     }
-    if (allNumbers) {
-      return Uint8Array.from(response as number[]);
-    }
+    return bytes;
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
