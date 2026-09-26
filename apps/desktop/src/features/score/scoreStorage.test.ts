@@ -33,3 +33,34 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 });
+
+describe("readScorePdf", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    const tauriWindow = window as TauriWindow;
+    delete tauriWindow.__TAURI_INTERNALS__;
+    delete tauriWindow.__TAURI_INVOKE__;
+  });
+
+  it("parses IPC numeric array response correctly", async () => {
+    const mockInvoke = vi.fn().mockResolvedValue([1, 2, 3]);
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INTERNALS__ = {};
+    tauriWindow.__TAURI_INVOKE__ = mockInvoke;
+
+    const result = await readScorePdf("project-1", "score-1");
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result.length).toBe(3);
+    expect(result[0]).toBe(1);
+    expect(result[2]).toBe(3);
+  });
+
+  it("throws on invalid array elements", async () => {
+    const mockInvoke = vi.fn().mockResolvedValue([1, "two", 3]);
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INTERNALS__ = {};
+    tauriWindow.__TAURI_INVOKE__ = mockInvoke;
+
+    await expect(readScorePdf("project-1", "score-1")).rejects.toThrow("Invalid score bridge response");
+  });
+});
