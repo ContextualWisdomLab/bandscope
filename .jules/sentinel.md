@@ -28,3 +28,8 @@
 **Vulnerability:** The Rust backend (`apps/desktop/src-tauri/src/main.rs`) did not enforce a maximum URL length limit when processing YouTube URLs via `import_youtube_url`. While the frontend enforced `MAX_YOUTUBE_URL_LENGTH = 2000` via the input element, this could be bypassed by an attacker sending requests directly to the Tauri backend API, potentially causing a Denial of Service (DoS) due to unbounded URL parsing and regex matching.
 **Learning:** Input validation must occur at the entry point of untrusted data on the backend, even if it is also validated on the frontend. Relying solely on frontend validation for constraints like string length can expose the backend to resource exhaustion vulnerabilities.
 **Prevention:** Always enforce constraints like maximum length, format validation, and sanitization at the earliest possible point on the backend, typically at the API boundary, regardless of frontend safeguards.
+
+## 2024-05-23 - 파이썬 로거 입력값 검증 (Python Logger Input Sanitization)
+**Vulnerability:** 신뢰할 수 없는 사용자 입력값이 직접 `logger` 문자열 보간(string interpolation)에 전달되었습니다.
+**Learning:** 경로, URL, 크기 같은 신뢰할 수 없는 데이터를 검증 없이 로깅하면 공격자가 줄바꿈 문자(`\n`, `\r`)를 주입하여 임의의 로그 항목을 위조할 수 있으며, 이는 감사 회피 및 혼란을 야기할 수 있습니다.
+**Prevention:** 로그 주입을 방지하기 위해 표준 지연 문자열 보간법(예: `logger.info("msg %s", var)`)을 사용하고, 제어 문자가 포함될 수 있는 입력값은 `repr()`로 감싸 자동으로 이스케이프 처리해야 합니다.
