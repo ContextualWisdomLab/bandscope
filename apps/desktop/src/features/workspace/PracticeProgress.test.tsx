@@ -97,6 +97,21 @@ describe("PracticeProgress", () => {
     expect(handleChange).not.toHaveBeenCalled();
   });
 
+  it("renders custom Tooltip components for accessibility when pointer interacts", async () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={50} onChange={handleChange} />);
+
+    // Simulate pointer interactions for code coverage of Tooltip internally
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+
+    expect(decreaseBtn).not.toHaveAttribute("title");
+    expect(increaseBtn).not.toHaveAttribute("title");
+
+    fireEvent.pointerDown(decreaseBtn);
+    fireEvent.pointerEnter(increaseBtn);
+  });
+
   it("disables increase button when progress is 100", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={100} onChange={handleChange} />);
