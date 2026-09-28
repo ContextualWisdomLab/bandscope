@@ -108,4 +108,15 @@ describe("PracticeProgress", () => {
     fireEvent(increaseBtn, clickEvent);
     expect(clickEvent.defaultPrevented).toBe(true);
   });
+
+  it("does not use native title attributes for tooltips", () => {
+    const handleChange = vi.fn();
+    render(<PracticeProgress progress={50} onChange={handleChange} />);
+
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+
+    expect(decreaseBtn).not.toHaveAttribute("title");
+    expect(increaseBtn).not.toHaveAttribute("title");
+  });
 });
