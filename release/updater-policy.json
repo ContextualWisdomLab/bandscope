@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "state": "blocked",
+  "channel": "stable",
+  "minimumSupportedVersion": "0.1.3",
+  "publicKey": null,
+  "endpoints": [],
+  "reason": "Organization-approved updater signing public key and immutable HTTPS release endpoint are not provisioned."
+}
