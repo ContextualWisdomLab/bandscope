@@ -16,7 +16,7 @@
 ## 2024-05-18 - Avoid sequence of stat calls
 
 **Learning:** When checking for multiple potential file extensions in Python on networked/slower file systems, running multiple `os.path.exists()` in a loop creates significant overhead (N round trips).
-**Action:** Replace sequential `exists` calls with a single `glob.iglob(glob.escape(base) + ".*")` check coupled with `endswith()`. Use `glob.escape()` to avoid unintended regex expansion of characters like `[]` in directory names.
+**Action:** Replace sequential `exists` calls with a single `glob.iglob(glob.escape(base) + ".*")` check coupled with `endswith()`. Use `glob.escape()` to avoid unintended regex expansion of characters like `` in directory names.
 
 ## 2024-05-24 - RoleExtractor Loop N+1 Performance Optimization
 
@@ -42,9 +42,9 @@
 **Learning:** Using `Array.from(map.values()).map(...)` creates an unnecessary intermediate array which wastes memory allocation and garbage collection time, particularly for frequently re-rendered components handling large collections.
 **Action:** Use a `for...of` loop over `map.values()` to iterate and push mapped elements directly into the final array for O(1) memory and avoiding intermediate array allocations.
 
-## 2026-07-09 - [Array density check optimization]
-**Learning:** [Using Array.from().every() to check for array density creates O(N) intermediate array allocations which add unnecessary garbage collection overhead on the critical path.]
-**Action:** [Use a standard for-loop with an early return (i in value) for an O(1) memory and faster check.]
+## 2026-07-09 - Array density check optimization
+**Learning:** Using Array.from().every() to check for array density creates O(N) intermediate array allocations which add unnecessary garbage collection overhead on the critical path.
+**Action:** Use a standard for-loop with an early return (i in value) for an O(1) memory and faster check.
 
 ## 2026-07-08 - Vectorize SSM novelty extraction
 **Learning:** Extracting checkerboard kernel responses one diagonal window at a time repeats Python slicing and summation overhead for every SSM frame.
@@ -56,8 +56,12 @@
 
 ## 2024-07-12 - Vectorize Python nested loops in dynamic programming
 **Learning:** Inner loops over state dimensions in Viterbi decoding are extremely slow in pure Python.
-**Action:** Use NumPy broadcasting (e.g. `viterbi[:, t - 1, np.newaxis] + log_trans`) to vectorize the inner loop, converting O(N*M) Python loops into O(N) Python loops with fast C-level operations.
+**Action:** Use NumPy broadcasting (e.g. `viterbi:, t - 1, np.newaxis + log_trans`) to vectorize the inner loop, converting O(N*M) Python loops into O(N) Python loops with fast C-level operations.
 
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-11-20 - Array type check overhead on large byte buffers
+**Learning:** Using `Array.prototype.every()` on large incoming payloads (e.g. megabytes of PDF bytes from Tauri IPC) results in heavy O(N) functional callback allocation and overhead. Replacing it with an imperative `for` loop provides meaningful speedups and prevents long main thread blocking.
+**Action:** Prefer classic loops with early exit instead of higher-order array methods when checking huge numeric byte buffers in critical serialization paths.
