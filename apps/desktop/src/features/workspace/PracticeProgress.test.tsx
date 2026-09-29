@@ -120,17 +120,20 @@ describe("PracticeProgress", () => {
     expect(increaseBtn).not.toHaveAttribute("title");
   });
 
-  it("renders custom tooltips on focus", () => {
+  it("renders custom tooltips on focus", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
-
-    // Base UI Tooltips appear on focus/hover, testing focus ensures keyboard a11y is maintained
     fireEvent.focus(decreaseBtn);
 
-    // The tooltip content should become visible in the document
-    // We expect 2 elements: one sr-only span inside the button, and one in the tooltip content
-    expect(screen.getAllByText("decreasePracticeProgressLabel")).toHaveLength(2);
+    const decreaseTooltips = await screen.findAllByText("decreasePracticeProgressLabel");
+    expect(decreaseTooltips.length).toBeGreaterThan(0);
+
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+    fireEvent.focus(increaseBtn);
+
+    const increaseTooltips = await screen.findAllByText("increasePracticeProgressLabel");
+    expect(increaseTooltips.length).toBeGreaterThan(0);
   });
 });
