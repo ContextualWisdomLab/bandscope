@@ -4,4 +4,4 @@
 
 ## 2024-09-28 - Replace native title attributes with accessible Tooltip components on icon-only buttons
 **Learning:** 네이티브 HTML `title` 속성은 키보드 및 터치 지원이 부족하여 많은 사용자에게 접근하기 어려우며, 특히 `aria-disabled="true"`가 적용된 아이콘 버튼에서는 더욱 그렇습니다.
-**Action:** 인터랙티브 요소의 네이티브 `title` 속성을 커스텀 `@/components/ui/tooltip` 래퍼로 교체합니다. `TooltipTrigger`를 버튼으로 사용할 때 `asChild` 속성을 사용하여 시맨틱한 마크업을 유지하고, `aria-label`을 직접 버튼에 유지하여 스크린 리더 중복을 방지합니다.
+**Action:** 인터랙티브 요소의 네이티브 `title` 속성을 커스텀 `@/components/ui/tooltip` 래퍼로 교체합니다. 하이드레이션 경고를 방지하기 위해 `asChild` 속성을 생략하고 버튼의 속성을 `TooltipTrigger`에 직접 전달하며, 스크린 리더 중복을 방지하기 위해 `aria-label`을 유지합니다.

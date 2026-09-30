@@ -50,7 +50,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
       </div>
 
       <div className="flex items-center gap-4">
-        <Tooltip delay={0}>
+        <Tooltip>
           <TooltipTrigger
             type="button"
             onClick={handleDecrease}
@@ -83,7 +83,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           />
         </div>
 
-        <Tooltip delay={0}>
+        <Tooltip>
           <TooltipTrigger
             type="button"
             onClick={handleIncrease}
