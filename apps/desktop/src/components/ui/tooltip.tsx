@@ -10,9 +10,9 @@ function TooltipProvider(props: TooltipPrimitive.Provider.Props) {
 }
 
 /** Render a tooltip root, wrapping its trigger and content. */
-function Tooltip(props: TooltipPrimitive.Root.Props) {
+function Tooltip({ delay, closeDelay, timeout, ...props }: TooltipPrimitive.Root.Props & TooltipPrimitive.Provider.Props) {
   return (
-    <TooltipProvider>
+    <TooltipProvider delay={delay} closeDelay={closeDelay} timeout={timeout}>
       <TooltipPrimitive.Root {...props} />
     </TooltipProvider>
   )
@@ -27,12 +27,13 @@ function TooltipTrigger(props: TooltipPrimitive.Trigger.Props) {
 function TooltipContent({
   className,
   sideOffset = 4,
+  side,
   children,
   ...props
-}: TooltipPrimitive.Popup.Props & { sideOffset?: number }) {
+}: TooltipPrimitive.Popup.Props & { sideOffset?: number; side?: "top" | "bottom" | "left" | "right" | "inline-end" | "inline-start" }) {
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Positioner sideOffset={sideOffset} className="z-50">
+      <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset} className="z-50">
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
