@@ -1,6 +1,7 @@
 import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PracticeProgress } from "./PracticeProgress";
+import userEvent from "@testing-library/user-event";
 
 // Mock the i18n functions
 vi.mock("../../i18n", () => ({
@@ -29,21 +30,27 @@ describe("PracticeProgress", () => {
     expect(screen.getByText("50%")).toBeTruthy();
   });
 
-  it("calls onChange with increased value when increase button is clicked", () => {
+  it("calls onChange with increased value when increase button is clicked", async () => {
+    const user = userEvent.setup();
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+    await user.hover(increaseBtn);
+    expect(await screen.findByText("increasePracticeProgressLabel")).toBeInTheDocument();
     fireEvent.click(increaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(60);
   });
 
-  it("calls onChange with decreased value when decrease button is clicked", () => {
+  it("calls onChange with decreased value when decrease button is clicked", async () => {
+    const user = userEvent.setup();
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
     const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    await user.hover(decreaseBtn);
+    expect(await screen.findByText("decreasePracticeProgressLabel")).toBeInTheDocument();
     fireEvent.click(decreaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(40);
