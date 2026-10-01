@@ -53,3 +53,10 @@ Score PDF bytes remain untrusted input. This repair does not widen accepted type
 ## 2026-10-01 — independent review repair
 
 CodeRabbit correctly found that the original `TAURI_INTERNALS` regression swallowed every failure. The repair mocks the statically imported Tauri invoke boundary, removes the catch, and asserts both the resolved attachment and exact command arguments. Documentation now states that both validation forms are synchronous O(N) scans and makes the optimization contingent on representative measurement.
+
+## 2026-10-01 — exact-head formatter RCA
+
+- Evidence: CI run 36834621672, job 110279214152 reached the repository quickcheck and failed only at `ruff format --check src tests`; `tests/test_supply_chain_policy.py` would be reformatted.
+- Root cause: the urllib3 regression test added at head `7e2d7a2d3fc5d533f245ca00285b4f75fad3fb7b` had only one blank line between top-level tests.
+- Repair: commit `79ccc874bd6fbcc60c00050b935e73f5f9e43228` applies the canonical Ruff separation without changing the dependency contract or test assertions.
+- Status: repaired; fresh exact-head checks remain required. Predecessor success, skipped CodeQL, and in-progress platform builds are not promotion evidence.
