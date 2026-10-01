@@ -87,3 +87,18 @@ CodeRabbit correctly found that the original `TAURI_INTERNALS` regression swallo
 - Root cause: both exact logs reported distribution download/extraction I/O failure caused by the same 30-second `UV_HTTP_TIMEOUT`, but at different packages and platforms. This is provider/network transience, not evidence of a lock or platform compatibility defect.
 - Action: rerun only failed jobs without changing dependencies, samples, gates, or timeout policy. That rerun was later cancelled/superseded when the third writer advanced the PR head, so it is not GREEN evidence.
 - Status: fresh exact-current-head platform builds remain required.
+
+
+## 2026-10-01 — fourth writer and verified successor transfer
+
+- Evidence: fast-forward commit `5663aef11576c229a28bf314763138342f0a4d9b` on the original PR branch repeated the same eight-path rollback, including deletion of this baseline and removal of the patched direct dependency floor and source/lock regression contract.
+- Direct-repair limit: four complete ordinary restorations were overwritten on the original branch even after Draft isolation. This proves the branch is not a stable single-writer integration boundary.
+- Successor decision: branch `repair/pr-1276-stable-successor` starts exactly at validated commit `785260ba9878bcca18b6b8b4227d8db9c70ce98b`, whose comparison with `8df35be2a03a8232ffaa36cc58f1d5659ecc5588` contains only the 15-line third-writer/build RCA addition. Every valid product, test, dependency, lock, CHANGELOG, and documentation delta is therefore carried forward without copying from a temporary owner source.
+- Preservation: PR #1276 remains open and Draft; it is not closed or treated as completed. Retirement is forbidden until the successor is independently verified and merged with complete equivalence.
+
+## 2026-10-01 — delayed predecessor rerun cancellation RCA
+
+- Evidence: delayed predecessor/intermediate attempts entered the existing per-PR concurrency groups after a head move and cancelled current-head CI run `36838351532` and build-baseline run `36838351175`. Successful steps inside a cancelled job are not terminal GREEN evidence.
+- Root cause: runner allocation occurred after concurrent fast-forwards. The workflow groups are separated by `github.workflow`; this is stale-revision admission within each workflow, not cross-workflow key collision.
+- Operational contract: re-fetch the live PR head immediately before every rerun, never rerun a predecessor after the head moves, and after writer quiescence trigger only one fresh current-head validation lane. Delayed predecessor/intermediate runs remain evidence-preserved but non-authoritative.
+- Status: fresh Checks on the stable successor head are required; no cancelled or predecessor result is promoted.
