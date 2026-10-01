@@ -1,5 +1,10 @@
+import { invoke } from "@tauri-apps/api/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { attachScorePdf, readScorePdf, removeScorePdf } from "./scoreStorage";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn()
+}));
 
 type TauriWindow = Window & {
   __TAURI_INTERNALS__?: unknown;
@@ -135,6 +140,7 @@ describe("getInvoke internals", () => {
     const tauriWindow = window as TauriWindow;
     delete tauriWindow.__TAURI_INTERNALS__;
     delete tauriWindow.__TAURI_INVOKE__;
+    vi.mocked(invoke).mockReset();
   });
 
   it("handles TAURI_INTERNALS mock without proper shape", async () => {
@@ -145,20 +151,20 @@ describe("getInvoke internals", () => {
   });
 
   it("handles TAURI_INTERNALS mock correctly", async () => {
-    const mockInvoke = vi.fn().mockResolvedValue({ scoreId: "sc1", fileName: "f.pdf", fileSizeBytes: 100 });
+    const mockInvoke = vi.mocked(invoke);
+    mockInvoke.mockResolvedValue({ scoreId: "sc1", fileName: "f.pdf", fileSizeBytes: 100 });
     const tauriWindow = window as TauriWindow;
     tauriWindow.__TAURI_INTERNALS__ = { invoke: mockInvoke };
 
-    // We expect this to use TAURI_INTERNALS.invoke correctly by intercepting the native module,
-    // but in our test environment (Vitest), we just want to ensure it calls it.
-    // Because `invoke` is statically imported from `@tauri-apps/api/core` at the top of the file,
-    // mocking `window.__TAURI_INTERNALS__.invoke` alone doesn't actually override the imported `invoke` reference
-    // unless Tauri's API natively reads from it. However, covering the branch is enough for now.
-    try {
-      await attachScorePdf("project-1", "song-1");
-    } catch {
-      // ignore
-    }
+    await expect(attachScorePdf("project-1", "song-1")).resolves.toEqual({
+      id: "sc1",
+      fileName: "f.pdf",
+      fileSizeBytes: 100
+    });
+    expect(mockInvoke).toHaveBeenCalledWith("attach_score_pdf", {
+      projectId: "project-1",
+      songId: "song-1"
+    });
   });
 });
 
