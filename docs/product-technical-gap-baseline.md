@@ -58,5 +58,5 @@ CodeRabbit correctly found that the original `TAURI_INTERNALS` regression swallo
 
 - Evidence: CI run 36834621672, job 110279214152 reached the repository quickcheck and failed only at `ruff format --check src tests`; `tests/test_supply_chain_policy.py` would be reformatted.
 - Root cause: the urllib3 regression test added at head `7e2d7a2d3fc5d533f245ca00285b4f75fad3fb7b` had only one blank line between top-level tests.
-- Repair: commit `79ccc874bd6fbcc60c00050b935e73f5f9e43228` applies the canonical Ruff separation without changing the dependency contract or test assertions.
-- Status: repaired; fresh exact-head checks remain required. Predecessor success, skipped CodeQL, and in-progress platform builds are not promotion evidence.
+- Repair: commit `79ccc874bd6fbcc60c00050b935e73f5f9e43228` restored top-level separation; CI `36835015610`, job `110280400315` proved the file still differed from the pinned Ruff 0.15.5/100-column output. Commit `c2073b8b2d6be0d6717b69d49f6e58fae226f837` applies that exact formatter output without changing the dependency contract or assertions.
+- Status: repaired from the exact log and pinned formatter; fresh exact-head checks remain required. Predecessor success, skipped CodeQL, and in-progress platform builds are not promotion evidence.
