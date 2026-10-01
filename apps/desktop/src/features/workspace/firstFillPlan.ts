@@ -29,6 +29,7 @@ export type FirstFillPlan = {
   holdingRoleName: string;
   fillPlan: string;
   atSeconds: number;
+  displayName: string;
 };
 
 /** Format a non-negative fill-plan time as m:ss for rehearsal copy. */
@@ -295,19 +296,20 @@ function resolveSafeFirstFillPlan(song: RehearsalSong): FirstFillPlan | null {
       if (!fillPlan) {
         return [];
       }
-      return [
-        {
-          section: section as RehearsalSection,
-          sectionId,
-          sectionLabel: sectionLabel as RehearsalSection["label"],
-          sectionIndex,
-          holdingRole: holdingRole.role,
-          holdingRoleId: holdingRole.id,
-          holdingRoleName: holdingRole.name,
-          fillPlan,
-          atSeconds: timeRange.start
-        }
-      ];
+        return [
+          {
+            section: section as RehearsalSection,
+            sectionId,
+            sectionLabel: sectionLabel as RehearsalSection["label"],
+            sectionIndex,
+            holdingRole: holdingRole.role,
+            holdingRoleId: holdingRole.id,
+            holdingRoleName: holdingRole.name,
+            fillPlan,
+            atSeconds: timeRange.start,
+            displayName: `${holdingRole.name} ${fillPlan} ${sectionLabel} ${formatFillPlanTime(timeRange.start)}`
+          }
+        ];
     })
     .sort((left, right) => {
       if (left.atSeconds !== right.atSeconds) {
