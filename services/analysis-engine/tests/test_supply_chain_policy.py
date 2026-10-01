@@ -1275,9 +1275,7 @@ def test_workflow_concurrency_cancels_only_superseded_pr_heads() -> None:
         workflow = (workflows_dir / workflow_name).read_text(encoding="utf-8")
         assert "concurrency:" in workflow, workflow_name
         assert "cancel-in-progress: false" in workflow, workflow_name
-        assert "contents: read" in workflow or "permissions: read-all" in workflow, (
-            workflow_name
-        )
+        assert "contents: read" in workflow or "permissions: read-all" in workflow, workflow_name
 
     assert "pull_request:" not in (workflows_dir / "release.yml").read_text(encoding="utf-8")
 
@@ -5131,3 +5129,16 @@ def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
     assert_local_review_workflows_removed()
     assert "Strix evidence lookup" in policy
     assert "Actions read access" in policy
+
+
+def test_python_http_dependency_uses_patched_floor_and_lock() -> None:
+    """Ensure the declared urllib3 floor and resolved lock stay above known advisories."""
+    repo_root = Path(__file__).resolve().parents[3]
+    pyproject_text = (repo_root / "services" / "analysis-engine" / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    lock_text = (repo_root / "services" / "analysis-engine" / "uv.lock").read_text(encoding="utf-8")
+
+    assert '"urllib3>=2.8.0"' in pyproject_text
+    assert '{ name = "urllib3", specifier = ">=2.8.0" }' in lock_text
+    assert 'name = "urllib3"\nversion = "2.8.0"' in lock_text
