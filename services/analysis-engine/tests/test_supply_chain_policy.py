@@ -5130,6 +5130,7 @@ def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
     assert "Strix evidence lookup" in policy
     assert "Actions read access" in policy
 
+
 def test_python_http_dependency_uses_patched_floor_and_lock() -> None:
     """Ensure the declared urllib3 floor and resolved lock stay above known advisories."""
     repo_root = Path(__file__).resolve().parents[3]
