@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-11-20 - 대용량 바이트 버퍼에서의 Array 타입 체크 오버헤드 최적화
+**Learning:** 큰 페이로드(예: Tauri IPC로부터 수신되는 수 메가바이트의 PDF 바이트)에서 `Array.prototype.every()`를 사용하면 O(N)의 함수형 콜백 할당 및 오버헤드가 발생합니다. 이를 명령형 `for` 루프로 교체하면 메인 스레드 블로킹을 방지하고 유의미한 속도 향상을 얻을 수 있습니다.
+**Action:** 중요한 직렬화 경로에서 거대한 숫자 바이트 버퍼를 검사할 때는 고차 배열 메서드 대신 빠른 종료(early exit)가 가능한 전통적인 루프를 선호해야 합니다.

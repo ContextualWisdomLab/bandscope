@@ -91,8 +91,19 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  if (Array.isArray(response) && response.every((byte) => typeof byte === "number")) {
-    return Uint8Array.from(response as number[]);
+  // 성능 향상: 큰 바이트 버퍼에서 Array.prototype.every() 오버헤드 방지
+  // 명령형 for 루프를 사용하여 수 메가바이트의 데이터에 대한 콜백 할당을 방지합니다.
+  if (Array.isArray(response)) {
+    let isAllNumbers = true;
+    for (let i = 0; i < response.length; i++) {
+      if (typeof response[i] !== "number") {
+        isAllNumbers = false;
+        break;
+      }
+    }
+    if (isAllNumbers) {
+      return Uint8Array.from(response as number[]);
+    }
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
