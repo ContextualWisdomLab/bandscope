@@ -33,3 +33,30 @@ describe("scoreStorage bridge resolution", () => {
     );
   });
 });
+
+  it("handles Uint8Array payload correctly", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+    const result = await readScorePdf("p1", "s1");
+    expect(result).toBeInstanceOf(Uint8Array);
+  });
+
+  it("handles ArrayBuffer payload correctly", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue(new ArrayBuffer(3));
+    const result = await readScorePdf("p1", "s1");
+    expect(result).toBeInstanceOf(Uint8Array);
+  });
+
+  it("handles number array payload correctly", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, 2, 3]);
+    const result = await readScorePdf("p1", "s1");
+    expect(result).toBeInstanceOf(Uint8Array);
+  });
+
+  it("throws error for non-number array payload", async () => {
+    const tauriWindow = window as TauriWindow;
+    tauriWindow.__TAURI_INVOKE__ = vi.fn().mockResolvedValue([1, "two", 3]);
+    await expect(readScorePdf("p1", "s1")).rejects.toThrow("Invalid score bridge response");
+  });
