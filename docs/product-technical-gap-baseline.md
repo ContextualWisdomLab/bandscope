@@ -72,3 +72,18 @@ CodeRabbit correctly found that the original `TAURI_INTERNALS` regression swallo
 - Evidence: fast-forward commit `fa1c477c5516ec47004b28fddd178c2731e37c9e` repeated the same eight-path security, contract, review, and documentation rollback after the first restoration.
 - Control: the PR was moved to Draft before the second restoration so the not-ready branch keeps all valid history while automated writers and reviewers stop treating it as merge-admissible.
 - Restoration: the eight validated paths from `347cf973628e351bd59a3b0b77889080666ba708` are restored by ordinary commits. Promotion remains blocked until the head stays stable and fresh checks complete; Draft, cancellation, and predecessor results are not GREEN.
+
+
+## 2026-10-01 — third repeated writer regression
+
+- Evidence: fast-forward commit `e616968854bdce234f275018bf62862943684f75` again reverted the same eight validated security, lock, contract, review, CHANGELOG, and RCA paths after the PR had already been moved to Draft.
+- Exact consequence: Security run [36837466501](https://github.com/ContextualWisdomLab/bandscope/actions/runs/36837466501) failed after urllib3 2.7.0 was restored and the 2.8.0 source/lock regression contract was removed.
+- Integration decision: preserve `e616968854bdce234f275018bf62862943684f75` in ordinary history and restore every validated path from `8df35be2a03a8232ffaa36cc58f1d5659ecc5588`. The restoration commits begin at `118630eae9c4d59656dbd02b1ed6b483179942f1`; no force push, destructive rebase, Close, or valid-delta disposal is used.
+- Status: restored and still Draft. Fresh exact-head Checks are required because all predecessor results are non-authoritative for the new head.
+
+## 2026-10-01 — predecessor platform-build network RCA
+
+- Evidence on predecessor head `8df35be2a03a8232ffaa36cc58f1d5659ecc5588`: build-baseline run [36836773312](https://github.com/ContextualWisdomLab/bandscope/actions/runs/36836773312), Windows amd64 job `110286308773` failed extracting the torch 2.12.1 wheel and macOS arm64 job `110286308666` failed extracting charset-normalizer 3.4.6.
+- Root cause: both exact logs reported distribution download/extraction I/O failure caused by the same 30-second `UV_HTTP_TIMEOUT`, but at different packages and platforms. This is provider/network transience, not evidence of a lock or platform compatibility defect.
+- Action: rerun only failed jobs without changing dependencies, samples, gates, or timeout policy. That rerun was later cancelled/superseded when the third writer advanced the PR head, so it is not GREEN evidence.
+- Status: fresh exact-current-head platform builds remain required.
