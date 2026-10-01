@@ -39,3 +39,12 @@ The minimal repair uses an optional catch binding (`catch {}`). It changes no ru
 ## Security Notes
 
 Score PDF bytes remain untrusted input. This repair does not widen accepted types, add a network path, alter the Tauri IPC trust boundary, or suppress validation errors. Invalid bridge responses continue to fail closed. Pending, queued, skipped, cancelled, and predecessor results are not passing evidence.
+
+
+## 2026-10-01 — urllib3 exact-head Security RCA
+
+- RED exact head: `d5f8fa53d149fe6fd99cb2e5aa27bdb942e7156c`
+- RED evidence: [Security 36834013648 / Trivy 110276991854](https://github.com/ContextualWisdomLab/bandscope/actions/runs/36834013648/job/110276991854)
+- Findings: CVE-2026-97687 and CVE-2026-97689 (HIGH), CVE-2026-97688 (MEDIUM) in `services/analysis-engine/uv.lock` at urllib3 2.7.0.
+- Repair: declare urllib3 `>=2.8.0`, resolve the published 2.8.0 sdist/wheel with hashes, and bind both source floor and lock selection in a repository regression test.
+- Status: implemented; fresh exact-head Security and complete product checks required. No advisory ignore, scanner suppression, or stale-head promotion is used.
