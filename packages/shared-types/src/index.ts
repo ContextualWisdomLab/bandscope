@@ -125,7 +125,7 @@ export type ManualOverride =
     source: "user";
   };
 
-/** Documented. */
+/** An active rehearsal role as surfaced on one section of tonight's map. */
 export type RehearsalRole = {
   id: string;
   name: string;
@@ -139,6 +139,8 @@ export type RehearsalRole = {
   simplification: string;
   setupNote: string;
   transpositionPlan?: string;
+  /** Optional activity-backed guidance shown for this role in this section; absent when the engine has no fillPlan for it. */
+  fillPlan?: string;
   manualOverrides: ManualOverride[];
   overlapWarnings: string[];
   transcription?: TranscriptionNote[];
@@ -407,6 +409,48 @@ function isOneOf<T extends string>(options: readonly T[], value: unknown): value
   return typeof value === "string" && options.includes(value as T);
 }
 
+/** Return whether a code point is in the cross-language plan whitespace set. */
+function isPlanWhitespaceCodePoint(codePoint: number): boolean {
+  return (
+    (codePoint >= 0x0009 && codePoint <= 0x000d) ||
+    codePoint === 0x0020 ||
+    codePoint === 0x0085 ||
+    codePoint === 0x00a0 ||
+    codePoint === 0x1680 ||
+    (codePoint >= 0x2000 && codePoint <= 0x200a) ||
+    codePoint === 0x2028 ||
+    codePoint === 0x2029 ||
+    codePoint === 0x202f ||
+    codePoint === 0x205f ||
+    codePoint === 0x3000 ||
+    codePoint === 0xfeff
+  );
+}
+
+/** Apply one explicit cross-language Unicode whitespace policy to plan text. */
+export function isNonEmptySingleLineText(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+  let hasNonWhitespace = false;
+  for (const character of value) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint === 0x000a ||
+      codePoint === 0x000d ||
+      codePoint === 0x0085 ||
+      codePoint === 0x2028 ||
+      codePoint === 0x2029
+    ) {
+      return false;
+    }
+    if (!isPlanWhitespaceCodePoint(codePoint)) {
+      hasNonWhitespace = true;
+    }
+  }
+  return hasNonWhitespace;
+}
+
 /** Documented. */
 function invalidField(path: string): string {
   return `Invalid rehearsal song contract: invalid field '${path}'`;
@@ -474,6 +518,7 @@ const demoRehearsalSongSeed: RehearsalSong = {
           simplification: "Stay on roots if the chorus entrance gets muddy.",
           setupNote: "Keep the attack short so the verse breathes.",
           transpositionPlan: "If the singer drops to B minor, keep the shape a whole step lower and let keys keep the color tones.",
+          fillPlan: "Walk eight notes into the chorus downbeat; leave the vocal pickup empty.",
           manualOverrides: [],
           overlapWarnings: [
             "Density warning: competing with Keyboard Left Hand in low register."
@@ -1497,6 +1542,7 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
       "simplification",
       "setupNote",
       "transpositionPlan",
+      "fillPlan",
       "manualOverrides",
       "overlapWarnings",
       "transcription",
@@ -1551,6 +1597,9 @@ function validateRehearsalRole(value: unknown, path: string): string | null {
   }
   if (value.transpositionPlan !== undefined && typeof value.transpositionPlan !== "string") {
     return invalidField(`${path}.transpositionPlan`);
+  }
+  if (value.fillPlan !== undefined && !isNonEmptySingleLineText(value.fillPlan)) {
+    return invalidField(`${path}.fillPlan`);
   }
   if (!isDenseArray(value.manualOverrides)) {
     return invalidField(`${path}.manualOverrides`);

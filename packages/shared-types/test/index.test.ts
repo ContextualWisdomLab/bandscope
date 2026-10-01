@@ -738,6 +738,7 @@ describe("shared type helpers", () => {
     expect(song.sections[0]?.roles[2]?.harmony?.source).toBe("model");
     expect(song.sections[0]?.roles[0]?.harmonicExplanation).toContain("tonal floor");
     expect(song.sections[0]?.roles[0]?.transpositionPlan).toContain("whole step lower");
+    expect(song.sections[0]?.roles[0]?.fillPlan).toContain("chorus downbeat");
     expect(song.collaboration?.assignments).toHaveLength(2);
     expect(song.collaboration?.comments[0]?.status).toBe("open");
     expect(song.sections[0]?.roles[2]?.manualOverrides?.[0]).toMatchObject({
@@ -761,6 +762,30 @@ describe("shared type helpers", () => {
     expect(second.sections[0]?.roles).not.toBe(first.sections[0]?.roles);
     expect(second.sections[0]?.roles[2]?.manualOverrides).toHaveLength(1);
     expect(second.collaboration?.assignments).toHaveLength(2);
+  });
+
+  it("keeps optional fill plans aligned with Rust project loading", () => {
+    for (const fillPlan of [
+      "",
+      "   ",
+      "\uFEFF",
+      "\u0085",
+      "fill here\nthen move",
+      "fill here\rthen move",
+      "fill here\u0085then move",
+      "fill here\u2028then move",
+      "fill here\u2029then move"
+    ]) {
+      const song = createDemoRehearsalSong();
+      song.sections[0]!.roles[0]!.fillPlan = fillPlan;
+
+      expect(isRehearsalSong(song)).toBe(false);
+      expect(() => parseRehearsalSong(song)).toThrow("sections[0].roles[0].fillPlan");
+    }
+
+    const paddedPlan = createDemoRehearsalSong();
+    paddedPlan.sections[0]!.roles[0]!.fillPlan = "\uFEFF Fill the string \uFEFF";
+    expect(isRehearsalSong(paddedPlan)).toBe(true);
   });
 
   it("validates and parses rehearsal song payloads", () => {
@@ -1255,6 +1280,12 @@ describe("shared type helpers", () => {
         message: "sections[0].roles[0].transpositionPlan",
         payload: createInvalidSong((song) => {
           song.sections[0]!.roles[0]!.transpositionPlan = 2 as never;
+        })
+      },
+      {
+        message: "sections[0].roles[0].fillPlan",
+        payload: createInvalidSong((song) => {
+          song.sections[0]!.roles[0]!.fillPlan = 2 as never;
         })
       },
       {
