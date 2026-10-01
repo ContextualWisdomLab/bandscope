@@ -6,6 +6,7 @@ import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../components/ui/tooltip";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
@@ -373,59 +374,66 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
                 <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    aria-disabled={true}
-                    aria-label="Play stem coming soon"
-                    title="Play stem coming soon"
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
-                  >
-                    Play stem
-                  </Button>
-                  <Button
-                    type="button"
-                    aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
-                  >
-                    Loop section
-                  </Button>
-                  <Button
-                    type="button"
-                    aria-disabled={true}
-                    aria-label="Solo / mute others coming soon"
-                    title="Solo / mute others coming soon"
-                    onClick={preventUnavailableAction}
-                    variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
-                  >
-                    Solo / mute others
-                  </Button>
-                  {canTranscribeBass ? (
-                    <Button
-                      type="button"
-                      title="Transcribe part"
-                      variant="outline"
-                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  ) : (
-                    <Button
+                  <Tooltip delay={0}>
+                    <TooltipTrigger
                       type="button"
                       aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
+                      aria-label="Play stem coming soon"
                       onClick={preventUnavailableAction}
-                      variant="outline"
-                      className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
+                      className="group/button inline-flex shrink-0 items-center justify-center rounded-lg border bg-clip-padding text-[0.8rem] font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 px-2.5 min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70 hover:bg-white/5"
                     >
-                      Transcribe Bass
-                    </Button>
+                      Play stem
+                    </TooltipTrigger>
+                    <TooltipContent>Play stem coming soon</TooltipContent>
+                  </Tooltip>
+                  <Tooltip delay={0}>
+                    <TooltipTrigger
+                      type="button"
+                      aria-disabled={true}
+                      aria-label="Loop section coming soon"
+                      onClick={preventUnavailableAction}
+                      className="group/button inline-flex shrink-0 items-center justify-center rounded-lg border bg-clip-padding text-[0.8rem] font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 px-2.5 min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70 hover:bg-white/5"
+                    >
+                      Loop section
+                    </TooltipTrigger>
+                    <TooltipContent>Loop section coming soon</TooltipContent>
+                  </Tooltip>
+                  <Tooltip delay={0}>
+                    <TooltipTrigger
+                      type="button"
+                      aria-disabled={true}
+                      aria-label="Solo / mute others coming soon"
+                      onClick={preventUnavailableAction}
+                      className="group/button inline-flex shrink-0 items-center justify-center rounded-lg border bg-clip-padding text-[0.8rem] font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 px-2.5 min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70 hover:bg-white/5"
+                    >
+                      Solo / mute others
+                    </TooltipTrigger>
+                    <TooltipContent>Solo / mute others coming soon</TooltipContent>
+                  </Tooltip>
+                  {canTranscribeBass ? (
+                    <Tooltip delay={0}>
+                      <TooltipTrigger
+                        type="button"
+                        aria-label="Transcribe Bass"
+                        className="group/button inline-flex shrink-0 items-center justify-center rounded-lg border bg-clip-padding text-[0.8rem] font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 px-2.5 min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500 hover:bg-emerald-300/10"
+                      >
+                        Transcribe Bass
+                      </TooltipTrigger>
+                      <TooltipContent>Transcribe part</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip delay={0}>
+                      <TooltipTrigger
+                        type="button"
+                        aria-disabled={true}
+                        aria-label="Transcribe Bass"
+                        onClick={preventUnavailableAction}
+                        className="group/button inline-flex shrink-0 items-center justify-center rounded-lg border bg-clip-padding text-[0.8rem] font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 h-7 gap-1 px-2.5 min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70 hover:bg-white/5"
+                      >
+                        Transcribe Bass
+                      </TooltipTrigger>
+                      <TooltipContent>{`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}</TooltipContent>
+                    </Tooltip>
                   )}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
