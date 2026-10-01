@@ -37,3 +37,7 @@
 ## 2026-07-02 - Inline clear buttons preserve focus
 **Learning:** Inline clear buttons often unmount immediately after clearing state, which can drop keyboard focus to the document body.
 **Action:** Move focus back to the owning input before clearing state, and cover the behavior with a DOM focus test.
+## 2024-05-13 - Replace native title attributes with Tooltips for Accessibility
+
+**Learning:** This app uses Base UI's `Tooltip` component (`@/components/ui/tooltip`) to present hover text instead of the native HTML `title` attribute to improve accessibility, since native titles lack proper keyboard/touch support. When wrapping interactive elements (like icon buttons and utility buttons) in custom Tooltips, tests that previously relied on `.toHaveAttribute("title", ...)` will fail and need to be updated to `.not.toHaveAttribute("title")` or removed to ensure they check the accessible tooltip structure. For testing context, it is helpful to set `delay={0}` on the Tooltip.
+**Action:** When replacing native `title` props on interactive elements, use the `Tooltip` component hierarchy (Tooltip, TooltipTrigger, TooltipContent). For buttons acting as TooltipTriggers, either pass button props directly if it's an icon-only button, or use `asChild` if wrapping a full generic `Button` component, to prevent invalid nesting and ensure screen readers announce correctly. Update related tests to stop expecting the native `title` attribute.
