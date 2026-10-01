@@ -156,7 +156,7 @@ describe("getInvoke internals", () => {
     // unless Tauri's API natively reads from it. However, covering the branch is enough for now.
     try {
       await attachScorePdf("project-1", "song-1");
-    } catch (e) {
+    } catch {
       // ignore
     }
   });
