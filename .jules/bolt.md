@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2025-02-15 - Single-pass loop for large PDF buffers
+**Learning:** Using `Array.every()` followed by `Uint8Array.from()` on massive byte arrays (like PDFs) results in unnecessary intermediate array allocation and two O(N) passes, causing measurable performance overhead on the critical path.
+**Action:** Combine validation and buffer copying into a single `for` loop for large arrays to achieve O(1) memory overhead and a single O(N) pass.

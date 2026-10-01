@@ -91,8 +91,24 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  if (Array.isArray(response) && response.every((byte) => typeof byte === "number")) {
-    return Uint8Array.from(response as number[]);
+  if (Array.isArray(response)) {
+    // Performance: Single-pass validation and copying for large PDF buffers
+    // prevents allocating a full intermediate array via Uint8Array.from()
+    // and doing two O(N) loops.
+    const len = response.length;
+    const buffer = new Uint8Array(len);
+    let isValid = true;
+    for (let i = 0; i < len; i++) {
+      const byte = response[i];
+      if (typeof byte !== "number") {
+        isValid = false;
+        break;
+      }
+      buffer[i] = byte;
+    }
+    if (isValid) {
+      return buffer;
+    }
   }
 
   throw new Error(INVALID_RESPONSE_MESSAGE);
