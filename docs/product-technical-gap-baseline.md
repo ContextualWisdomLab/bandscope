@@ -48,3 +48,8 @@ Score PDF bytes remain untrusted input. This repair does not widen accepted type
 - Findings: CVE-2026-97687 and CVE-2026-97689 (HIGH), CVE-2026-97688 (MEDIUM) in `services/analysis-engine/uv.lock` at urllib3 2.7.0.
 - Repair: declare urllib3 `>=2.8.0`, resolve the published 2.8.0 sdist/wheel with hashes, and bind both source floor and lock selection in a repository regression test.
 - Status: implemented; fresh exact-head Security and complete product checks required. No advisory ignore, scanner suppression, or stale-head promotion is used.
+
+
+## 2026-10-01 — independent review repair
+
+CodeRabbit correctly found that the original `TAURI_INTERNALS` regression swallowed every failure. The repair mocks the statically imported Tauri invoke boundary, removes the catch, and asserts both the resolved attachment and exact command arguments. Documentation now states that both validation forms are synchronous O(N) scans and makes the optimization contingent on representative measurement.

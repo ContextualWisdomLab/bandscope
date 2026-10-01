@@ -16,7 +16,7 @@
 ## 2024-05-18 - Avoid sequence of stat calls
 
 **Learning:** When checking for multiple potential file extensions in Python on networked/slower file systems, running multiple `os.path.exists()` in a loop creates significant overhead (N round trips).
-**Action:** Replace sequential `exists` calls with a single `glob.iglob(glob.escape(base) + ".*")` check coupled with `endswith()`. Use `glob.escape()` to avoid unintended regex expansion of characters like `[]` in directory names.
+**Action:** Replace sequential `exists` calls with a single `glob.iglob(glob.escape(base) + ".*")` check coupled with `endswith()`. Use `glob.escape()` so glob metacharacters such as `*`, `?`, and `[` in the base path do not change the pattern.
 
 ## 2024-05-24 - RoleExtractor Loop N+1 Performance Optimization
 
@@ -63,5 +63,5 @@
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
 
 ## 2024-11-20 - Array type check overhead on large byte buffers
-**Learning:** Using `Array.prototype.every()` on large incoming payloads (e.g. megabytes of PDF bytes from Tauri IPC) results in heavy O(N) functional callback allocation and overhead. Replacing it with an imperative `for` loop provides meaningful speedups and prevents long main thread blocking.
-**Action:** Prefer classic loops with early exit instead of higher-order array methods when checking huge numeric byte buffers in critical serialization paths.
+**Learning:** `Array.prototype.every()` invokes a predicate callback for every visited element. A classic loop can reduce validation time for large numeric byte buffers, but both forms remain synchronous O(N) scans and can still block the main thread.
+**Action:** Prefer a classic loop with early exit only when representative measurements show lower validation time, and retain realistic large-buffer coverage.

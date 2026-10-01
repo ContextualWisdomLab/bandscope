@@ -91,8 +91,8 @@ export async function readScorePdf(projectId: string, scoreId: string): Promise<
   if (response instanceof ArrayBuffer) {
     return new Uint8Array(response);
   }
-  // Performance: Avoid Array.prototype.every() overhead on large byte buffers
-  // Using an imperative for-loop prevents allocating a callback for potentially megabytes of data.
+  // Performance: Avoid invoking an Array.prototype.every() callback for each visited byte.
+  // This remains a synchronous O(N) scan; retain it only while measurements show lower validation time.
   if (Array.isArray(response)) {
     let isAllNumbers = true;
     for (let i = 0; i < response.length; i++) {
