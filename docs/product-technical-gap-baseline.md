@@ -102,3 +102,12 @@ CodeRabbit correctly found that the original `TAURI_INTERNALS` regression swallo
 - Root cause: runner allocation occurred after concurrent fast-forwards. The workflow groups are separated by `github.workflow`; this is stale-revision admission within each workflow, not cross-workflow key collision.
 - Operational contract: re-fetch the live PR head immediately before every rerun, never rerun a predecessor after the head moves, and after writer quiescence trigger only one fresh current-head validation lane. Delayed predecessor/intermediate runs remain evidence-preserved but non-authoritative.
 - Status: fresh Checks on the stable successor head are required; no cancelled or predecessor result is promoted.
+
+
+## 2026-10-01 — verified successor exact-head validation
+
+- Authority: PR #1283 head `42af1661e62f6d06fd2ac4dbee4b02b779cbfcf3` is mergeable and carries the complete validated delta from `785260ba9878bcca18b6b8b4227d8db9c70ce98b`; their compare is one commit changing only this baseline by 15 additions.
+- GREEN evidence: CI `36839117548`, Security `36839117512`, SAST `36839117757`, SBOM `36839117980`, and build-baseline `36839117656` succeeded. The platform build produced terminal success for Windows amd64/arm64 and macOS amd64/arm64.
+- Admission: #1283 moved from Draft to Ready only after those exact-head checks succeeded. The Draft-created CodeQL run `36839117745` remained skipped even when its skipped detection job was retried because its original event snapshot retained Draft state.
+- Revalidation contract: this evidence-recording commit intentionally creates a new current-head event for CodeQL. Skipped predecessor CodeQL is not GREEN; merge remains held until fresh exact-head CodeQL and qualifying independent approval succeed.
+- Preservation: #1276 remains open and Draft. No closure, Force Push, destructive rebase, gate weakening, bypass, or self-approval occurred.
