@@ -9,12 +9,12 @@ vi.mock("../../i18n", () => ({
 }));
 
 describe("PracticeProgress", () => {
-  it("renders with default progress 0 when no progress is provided", () => {
+  it("renders with default progress 0 when no progress is provided", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress onChange={handleChange} />);
 
     expect(screen.getByText("0%")).toBeTruthy();
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
+    const decreaseBtn = await screen.findByRole("button", { name: "decreasePracticeProgressLabel" });
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
 
     const clickEvent = createEvent.click(decreaseBtn);
@@ -29,41 +29,41 @@ describe("PracticeProgress", () => {
     expect(screen.getByText("50%")).toBeTruthy();
   });
 
-  it("calls onChange with increased value when increase button is clicked", () => {
+  it("calls onChange with increased value when increase button is clicked", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+    const increaseBtn = await screen.findByRole("button", { name: "increasePracticeProgressLabel" });
     fireEvent.click(increaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(60);
   });
 
-  it("calls onChange with decreased value when decrease button is clicked", () => {
+  it("calls onChange with decreased value when decrease button is clicked", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    const decreaseBtn = await screen.findByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.click(decreaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(40);
   });
 
-  it("does not exceed 100 when increasing", () => {
+  it("does not exceed 100 when increasing", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={95} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
+    const increaseBtn = await screen.findByRole("button", { name: "increasePracticeProgressLabel" });
     fireEvent.click(increaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(100);
   });
 
-  it("does not go below 0 when decreasing", () => {
+  it("does not go below 0 when decreasing", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={5} onChange={handleChange} />);
 
-    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
+    const decreaseBtn = await screen.findByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.click(decreaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(0);
@@ -97,11 +97,11 @@ describe("PracticeProgress", () => {
     expect(handleChange).not.toHaveBeenCalled();
   });
 
-  it("disables increase button when progress is 100", () => {
+  it("disables increase button when progress is 100", async () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={100} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
+    const increaseBtn = await screen.findByRole("button", { name: "increasePracticeProgressLabel" });
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
 
     const clickEvent = createEvent.click(increaseBtn);
