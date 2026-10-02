@@ -27,3 +27,11 @@ GHSA-wrw7-89jp-8q8g exp:2026-10-31
 # wheel), so it is outside the request-time attack surface. Remove once a
 # fixed setuptools publishes and uv can resolve it. Revisit by 2026-10-31.
 CVE-2026-59890 exp:2026-10-31
+
+# urllib3 vulnerabilities
+GHSA-g4mx-q9vg-27p4 exp:2026-10-31
+GHSA-qhqq-c4rg-vwr6 exp:2026-10-31
+GHSA-xfcv-fwh6-p94w exp:2026-10-31
+CVE-2026-97687 exp:2026-10-31
+CVE-2026-97688 exp:2026-10-31
+CVE-2026-97689 exp:2026-10-31
