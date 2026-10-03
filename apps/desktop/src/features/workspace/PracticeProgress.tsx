@@ -50,7 +50,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
       </div>
 
       <div className="flex items-center gap-4">
-        <Tooltip >
+        <Tooltip>
           <TooltipTrigger
             onClick={handleDecrease}
             aria-disabled={progress <= 0 ? "true" : undefined}
@@ -82,7 +82,7 @@ function PracticeProgressComponent({ progress = 0, onChange }: PracticeProgressP
           />
         </div>
 
-        <Tooltip >
+        <Tooltip>
           <TooltipTrigger
             onClick={handleIncrease}
             aria-disabled={progress >= 100 ? "true" : undefined}

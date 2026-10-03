@@ -14,15 +14,14 @@ describe("PracticeProgress", () => {
     render(<PracticeProgress onChange={handleChange} />);
 
     expect(screen.getByText("0%")).toBeTruthy();
-    // Use getByRole directly instead of button name to test tooltips replacing button names
-    // For Base UI TooltipTrigger, we should use getByLabelText for the wrapper acting as button
-    const decreaseBtn = screen.getByLabelText("decreasePracticeProgressLabel") as HTMLElement;
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" }) as HTMLButtonElement;
+    expect(decreaseBtn).toHaveAttribute("type", "button");
     expect(decreaseBtn).toHaveAttribute("aria-disabled", "true");
     expect(decreaseBtn).not.toHaveAttribute("title");
 
     const clickEvent = createEvent.click(decreaseBtn);
     fireEvent(decreaseBtn, clickEvent);
-    // Note: TooltipTrigger does not preventDefault automatically like native disabled button, we handle it in our logic
+    expect(clickEvent.defaultPrevented).toBe(true);
   });
 
   it("renders provided progress", () => {
@@ -36,7 +35,7 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByLabelText("increasePracticeProgressLabel");
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
     fireEvent.click(increaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(60);
@@ -46,7 +45,7 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={50} onChange={handleChange} />);
 
-    const decreaseBtn = screen.getByLabelText("decreasePracticeProgressLabel");
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.click(decreaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(40);
@@ -56,7 +55,7 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={95} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByLabelText("increasePracticeProgressLabel");
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" });
     fireEvent.click(increaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(100);
@@ -66,7 +65,7 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={5} onChange={handleChange} />);
 
-    const decreaseBtn = screen.getByLabelText("decreasePracticeProgressLabel");
+    const decreaseBtn = screen.getByRole("button", { name: "decreasePracticeProgressLabel" });
     fireEvent.click(decreaseBtn);
 
     expect(handleChange).toHaveBeenCalledWith(0);
@@ -104,11 +103,13 @@ describe("PracticeProgress", () => {
     const handleChange = vi.fn();
     render(<PracticeProgress progress={100} onChange={handleChange} />);
 
-    const increaseBtn = screen.getByLabelText("increasePracticeProgressLabel") as HTMLElement;
+    const increaseBtn = screen.getByRole("button", { name: "increasePracticeProgressLabel" }) as HTMLButtonElement;
+    expect(increaseBtn).toHaveAttribute("type", "button");
     expect(increaseBtn).toHaveAttribute("aria-disabled", "true");
     expect(increaseBtn).not.toHaveAttribute("title");
 
     const clickEvent = createEvent.click(increaseBtn);
     fireEvent(increaseBtn, clickEvent);
+    expect(clickEvent.defaultPrevented).toBe(true);
   });
 });
