@@ -4,6 +4,7 @@ import type { RehearsalSong, ScoreAttachment } from "@bandscope/shared-types";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScoreViewer } from "./ScoreViewer";
 import { attachScorePdf, readScorePdf, removeScorePdf } from "./scoreStorage";
 
@@ -192,16 +193,23 @@ export function ScoreView({ song, projectId, onSongUpdate }: ScoreViewProps) {
                       <FileMusic className="size-4 shrink-0 text-cyan-300" aria-hidden="true" />
                       <span className="truncate">{attachment.fileName}</span>
                     </button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
-                      disabled={!projectId}
-                      aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
-                      className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={projectId ? () => void handleRemove(projectId, attachment) : undefined}
+                            disabled={!projectId}
+                            aria-label={`${t("scoreRemove")}: ${attachment.fileName}`}
+                            className="size-10 border-rose-300/25 text-rose-200 hover:bg-rose-400/10"
+                          />
+                        }
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </TooltipTrigger>
+                      <TooltipContent>{t("scoreRemove")}</TooltipContent>
+                    </Tooltip>
                   </li>
                 ))}
               </ul>
