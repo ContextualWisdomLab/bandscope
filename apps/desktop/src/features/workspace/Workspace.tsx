@@ -5,6 +5,7 @@ import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze, playableRange } from "./firstRangeSqueeze";
+import { activateTonightSetup, earliestAnalyzedNote } from "./tonightSetup";
 import { createTranslator, detectPreferredLocale, fillTranslation } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
 import { Button } from "@/components/ui/button";
@@ -62,21 +63,6 @@ function nonBlankText(value: string | undefined): string | undefined {
 /** Remove terminal sentence punctuation before embedding a cue in a larger sentence. */
 function sentenceFragment(value: string): string {
   return value.replace(/[.!?。！？]+$/u, "").trimEnd();
-}
-
-/** Return the earliest analyzed note so setup can name the first attack. */
-function firstTranscriptionNote(notes: RehearsalRole["transcription"]): TranscriptionNote | undefined {
-  if (!notes || notes.length === 0) {
-    return undefined;
-  }
-
-  let earliest = notes[0]!;
-  for (const note of notes) {
-    if (note.onset < earliest.onset) {
-      earliest = note;
-    }
-  }
-  return earliest;
 }
 
 /** Prefer the role's setup cue, then transpose, then simplification. */
@@ -208,7 +194,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     notes.sort((left, right) => left.onset - right.onset);
     return notes;
   }, [activeRole, song.sections]);
-  const firstNote = firstTranscriptionNote(activeRoleTranscription);
+  const firstNote = earliestAnalyzedNote(activeRoleTranscription);
   const activeRoleRange = playableRange(
     activeRoleDetails?.range.lowestNote,
     activeRoleDetails?.range.highestNote
@@ -357,11 +343,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Arm tonight's setup and move focus to the setup card. */
   const armTonightSetup = (): void => {
-    if (!activeRole || !canArmTonightSetup) {
-      return;
-    }
-    setArmedSetup(setupIdentity);
-    focusRoleSetup();
+    activateTonightSetup({
+      roleId: activeRole,
+      canArmTonightSetup,
+      /** Commit the current setup identity before moving focus to its card. */
+      onActivate: () => {
+        setArmedSetup(setupIdentity);
+        focusRoleSetup();
+      }
+    });
   };
 
   /** Keep the role board and armed setup on the same selected part. */
