@@ -5,7 +5,7 @@
 BandScope treats the PDF parser, its transitive HTTP client, and the package-manager runtime that materializes their reviewed lock as one security-release boundary:
 
 - `pdfjs-dist` is pinned exactly to `6.2.108`;
-- `undici` is pinned exactly to `7.29.0` through the root npm override; and
+- `undici` is pinned exactly to `7.29.1` through the root npm override; and
 - npm `10.9.9` is the approved generator for reviewed root-workspace dependency updates. Primary CI activates that project-pinned npm through Node-bundled Corepack, verifies npm's own bundled `tar` is at least `7.5.19`, and only then consumes the committed lock through frozen validation rather than re-resolving it.
 
 Repository dependency/security tooling reported the protected-base `pdfjs-dist@6.1.200` as requiring a newer floor. That finding is kept distinct from the older, GitHub-reviewed CVE-2024-4367 / GHSA-wgrm-67xf-hhpq: the 2024 advisory affected `pdfjs-dist <=4.1.392` and was fixed in `4.2.67`, so it is historical parser-risk context and is **not** evidence that `6.1.200` was affected by that CVE. BandScope pins the current `6.2.108` artifact selected by the repository security baseline and requires current-head audit/security evidence rather than misattributing a scanner result to an unrelated advisory.
@@ -22,7 +22,7 @@ flowchart LR
     F --> C
     C --> W[Same-origin bundled worker]
     W --> R[Canvas render]
-    J[jsdom development path] --> U[undici 7.29.0 override]
+    J[jsdom development path] --> U[undici 7.29.1 override]
     N[Corepack-activated npm 10.9.9] --> T[verify bundled tar >= 7.5.19]
     T --> L[Reviewed package-lock artifact]
     L --> V[npm ci frozen validation]
@@ -42,6 +42,16 @@ Undici is currently a development dependency reached through jsdom, but developm
 
 The package-manager runtime is also part of that build trust boundary. npm `10.9.8` bundled `tar 7.5.11`, which falls inside GitHub-reviewed GHSA-23hp-3jrh-7fpw / CVE-2026-59873 (`tar <=7.5.18`). npm `10.9.9` updates its bundled tar to `7.5.22`. BandScope therefore rejects the previous generator runtime rather than relying on `--ignore-scripts`: archive extraction occurs before lifecycle-script policy can make a vulnerable tar implementation safe.
 
+## Security Notes: Undici patch scope
+
+GHSA-w293-vg96-wgc3 / CVE-2026-84961 affects Undici `>=7.24.1 <7.29.1` when `BalancedPool` receives function-valued `connect` or legacy `tls` options. Its JSON clone could discard custom certificate validation or connector callbacks. The official `7.29.1` release identifies fix `f690157d728508652fef14673630c71515123e96`, which preserves these options outside the clone and isolates object-valued options from caller mutation. This is a specific callback-preservation fix, not proof of universal TLS safety or a claim that BandScope exercised end-to-end TLS.
+
+This updates the existing MIT-licensed, dev-only Undici dependency/override used by jsdom; it adds no direct package, production network path, URL/IPC permission, logging, or credential handling. Existing untrusted-fixture and PDF intake boundaries remain unchanged, and `pdfjs-dist 6.2.108` stays pinned. Exact artifact/SRI, Vitest/coverage pairing, peer metadata, and frozen consumption tests fail closed. The official registry tarball (`400243` bytes) was downloaded and independently SHA-512 checked against the complete generated lock; the SRI is `sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==`.
+
+Local frozen install, runtime provenance, installed full dev/root graph, Undici and Vitest/coverage graph, 236 frontend tests with measured coverage, workspace typecheck/lint/build, and nine stdlib-only dependency/toolchain contracts pass. These are working-tree repair results on original head `32f23a8161a0350dd8e3bb512416cbe1d4976a24`, not hosted exact-new-head approval. The full dev/root audit remains **FAILED**: five package findings (two high, three moderate), including inherited brace-expansion/minimatch and Vitest/mocker/coverage findings; Undici has no finding. Those unchanged artifacts require separate owner remediation, not ignores or audit-fix here.
+
+The installed macOS graph passes `npm ls --all`, but npm's all-platform lock-only CycloneDX generation remains **FAILED** with `ESBOMPROBLEMS`: inherited `@emnapi/core@1.9.2` and `runtime@1.9.2` do not meet `^1.11.1`, and `wasi-threads@1.2.1` does not meet `^1.2.2` required by optional `@tailwindcss/oxide-wasm32-wasi@4.3.3`. Existing Trivy `0.74.0` generates an offline, dev-inclusive CycloneDX `1.7` lock inventory with **504 components**, including Undici `7.29.1`; the count is recomputed from this repair artifact, not reused from the predecessor. This license/package inventory is not a vulnerability scan, hosted Actions/release artifact, complete bundled-binary inventory, or substitute for resolving that metadata and passing hosted SBOM/security gates. No native/GPU/full scientific Python run or protected-branch enforcement is claimed.
+
 ## Strix finding adjudication boundary
 
 Strix run `31871388084` on predecessor head `6f81f52c193c1e327d078eba7a2ea3bdbfbc87c2` reported a possible XXE path through `loadScorePdf`. Its attached proof-of-concept returned only a four-byte `%PDF` prefix and stated that construction of an actual PDF containing the alleged XML payload remained necessary. It did not demonstrate entity expansion, local-file disclosure, a network request, or parser output containing an external entity.
@@ -50,7 +60,7 @@ The finding was therefore not suppressed and was not treated as proven exploitat
 
 ## Lockfile provenance
 
-The dependency manifests and complete lock artifact were originally generated and reconciled on this branch with Node `22.22.3` and the then-approved npm `10.9.8` toolchain before the frozen-validation gate was finalized. That historical generation run and artifact are provenance evidence only. The current approved generator is npm `10.9.9`; a future dependency-resolution change must be generated with that runtime and the complete resulting lock reviewed. Primary CI intentionally does not repeat mutable dependency resolution.
+The 2026-10-04 repair uses Node `22.23.3`, approved npm `10.9.9`, and its verified bundled `tar 7.5.22`. Both workspace Vitest requirements are restored to inherited `^4.1.10`, matching the existing coverage provider; removal of the unrelated Vitest 5 major is a reviewed scope decision for this HTTP-only diff, not a permanent ban on coordinated upgrades or a requirement to retain `4.1.10`. The complete base lock from `314ddeae7b775a4957594b599358c8255617eb2e` (Git blob `1b2ceef69c15945b29b7b38b85bb773bdf3c7319`) is the coherent seed. `npm install --package-lock-only --include=dev --ignore-scripts --no-audit --no-fund` generates the complete artifact. Compared with that base, all 509 location records remain: only the root Undici intent and the Undici version/tarball/SRI change (four changed lines). No added nested nodes or unrelated peer changes remain; all 26 root `@esbuild/*` records retain `peer: true`. No lock record was manually serialized. Primary CI still consumes the frozen artifact rather than repeating mutable resolution.
 
 For every current head, primary CI instead:
 
@@ -64,6 +74,24 @@ For every current head, primary CI instead:
 Future dependency updates must use npm `10.9.9` to generate the complete lock in a dedicated update branch, review the entire resulting manifest/lock diff, and then prove frozen consumption on the resulting exact head. No tarball URL, SRI, dependency range, `peer` classification, or workspace record may be hand-edited merely to satisfy a validator.
 
 The lock contract requires the exact public-registry tarball and SHA-512 SRI for patched application packages and requires every existing `node_modules/@esbuild/*` location to retain the approved generator's `peer: true` classification. This distinguishes the intended security graph from unrelated Dependabot generator churn. The narrower provenance and validation contract is specified in `docs/doctoring/npm-lockfile-generator-provenance.md`.
+
+## Vitest/coverage coherence contract correction
+
+The baseline no longer permanently asserts manifest `^4.1.10`, installed `4.1.10`, or coverage peer `4.1.10`. `test_vitest_coverage_graph_is_coherent` reads the real repository graph and requires each workspace's runner/coverage requirements to match, its complete locked `devDependencies` to match the manifest, and every installed runner and coverage record to share one stable exact version. That version must satisfy each workspace requirement and the coverage provider's exact `vitest` peer. Missing, null, empty, malformed, out-of-range, mismatched-major, and nested-version-drift inputs fail closed. This is graph coherence, not vulnerability clearance.
+
+The tested range contract is deliberately limited to stable positive-major `^x.y.z` workspace requirements and stable exact `x.y.z` installed versions/exact coverage peers, matching the existing schema. It is not a general npm-semver parser; alternative range or peer syntax requires explicit test-contract review. A coordinated major is not permanently forbidden by this contract, but any actual manifest/lock update still needs normal dependency-diff review and security gates.
+
+The coordinated patch scenarios still accept `4.1.11` with either inherited `^4.1.10` or coordinated `^4.1.11` requirements. Fixed unit-fixture versions do not pin the repository graph: negative scenarios use isolated copies supplied through monkeypatched `_read_json`, while the unpatched real-graph test reads the live `_REPOSITORY_ROOT`. No repository manifest/lock is rewritten, no runtime is installed or executed, and canonical PR #1134 retains ownership of the real `4.1.11` dependency update.
+
+### 2026-10-05 fixture-location RCA and correction
+
+A fresh-copy rerun of both complete published contract modules reproduced **42 passed** on the original #1286 hoisted graph, but **32 passed / 10 failed** on the actual combined macOS-frozen graph. Eight negative mutations and two nested-record constructors indexed absent root runner/provider locations and raised `KeyError` before their intended assertions. The real graph assertion itself passed: the reviewed #1134 metadata contains runner and coverage records under both `apps/desktop/node_modules/` and `packages/shared-types/node_modules/`. Thus this was a fixture-location defect, not evidence of an incoherent installed graph.
+
+The fixture now parametrizes hoisted and reviewed-nested public JSON layouts. The nested fixture retains only reviewed locations, versions, and selected peer fields from #1134 metadata; it is not copied production dependency intent or a complete npm installation graph. All matching copied runner/provider paths are inventoried with the same suffix classifier as the validator and normalized to a valid isolated state. Negative mutations select an existing record (the last sorted location, so the nested layout exercises a non-first record); nested drift copies an existing dynamically selected seed into a new child location without overwriting its seed. Malformed records, unsupported ranges, out-of-range versions, exact peers, workspace pair/manifest-lock drift, absent packages, and nested drift retain their intended assertion checks in both layouts. The real validation functions, stable positive-major caret semantics, and all PDF/Undici artifact assertions are unchanged; no general semver parser, dependency, ignore, skip, or forced production hoisting is added.
+
+TDD evidence: before the dynamic-target fix, the parametrized modules reproduced **65 passed / 10 failed** on each actual input graph. After the fix, the complete updated baseline/toolchain modules pass **75 tests on each graph**: 33 isolated scenarios × 2 layouts, three live security/graph assertions, and six toolchain contracts. Fresh copies preserve every input byte and use live root reads, not a patched real-graph validator. Original lock SHA-256: `6dae892df2c55c6dec77829fb20e40b65d7e181a45e8ed6fed2f0f0ed9869d9a`; combined lock SHA-256: `de374a32e3826d68d20fc4388ede54eb25741df147381f5a8328f04f1ae8f4e2`. Ruff lint/format and 100% test-docstring checks pass. This supersedes the fixture compatibility failure only; it is not frontend, vulnerability, hosted approval, or release evidence.
+
+**Security Notes:** untrusted public JSON stays within isolated deep copies and existing fail-closed schema assertions. File reads remain repository-relative and allowlisted; no generic path authority, URL/IPC/network capability, subprocess runtime path, secret handling, or logging behavior is added. The combined handoff's existing full root/dev audit remains **FAILED** with two high findings (brace-expansion and downstream minimatch). The original graph's historical npm SBOM remains **FAILED** with `ESBOMPROBLEMS`; the combined scratch experiment separately generated a full root/dev CycloneDX inventory with 522 components and 523 dependency records. Neither audit nor SBOM was rerun by this test-only correction. Canonical SBOM remediation, exact integrated-head hosted security/SBOM checks, protected Windows/macOS builds, and independent review remain required; none are waived by these local contract results.
 
 ## Verification
 
@@ -103,7 +131,11 @@ Mozilla. (2026). *PDF.js 6.2.108* [Software release]. https://github.com/mozilla
 
 Node.js contributors. (2026). *Corepack* [Software documentation]. GitHub. https://github.com/nodejs/corepack
 
-Node.js contributors. (2026). *Undici 7.29.0* [Software release]. https://github.com/nodejs/undici/releases/tag/v7.29.0
+Node.js contributors. (2026). *Undici 7.29.1* [Software release]. GitHub. https://github.com/nodejs/undici/releases/tag/v7.29.1
+
+Node.js contributors. (2026). *TLS certificate validation bypass via dropped connect options in BalancedPool* (GHSA-w293-vg96-wgc3; CVE-2026-84961) [Security advisory]. GitHub. https://github.com/nodejs/undici/security/advisories/GHSA-w293-vg96-wgc3
+
+Node.js contributors. (2026). *Preserve BalancedPool connection options* [Patch source]. GitHub. https://github.com/nodejs/undici/commit/f690157d728508652fef14673630c71515123e96
 
 npm, Inc. (2026). *npm 10.9.9* [Software release]. GitHub. https://github.com/npm/cli/releases/tag/v10.9.9
 
