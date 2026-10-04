@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   createAnalysisJobStatus,
   createDemoAnalysisJobRequest,
-  createDemoRehearsalSong,
   createProjectBootstrapSummary,
   parseAnalysisJobStatus,
   parseAnalysisJobRequest,
@@ -27,13 +26,6 @@ declare global {
   }
 }
 
-const browserJobStore = new Map<string, AnalysisJobStatus>();
-const BROWSER_PROGRESS_STEPS = [
-  { progressLabel: "Decoding audio", progressStage: "decode", progressPercent: 20 },
-  { progressLabel: "Separating stems... (45%)", progressStage: "separate", progressPercent: 45 },
-  { progressLabel: "Building rehearsal cues", progressStage: "analyze", progressPercent: 70 },
-  { progressLabel: "Saving reusable features", progressStage: "persist", progressPercent: 90 }
-] as const;
 const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to start analysis.";
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
@@ -42,6 +34,10 @@ const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   "Could not prepare the local cache workspace.",
   "Could not prepare the local temp workspace."
 ]);
+const BROWSER_ANALYSIS_UNAVAILABLE_MESSAGE = "BandScope analysis requires the Tauri runtime";
+const DEMO_ANALYSIS_UNAVAILABLE_MESSAGE =
+  "Demo analysis is unavailable until a licensed demo track is installed. Choose a local audio file.";
+const YOUTUBE_IMPORT_FAILED_MESSAGE = "YouTube import failed. Try again or choose a local audio file.";
 const YOUTUBE_VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const MAX_YOUTUBE_URL_LENGTH = 2000;
 
@@ -111,21 +107,24 @@ function browserJobId(prefix: string): string {
   return `${prefix}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-/** Documented. */
+/**
+ * Handle browser-preview commands without fabricating analysis success.
+ *
+ * Source-selection preview behavior stays explicit for existing UI development,
+ * but analysis execution itself fails closed because only the Tauri runtime owns
+ * the production Python subprocess and validated job lifecycle.
+ */
 async function browserFallback(command: string, args?: Record<string, unknown>): Promise<unknown> {
   if (command === "start_analysis_job") {
     parseAnalysisJobRequest(args?.request);
-    const jobId = browserJobId("browser-job");
-    const queued = createAnalysisJobStatus({
-      jobId,
-      state: "queued",
-      progressLabel: "Queued for analysis",
-      progressStage: "queued",
-      progressPercent: 0,
-      cacheStatus: "disabled"
+    return createAnalysisJobStatus({
+      jobId: browserJobId("browser-unavailable-job"),
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: BROWSER_ANALYSIS_UNAVAILABLE_MESSAGE
+      }
     });
-    browserJobStore.set(jobId, queued);
-    return queued;
   }
 
   if (command === "select_local_audio_source") {
@@ -133,51 +132,18 @@ async function browserFallback(command: string, args?: Record<string, unknown>):
   }
 
   if (command === "get_analysis_job_status") {
-    const jobId = String(args?.jobId ?? "");
-    const existing = browserJobStore.get(jobId);
-    if (!existing) {
-      return createAnalysisJobStatus({
-        jobId,
-        state: "failed",
-        error: {
-          code: "not_found",
-          message: "Analysis job was not found."
-        }
-      });
-    }
-    if (existing.state === "queued" || existing.state === "running") {
-      const currentPercent = existing.progressPercent ?? 0;
-      const nextStep = BROWSER_PROGRESS_STEPS.find((step) => step.progressPercent > currentPercent);
-      if (nextStep) {
-        const running = createAnalysisJobStatus({
-          jobId,
-          state: "running",
-          requestedAt: existing.requestedAt,
-          progressLabel: nextStep.progressLabel,
-          progressStage: nextStep.progressStage,
-          progressPercent: nextStep.progressPercent,
-          cacheStatus: "disabled"
-        });
-        browserJobStore.set(jobId, running);
-        return running;
+    return createAnalysisJobStatus({
+      jobId: String(args?.jobId ?? ""),
+      state: "failed",
+      error: {
+        code: "not_found",
+        message: "Analysis job was not found."
       }
-    }
-    const succeeded = createAnalysisJobStatus({
-      jobId,
-      state: "succeeded",
-      progressLabel: "Analysis ready",
-      progressStage: "ready",
-      progressPercent: 100,
-      cacheStatus: "disabled",
-      requestedAt: existing.requestedAt,
-      result: createDemoRehearsalSong()
     });
-    browserJobStore.set(jobId, succeeded);
-    return succeeded;
   }
 
   if (command === "save_project") {
-    return;
+    throw new Error("Project save requires the Tauri runtime.");
   }
 
   if (command === "import_youtube_url") {
@@ -260,6 +226,17 @@ export async function startAnalysisJob(request: AnalysisJobRequest): Promise<Ana
     });
   }
 
+  if (parsedRequest.sourceKind === "demo" && getInvoke()) {
+    return createAnalysisJobStatus({
+      jobId: browserJobId("demo-unavailable-job"),
+      state: "failed",
+      error: {
+        code: "engine_unavailable",
+        message: DEMO_ANALYSIS_UNAVAILABLE_MESSAGE
+      }
+    });
+  }
+
   const response = await invokeAnalysis("start_analysis_job", {
     request: parsedRequest
   });
@@ -330,13 +307,12 @@ export async function importYoutubeUrl(url: string): Promise<LocalAudioSelection
       ok: true,
       bootstrap: parseProjectBootstrapSummary(response)
     };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : (typeof error === "string" ? error : "YouTube import failed.");
+  } catch {
     return {
       ok: false,
       error: {
         code: "invalid_request",
-        message
+        message: YOUTUBE_IMPORT_FAILED_MESSAGE
       }
     };
   }

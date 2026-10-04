@@ -43,6 +43,7 @@ import {
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
+import { retryAnalysisJobStatus } from "./lib/analysisPolling";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
@@ -277,12 +278,9 @@ export function App() {
       }
     : defaultRequest;
 
-  useEffect(() => {
-    activeJobIdRef.current = jobStatus?.jobId ?? null;
-  }, [jobStatus?.jobId]);
-
   /** Documented. */
   const applyJobStatus = useCallback((nextStatus: AnalysisJobStatus) => {
+    activeJobIdRef.current = nextStatus.state === "queued" || nextStatus.state === "running" ? nextStatus.jobId : null;
     setJobStatus(nextStatus);
     if (nextStatus.state === "succeeded" && nextStatus.result) {
       setJobResult(nextStatus.result);
@@ -330,7 +328,7 @@ export function App() {
     let disposed = false;
     let unsubscribe: () => void = Function.prototype as () => void;
     void subscribeToAnalysisJobUpdates(jobStatus.jobId, (nextStatus) => {
-      if (!disposed) {
+      if (!disposed && activeJobIdRef.current === jobStatus.jobId && nextStatus.jobId === jobStatus.jobId) {
         applyJobStatus(nextStatus);
       }
     }).then((cleanup) => {
@@ -351,16 +349,25 @@ export function App() {
       return;
     }
 
+    let disposed = false;
     const timer = window.setTimeout(async () => {
       try {
         const nextStatus = await getAnalysisJobStatus(jobStatus.jobId);
+        if (disposed || activeJobIdRef.current !== jobStatus.jobId) {
+          return;
+        }
+        if (nextStatus.jobId !== jobStatus.jobId) {
+          setJobStatus((currentStatus) => retryAnalysisJobStatus(currentStatus, jobStatus.jobId));
+          return;
+        }
         applyJobStatus(nextStatus);
       } catch (error) {
+        if (disposed || activeJobIdRef.current !== jobStatus.jobId) {
+          return;
+        }
         if (error instanceof Error && error.message === "Invalid analysis job status response") {
-          if (activeJobIdRef.current !== jobStatus.jobId) {
-            return;
-          }
           const fallbackMessage = t("analysisCouldNotStart");
+          activeJobIdRef.current = null;
           setJobError(fallbackMessage);
           setJobStatus({
             ...jobStatus,
@@ -373,21 +380,20 @@ export function App() {
           return;
         }
 
-        setJobStatus((currentStatus) =>
-          currentStatus?.jobId === jobStatus.jobId &&
-          (currentStatus.state === "queued" || currentStatus.state === "running")
-            ? { ...currentStatus }
-            : currentStatus
-        );
+        setJobStatus((currentStatus) => retryAnalysisJobStatus(currentStatus, jobStatus.jobId));
       }
     }, ANALYSIS_POLL_INTERVAL_MS);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
   }, [applyJobStatus, jobStatus, t]);
 
   /** Documented. */
   const handleStartAnalysis = async () => {
     const submittedBootstrap = selectedBootstrap;
+    activeJobIdRef.current = null;
     setJobError(null);
     setJobResult(null);
     setJobResultBootstrap(null);
@@ -426,6 +432,7 @@ export function App() {
     setSelectedBootstrap(null);
     setSelectionError(safeErrorDetail(selection.error.message, t("unsupportedLocalAudio")));
     setSelectionErrorSource("local");
+    activeJobIdRef.current = null;
     setJobStatus(null);
   };
 
@@ -474,6 +481,7 @@ export function App() {
   const handleLoadProject = async () => {
     try {
       const song = await loadProject();
+      activeJobIdRef.current = null;
       setJobResult(song);
       setJobResultBootstrap(null);
       setJobError(null);
