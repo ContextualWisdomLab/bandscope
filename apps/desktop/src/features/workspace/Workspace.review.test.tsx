@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { useState } from "react";
+import { flushSync } from "react-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { createDemoRehearsalSong, type RehearsalSong } from "@bandscope/shared-types";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -410,6 +412,47 @@ describe("Workspace review regressions", () => {
     expect(screen.getByRole("button", { name: "No setup cue yet. Stay on tonight's map." })).toBeDisabled();
     fireEvent.click(screen.getByRole("tab", { name: "All Roles" }));
     expect(document.getElementById("workspace-role-setup")).toBeNull();
+  });
+
+  it.each(["pointerdown", "click"] as const)("rejects a setup click when a host invalidates evidence during %s capture", (eventType) => {
+    const song = createDemoRehearsalSong();
+    const unavailableSong = structuredClone(song);
+    replaceRole(unavailableSong, "bass-guitar", (role) => ({
+      ...role, setupNote: " ", transpositionPlan: " ", simplification: " "
+    }));
+    let updates = 0;
+    /** A public host update can arrive while the user is activating a part. */
+    function Host() {
+      const [currentSong, setCurrentSong] = useState(song);
+      const invalidate = (target: EventTarget) => {
+        if (!(target instanceof HTMLElement) || !target.closest("button")?.getAttribute("aria-label")?.startsWith("Set up Bass Guitar")) return;
+        updates += 1;
+        flushSync(() => setCurrentSong(unavailableSong));
+      };
+      return (
+        <div
+          onPointerDownCapture={eventType === "pointerdown" ? (event) => invalidate(event.target) : undefined}
+          onClickCapture={eventType === "click" ? (event) => invalidate(event.target) : undefined}
+        >
+          <Workspace song={currentSong} />
+        </div>
+      );
+    }
+    render(<Host />);
+    fireEvent.click(screen.getByRole("tab", { name: "Bass Guitar" }));
+    const setup = screen.getByRole("button", { name: /^Set up Bass Guitar/ });
+    const scrollIntoView = vi.fn();
+    document.getElementById("workspace-role-setup")!.scrollIntoView = scrollIntoView;
+    expect(setup).toBeEnabled();
+
+    if (eventType === "pointerdown") fireEvent.pointerDown(setup);
+    fireEvent.click(setup);
+
+    expect(updates).toBe(1);
+    expect(screen.getByRole("button", { name: "No setup cue yet. Stay on tonight's map." })).toBeDisabled();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(document.getElementById("workspace-role-setup")).not.toHaveClass("ring-amber-300/70");
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
   it("uses the first section as the rehearsal focus when no export focus is available", () => {
