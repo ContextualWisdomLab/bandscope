@@ -16,6 +16,7 @@
 
 ### Fixed
 
+- Bind an activated part setup to its song, project and exact cue/start evidence; clear stale status and entrance emphasis after replacement while preserving unrelated practice-progress edits.
 - Keep Groove Map loading truthfully indeterminate unless real progress exists, and expose Cancel only when a cancellation callback is actually available.
 - Keep disabled Stem Player controls discoverable by their visible labels for
   assistive technology and speech input while retaining the translated

@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, useEffect, memo, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
@@ -163,7 +163,7 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
-  const [armedSetupRoleId, setArmedSetupRoleId] = useState<string | null>(null);
+  const [armedSetup, setArmedSetup] = useState<string | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
 
   // Extract all unique roles from the song's sections
@@ -340,19 +340,34 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
         setup: setupSentenceCue
       });
 
+  // Activation belongs to this song/source and the exact setup/start evidence,
+  // not the role id alone. Unrelated progress edits preserve this identity.
+  const setupIdentity = JSON.stringify([
+    song.id,
+    sourceBootstrap?.projectId ?? null,
+    activeRole,
+    roleName,
+    setupCue ?? null,
+    firstNote ? [firstNote.pitch, firstNote.onset, firstNote.offset] : [roleRangeLow, roleRangeHigh]
+  ]);
+  const isSetupArmed = canArmTonightSetup && armedSetup === setupIdentity;
+  useEffect(() => {
+    setArmedSetup(null);
+  }, [setupIdentity]);
+
   /** Arm tonight's setup and move focus to the setup card. */
   const armTonightSetup = (): void => {
     if (!activeRole || !canArmTonightSetup) {
       return;
     }
-    setArmedSetupRoleId(activeRole);
+    setArmedSetup(setupIdentity);
     focusRoleSetup();
   };
 
   /** Keep the role board and armed setup on the same selected part. */
   const handleRoleChange = (roleId: string | null): void => {
     setActiveRole(roleId);
-    setArmedSetupRoleId(null);
+    setArmedSetup(null);
   };
 
   /** Documented. */
@@ -573,7 +588,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                     id="workspace-role-setup"
                     tabIndex={-1}
                     className={`rounded-xl p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${
-                      armedSetupRoleId === activeRole
+                      isSetupArmed
                         ? "border border-amber-300/50 bg-amber-300/[0.14] ring-2 ring-amber-300/70"
                         : "border border-indigo-300/20 bg-indigo-300/[0.08]"
                     }`}
@@ -640,7 +655,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </div>
                 )}
                 <PracticeProgress progress={activeRoleDetails?.practiceProgress} onChange={handlePracticeProgressChange} />
-                {armedSetupRoleId === activeRole ? (
+                {isSetupArmed ? (
                   <p className="mt-3 text-sm font-semibold text-amber-100" role="status" aria-live="polite">
                     {setupStatus}
                   </p>
@@ -648,7 +663,7 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                 <GrooveMap
                   notes={activeRoleTranscription ?? activeRoleDetails?.transcription}
                   isLoading={false}
-                  entranceOnset={armedSetupRoleId === activeRole ? firstNote?.onset : undefined}
+                  entranceOnset={isSetupArmed ? firstNote?.onset : undefined}
                   roleName={roleName}
                 />
               </div>

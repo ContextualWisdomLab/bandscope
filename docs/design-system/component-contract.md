@@ -75,6 +75,8 @@ The authoritative Figma view is `31 Component Contract Catalog`. This file mirro
 
 ### Workspace States
 
+- An activated role setup belongs to the current song/project and exact role name, setup cue and first-note or playable-range evidence. Source/song replacement or changed evidence clears the status, setup-card emphasis and first-entrance highlight until the user activates again. Unrelated immutable practice-progress changes preserve activation; restoring old evidence after an intervening change does not resurrect it.
+- This is renderer session state only, not a claim that audio played or setup was musically confirmed.
 - Figma page `34 Workspace State Matrix` maps `EmptyState`, `LoadingState`, `ErrorState`, ready `Workspace`, `GrooveMap`, and Source Control Stack substates.
 - `App.tsx` must preserve the current routing order: `jobError` -> `ErrorState`, `analysisInFlight || isStarting` -> `LoadingState`, `jobResult` -> `Workspace`, otherwise `EmptyState`.
 - `LoadingState` keeps `role="status"`, `aria-live="polite"`, `aria-atomic="true"`, and `aria-busy="true"`.
