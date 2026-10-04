@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { MAX_YOUTUBE_URL_LENGTH } from "./lib/analysis";
 
@@ -53,9 +53,9 @@ vi.mock("./lib/analysis", async (importActual) => {
   };
 });
 
-function succeededResult() {
+function succeededResult(jobId = "job-1") {
   return {
-    jobId: "job-1",
+    jobId,
     state: "succeeded",
     requestedAt: "2026-03-12T00:00:00.000Z",
     updatedAt: "2026-03-12T00:00:01.000Z",
@@ -396,7 +396,7 @@ describe("App", () => {
         state: "queued",
         progressLabel: "Queued for analysis"
       }))
-      .mockResolvedValueOnce(succeededResult());
+      .mockResolvedValueOnce(succeededResult("job-local-1"));
 
     render(<App />);
 
@@ -599,7 +599,7 @@ describe("App", () => {
       );
     });
 
-    const completed = succeededResult();
+    const completed = succeededResult("job-unlabeled-status");
     delete (completed as { progressLabel?: string }).progressLabel;
     act(() => {
       latestStatusSubscription?.(completed);
@@ -737,6 +737,184 @@ describe("App", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
+  describe("analysis update lifetime", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    async function startWithPendingPoll() {
+      let resolvePoll!: (value: unknown) => void;
+      let rejectPoll!: (error: unknown) => void;
+      tauriInvoke
+        .mockResolvedValueOnce(bootstrapResponse())
+        .mockResolvedValueOnce(jobStatusResponse({ state: "running", progressLabel: "Running A" }))
+        .mockImplementationOnce(() => new Promise((resolve, reject) => {
+          resolvePoll = resolve;
+          rejectPoll = reject;
+        }));
+      const view = render(<App />);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(250));
+      expect(tauriInvoke).toHaveBeenNthCalledWith(3, "get_analysis_job_status", { jobId: "job-1" });
+      expect(latestStatusSubscription).not.toBeNull();
+      return { ...view, resolvePoll, rejectPoll, onUpdate: latestStatusSubscription! };
+    }
+
+    async function startSongB(status: Record<string, unknown>) {
+      tauriInvoke
+        .mockResolvedValueOnce(bootstrapResponse({
+          projectId: "project-B",
+          source: { fileName: "song-B.wav", sourcePath: "/Users/test/Music/song-B.wav" }
+        }))
+        .mockResolvedValueOnce(status);
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /choose local audio/i }));
+      });
+      expect(screen.getByText("song-B.wav")).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /start analysis/i }));
+      });
+      expect(tauriInvoke).toHaveBeenNthCalledWith(5, "start_analysis_job", {
+        request: {
+          sourceKind: "local_audio", projectId: "project-B", sourceLabel: "song-B.wav",
+          roleFocus: ["bass-guitar", "keys-right", "lead-vocal"]
+        }
+      });
+    }
+
+    it.each(["poll", "subscription"])("ignores a mismatched job ID from the active %s", async (channel) => {
+      const { onUpdate, resolvePoll } = await startWithPendingPoll();
+      const unrelatedResult = { ...succeededResult(), jobId: "unrelated-job" };
+      await act(async () => {
+        if (channel === "poll") {
+          resolvePoll(unrelatedResult);
+        } else {
+          onUpdate(unrelatedResult);
+        }
+      });
+      expect(screen.queryByRole("heading", { name: /Late Night Set/i })).toBeNull();
+      expect(screen.getByText("Running A")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /start analysis/i })).toBeDisabled();
+      if (channel === "poll") {
+        tauriInvoke.mockResolvedValueOnce(succeededResult());
+        await act(async () => vi.advanceTimersByTimeAsync(250));
+        expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeInTheDocument();
+      }
+    });
+
+    it("keeps the first terminal update when another subscription update arrives before cleanup", async () => {
+      const { onUpdate } = await startWithPendingPoll();
+      act(() => {
+        onUpdate(succeededResult());
+        onUpdate(failedJobStatus("job-1", "Late duplicate failure."));
+      });
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("preserves song B queue when song A's delayed poll succeeds", async () => {
+      const { onUpdate, resolvePoll } = await startWithPendingPoll();
+      act(() => onUpdate(succeededResult()));
+      await startSongB(jobStatusResponse({ jobId: "job-B", progressLabel: "Queued B" }));
+      await act(async () => resolvePoll(succeededResult()));
+      expect(screen.getByText("Queued B")).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: /Late Night Set/i })).toBeNull();
+      expect(screen.getByRole("button", { name: /start analysis/i })).toBeDisabled();
+
+      act(() => latestStatusSubscription?.({
+        ...succeededResult("job-B"), result: { ...succeededResult().result, title: "Song B" }
+      }));
+      expect(screen.getByRole("heading", { name: "Song B" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^Score$/i }));
+      expect(screen.getByRole("heading", { name: "Score · Song B" })).toBeInTheDocument();
+      expect(screen.queryByText(/Scores attach to the active analysis project/i)).toBeNull();
+      tauriInvoke.mockRejectedValueOnce(new Error("Score selection cancelled."));
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /add score/i }));
+      });
+      expect(tauriInvoke).toHaveBeenCalledWith("attach_score_pdf", { projectId: "project-B", songId: "demo-song" });
+    });
+
+    it.each(["malformed", "transport"])("preserves song B failure after song A's delayed %s poll error", async (errorKind) => {
+      const { onUpdate, resolvePoll, rejectPoll } = await startWithPendingPoll();
+      act(() => onUpdate(succeededResult()));
+      await startSongB(failedJobStatus("job-B", "Song B failed closed."));
+      await act(async () => {
+        if (errorKind === "malformed") {
+          resolvePoll({ jobId: "job-1", state: "running" });
+        } else {
+          rejectPoll(new Error("transport down"));
+        }
+      });
+      expect(screen.getByRole("alert")).toHaveTextContent("Song B failed closed.");
+      expect(screen.queryByRole("heading", { name: /Late Night Set/i })).toBeNull();
+      expect(tauriInvoke).toHaveBeenCalledTimes(5);
+    });
+
+    it.each(["malformed", "success"])("preserves a same-job terminal failure after a delayed %s poll", async (responseKind) => {
+      const { onUpdate, resolvePoll } = await startWithPendingPoll();
+      act(() => onUpdate(failedJobStatus("job-1", "Original terminal failure.")));
+      await act(async () => resolvePoll(responseKind === "malformed"
+        ? { jobId: "job-1", state: "running" } : succeededResult()));
+      expect(screen.getByRole("alert")).toHaveTextContent("Original terminal failure.");
+      expect(screen.queryByRole("heading", { name: /Late Night Set/i })).toBeNull();
+    });
+
+    it("preserves a loaded project after the previous analysis poll resolves", async () => {
+      const { onUpdate, resolvePoll } = await startWithPendingPoll();
+      act(() => onUpdate(succeededResult()));
+      mockLoadProject.mockResolvedValueOnce({ ...succeededResult().result, title: "Loaded Project" });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /open project/i }));
+      });
+      await act(async () => resolvePoll(succeededResult()));
+      expect(screen.getByRole("heading", { name: "Loaded Project" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /^Score$/i }));
+      expect(screen.getByText(/Scores attach to the active analysis project/i)).toBeInTheDocument();
+    });
+
+    it("ignores an old subscription callback after song B starts", async () => {
+      const { onUpdate } = await startWithPendingPoll();
+      act(() => onUpdate(succeededResult()));
+      await startSongB(jobStatusResponse({ jobId: "job-B", progressLabel: "Queued B" }));
+      act(() => onUpdate(failedJobStatus("job-1", "Stale subscription failure.")));
+      expect(screen.getByText("Queued B")).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it.each(["success", "malformed", "transport"])("ignores an in-flight %s poll after unmount", async (responseKind) => {
+      const { unmount, resolvePoll, rejectPoll } = await startWithPendingPoll();
+      unmount();
+      await act(async () => {
+        if (responseKind === "transport") {
+          rejectPoll(new Error("transport down"));
+        } else {
+          resolvePoll(responseKind === "malformed" ? {} : succeededResult());
+        }
+        await vi.advanceTimersByTimeAsync(500);
+      });
+      expect(tauriInvoke).toHaveBeenCalledTimes(3);
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("preserves song B failure when song A's delayed poll succeeds", async () => {
+      const { onUpdate, resolvePoll } = await startWithPendingPoll();
+      act(() => onUpdate(succeededResult()));
+      expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeInTheDocument();
+      await startSongB(failedJobStatus("job-B", "Song B failed closed."));
+      expect(screen.getByRole("alert")).toHaveTextContent("Song B failed closed.");
+
+      await act(async () => resolvePoll(succeededResult()));
+
+      expect(screen.queryByRole("heading", { name: /Late Night Set/i })).toBeNull();
+      expect(screen.getByRole("alert")).toHaveTextContent("Song B failed closed.");
+    });
+  });
+
   it("marks the active job failed when polling returns a malformed status", async () => {
     tauriInvoke
       .mockResolvedValueOnce(bootstrapResponse())
@@ -781,7 +959,7 @@ describe("App", () => {
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
-      latestStatusSubscription?.(succeededResult());
+      latestStatusSubscription?.(succeededResult("job-stale-invalid-poll"));
     });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
@@ -816,7 +994,7 @@ describe("App", () => {
     await waitFor(() => expect(tauriInvoke).toHaveBeenCalledTimes(3));
 
     act(() => {
-      latestStatusSubscription?.(succeededResult());
+      latestStatusSubscription?.(succeededResult("job-stale-transport-poll"));
     });
     await act(async () => {
       rejectPoll?.(new Error("transport down"));
@@ -868,7 +1046,7 @@ describe("App", () => {
     });
 
     act(() => {
-      latestStatusSubscription?.(succeededResult());
+      latestStatusSubscription?.(succeededResult("job-push-1"));
     });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: /Late Night Set/i })).toBeTruthy();
@@ -1002,7 +1180,7 @@ describe("App", () => {
         progressLabel: "Running analysis"
       }))
       .mockRejectedValueOnce(new Error("transport down"))
-      .mockResolvedValueOnce(succeededResult());
+      .mockResolvedValueOnce(succeededResult("job-4"));
 
     render(<App />);
 

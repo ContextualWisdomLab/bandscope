@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- Ignore completed or superseded analysis polling and subscription responses so a previous song cannot replace the current song's queued state, failure, result, or loaded project; reject updates that carry another job ID.
 - Upgraded the local score PDF parser to `pdfjs-dist` 6.2.108, pinned Undici 7.29.0 across the workspace, and constrained PDF loading to copied in-memory bytes with a same-origin bundled worker and npm-generated lock provenance.
 - Redact native workspace-fetch failures at the desktop console boundary so dependency-controlled local paths, tokens, and tool diagnostics cannot be copied into routine frontend logs.
 - Redact dependency-controlled YouTube import failures at the desktop bridge so URLs, local paths, tokens, cookies, or tool diagnostics cannot be surfaced directly to the UI; users receive one safe next-action message instead.
