@@ -106,9 +106,62 @@ def test_vitest_coverage_graph_is_coherent() -> None:
     _assert_coherent_vitest_coverage_graph()
 
 
-@pytest.fixture
-def vitest_graph(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict[str, object]]:
-    """Isolate schema scenarios without rewriting any repository JSON source."""
+# Public JSON-boundary projection of reviewed #1134 metadata, not dependency intent.
+# Only locations, versions and coverage peers consumed by this contract are retained.
+_REVIEWED_NESTED_RECORDS = """
+{
+  "apps/desktop/node_modules/vitest": {
+    "version": "4.1.11", "peerDependencies": {"@vitest/coverage-v8": "4.1.11"}
+  },
+  "packages/shared-types/node_modules/vitest": {
+    "version": "4.1.11", "peerDependencies": {"@vitest/coverage-v8": "4.1.11"}
+  },
+  "apps/desktop/node_modules/@vitest/coverage-v8": {
+    "version": "4.1.11",
+    "peerDependencies": {"@vitest/browser": "4.1.11", "vitest": "4.1.11"}
+  },
+  "packages/shared-types/node_modules/@vitest/coverage-v8": {
+    "version": "4.1.11",
+    "peerDependencies": {"@vitest/browser": "4.1.11", "vitest": "4.1.11"}
+  }
+}
+"""
+
+
+def _fixture_locations(packages: dict[str, object], package_name: str) -> tuple[str, ...]:
+    """Inventory every copied runner/provider record with the validator's suffix rule."""
+    locations = tuple(
+        sorted(
+            path
+            for path in packages
+            if isinstance(path, str) and path.endswith(f"node_modules/{package_name}")
+        )
+    )
+    assert locations, f"missing fixture records for {package_name}"
+    return locations
+
+
+def _set_fixture_versions(packages: dict[str, object], version: object) -> None:
+    """Normalize all copied records and Vitest peers, never the real repository graph."""
+    for package_name in ("vitest", "@vitest/coverage-v8"):
+        for path in _fixture_locations(packages, package_name):
+            metadata = packages[path]
+            assert isinstance(metadata, dict)
+            metadata["version"] = version
+            peers = metadata.setdefault("peerDependencies", {})
+            assert isinstance(peers, dict)
+            if package_name == "@vitest/coverage-v8":
+                peers["vitest"] = version
+            for name in peers:
+                if name == "vitest" or name.startswith("@vitest/"):
+                    peers[name] = version
+
+
+@pytest.fixture(params=["hoisted", "reviewed-nested"])
+def vitest_graph(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> dict[str, dict[str, object]]:
+    """Exercise copied public JSON in both layouts without rewriting source files."""
     paths = (
         "package-lock.json",
         "apps/desktop/package.json",
@@ -119,19 +172,36 @@ def vitest_graph(monkeypatch: pytest.MonkeyPatch) -> dict[str, dict[str, object]
     # after a future real dependency update. The real-graph test stays unpatched.
     packages = documents["package-lock.json"]["packages"]
     assert isinstance(packages, dict)
+    installed_records = {
+        path: metadata
+        for path, metadata in packages.items()
+        if path.endswith(("node_modules/vitest", "node_modules/@vitest/coverage-v8"))
+    }
+    if request.param == "hoisted":
+        fixture_records = {
+            f"node_modules/{name}": deepcopy(
+                next(
+                    metadata
+                    for path, metadata in installed_records.items()
+                    if path.endswith(f"node_modules/{name}")
+                )
+            )
+            for name in ("vitest", "@vitest/coverage-v8")
+        }
+    else:
+        fixture_records = json.loads(_REVIEWED_NESTED_RECORDS)
+    for path in installed_records:
+        del packages[path]
+    packages.update(fixture_records)
     for workspace in ("apps/desktop", "packages/shared-types"):
         for document in (documents[f"{workspace}/package.json"], packages[workspace]):
             dependencies = document["devDependencies"]
             assert isinstance(dependencies, dict)
             for name in ("vitest", "@vitest/coverage-v8"):
                 dependencies[name] = "^4.1.10"
-    for path, metadata in packages.items():
-        if path.endswith(("node_modules/vitest", "node_modules/@vitest/coverage-v8")):
-            metadata["version"] = "4.1.10"
-            for name in metadata["peerDependencies"]:
-                if name == "vitest" or name.startswith("@vitest/"):
-                    metadata["peerDependencies"][name] = "4.1.10"
+    _set_fixture_versions(packages, "4.1.10")
     monkeypatch.setattr(sys.modules[__name__], "_read_json", documents.__getitem__)
+    _assert_coherent_vitest_coverage_graph()
     return documents
 
 
@@ -148,12 +218,7 @@ def test_vitest_graph_accepts_a_coordinated_patch(
             assert isinstance(dependencies, dict)
             for name in ("vitest", "@vitest/coverage-v8"):
                 dependencies[name] = requirement
-    for path, metadata in packages.items():
-        if path.endswith(("node_modules/vitest", "node_modules/@vitest/coverage-v8")):
-            metadata["version"] = "4.1.11"
-            for name in metadata["peerDependencies"]:
-                if name == "vitest" or name.startswith("@vitest/"):
-                    metadata["peerDependencies"][name] = "4.1.11"
+    _set_fixture_versions(packages, "4.1.11")
     _assert_coherent_vitest_coverage_graph()
 
 
@@ -200,6 +265,14 @@ def test_vitest_graph_rejects_record_drift(
 ) -> None:
     """Malformed lock records fail at the relevant coherence assertion."""
     record = vitest_graph["package-lock.json"]
+    packages = record["packages"]
+    assert isinstance(packages, dict)
+    if len(path) > 1 and path[1].startswith("node_modules/"):
+        package_name = path[1].removeprefix("node_modules/")
+        # Mutate the last existing location: nested failures must not rely on the
+        # validator inspecting only the first record, nor create an absent root.
+        target = _fixture_locations(packages, package_name)[-1]
+        path = (path[0], target, *path[2:])
     for key in path[:-1]:
         record = record[key]
         assert isinstance(record, dict)
@@ -229,11 +302,7 @@ def test_vitest_graph_rejects_versions_outside_workspace_requirements(
     """Even an aligned pair needs valid versions within the declared major and floor."""
     packages = vitest_graph["package-lock.json"]["packages"]
     assert isinstance(packages, dict)
-    for path, metadata in packages.items():
-        if path.endswith(("node_modules/vitest", "node_modules/@vitest/coverage-v8")):
-            metadata["version"] = version
-            if path.endswith("node_modules/@vitest/coverage-v8"):
-                metadata["peerDependencies"]["vitest"] = version
+    _set_fixture_versions(packages, version)
     with pytest.raises(AssertionError, match="stable exact version|outside workspace requirement"):
         _assert_coherent_vitest_coverage_graph()
 
@@ -272,9 +341,11 @@ def test_vitest_graph_checks_nested_package_versions(
     """Nested installed locations cannot conceal a second mismatched version."""
     packages = vitest_graph["package-lock.json"]["packages"]
     assert isinstance(packages, dict)
-    nested = deepcopy(packages[f"node_modules/{package_name}"])
+    seed = _fixture_locations(packages, package_name)[-1]
+    nested = deepcopy(packages[seed])
+    assert isinstance(nested, dict)
     nested["version"] = "4.1.11"
-    packages[f"apps/desktop/node_modules/{package_name}"] = nested
+    packages[f"{seed}/node_modules/{package_name}"] = nested
     with pytest.raises(AssertionError, match="runner versions drift|runner-coverage version drift"):
         _assert_coherent_vitest_coverage_graph()
 
