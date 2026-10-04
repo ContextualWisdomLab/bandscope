@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-09-05 - Min/max scans remain linear
+**Learning:** Replacing `Array.prototype.reduce()` with an indexed loop for an extremum search can remove callback dispatch, but both forms still scan every element and remain O(N). A simple `if (value > max)` is not automatically semantics-preserving: it ignores `NaN`, whereas `Math.max` propagates it. A microbenchmark on an arbitrary array does not establish buyer-path improvement.
+**Action:** Preserve the existing reduction semantics first, then profile representative GrooveMap transcription sizes in the actual Chromium/Electron render path before claiming material latency, heap, or GC gains.
