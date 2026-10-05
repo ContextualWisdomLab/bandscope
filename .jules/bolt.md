@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2024-05-19 - Avoid .every() callback overhead on massive arrays
+**Learning:** Using `Array.prototype.every()` on massive arrays (like megabyte-sized PDF byte buffers) incurs severe O(N) callback execution overhead, causing main-thread blocking.
+**Action:** Replace array methods like `.every()` or `.forEach()` with traditional `for` loops on massive arrays for measurable performance gains without sacrificing readability.
