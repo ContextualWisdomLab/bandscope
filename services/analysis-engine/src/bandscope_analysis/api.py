@@ -1210,7 +1210,9 @@ def run_analysis_job_updates(
     if feature_cache_paths is not None:
         try:
             cached_features = _load_cached_local_audio_features(*feature_cache_paths)
-        except (OSError, ValueError, RuntimeError, RecursionError):
+        # Legacy np.load may return a standalone NPY array without a context manager.
+        # Confine malformed-cache TypeError handling to acquisition, not MIR consumption.
+        except (OSError, ValueError, RuntimeError, TypeError, RecursionError):
             updates.append(
                 _build_job_status(
                     job_id=job_id,

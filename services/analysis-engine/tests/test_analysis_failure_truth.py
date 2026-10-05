@@ -982,11 +982,69 @@ def test_inherited_npy_context_manager_boundary_is_unchanged(boundary):
     with paths[1].open("wb") as arrays_file:
         np.save(arrays_file, np.ones(4), allow_pickle=False)
     original_bytes = [path.read_bytes() for path in paths]
-    # Separate inherited suggestion: preserve the raw owner reader's current TypeError.
+    # Original raw-loader observation retained; orchestration escape receipt is in base evidence.
     with pytest.raises(TypeError, match="context manager"):
         api._load_cached_local_audio_features(*paths)
     boundary.writes.clear()
-    with pytest.raises(TypeError, match="context manager"):
-        api.run_analysis_job("inherited-npy-boundary", boundary.payload, "timestamp")
     assert [path.read_bytes() for path in paths] == original_bytes
+    assert boundary.trace == [] and boundary.writes == [] and boundary.builds == []
+
+
+@pytest.mark.parametrize("entrypoint", ["updates", "terminal"])
+def test_actual_standalone_npy_cache_first_and_retry_fail_closed(
+    boundary, caplog, record_property, entrypoint
+):
+    paths = api._feature_cache_paths(boundary.payload)
+    assert api._store_cached_local_audio_features(*paths, boundary.payload, synthetic_features())
+    with paths[1].open("wb") as arrays_file:
+        np.save(arrays_file, np.ones(4), allow_pickle=False)
+    # Real owner reader, real Path and harmless NPY: not an injected loader exception.
+    with pytest.raises(TypeError, match="context manager"):
+        api._load_cached_local_audio_features(*paths)
+    boundary.writes.clear()
+    private_files = {p: p.read_bytes() for p in boundary.root.rglob("*") if p.is_file()}
+    cache_entries = sorted(str(p.relative_to(boundary.root)) for p in boundary.root.rglob("*"))
+    attempts = []
+    for attempt in ("first", "retry"):
+        if entrypoint == "updates":
+            updates = api.run_analysis_job_updates(attempt, boundary.payload, "timestamp")
+        else:
+            updates = [api.run_analysis_job(attempt, boundary.payload, "timestamp")]
+        terminal = updates[-1]
+        assert terminal["state"] == "failed"
+        assert terminal["error"] == {
+            "code": "engine_unavailable",
+            "message": "Cached stems unavailable",
+        }
+        assert terminal["cacheStatus"] == "miss"
+        assert not any("result" in update or update["state"] == "succeeded" for update in updates)
+        assert boundary.trace == [] and boundary.writes == [] and boundary.builds == []
+        assert not api._analysis_cache_path(boundary.payload).exists()
+        assert {p: p.read_bytes() for p in boundary.root.rglob("*") if p.is_file()} == private_files
+        assert sorted(str(p.relative_to(boundary.root)) for p in boundary.root.rglob("*")) == (
+            cache_entries
+        )
+        surfaced = caplog.text + json.dumps(updates)
+        assert str(boundary.root) not in surfaced
+        assert all(str(path) not in surfaced for path in paths)
+        attempts.append(
+            {"attempt": attempt, "state": terminal["state"], "error": terminal["error"]}
+        )
+    record_property(
+        "actual_npy_cache_boundary",
+        json.dumps({"entrypoint": entrypoint, "attempts": attempts, "privateBytesPreserved": True}),
+    )
+
+
+def test_feature_cache_typeerror_catch_does_not_mask_consumer_bug(boundary, monkeypatch):
+    paths = api._feature_cache_paths(boundary.payload)
+    assert api._store_cached_local_audio_features(*paths, boundary.payload, synthetic_features())
+    boundary.writes.clear()
+
+    def invalid_consumer(features):
+        raise TypeError("synthetic consumer programming error")
+
+    monkeypatch.setattr(api, "_valid_local_audio_features", invalid_consumer)
+    with pytest.raises(TypeError, match="synthetic consumer programming error"):
+        api.run_analysis_job("consumer-bug", boundary.payload, "timestamp")
     assert boundary.trace == [] and boundary.writes == [] and boundary.builds == []
