@@ -2,6 +2,7 @@
 
 import json
 import queue
+from copy import deepcopy
 from types import SimpleNamespace
 
 import numpy as np
@@ -1048,3 +1049,260 @@ def test_feature_cache_typeerror_catch_does_not_mask_consumer_bug(boundary, monk
     with pytest.raises(TypeError, match="synthetic consumer programming error"):
         api.run_analysis_job("consumer-bug", boundary.payload, "timestamp")
     assert boundary.trace == [] and boundary.writes == [] and boundary.builds == []
+
+
+@pytest.fixture
+def actual_pipeline_cues(boundary, monkeypatch):
+    """Real short-signal builder output, with only pitch/chord inference seams injected."""
+    synthetic_pitch_chord_seams(monkeypatch)
+    features = synthetic_features()
+    song = api._build_from_pipeline(
+        features["stems"], features["sr"], 1.0, features, allow_demo_fallback=False
+    )
+    assert api._valid_local_analysis_result(song)
+    assert song["sections"][0]["roles"] and song["sections"][0]["partGraph"]
+    # A genuine first section remains intact while consumer checks the next entry.
+    song["sections"] = [deepcopy(song["sections"][0]), deepcopy(song["sections"][0])]
+    song["sections"][1]["id"] = "synthetic-nonfirst"
+    return song
+
+
+def malformed_cues(song, case):
+    """Mutate one JSON-consumption property; this is not the full #970 schema."""
+    result = deepcopy(song)
+    section = result["sections"][1]
+    mutations = {
+        "sections-not-list": (result, "sections", {}),
+        "sections-empty": (result, "sections", []),
+        "sections-over-limit": (result, "sections", [song["sections"][0]] * 1025),
+        "summary-headline-number": (result["exportSummary"], "headline", 17),
+        "summary-focus-not-list": (result["exportSummary"], "focusSections", "verse"),
+        "nonfirst-section-not-object": (result["sections"], 1, "private-cue-marker"),
+        "nonfirst-id-number": (section, "id", 17),
+        "nonfirst-label-null": (section, "label", None),
+        "nonfirst-groove-list": (section, "groove", []),
+        "nonfirst-start-bool": (section["timeRange"], "start", True),
+        "nonfirst-start-negative": (section["timeRange"], "start", -1),
+        "nonfirst-start-float": (section["timeRange"], "start", 0.5),
+        "nonfirst-start-over-u32": (section["timeRange"], "start", 2**32),
+        "nonfirst-end-equal": (section["timeRange"], "end", section["timeRange"]["start"]),
+        "nonfirst-end-bool": (section["timeRange"], "end", True),
+        "nonfirst-end-over-u32": (section["timeRange"], "end", 2**32),
+        "nonfirst-confidence-source": (section["confidence"], "source", "private-cue-marker"),
+        "nonfirst-confidence-notes": (section["confidence"], "notes", 17),
+        "nonfirst-confidence-level": (section["confidence"], "level", "certain"),
+        "nonfirst-demo-fingerprint": (
+            section["confidence"],
+            "notes",
+            "Double-check the pickup into the chorus.",
+        ),
+        "nonfirst-roles-over-limit": (section, "roles", [{"id": "r"}] * 129),
+        "nonfirst-graph-over-limit": (section, "partGraph", [{"role_id": "r"}] * 129),
+        "nonfirst-role-not-object": (section, "roles", [{"id": "valid"}, "private-cue-marker"]),
+        "nonfirst-graph-not-object": (
+            section,
+            "partGraph",
+            [{"role_id": "valid"}, "private-cue-marker"],
+        ),
+    }
+    target, key, value = mutations[case]
+    target[key] = value
+    return result
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "sections-not-list",
+        "sections-empty",
+        "sections-over-limit",
+        "summary-headline-number",
+        "summary-focus-not-list",
+        "nonfirst-section-not-object",
+        "nonfirst-id-number",
+        "nonfirst-label-null",
+        "nonfirst-groove-list",
+        "nonfirst-start-bool",
+        "nonfirst-start-negative",
+        "nonfirst-start-float",
+        "nonfirst-start-over-u32",
+        "nonfirst-end-equal",
+        "nonfirst-end-bool",
+        "nonfirst-end-over-u32",
+        "nonfirst-confidence-source",
+        "nonfirst-confidence-notes",
+        "nonfirst-confidence-level",
+        "nonfirst-demo-fingerprint",
+        "nonfirst-roles-over-limit",
+        "nonfirst-graph-over-limit",
+        "nonfirst-role-not-object",
+        "nonfirst-graph-not-object",
+    ],
+)
+def test_actual_cached_cues_rejected_on_first_and_retry(
+    boundary, actual_pipeline_cues, case, caplog
+):
+    path = api._analysis_cache_path(boundary.payload)
+    bad = malformed_cues(actual_pipeline_cues, case)
+    # Raw owner admission deliberately remains unchanged; rejection belongs to consumption.
+    assert api._store_cached_analysis(path, boundary.payload, bad)
+    assert api._load_cached_analysis(path) == bad
+    original_bytes = path.read_bytes()
+    boundary.writes.clear()
+    for attempt in ("first", "retry"):
+        updates = api.run_analysis_job_updates(attempt, boundary.payload, "timestamp")
+        terminal = updates[-1]
+        assert terminal["state"] == "failed" and terminal["cacheStatus"] == "miss"
+        assert terminal["error"] == {
+            "code": "engine_unavailable",
+            "message": "Stem separation failed",
+        }
+        assert not any("result" in update or update["state"] == "succeeded" for update in updates)
+        assert path.read_bytes() == original_bytes
+        assert api._load_cached_analysis(path) == bad
+        assert boundary.writes == [] and boundary.builds == []
+        assert not any(p.exists() for p in api._feature_cache_paths(boundary.payload))
+        assert "private-cue-marker" not in caplog.text + json.dumps(updates)
+        assert str(boundary.root) not in caplog.text + json.dumps(updates)
+    assert boundary.trace.count("start") == 2
+
+
+@pytest.mark.parametrize("case", ["sections-empty", "nonfirst-end-equal", "summary-focus-not-list"])
+def test_invalid_result_cache_rebuilds_from_legitimate_npz_then_hits(
+    boundary, monkeypatch, actual_pipeline_cues, case
+):
+    path = api._analysis_cache_path(boundary.payload)
+    assert api._store_cached_analysis(
+        path, boundary.payload, malformed_cues(actual_pipeline_cues, case)
+    )
+    paths = api._feature_cache_paths(boundary.payload)
+    assert api._store_cached_local_audio_features(*paths, boundary.payload, synthetic_features())
+    assert api._load_cached_local_audio_features(*paths) is not None
+    prior_features = [p.read_bytes() for p in paths]
+    boundary.writes.clear()
+    calls = []
+    pipeline = api._build_from_pipeline
+
+    def strict_pipeline(*args, **kwargs):
+        calls.append(kwargs["allow_demo_fallback"])
+        return pipeline(*args, **kwargs)
+
+    monkeypatch.setattr(api, "_build_from_pipeline", strict_pipeline)
+    updates = api.run_analysis_job_updates("rebuild", boundary.payload, "timestamp")
+    terminal = updates[-1]
+    assert terminal["state"] == "succeeded" and terminal["cacheStatus"] == "stored"
+    assert api._valid_local_analysis_result(terminal["result"])
+    assert any(u.get("progressLabel") == "Loaded reusable stems... (45%)" for u in updates)
+    assert calls == [False] and boundary.trace == [] and boundary.builds == []
+    assert boundary.writes == ["_store_cached_analysis"]
+    assert [p.read_bytes() for p in paths] == prior_features
+    assert api._load_cached_analysis(path) == terminal["result"]
+    retry = api.run_analysis_job("rebuild-retry", boundary.payload, "timestamp")
+    assert retry["state"] == "succeeded" and retry["cacheStatus"] == "hit"
+    assert retry["result"] == terminal["result"] and calls == [False]
+
+
+def test_valid_consumer_list_and_timing_limits_remain_cache_hits(boundary, actual_pipeline_cues):
+    song = deepcopy(actual_pipeline_cues)
+    section = song["sections"][0]
+    section["timeRange"] = {"start": 0, "end": 2**32 - 1}
+    section["confidence"]["source"] = "user"
+    section["roles"] = [deepcopy(section["roles"][0]) for _ in range(128)]
+    section["partGraph"] = [deepcopy(section["partGraph"][0]) for _ in range(128)]
+    song["sections"] = [section] + [deepcopy(song["sections"][1]) for _ in range(1023)]
+    path = api._analysis_cache_path(boundary.payload)
+    assert api._store_cached_analysis(path, boundary.payload, song)
+    original_bytes = path.read_bytes()
+    boundary.writes.clear()
+    for attempt in ("first", "retry"):
+        terminal = api.run_analysis_job(attempt, boundary.payload, "timestamp")
+        assert terminal["state"] == "succeeded" and terminal["cacheStatus"] == "hit"
+        assert terminal["result"] == song and path.read_bytes() == original_bytes
+    assert boundary.trace == [] and boundary.writes == [] and boundary.builds == []
+
+
+@pytest.mark.parametrize(
+    "prior_features", [False, True], ids=["fresh-separation", "legitimate-npz"]
+)
+@pytest.mark.parametrize("fault", ["headline-number", "nonfirst-confidence-source"])
+def test_actual_fresh_pipeline_invalid_cues_fail_without_publication(
+    boundary, monkeypatch, caplog, record_property, prior_features, fault
+):
+    """Formatter/segmentation fault injection, not a demonstrated product source defect."""
+    synthetic_pitch_chord_seams(monkeypatch)
+    features = synthetic_features()
+    paths = api._feature_cache_paths(boundary.payload)
+    old_bytes = None
+    if prior_features:
+        assert api._store_cached_local_audio_features(*paths, boundary.payload, features)
+        assert api._load_cached_local_audio_features(*paths) is not None
+        old_bytes = [p.read_bytes() for p in paths]
+    else:
+
+        def native_worker(source_path, result_queue, arrays_path=None):
+            boundary.trace.append("synthetic-valid-separation")
+            result_queue.put(("ok", features))
+
+        monkeypatch.setattr(api, "_stem_separation_worker", native_worker)
+    boundary.writes.clear()
+    if fault == "headline-number":
+        monkeypatch.setattr(api, "_build_export_headline", lambda sections: 17)
+    else:
+        segment = api.segment_with_boundaries
+
+        def malformed_segmentation(*args):
+            sections, boundaries = segment(*args)
+            assert sections and boundaries
+            second = deepcopy(sections[0])
+            second["id"] = "synthetic-nonfirst"
+            second["confidence_source"] = "private-cue-marker"
+            return [sections[0], second], [boundaries[0], boundaries[0]]
+
+        monkeypatch.setattr(api, "segment_with_boundaries", malformed_segmentation)
+    observations = []
+    pipeline = api._build_from_pipeline
+
+    def observe_pipeline(*args, **kwargs):
+        result = pipeline(*args, **kwargs)
+        observations.append((kwargs["allow_demo_fallback"], deepcopy(result)))
+        return result
+
+    monkeypatch.setattr(api, "_build_from_pipeline", observe_pipeline)
+    for attempt in ("first", "retry"):
+        updates = api.run_analysis_job_updates(attempt, boundary.payload, "timestamp")
+        terminal = updates[-1]
+        assert terminal["state"] == "failed" and terminal["cacheStatus"] == "miss"
+        assert terminal["progressStage"] == "analyze"
+        assert terminal["error"] == {"code": "engine_unavailable", "message": "Analysis failed"}
+        assert not any("result" in u or u["state"] == "succeeded" for u in updates)
+        assert not api._analysis_cache_path(boundary.payload).exists()
+        assert boundary.writes == [] and boundary.builds == []
+        if prior_features:
+            assert [p.read_bytes() for p in paths] == old_bytes and boundary.trace == []
+        else:
+            assert not any(p.exists() for p in paths)
+        assert "private-cue-marker" not in caplog.text + json.dumps(updates)
+        assert str(boundary.root) not in caplog.text + json.dumps(updates)
+    assert len(observations) == 2 and all(strict is False for strict, _ in observations)
+    for _, result in observations:
+        assert result["id"] == "analyzed-song" and result["sections"][0]["roles"]
+        if fault == "headline-number":
+            assert result["exportSummary"]["headline"] == 17
+        else:
+            assert result["sections"][0]["confidence"]["source"] == "model"
+            assert result["sections"][1]["confidence"]["source"] == "private-cue-marker"
+    if not prior_features:
+        assert boundary.trace.count("start") == 2
+        assert boundary.trace.count("synthetic-valid-separation") == 2
+    record_property(
+        "invalid_pipeline_cue_injection",
+        json.dumps(
+            {
+                "fault": fault,
+                "priorLegitimateNPZ": prior_features,
+                "strictPipelineReturns": 2,
+                "attemptsFailed": 2,
+                "cacheWrites": [],
+            }
+        ),
+    )
