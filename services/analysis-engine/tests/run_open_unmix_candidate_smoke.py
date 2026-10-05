@@ -2,8 +2,10 @@
 
 No pretrained checkpoint or real-audio quality is evaluated. This script is not
 named test_*: it is an explicit dependency-requiring reference check, not a
-silently skipped part of ordinary CI. It changes safe_globals only in its own
-process and never relaxes the candidate loader's empty-allowlist requirement.
+silently skipped part of ordinary CI. It observes safe globals without mutation
+and rejects a nonempty list before model construction or checkpoint save/load.
+Import-registered globals can therefore block this check; no clear/retry is allowed.
+The historical clearing-worker result is not evidence for this revised behavior.
 """
 
 from __future__ import annotations
@@ -16,7 +18,6 @@ import sys
 from importlib.metadata import version
 
 import numpy as np
-
 from open_unmix_candidate import (
     CANONICAL_STEMS,
     UMXHQ_FILENAMES,
@@ -58,9 +59,10 @@ def main() -> None:
     torch.set_num_threads(2)
     torch.manual_seed(1181)
     initial_safe_globals = len(torch.serialization.get_safe_globals())
-    # PyTorch 2.10 registers nested-tensor helpers during import. Restrict only this
-    # dedicated unit-test worker, never the host app or an unrelated test process.
-    torch.serialization.clear_safe_globals()
+    # The historical PyTorch 2.10 smoke cleared import-registered helpers.
+    # Current smoke rejects them; it never mutates or retries global state.
+    if initial_safe_globals:
+        raise CandidateRejected("candidate_safe_globals_rejected")
     max_bin = bandwidth_to_max_bin(rate=44100.0, n_fft=4096, bandwidth=16000)
     unit_model = OpenUnmix(nb_bins=2049, nb_channels=2, hidden_size=512, max_bin=max_bin)
     serialized = io.BytesIO()
@@ -89,22 +91,27 @@ def main() -> None:
         pass
     else:
         raise AssertionError("A code-bearing checkpoint was not rejected")
-    print(json.dumps({
-        "status": "pass",
-        "evidence_class": "architecture_unit_only",
-        "weights": "random_initialization_unit_fixture_not_pretrained",
-        "audio": "synthetic_unit_fixture_not_scientific_acceptance",
-        "stem_shapes": {stem: list(samples.shape) for stem, samples in output.items()},
-        "openunmix": version("openunmix"),
-        "torch": version("torch"),
-        "torchaudio": version("torchaudio"),
-        "initial_process_safe_globals": initial_safe_globals,
-        "worker_process_safe_globals": len(torch.serialization.get_safe_globals()),
-        "restricted_object_rejected": True,
-        "python_socket_operations": "denied_by_audit_hook_not_a_native_sandbox",
-        "pretrained_quality_measured": False,
-        "native_packaging_measured": False,
-    }, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "status": "pass",
+                "evidence_class": "architecture_unit_only",
+                "weights": "random_initialization_unit_fixture_not_pretrained",
+                "audio": "synthetic_unit_fixture_not_scientific_acceptance",
+                "stem_shapes": {stem: list(samples.shape) for stem, samples in output.items()},
+                "openunmix": version("openunmix"),
+                "torch": version("torch"),
+                "torchaudio": version("torchaudio"),
+                "initial_process_safe_globals": initial_safe_globals,
+                "worker_process_safe_globals": len(torch.serialization.get_safe_globals()),
+                "restricted_object_rejected": True,
+                "python_socket_operations": "denied_by_audit_hook_not_a_native_sandbox",
+                "pretrained_quality_measured": False,
+                "native_packaging_measured": False,
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

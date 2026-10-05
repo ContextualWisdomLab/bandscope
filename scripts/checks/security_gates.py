@@ -1,8 +1,34 @@
 """Scan repository workspace source files for disallowed security patterns."""
 
+import ast
+import hashlib
 import os
 import re
+import sys
 from pathlib import Path
+
+CHECKPOINT_LOAD_MESSAGE = (
+    "Do not load untrusted pickle-style artifacts without a documented trust boundary."
+)
+CHECKPOINT_GLOBALS_MESSAGE = (
+    "Do not add or mutate PyTorch checkpoint reconstruction globals."
+)
+PICKLE_LOAD_PATTERN = re.compile(r"\bpickle\.load\b|from\s+pickle\s+import\s+load\b")
+
+# Complete source-review anchors, not checkpoint provenance or production admission.
+# Semantic edits (including docstrings) require renewed independent source-trust
+# review and an explicit checked-in pin update; never derive trust at scan time.
+UMX_REFERENCE_AST_SHA256 = {
+    Path(
+        "services/analysis-engine/tests/open_unmix_candidate.py"
+    ): "bef948e9f75ee9365eb313612ccf0831f0317584659929f871501296442fddb5",
+    Path(
+        "services/analysis-engine/tests/test_open_unmix_candidate.py"
+    ): "a4b833d67da3b10bc38ce974e2e60195e03a21c91f04aeabdb4952cde01bc482",
+    Path(
+        "services/analysis-engine/tests/run_open_unmix_candidate_smoke.py"
+    ): "fb53a60706dcd68f3d2b85cc6060e8f992127137011342c379218d0d374a0745",
+}
 
 RULES = [
     (
@@ -18,14 +44,14 @@ RULES = [
             r"\b(?:pickle|torch)\.load\b|"
             r"from\s+(?:torch|pickle)\s+import\s+load\b"
         ),
-        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        CHECKPOINT_LOAD_MESSAGE,
     ),
     (
         re.compile(
             r"\btorch\.serialization\b|"
             r"from\s+torch\s+import\s+serialization\b"
         ),
-        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+        CHECKPOINT_GLOBALS_MESSAGE,
     ),
     (
         re.compile(r"curl\s+[^\n|]*\|\s*(sh|bash)"),
@@ -111,6 +137,26 @@ def _workspace_files(repo_root: Path) -> list[Path]:
     return files
 
 
+def _is_reviewed_umx_reference(relative_path: Path, content: str) -> bool:
+    """Recognize only fixed exact-path/full-AST reference source, never model bytes."""
+    expected = UMX_REFERENCE_AST_SHA256.get(relative_path)
+    if expected is None:
+        return False
+    try:
+        tree = ast.parse(content)
+        # Python 3.13+ omits empty fields by default; retain the complete 3.12
+        # representation rather than accepting version-dependent source pins.
+        dumped = (
+            ast.dump(tree, include_attributes=False, **{"show_empty": True})
+            if sys.version_info >= (3, 13)
+            else ast.dump(tree, include_attributes=False)
+        )
+        fingerprint = hashlib.sha256(dumped.encode("utf-8")).hexdigest()
+    except (SyntaxError, ValueError, RecursionError):
+        return False
+    return fingerprint == expected
+
+
 def security_pattern_violations(repo_root: Path = Path(".")) -> list[str]:
     """Return forbidden-pattern violations below ``repo_root``."""
     violations: list[str] = []
@@ -122,8 +168,15 @@ def security_pattern_violations(repo_root: Path = Path(".")) -> list[str]:
         if relative_path == SELF_PATH:
             continue
         content = path.read_text(encoding="utf-8", errors="ignore")
+        reviewed_umx = _is_reviewed_umx_reference(relative_path, content)
         content = _content_for_pattern_scan(relative_path, content)
         for pattern, message in RULES:
+            if reviewed_umx and message == CHECKPOINT_GLOBALS_MESSAGE:
+                continue
+            if reviewed_umx and message == CHECKPOINT_LOAD_MESSAGE:
+                # Recognizing the torch reference must never exempt pickle, even
+                # when a dangerous marker is added only in an AST-neutral comment.
+                pattern = PICKLE_LOAD_PATTERN
             if pattern.search(content):
                 violations.append(f"{relative_path}: {message}")
     return violations

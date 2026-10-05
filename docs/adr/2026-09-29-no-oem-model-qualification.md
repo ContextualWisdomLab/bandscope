@@ -64,13 +64,19 @@ PyTorch v2.10.0's `_is_device_backend_autoload_enabled()` evaluates
 **enabled**, not disabled. The adapter requires the exact value `0` before runtime
 import. An unset-variable RED was executed and the causal guard repaired.
 
-PyTorch 2.10 also registers three safe-global helpers during import in the observed
-reference environment. The reusable loader does not clear another caller's global
-state: it rejects nonempty safe globals. The separate architecture-unit smoke
-initializes a dedicated interpreter, sets absent backend-autoload configuration
-to `0`, imports the fixed runtime, then clears that worker's extra safe globals.
-It never widens an allowlist or modifies the desktop host process. An inherited
-unsafe override still fails. This is reference-worker isolation, not OS sandboxing.
+PyTorch 2.10 also registered three safe-global helpers during import in the
+historically observed reference environment. The reusable loader did not clear
+another caller's global state: it rejected nonempty safe globals. The historical
+architecture-unit smoke cleared those helpers in a dedicated interpreter; retain
+that observation as historical evidence, not as a PASS for the revised source.
+
+The current smoke sets absent backend-autoload configuration to `0`, imports the
+runtime, observes its safe globals and raises `candidate_safe_globals_rejected`
+if nonempty, before model construction or checkpoint save/load. It never clears,
+adds or retries globals. Import-registered helpers can therefore block the current
+smoke, including the previously observed PyTorch 2.10 environment. An inherited
+unsafe override still fails. A getter observes process state at one instant;
+it proves neither interprocess isolation, concurrency safety nor a native sandbox.
 
 ## Verification and execution
 
@@ -90,13 +96,26 @@ it is not a skipped ordinary test and not a pretrained-quality benchmark:
 python -W error services/analysis-engine/tests/run_open_unmix_candidate_smoke.py
 ```
 
-Observed environment: Linux CPU, Python 3.13.5, Open-Unmix 1.3.0,
+Historical observed environment (before the nonmutating-smoke repair): Linux CPU,
+Python 3.13.5, Open-Unmix 1.3.0,
 PyTorch/torchaudio 2.10.0+cpu, NumPy 2.3.5, pytest 9.0.2, coverage 7.13.3.
 58 final control tests passed; the candidate module has 100/100 statements and
 34/34 branches covered. The actual-library smoke loaded generated tensor-only
 unit checkpoints into all four full-size Open-Unmix architectures and returned
 four finite stereo arrays of shape (2, 4410). It also rejected a benign
-callable-bearing checkpoint with no unrestricted-load retry.
+callable-bearing checkpoint with no unrestricted-load retry. That clearing-worker
+result is retained only as historical architecture-unit evidence. The revised
+nonmutating smoke has not been executed with the actual libraries in this repair;
+source/stub guard tests are not model compatibility or quality evidence.
+
+The security pattern gate binds three exact reference paths to fixed checked-in
+SHA256 pins of their complete ASTs (including docstrings and empty fields).
+Formatting and harmless comments preserve recognition; any semantic edit or parse
+failure revokes it. Only the two torch-specific findings are recognized; unrelated
+shell, remote-script, HTML and pickle rules still inspect full source text, including
+comments. This is not a general tests-directory or module exception, model-artifact
+admission or approval to merge. Pin/source bindings require independent security
+and source-trust review before production application; htdemucs rules are unchanged.
 
 The generated checkpoint and synthetic samples are **unit fixtures only**. They
 are not real audio, pretrained weights, SI-SDR evidence, a throughput benchmark,
@@ -112,9 +131,11 @@ record, **not a release manifest or shipped-component inventory**. Its null full
 digests must not be represented as verified artifacts. GitHub connector writes
 remain available; the source is therefore contributed to the existing #828 lane.
 
-The repository-pinned Ruff 0.15.5 was not installed or in the offline tool cache.
-Ruff, full repository tests, dependency audit and native package gates are not
-claimed passing by these focused tests. No production dependency, lockfile,
+At the historical reference execution, repository-pinned Ruff 0.15.5 was not
+installed or in the offline tool cache. Ruff, full repository tests, dependency
+audit and native package gates were not claimed passing by those focused tests.
+These limitations remain historical; the source-only security repair does not
+establish actual-model or hosted/native gate results. No production dependency, lockfile,
 default-model, source audio, updater or release policy is changed.
 
 Continue through the existing owners, without duplicating their implementations:

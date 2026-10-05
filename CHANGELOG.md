@@ -21,10 +21,16 @@
 ### Changed
 
 - Lock rehearsal metric authority: Le Roux SI-SDR primary, Odekerken/MIREX WCSR, Chiu 2025 ±70 ms beat F-measure, Schreiber/Urbano/Müller Acc1+Acc2 with Acc2-alone forbidden, and Raffel 2014 not cited as an Acc1/Acc2 source. Tempo has no single primary metric; beat/onset admits F-measure only inside the 70 ms window.
+- Consolidated Bandit, dependency audits, supplemental secret checks, and Trivy into one trusted-branch security backstop, delegated CodeQL to GitHub default setup, and removed duplicate local PR security and release-preflight runs.
 - Pinned npm `10.9.9` as the approved lockfile generator, activated it through Node-bundled Corepack before dependency consumption, and fail closed unless its bundled `tar` is at least `7.5.19`; primary CI still consumes the committed lock only through frozen `npm ci` validation, rejects mutable npm resolution in the lock gate, requires integrity evidence for public-registry lock entries, and preserves generator-sensitive root `@esbuild/*` peer metadata.
 
 ### Fixed
 
+- Stop local analysis with a structured failure after separation, process startup,
+  timeout, invalid stem features or empty pipeline results instead of publishing
+  demo cues as success. Validate cached results at consumption while preserving
+  existing cache-owner schemas and publication contracts. Keep unsigned numeric
+  stem reuse compatible and cover failure/retry, privacy and worker cleanup.
 - Rejected POSIX and Windows parent-directory segments at the YouTube download-output boundary
   before the path reaches yt-dlp, returning a stable redacted failure without downloader execution.
 - Kept YouTube TLS verification enabled, using populated OS-managed CA roots when available and

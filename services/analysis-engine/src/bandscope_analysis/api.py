@@ -366,6 +366,8 @@ def _build_from_pipeline(
     sr: int,
     duration_seconds: float,
     features: dict[str, Any],
+    *,
+    allow_demo_fallback: bool = True,
 ) -> RehearsalSong:
     """Build a RehearsalSong from the integrated analysis pipeline.
 
@@ -378,11 +380,15 @@ def _build_from_pipeline(
     # Reconstruct mix from stems for segmentation
     mix = _reconstruct_mix(stems)
     if mix.size == 0:
+        if not allow_demo_fallback:
+            raise RuntimeError("Local analysis returned no audio.")
         return _build_from_arrangement(features)
 
     # 1+2. Structural segmentation and boundary detection (single pass)
     detected_sections, boundaries = segment_with_boundaries(mix, sr, duration_seconds)
     if not detected_sections:
+        if not allow_demo_fallback:
+            raise RuntimeError("Local analysis returned no sections.")
         return _build_from_arrangement(features)
 
     # 3. Role extraction with real stem activity
@@ -558,6 +564,83 @@ def _build_export_headline(sections: list[Any]) -> str:
         return "Nail the chorus entrances and energy lifts."
 
     return f"Work through the {unique_labels[0]} section entrances first."
+
+
+def _valid_local_audio_features(features: object) -> bool:
+    """Check post-handoff MIR usability; storage admission remains with its owner."""
+    if not isinstance(features, dict):
+        return False
+    stems, sr, separation = features.get("stems"), features.get("sr"), features.get("separation")
+    if not isinstance(stems, dict) or not stems:
+        return False
+    if type(sr) is not int or not 0 < sr <= 384_000 or not isinstance(separation, dict):
+        return False
+    duration = separation.get("duration_seconds")
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+        return False
+    # Range first: huge JSON integers must never reach NumPy numeric coercion.
+    if not 0 < duration <= 1800 or not np.isfinite(duration):
+        return False
+    for stem in stems.values():
+        if not isinstance(stem, np.ndarray) or stem.ndim != 1 or stem.size == 0:
+            return False
+        if stem.dtype.kind not in "fiu":
+            return False
+        if not all(np.isfinite(stem[i : i + 65536]).all() for i in range(0, stem.size, 65536)):
+            return False
+    return _normalize_stem_role_types(features.get("stem_role_types"), list(stems)) is not None
+
+
+def _valid_local_analysis_result(result: object) -> bool:
+    """Check Signal/MIR result eligibility at consumption, not cache provenance."""
+    if not isinstance(result, dict) or result.get("id") != "analyzed-song":
+        return False
+    if not isinstance(result.get("title"), str) or not result["title"]:
+        return False
+    sections, summary = result.get("sections"), result.get("exportSummary")
+    if not isinstance(sections, list) or not 0 < len(sections) <= 1024:
+        return False
+    if not isinstance(summary, dict) or summary.get("format") != "cue-sheet":
+        return False
+    if not isinstance(summary.get("headline"), str) or not isinstance(
+        summary.get("focusSections"), list
+    ):
+        return False
+    for section in sections:
+        if not isinstance(section, dict):
+            return False
+        if not all(isinstance(section.get(key), str) for key in ("id", "label", "groove")):
+            return False
+        timing = section.get("timeRange")
+        if not isinstance(timing, dict):
+            return False
+        try:
+            build_section_time_range(timing.get("start"), timing.get("end"))
+        except ValueError:
+            return False
+        confidence = section.get("confidence")
+        if not isinstance(confidence, dict) or confidence.get("level") not in (
+            "low",
+            "medium",
+            "high",
+        ):
+            return False
+        if confidence.get("source") not in ("model", "user") or not isinstance(
+            confidence.get("notes"), str
+        ):
+            return False
+        # Historical fallback kept this demo fingerprint even when the song id was renamed.
+        if confidence["notes"] == "Double-check the pickup into the chorus.":
+            return False
+        for key in ("roles", "partGraph"):
+            items = section.get(key)
+            if (
+                not isinstance(items, list)
+                or len(items) > 128
+                or not all(isinstance(item, dict) for item in items)
+            ):
+                return False
+    return True
 
 
 def _build_job_status(
@@ -883,7 +966,7 @@ def _stem_separation_worker(
         result_queue.put(("ok", separation_result))
     except Exception as error:
         kind, safe_message, log_message = _stem_separation_failure(error)
-        logger.exception(log_message)
+        logger.warning(log_message)
         result_queue.put((kind, safe_message))
 
 
@@ -956,14 +1039,15 @@ def _run_stem_separation_with_timeout(
     timeout_budget = STEM_SEPARATION_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds
     context = _multiprocessing_context()
     result_queue = context.Queue(maxsize=1)
-    process = cast(Any, context).Process(
-        target=_stem_separation_worker,
-        args=(source_path, result_queue, str(arrays_path) if arrays_path else None),
-    )
-    process.start()
-    deadline = time.monotonic() + max(timeout_budget, 0.001)
-
+    started = False
     try:
+        process = cast(Any, context).Process(
+            target=_stem_separation_worker,
+            args=(source_path, result_queue, str(arrays_path) if arrays_path else None),
+        )
+        process.start()
+        started = True
+        deadline = time.monotonic() + max(timeout_budget, 0.001)
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -977,11 +1061,11 @@ def _run_stem_separation_with_timeout(
                     process.join(timeout=1)
                     raise RuntimeError("Stem separation process ended without a result.") from None
     finally:
+        if started:
+            _stop_process(process)
+            process.join(timeout=1)
         result_queue.close()
         result_queue.join_thread()
-
-    process.join(timeout=1)
-    _stop_process(process)
 
     if kind == "ok":
         return cast(dict[str, Any], payload)
@@ -1024,6 +1108,8 @@ def _build_local_audio_features(request: AnalysisJobRequest) -> dict[str, Any] |
         request["localSource"]["sourcePath"],
         arrays_path=_stem_work_arrays_path(request),
     )
+    if not isinstance(separation_result, dict):
+        raise RuntimeError("Stem separation returned invalid features.")
     if "sample_rate" not in separation_result:
         if "stem_role_types" not in separation_result and isinstance(
             separation_result.get("stems"), dict
@@ -1069,8 +1155,19 @@ def run_analysis_job_updates(
     cache_path = _analysis_cache_path(request)
     cache_status: AnalysisCacheStatus = "disabled" if cache_path is None else "miss"
     if cache_path is not None:
-        cached_result = _load_cached_analysis(cache_path)
-        if cached_result is not None:
+        try:
+            cached_result = _load_cached_analysis(cache_path)
+        except (OSError, ValueError, RuntimeError, RecursionError):
+            return [
+                _build_job_status(
+                    job_id=job_id,
+                    state="failed",
+                    requested_at=requested_at,
+                    cache_status=cache_status,
+                    error={"code": "engine_unavailable", "message": "Cached analysis unavailable"},
+                )
+            ]
+        if _valid_local_analysis_result(cached_result):
             return [
                 _build_job_status(
                     job_id=job_id,
@@ -1111,8 +1208,20 @@ def run_analysis_job_updates(
     audio_features: dict[str, Any] | None = None
     feature_cache_hit = False
     if feature_cache_paths is not None:
-        cached_features = _load_cached_local_audio_features(*feature_cache_paths)
-        if cached_features is not None:
+        try:
+            cached_features = _load_cached_local_audio_features(*feature_cache_paths)
+        except (OSError, ValueError, RuntimeError, RecursionError):
+            updates.append(
+                _build_job_status(
+                    job_id=job_id,
+                    state="failed",
+                    requested_at=requested_at,
+                    cache_status=cache_status,
+                    error={"code": "engine_unavailable", "message": "Cached stems unavailable"},
+                )
+            )
+            return updates
+        if _valid_local_audio_features(cached_features):
             audio_features = cached_features
             feature_cache_hit = True
             updates.append(
@@ -1141,34 +1250,8 @@ def run_analysis_job_updates(
         )
         try:
             audio_features = _build_local_audio_features(request)
-        except StemSeparationTimedOut:
-            updates.append(
-                _build_job_status(
-                    job_id=job_id,
-                    state="running",
-                    requested_at=requested_at,
-                    progress_label="Stem separation timed out; continuing with fallback cues",
-                    progress_stage="separate",
-                    progress_percent=55,
-                    cache_status=cache_status,
-                )
-            )
-            audio_features = None
-        except RuntimeError:
-            updates.append(
-                _build_job_status(
-                    job_id=job_id,
-                    state="running",
-                    requested_at=requested_at,
-                    progress_label="Stem separation unavailable; continuing with fallback cues",
-                    progress_stage="separate",
-                    progress_percent=55,
-                    cache_status=cache_status,
-                )
-            )
-            audio_features = None
-        except (FileNotFoundError, ValueError):
-            logger.exception("Stem separation failed before analysis job completion.")
+        except (OSError, ValueError, RuntimeError, TypeError, KeyError, RecursionError):
+            logger.warning("Stem separation failed before analysis job completion.")
             updates.append(
                 _build_job_status(
                     job_id=job_id,
@@ -1178,13 +1261,25 @@ def run_analysis_job_updates(
                     progress_stage="separate",
                     progress_percent=45,
                     cache_status=cache_status,
-                    error={
-                        "code": "engine_unavailable",
-                        "message": "Stem separation failed",
-                    },
+                    error={"code": "engine_unavailable", "message": "Stem separation failed"},
                 )
             )
             return updates
+
+    if request["sourceKind"] == "local_audio" and not _valid_local_audio_features(audio_features):
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                progress_label="Stem separation failed",
+                progress_stage="separate",
+                progress_percent=45,
+                cache_status=cache_status,
+                error={"code": "engine_unavailable", "message": "Stem separation failed"},
+            )
+        )
+        return updates
 
     updates.append(
         _build_job_status(
@@ -1198,7 +1293,34 @@ def run_analysis_job_updates(
         )
     )
 
-    result = build_demo_rehearsal_song(audio_features)
+    try:
+        if request["sourceKind"] == "local_audio":
+            features = cast(dict[str, Any], audio_features)
+            result = _build_from_pipeline(
+                features["stems"],
+                features["sr"],
+                features["separation"]["duration_seconds"],
+                features,
+                allow_demo_fallback=False,
+            )
+            if not _valid_local_analysis_result(result):
+                raise RuntimeError("Local analysis returned invalid cues.")
+        else:
+            result = build_demo_rehearsal_song(audio_features)
+    except (OSError, ValueError, RuntimeError, TypeError, KeyError, RecursionError):
+        updates.append(
+            _build_job_status(
+                job_id=job_id,
+                state="failed",
+                requested_at=requested_at,
+                progress_label="Analysis failed",
+                progress_stage="analyze",
+                progress_percent=70,
+                cache_status=cache_status,
+                error={"code": "engine_unavailable", "message": "Analysis failed"},
+            )
+        )
+        return updates
     updates.append(
         _build_job_status(
             job_id=job_id,
