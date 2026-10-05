@@ -21,7 +21,7 @@ PICKLE_LOAD_PATTERN = re.compile(r"\bpickle\.load\b|from\s+pickle\s+import\s+loa
 UMX_REFERENCE_AST_SHA256 = {
     Path(
         "services/analysis-engine/tests/open_unmix_candidate.py"
-    ): "bef948e9f75ee9365eb313612ccf0831f0317584659929f871501296442fddb5",
+    ): "1e378c81941b98596ee0549374c9ea1a89602601f47feb190e00babf1ee15085",
     Path(
         "services/analysis-engine/tests/test_open_unmix_candidate.py"
     ): "a4b833d67da3b10bc38ce974e2e60195e03a21c91f04aeabdb4952cde01bc482",

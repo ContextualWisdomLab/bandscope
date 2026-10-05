@@ -15,19 +15,22 @@ import os
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version as package_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
 from types import MappingProxyType
 from typing import Any, Mapping
 
 import numpy as np
 
 CANONICAL_STEMS = ("vocals", "bass", "drums", "other")
-UMXHQ_FILENAMES = MappingProxyType({
-    "vocals": "vocals-b62c91ce.pth",
-    "bass": "bass-8d85a5bd.pth",
-    "drums": "drums-9619578f.pth",
-    "other": "other-b52fbbf7.pth",
-})
+UMXHQ_FILENAMES = MappingProxyType(
+    {
+        "vocals": "vocals-b62c91ce.pth",
+        "bass": "bass-8d85a5bd.pth",
+        "drums": "drums-9619578f.pth",
+        "other": "other-b52fbbf7.pth",
+    }
+)
 REFERENCE_PACKAGE_VERSION = "1.3.0"
 _MAX_CHECKPOINT_BYTES = 64 * 1024 * 1024
 _MAX_AUDIO_SAMPLES = 44100 * 900
@@ -52,7 +55,11 @@ def _check_runtime_environment() -> None:
     if os.environ.get("TORCH_DEVICE_BACKEND_AUTOLOAD") != "0":
         raise CandidateRejected("candidate_runtime_environment_rejected")
     if os.environ.get("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "").strip().lower() not in (
-        "", "0", "false", "no", "n"
+        "",
+        "0",
+        "false",
+        "no",
+        "n",
     ):
         raise CandidateRejected("candidate_runtime_environment_rejected")
 

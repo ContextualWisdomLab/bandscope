@@ -109,7 +109,9 @@ def install_fake_runtime(monkeypatch, module):
     monkeypatch.setitem(sys.modules, "torch", torch)
     monkeypatch.setitem(sys.modules, "openunmix", SimpleNamespace())
     monkeypatch.setitem(
-        sys.modules, "openunmix.model", SimpleNamespace(OpenUnmix=FakeTargetModel, Separator=FakeSeparator)
+        sys.modules,
+        "openunmix.model",
+        SimpleNamespace(OpenUnmix=FakeTargetModel, Separator=FakeSeparator),
     )
     monkeypatch.setitem(
         sys.modules, "openunmix.utils", SimpleNamespace(bandwidth_to_max_bin=lambda **kwargs: 1487)
@@ -157,7 +159,9 @@ def test_explicit_core_construction_has_no_pretrained_factory(monkeypatch):
     assert all(model.parameters["hidden_size"] == 512 for model in separator.target_models.values())
 
 
-@pytest.mark.parametrize("changed", ["missing_blob", "extra_blob", "missing_receipt", "extra_receipt"])
+@pytest.mark.parametrize(
+    "changed", ["missing_blob", "extra_blob", "missing_receipt", "extra_receipt"]
+)
 def test_incomplete_or_expanded_stem_set_fails_closed(monkeypatch, changed):
     module = candidate_module()
     _, calls, _ = install_fake_runtime(monkeypatch, module)
@@ -172,12 +176,21 @@ def test_incomplete_or_expanded_stem_set_fails_closed(monkeypatch, changed):
     assert calls == []
 
 
-@pytest.mark.parametrize("field,value", [
-    ("filename", "vocals-bccbd9aa.pth"), ("filename", "../vocals-b62c91ce.pth"),
-    ("size_bytes", True), ("size_bytes", 0), ("size_bytes", 64 * 1024 * 1024 + 1),
-    ("size_bytes", 1.0), ("sha256", None), ("sha256", "b62c91ce"),
-    ("sha256", "A" * 64), ("sha256", "0" * 64),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("filename", "vocals-bccbd9aa.pth"),
+        ("filename", "../vocals-b62c91ce.pth"),
+        ("size_bytes", True),
+        ("size_bytes", 0),
+        ("size_bytes", 64 * 1024 * 1024 + 1),
+        ("size_bytes", 1.0),
+        ("sha256", None),
+        ("sha256", "b62c91ce"),
+        ("sha256", "A" * 64),
+        ("sha256", "0" * 64),
+    ],
+)
 def test_receipt_cannot_rename_or_admit_wrong_bytes(monkeypatch, field, value):
     module = candidate_module()
     _, calls, _ = install_fake_runtime(monkeypatch, module)
@@ -200,16 +213,21 @@ def test_only_nonempty_immutable_bytes_enter_loader(monkeypatch, blob):
     assert calls == []
 
 
-@pytest.mark.parametrize("name,value", [
-    ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1"),
-    ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "TRUE"),
-    ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "unexpected"),
-    ("TORCH_DEVICE_BACKEND_AUTOLOAD", "1"),
-])
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1"),
+        ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "TRUE"),
+        ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "unexpected"),
+        ("TORCH_DEVICE_BACKEND_AUTOLOAD", "1"),
+    ],
+)
 def test_unsafe_environment_is_rejected_before_runtime(monkeypatch, name, value):
     module = candidate_module()
     monkeypatch.setenv(name, value)
-    monkeypatch.setattr(module, "_runtime_components", lambda: pytest.fail("runtime import reached"))
+    monkeypatch.setattr(
+        module, "_runtime_components", lambda: pytest.fail("runtime import reached")
+    )
     blobs, receipts = candidate_inputs(module)
     with pytest.raises(module.CandidateRejected, match="runtime_environment"):
         module.load_umxhq_candidate(blobs, receipts)
@@ -235,7 +253,9 @@ def test_wrong_reference_package_version_is_not_accepted(monkeypatch):
     assert calls == []
 
 
-@pytest.mark.parametrize("mutation", ["empty", "object", "missing", "extra", "shape", "dtype", "nan", "sparse"])
+@pytest.mark.parametrize(
+    "mutation", ["empty", "object", "missing", "extra", "shape", "dtype", "nan", "sparse"]
+)
 def test_state_is_tensor_only_complete_and_shape_exact(monkeypatch, mutation):
     module = candidate_module()
     torch, _, state = install_fake_runtime(monkeypatch, module)
@@ -291,16 +311,25 @@ def test_stereo_output_preserves_canonical_stem_order_and_length(monkeypatch):
         assert not np.shares_memory(output[stem], audio)
 
 
-@pytest.mark.parametrize("audio,sr", [
-    (np.ones(4096), 44100), (np.ones((1, 4096)), 44100),
-    (np.ones((2, 2048)), 44100), (np.ones((2, 4096)), 22050),
-    (np.ones((2, 4096)), True), (np.ones((2, 4096)), 44100.0),
-    (np.full((2, 4096), np.nan), 44100), (np.full((2, 4096), np.inf), 44100),
-    (np.full((2, 4096), 1e100), 44100),
-])
+@pytest.mark.parametrize(
+    "audio,sr",
+    [
+        (np.ones(4096), 44100),
+        (np.ones((1, 4096)), 44100),
+        (np.ones((2, 2048)), 44100),
+        (np.ones((2, 4096)), 22050),
+        (np.ones((2, 4096)), True),
+        (np.ones((2, 4096)), 44100.0),
+        (np.full((2, 4096), np.nan), 44100),
+        (np.full((2, 4096), np.inf), 44100),
+        (np.full((2, 4096), 1e100), 44100),
+    ],
+)
 def test_audio_policy_does_not_hide_resampling_or_nonfinite_data(monkeypatch, audio, sr):
     module = candidate_module()
-    monkeypatch.setattr(module, "_runtime_components", lambda: pytest.fail("runtime import reached"))
+    monkeypatch.setattr(
+        module, "_runtime_components", lambda: pytest.fail("runtime import reached")
+    )
     with pytest.raises(module.CandidateRejected, match="audio_contract"):
         module.separate_umxhq_candidate(None, audio, sr)
 
@@ -323,7 +352,9 @@ def test_bad_runtime_output_is_not_padded_or_clamped(monkeypatch, problem):
 def test_unset_backend_autoload_is_enabled_upstream_and_must_be_rejected(monkeypatch):
     module = candidate_module()
     monkeypatch.delenv("TORCH_DEVICE_BACKEND_AUTOLOAD", raising=False)
-    monkeypatch.setattr(module, "_runtime_components", lambda: pytest.fail("default autoload reached"))
+    monkeypatch.setattr(
+        module, "_runtime_components", lambda: pytest.fail("default autoload reached")
+    )
     with pytest.raises(module.CandidateRejected, match="runtime_environment"):
         module.load_umxhq_candidate(*candidate_inputs(module))
 
