@@ -66,23 +66,28 @@ class TemporalAnalyzer:
             audio_path: Path to the audio file.
 
         Returns:
-            TemporalFeatures containing BPM and beat grids.
+            TemporalFeatures containing BPM and beat grids. The audio_path is
+            local owner metadata, not a value to include in public logs.
+
+        Raises:
+            FileNotFoundError: The selected audio is missing or not a file.
+            ValueError: The file is too large, or temporal analysis failed.
+                Public messages and logs omit paths and decoder details.
         """
         path = Path(audio_path)
         path_str = str(path)
         if not path.exists() or not path.is_file():
-            raise FileNotFoundError(f"Audio file not found: {path_str}")
+            raise FileNotFoundError("Audio file not found: selected audio")
 
-        logger.info(f"Loading and decoding audio: {path_str}")
+        logger.info("Loading and decoding selected audio")
 
+        failure_message = "Temporal analysis failed"
         try:
             with path.open("rb") as fileobj:
                 file_size = os.fstat(fileobj.fileno()).st_size
                 if file_size > MAX_AUDIO_FILE_BYTES:
-                    raise ValueError(
-                        f"Audio file is too large for temporal analysis: {file_size} bytes "
-                        f"(max {MAX_AUDIO_FILE_BYTES} bytes)"
-                    )
+                    failure_message = "Audio file is too large for temporal analysis"
+                    raise ValueError(failure_message)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
@@ -139,6 +144,6 @@ class TemporalAnalyzer:
                 "audio_path": path_str,
             }
 
-        except Exception as e:
-            logger.error(f"Failed to analyze audio {path_str}: {e}")
-            raise ValueError(f"Temporal analysis failed: {e}") from e
+        except Exception:
+            logger.error("Failed to analyze selected audio")
+            raise ValueError(failure_message) from None

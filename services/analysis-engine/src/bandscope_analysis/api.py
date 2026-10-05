@@ -252,7 +252,7 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
     cache_root = payload.get("cacheRoot")
     temp_root = payload.get("tempRoot")
 
-    if source_kind not in {"demo", "local_audio"}:
+    if type(payload.get("sourceKind")) is not str or source_kind not in {"demo", "local_audio"}:
         raise ValueError("Invalid analysis job request: invalid field 'sourceKind'")
     if not isinstance(source_label, str) or not source_label.strip():
         raise ValueError("Invalid analysis job request: invalid field 'sourceLabel'")
@@ -304,7 +304,12 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         )
     if not isinstance(file_name, str) or not file_name.strip():
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileName'")
-    if extension not in {"wav", "mp3", "flac", "m4a"}:
+    if type(local_source.get("extension")) is not str or extension not in {
+        "wav",
+        "mp3",
+        "flac",
+        "m4a",
+    }:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.extension'")
     if not isinstance(file_size_bytes, int) or file_size_bytes <= 0:
         raise ValueError("Invalid analysis job request: invalid field 'localSource.fileSizeBytes'")
