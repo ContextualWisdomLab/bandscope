@@ -263,7 +263,7 @@ describe("shared type helpers", () => {
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar"],
       extraField: true
-    })).toThrow("extraField");
+    })).toThrow("Invalid analysis job request: unknown field in 'root'");
     expect(isAnalysisJobStatus(status)).toBe(true);
     const legacyResult = createDemoRehearsalSong() as unknown as {
       sections: Array<Record<string, unknown>>;
@@ -446,7 +446,7 @@ describe("shared type helpers", () => {
 
     expect(parseLocalAudioSource(source)).toEqual(source);
     expect(() => parseLocalAudioSource(null)).toThrow("root");
-    expect(() => parseLocalAudioSource({ ...source, extraField: true })).toThrow("extraField");
+    expect(() => parseLocalAudioSource({ ...source, extraField: true })).toThrow("Invalid local audio source: unknown field in 'root'");
     expect(() => parseLocalAudioSource({ ...source, sourcePath: "   " })).toThrow("sourcePath");
     expect(() => parseLocalAudioSource({ ...source, fileName: "   " })).toThrow("fileName");
     expect(parseAnalysisJobRequest(request)).toEqual(request);
@@ -462,27 +462,27 @@ describe("shared type helpers", () => {
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar"],
       localSource: source
-    })).toThrow("localSource");
+    })).toThrow("Invalid analysis job request: unknown field in 'root'");
     expect(() => parseAnalysisJobRequest({
       sourceKind: "local_audio",
       projectId: "project-1",
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar"],
       localSource: source
-    })).toThrow("localSource");
+    })).toThrow("Invalid analysis job request: unknown field in 'root'");
     expect(() => parseAnalysisJobRequest({
       sourceKind: "local_audio",
       projectId: "project-1",
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar"],
       localSource: { ...source, sourcePath: "" }
-    })).toThrow("localSource");
+    })).toThrow("Invalid analysis job request: unknown field in 'root'");
     expect(() => parseAnalysisJobRequest({
       sourceKind: "demo",
       sourceLabel: "Late Night Set",
       roleFocus: ["bass-guitar"],
       localSource: source
-    })).toThrow("localSource");
+    })).toThrow("Invalid analysis job request: unknown field in 'root'");
 
     expect(createProjectBootstrapSummary({
       projectId: "project-1",
@@ -1681,9 +1681,16 @@ describe("shared type helpers", () => {
       songs: [legacyNestedPack]
     });
 
+    if (parsedLegacyPack.packState !== "ready") {
+      throw new Error("Expected the parsed legacy pack to be ready");
+    }
     expect(parsedLegacyPack.song.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
     expect(isRehearsalWorkspace({ ...validWorkspace, songs: [legacyNestedPack] })).toBe(false);
-    expect(parsedLegacyWorkspace.songs[0]?.song?.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
+    const parsedWorkspacePack = parsedLegacyWorkspace.songs[0];
+    if (!parsedWorkspacePack || parsedWorkspacePack.packState !== "ready") {
+      throw new Error("Expected the parsed legacy workspace pack to be ready");
+    }
+    expect(parsedWorkspacePack.song.sections[0]?.timeRange).toEqual({ start: 0, end: 1 });
 
     // Invalid packs
     expect(() => parseSongRehearsalPack({ ...validPack, packState: "invalid" })).toThrow("packState");
@@ -1714,7 +1721,7 @@ describe("shared type helpers", () => {
     // Coverage for error and engineState and song errors
     expect(() => parseSongRehearsalPack({ ...validPack, engineState: "bad" })).toThrow("engineState");
     expect(() => parseSongRehearsalPack({ ...validPack, song: { ...validPack.song, id: 123 } })).toThrow("id");
-    const packWithoutSong = { ...validPack };
+    const packWithoutSong: Partial<Extract<SongRehearsalPack, { packState: "ready" }>> = { ...validPack };
     delete packWithoutSong.song;
     expect(() => parseSongRehearsalPack({ ...packWithoutSong, packState: "failed", error: { code: "bad", message: "m" } })).toThrow("error.code");
     

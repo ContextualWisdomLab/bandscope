@@ -194,7 +194,7 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                     "extra": True,
                 },
             },
-            "localSource.extra",
+            "unknown field in 'localSource'",
         ),
         (
             {
@@ -213,7 +213,7 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
         ),
         (
             {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [], "extra": True},
-            "extra",
+            "unknown field in 'root'",
         ),
         (
             {

@@ -236,7 +236,7 @@ describe("Workspace", () => {
         fileSizeBytes: 1_024_000
       }
     };
-    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const createObjectUrl = vi.fn<typeof URL.createObjectURL>(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     Object.defineProperty(URL, "createObjectURL", {
@@ -251,7 +251,10 @@ describe("Workspace", () => {
     render(<Workspace song={song} sourceBootstrap={sourceBootstrap} />);
     fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
 
-    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const blob = createObjectUrl.mock.calls[0]?.[0];
+    if (!(blob instanceof Blob)) {
+      throw new Error("Expected the metadata handoff to be exported as a Blob");
+    }
     const payload = JSON.parse(await blob.text());
     expect(payload.artifactKind).toBe("bandscope.metadata-handoff");
     expect(payload.sourceAssets[0].fileName).toBe("late-night-set.wav");
@@ -265,7 +268,7 @@ describe("Workspace", () => {
     const invalidSourceBootstrap = {
       projectId: "project-1"
     } as ProjectBootstrapSummary;
-    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const createObjectUrl = vi.fn<typeof URL.createObjectURL>(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     Object.defineProperty(URL, "createObjectURL", {
@@ -280,7 +283,10 @@ describe("Workspace", () => {
     render(<Workspace song={song} sourceBootstrap={invalidSourceBootstrap} />);
     fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
 
-    const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+    const blob = createObjectUrl.mock.calls[0]?.[0];
+    if (!(blob instanceof Blob)) {
+      throw new Error("Expected the metadata handoff to be exported as a Blob");
+    }
     const payload = JSON.parse(await blob.text());
     expect(payload.artifactKind).toBe("bandscope.metadata-handoff");
     expect(payload.sourceAssets).toEqual([]);

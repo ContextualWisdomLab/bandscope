@@ -958,7 +958,7 @@ function validateLocalAudioSource(value: unknown): string | null {
   const allowedKeys = ["sourcePath", "fileName", "extension", "fileSizeBytes"] as const;
   for (const key of Object.keys(value)) {
     if (!allowedKeys.includes(key as (typeof allowedKeys)[number])) {
-      return `Invalid local audio source: invalid field '${key}'`;
+      return "Invalid local audio source: unknown field in 'root'";
     }
   }
   if (typeof value.sourcePath !== "string" || value.sourcePath.trim().length === 0) {
@@ -1078,7 +1078,7 @@ function validateAnalysisJobRequest(value: unknown): string | null {
   );
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
-      return `Invalid analysis job request: invalid field '${key}'`;
+      return "Invalid analysis job request: unknown field in 'root'";
     }
   }
   if (value.sourceKind === "local_audio") {

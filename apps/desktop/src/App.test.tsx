@@ -878,7 +878,7 @@ describe("App", () => {
   it("keeps handoff metadata tied to the source that produced the current result", async () => {
     const originalCreateObjectUrl = URL.createObjectURL;
     const originalRevokeObjectUrl = URL.revokeObjectURL;
-    const createObjectUrl = vi.fn(() => "blob:handoff");
+    const createObjectUrl = vi.fn<typeof URL.createObjectURL>(() => "blob:handoff");
     const revokeObjectUrl = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
     Object.defineProperty(URL, "createObjectURL", {
@@ -924,7 +924,10 @@ describe("App", () => {
       await waitFor(() => expect(screen.getByText(/next-song\.wav/i)).toBeTruthy());
 
       fireEvent.click(screen.getByRole("button", { name: /export handoff/i }));
-      const blob = createObjectUrl.mock.calls[0]?.[0] as Blob;
+      const blob = createObjectUrl.mock.calls[0]?.[0];
+      if (!(blob instanceof Blob)) {
+        throw new Error("Expected the metadata handoff to be exported as a Blob");
+      }
       const payload = JSON.parse(await blob.text());
 
       expect(payload.sourceAssets[0].fileName).toBe("late-night-set.wav");

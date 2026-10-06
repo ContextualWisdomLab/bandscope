@@ -242,8 +242,8 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         "tempRoot",
     }
     for key in payload:
-        if key not in allowed_keys:
-            raise ValueError(f"Invalid analysis job request: invalid field '{key}'")
+        if type(key) is not str or key not in allowed_keys:
+            raise ValueError("Invalid analysis job request: unknown field in 'root'")
 
     source_kind = payload.get("sourceKind")
     source_label = payload.get("sourceLabel")
@@ -290,8 +290,8 @@ def validate_analysis_job_request(payload: object) -> AnalysisJobRequest:
         raise ValueError("Invalid analysis job request: invalid field 'localSource'")
     allowed_local_keys = {"sourcePath", "fileName", "extension", "fileSizeBytes"}
     for key in local_source:
-        if key not in allowed_local_keys:
-            raise ValueError(f"Invalid analysis job request: invalid field 'localSource.{key}'")
+        if type(key) is not str or key not in allowed_local_keys:
+            raise ValueError("Invalid analysis job request: unknown field in 'localSource'")
     source_path = local_source.get("sourcePath")
     file_name = local_source.get("fileName")
     extension = local_source.get("extension")

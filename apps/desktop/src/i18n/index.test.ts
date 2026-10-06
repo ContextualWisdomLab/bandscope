@@ -28,13 +28,11 @@ describe("i18n", () => {
 
     it("returns 'en' when navigator is undefined", () => {
       const originalNavigator = globalThis.navigator;
-      // @ts-expect-error - simulating missing navigator
       delete (globalThis as unknown as { navigator?: Navigator }).navigator;
 
       expect(detectPreferredLocale()).toBe("en");
 
       if (originalNavigator !== undefined) {
-        // @ts-expect-error - restoring navigator
         globalThis.navigator = originalNavigator;
       }
     });
