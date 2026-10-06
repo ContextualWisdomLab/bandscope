@@ -8,37 +8,39 @@
 
 **Tech Stack:** GitHub Actions, npm, uv, Rust stable toolchain, Python packaging sanity, zip artifacts, SHA-256 checksums.
 
-**Security Notes:** Cross-platform builds are supply-chain and release-integrity controls. The harness must fail if Windows or macOS coverage, artifact upload, checksum generation, or required-check intent drifts out of policy.
+## Security Notes
 
-## Attack surface
+Cross-platform builds are supply-chain and release-integrity controls. The harness must fail if Windows or macOS coverage, artifact upload, checksum generation, or required-check intent drifts out of policy.
+
+### Attack surface
 
 - Windows and macOS packaging paths
 - native dependencies and bundled binaries per OS
 - release artifact generation and upload
 
-## Trust boundary
+### Trust boundary
 
 - target-OS build workers in GitHub Actions act as release-path verifiers
 - branch protections depend on named Windows and macOS build jobs
 
-## Mitigations
+### Mitigations
 
 - add dedicated Windows and macOS build jobs
 - upload per-OS artifacts and checksums on PR, push, tag, and release events
 - document required-check intent in repo docs and verify workflow coverage locally
 
-## Test points
+### Test points
 
 - local supply-chain verification covers workflow presence and trigger scope
 - workflow uploads artifact and checksum for both OSes
 - intended required checks include both OS build jobs
 
-## Realistic threats
+### Realistic threats
 
 - platform-specific bundle assets can be missing even when the Rust shell compiles locally
 - release upload credentials can be over-scoped if build and publish concerns share the same job
 
-## Remaining risk
+### Remaining risk
 
 - notarization and signing remain outside the bootstrap harness until platform credentials exist
 

@@ -9,6 +9,10 @@ App security source of truth: `docs/security/app-security.md`
 Dependency and SBOM source of truth: `docs/security/dependency-policy.md`
 Cross-platform build policy source of truth: `docs/security/cross-platform-build-policy.md`
 GitHub bootstrap execution source of truth: `docs/workflow/github-bootstrap-execution-policy.md`
+Documentation authority index: `docs/README.md`
+Product requirements: `docs/PRD.md`
+Technical requirements: `docs/TRD.md`
+Architecture decisions and diagrams: `docs/adr/README.md`, `docs/architecture/diagrams.md`
 
 ## Public repository baseline
 

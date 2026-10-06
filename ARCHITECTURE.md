@@ -1,6 +1,16 @@
 # ARCHITECTURE.md
 
-Last updated: 2026-03-11
+Last updated: 2026-08-10
+
+## Documentation authority
+
+- Product requirements live in `docs/PRD.md`.
+- Technical requirements live in `docs/TRD.md`.
+- Decision status and supersession live in `docs/adr/README.md`.
+- Component, UML, deployment, and logical artifact views live in
+  `docs/architecture/diagrams.md`.
+- Sufficiency and requirement-to-evidence traceability live in
+  `docs/documentation-coverage-matrix.md`.
 
 ## Brand source
 
@@ -75,6 +85,57 @@ Last updated: 2026-03-11
 - A `role` can represent an instrument, a vocal function, or a hand-specific subdivision when the arrangement exposes it clearly.
 - Typical roles include bass, guitar, keyboard players, keyboard left hand, keyboard right hand, lead vocal, backing vocal, horns, strings, and other arrangement-carrying parts.
 - Shared contracts should be able to carry different harmonic guidance for simultaneous roles in the same section.
+
+## Source separation and model delivery
+
+- Production separation uses Demucs 4.0.1 `htdemucs` and returns exactly vocals, bass, drums, and
+  other for downstream local analysis. The retired `bandsplit-v1` profile is not a production
+  model.
+- Demucs random temporal shifts are disabled (`shifts=0`) so the same bytes and model produce
+  reproducible local analysis and benchmark evidence.
+- Model inference is local and fail-closed. A trusted provisioning step must place the exact
+  official weight artifact in a user-scoped cache before runtime; a missing artifact is never
+  fetched by the separator. The repository and release artifacts do not bundle the weights.
+- The exact signature, source URL, full SHA-256, byte size, distribution status, and model-rights
+  uncertainty are tracked in `supply-chain/supplemental-component-inventory.json` and ADR-0001.
+- The separator verifies a non-symlinked regular file's exact byte size and full SHA-256, then
+  passes those same verified bytes through PyTorch's `weights_only=True` restricted loader with an
+  exact reviewed global allowlist, strict model construction, and a serialized one-time cache. A
+  future artifact hash or allowlist change is executable-code review; model-rights/legal delivery
+  also remains a release blocker. The repository security owner must separately accept the residual
+  approved-pickle risk for the exact model hash/dependency lock, with expiry/re-review and rollback,
+  or approve a non-pickle replacement.
+- Current dependency markers exclude Demucs on macOS Intel; unsupported platforms must surface the
+  existing safe fallback rather than pretending to separate stems.
+- Quality claims are platform-scoped: every advertised OS/architecture needs an unchanged-candidate
+  pass, while every unproven artifact must exercise and advertise the fallback.
+
+## Known-stem validation boundary
+
+- The active known-stem branch crosses the production YouTube downloader and production separator,
+  while its reference loader, alignment, and metric utilities remain test-only.
+- It pins a creator-published vocal source and a separate finished master by exact hosts, byte
+  counts, full SHA-256 values, member, and member size; downloads and waveforms stay in test-owned
+  ephemeral storage.
+- The finished master proves candidate identity. YouTube-to-master and master-to-vocal global lags
+  are composed once before separation; predicted stems are never realigned. Quality requires
+  duration/identity checks, zero-mean SI-SDR improvement over the downloaded mixture. SI-SDR remains
+  the primary separation score (Le Roux et al., 2019). Harmony uses Odekerken/MIREX WCSR. Beat/onset
+  F-measure stays inside Chiu et al. (2025) ±70 ms. Tempo requires Schreiber, Urbano, & Müller
+  (2020) Acc1 and Acc2 together; Acc2 alone is forbidden, and Raffel (2014) is not an Acc1/Acc2
+  source. This branch also requires correct
+  vocal-stem assignment margin.
+- Deterministic metric/integrity/security contracts run in ordinary CI. Live network/model execution
+  is explicit opt-in and cannot be scheduled or made release-blocking until authorization and
+  calibration requirements in ADR-0002 are met.
+- The capability has no relational persistence. ADR-0003 and the logical artifact model in
+  `docs/architecture/diagrams.md` are authoritative instead of a physical ERD.
+- The planned `BenchmarkRun`/`BenchmarkEvidence` aggregate always binds candidate, fixture, model,
+  and sanitized toolchain provenance; identity and score blocks are stage-dependent. Persistence is
+  disabled until store/access/TTL/deletion controls are accepted.
+- Distinct user-facing import/model/decode/separation recovery states are planned under
+  PRD-KS-011/TRD-KS-013; the current benchmark failure taxonomy does not claim that product UX is
+  complete.
 
 ## Rehearsal outputs
 

@@ -1,7 +1,0 @@
-{
-  "modelId": "bandsplit-v1",
-  "bassCutoffHz": 250.0,
-  "vocalLowHz": 300.0,
-  "vocalHighHz": 3400.0,
-  "drumLowHz": 3400.0
-}

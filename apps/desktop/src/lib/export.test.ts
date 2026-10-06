@@ -95,6 +95,7 @@ describe("export generation", () => {
         id: "s1",
         label: "verse",
         groove: "swing",
+        timeRange: { start: 0, end: 10 },
         confidence: { level: "high", source: "model", notes: "" },
         roles: [
           {

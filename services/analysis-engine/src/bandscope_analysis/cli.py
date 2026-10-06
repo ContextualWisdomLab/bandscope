@@ -7,7 +7,12 @@ import logging
 import sys
 from datetime import UTC, datetime
 
-from bandscope_analysis.api import get_analysis_status, run_analysis_job, run_analysis_job_updates
+from bandscope_analysis.api import (
+    get_analysis_status,
+    run_analysis_job,
+    run_analysis_job_updates,
+    validate_analysis_job_request,
+)
 from bandscope_analysis.temporal import TemporalAnalyzer
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -75,27 +80,28 @@ def main() -> int:
 
     request = payload.get("request")
 
-    # Temporary: Inject temporal analyzer call if it's a local file, just to prove it works
-    # before full orchestrator integration
-    if (
-        isinstance(request, dict)
-        and request.get("sourceKind") == "local_audio"
-        and "localSource" in request
-    ):
-        local_source = request["localSource"]
-        audio_path = local_source.get("sourcePath")
-        file_name = local_source.get("fileName", "selected audio")
-        if audio_path:
-            logging.info("Extracting temporal features from %s...", file_name)
-            try:
-                temporal_analyzer = TemporalAnalyzer()
-                features = temporal_analyzer.analyze(audio_path)
-                logging.info(f"Extracted BPM: {features['bpm']}")
-            except Exception:
-                logging.warning(
-                    "Temporal analysis failed for %s; continuing with safe fallback.",
-                    file_name,
-                )
+    # Validate the complete request before crossing the temporal file boundary.
+    # Invalid requests still use the real API's existing typed error envelope.
+    try:
+        validated_request = validate_analysis_job_request(request)
+    except ValueError:
+        validated_request = None
+    else:
+        request = validated_request
+
+    # Retain the temporal prepass until full orchestrator integration.
+    if validated_request is not None and validated_request["sourceKind"] == "local_audio":
+        local_source = validated_request["localSource"]
+        audio_path = local_source["sourcePath"]
+        logging.info("Extracting temporal features from selected audio...")
+        try:
+            temporal_analyzer = TemporalAnalyzer()
+            temporal_analyzer.analyze(audio_path)
+            logging.info("Extracted temporal features from selected audio.")
+        except Exception:
+            logging.warning(
+                "Temporal analysis failed for selected audio; continuing with safe fallback."
+            )
 
     requested_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     if progress_jsonl:

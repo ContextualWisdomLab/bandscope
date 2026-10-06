@@ -7,6 +7,7 @@ from unittest.mock import patch
 import numpy as np
 
 from bandscope_analysis.api import (
+    _build_from_pipeline,
     _build_local_audio_features,
     _feature_cache_paths,
     _load_cached_analysis,
@@ -17,6 +18,8 @@ from bandscope_analysis.api import (
     _stop_process,
     _store_cached_analysis,
     _store_cached_local_audio_features,
+    _valid_local_analysis_result,
+    _valid_local_audio_features,
     build_demo_rehearsal_song,
     build_section_time_range,
     get_analysis_status,
@@ -24,6 +27,7 @@ from bandscope_analysis.api import (
     run_analysis_job_updates,
     validate_analysis_job_request,
 )
+from bandscope_analysis.separation import ModelArtifactError
 
 
 def test_get_analysis_status_returns_health_payload() -> None:
@@ -190,7 +194,7 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
                     "extra": True,
                 },
             },
-            "localSource.extra",
+            "unknown field in 'localSource'",
         ),
         (
             {
@@ -209,7 +213,7 @@ def test_validate_analysis_job_request_rejects_bad_payloads() -> None:
         ),
         (
             {"sourceKind": "demo", "sourceLabel": "Late Night Set", "roleFocus": [], "extra": True},
-            "extra",
+            "unknown field in 'root'",
         ),
         (
             {
@@ -636,9 +640,7 @@ def test_run_analysis_job_updates_fail_safely_when_local_separation_fails() -> N
         "message": "Stem separation failed",
     }
     assert "/Users/test/Music" not in str(updates[-1]["error"])
-    logger.exception.assert_called_once_with(
-        "Stem separation failed before analysis job completion."
-    )
+    logger.warning.assert_called_once_with("Stem separation failed before analysis job completion.")
 
 
 def test_cached_analysis_helpers_treat_invalid_cache_as_miss(tmp_path) -> None:
@@ -686,7 +688,28 @@ def test_cached_analysis_store_handles_unsupported_requests_and_write_errors(tmp
             },
         }
     )
-    assert _store_cached_analysis(tmp_path, local_request, build_demo_rehearsal_song()) is False
+    with (
+        patch("bandscope_analysis.ranges.pitch_tracker.PitchTracker.track", return_value=None),
+        patch(
+            "bandscope_analysis.chords.chord_recognizer.ChordRecognizer.recognize",
+            return_value=[],
+        ),
+    ):
+        features = {
+            "stems": {"bass": np.sin(np.arange(1024) * 0.1).astype(np.float32)},
+            "sr": 22050,
+            "stem_role_types": {"bass": "instrument"},
+            "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "synthetic"},
+        }
+        result = _build_from_pipeline(
+            features["stems"], 22050, 1.0, features, allow_demo_fallback=False
+        )
+    assert _valid_local_analysis_result(result)
+    with patch(
+        "pathlib.Path.open", side_effect=OSError("synthetic result write failure")
+    ) as writer:
+        assert _store_cached_analysis(tmp_path / "result.json", local_request, result) is False
+    writer.assert_called_once_with("w", encoding="utf-8")
 
 
 def test_local_feature_cache_round_trip_uses_disk_cache_before_recompute(tmp_path) -> None:
@@ -965,15 +988,38 @@ def test_local_feature_cache_store_rejects_invalid_payloads(tmp_path) -> None:
         )
         is False
     )
-    assert (
-        _store_cached_local_audio_features(
-            tmp_path / "missing" / "features.json",
-            tmp_path,
-            request,
-            {"stems": {"bass": np.zeros(4)}, "sr": 22050, "separation": {}},
-        )
-        is False
-    )
+    features = {
+        "stems": {"bass": np.zeros(4, dtype=np.float32)},
+        "sr": 22050,
+        "stem_role_types": {"bass": "instrument"},
+        "separation": {"duration_seconds": 1.0, "chunk_count": 1, "notes": "synthetic"},
+    }
+    assert _valid_local_audio_features(features)
+    from pathlib import Path
+
+    real_open = Path.open
+    for target, mode in (
+        (metadata_path.with_name("features.json.tmp"), "w"),
+        (arrays_path.with_name("features.npz.tmp"), "wb"),
+    ):
+
+        def fail_selected_write(path, *args, _target=target, **kwargs):
+            if path == _target:
+                raise OSError("synthetic feature write failure")
+            return real_open(path, *args, **kwargs)
+
+        with patch("pathlib.Path.open", autospec=True, side_effect=fail_selected_write) as writer:
+            assert (
+                _store_cached_local_audio_features(metadata_path, arrays_path, request, features)
+                is False
+            )
+        if mode == "w":
+            writer.assert_called_once_with(target, "w", encoding="utf-8")
+        else:
+            writer.assert_any_call(target, "wb")
+            assert writer.call_count == 2
+        assert not metadata_path.exists()
+        assert not arrays_path.exists()
 
 
 def test_stem_separation_worker_maps_safe_error_kinds() -> None:
@@ -1008,6 +1054,12 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             "Stem separation unavailable because Demucs or torch is not installed.",
         ),
         (
+            ModelArtifactError("Stem separation model is not provisioned"),
+            "runtime_error",
+            "Stem separation model is unavailable.",
+            "Stem separation unavailable because the approved model could not be verified.",
+        ),
+        (
             RuntimeError("oom /secret/audio.wav"),
             "runtime_error",
             "Runtime error occurred during stem separation.",
@@ -1031,7 +1083,7 @@ def test_stem_separation_worker_maps_safe_error_kinds() -> None:
             _stem_separation_worker("/tmp/audio.wav", fake_queue)
         assert fake_queue.items == [(expected_kind, expected_message)]
         assert "/secret" not in str(fake_queue.items)
-        logger.exception.assert_called_once_with(expected_log_message)
+        logger.warning.assert_called_once_with(expected_log_message)
 
     fake_queue = FakeQueue()
     with patch("bandscope_analysis.api.AudioStemSeparator") as separator_class:
@@ -1331,8 +1383,8 @@ def test_stop_process_kills_stubborn_worker() -> None:
     assert process.killed is True
 
 
-def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> None:
-    """Ensure runtime ML failures continue with fallback cues."""
+def test_run_analysis_job_updates_fails_when_stem_step_is_unavailable() -> None:
+    """Ensure runtime ML failures do not present demo cues as local analysis."""
     with patch(
         "bandscope_analysis.api._build_local_audio_features",
         side_effect=RuntimeError("oom"),
@@ -1356,15 +1408,13 @@ def test_run_analysis_job_updates_degrades_when_stem_step_is_unavailable() -> No
             )
         )
 
-    assert updates[-1]["state"] == "succeeded"
-    assert any(
-        update.get("progressLabel") == "Stem separation unavailable; continuing with fallback cues"
-        for update in updates
-    )
+    assert updates[-1]["state"] == "failed"
+    assert updates[-1]["error"]["message"] == "Stem separation failed"
+    assert not any("result" in update for update in updates)
 
 
-def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out() -> None:
-    """Ensure timed-out ML stem inference continues with fallback cues instead of hard failure."""
+def test_run_analysis_job_updates_fails_when_stem_step_times_out() -> None:
+    """Ensure timed-out ML inference fails safely without rehearsal results."""
 
     def _slow_separate(_source_path: str) -> dict[str, object]:
         time.sleep(0.4)
@@ -1413,9 +1463,7 @@ def test_run_analysis_job_updates_gracefully_degrades_when_stem_step_times_out()
         )
         elapsed = time.monotonic() - started_at
 
-    assert updates[-1]["state"] == "succeeded"
+    assert updates[-1]["state"] == "failed"
     assert elapsed < 0.4
-    assert any(
-        update.get("progressLabel") == "Stem separation timed out; continuing with fallback cues"
-        for update in updates
-    )
+    assert updates[-1]["error"]["message"] == "Stem separation failed"
+    assert not any("result" in update for update in updates)

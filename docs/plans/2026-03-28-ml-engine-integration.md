@@ -12,10 +12,15 @@ This document outlines the MECE execution strategy to incrementally substitute m
 - **Tech**: Add `librosa` or `soundfile` for robust decoding.
 - **Output**: Real file ingestion and tempo/beat arrays.
 
-### Track 2: Spectral & Stem Separation (#106)
+### Track 2: Spectral & Stem Separation (#106) (IMPLEMENTED; RELEASE EVIDENCE OPEN)
 - **Goal**: Deconstruct the mixed audio into isolated stems.
-- **Tech**: Integrate `demucs` (or a smaller alternative) running locally.
-- **Output**: 4 or 6 discrete stems (vocals, bass, drums, other).
+- **Tech**: Demucs 4.0.1 `htdemucs` running locally on CPU after model provisioning.
+- **Output**: 4 discrete stems (vocals, bass, drums, other).
+- **Validity**: The active known-stem branch adds production-path vocal SI-SDR improvement and stem
+  assignment checks; see `docs/PRD.md`, `docs/TRD.md`, and ADR-0002.
+- **Open release blockers**: model-rights/legal delivery decision, successful exact-candidate live
+  evidence, threshold calibration, and supported-platform proof. Full-SHA verification before
+  deserialization is implemented and regression-tested.
 
 ### Track 3: Harmonic & Pitch Pipelines (#107) (COMPLETED)
 
@@ -42,12 +47,17 @@ The integration of ML libraries like `librosa`, `torch`, and `demucs` exposes th
 The primary trust boundary is between the user's filesystem (audio files) and the Python local analysis engine. All input audio is untrusted.
 
 ### Mitigations
-We will restrict audio ingestion through `librosa`/`soundfile` using strict format constraints. We will execute ML tasks locally, without reaching out to external networks, and run them under low privileges where possible.
+We restrict audio ingestion through `librosa`/`soundfile` using strict format constraints. Model
+inference runs locally and under low privilege where possible. A trusted provisioning step must
+place the exact inventoried model in the user cache; runtime never downloads a missing model. The
+separator rejects symlinks, size drift, and full-SHA mismatch before deserializing the same verified
+bytes; see ADR-0001.
 
 ### Test Points
 - Loading truncated or corrupted WAV/MP3 files.
 - Providing extremely large audio files to test OOM behavior.
-- Validating that no external network calls occur during offline ML processing.
+- Validating that no external network calls occur during model loading, including when the cache is
+  absent or invalid.
 
 ### Realistic Threats
 - OOM (Out Of Memory) crashing the user's host OS during `demucs` execution.

@@ -13,6 +13,550 @@ import pytest
 from conftest import load_module, make_symlink_or_skip
 
 
+def test_supplemental_inventory_rejects_obsolete_or_missing_runtime_model(
+    tmp_path: Path,
+) -> None:
+    """Require the runtime separator model, not the retired FFT profile, in inventory."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_missing",
+    )
+    inventory_path = tmp_path / "supply-chain" / "supplemental-component-inventory.json"
+    inventory_path.parent.mkdir(parents=True)
+    inventory_path.write_text(
+        json.dumps(
+            {
+                "modelArtifacts": [
+                    {
+                        "name": "bandsplit-v1-profile",
+                        "runtimeModelName": "bandsplit-v1",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    )
+
+    assert "supplemental inventory contains retired model: bandsplit-v1-profile" in violations
+    assert "supplemental inventory missing runtime model: htdemucs" in violations
+
+
+def test_supplemental_inventory_accepts_pinned_htdemucs_runtime_model() -> None:
+    """Accept the checked-in full-hash htdemucs runtime artifact record."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    violations = supply_chain.supplemental_inventory_violations(
+        repo_root / "supply-chain" / "supplemental-component-inventory.json",
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py",
+    )
+
+    assert violations == []
+
+
+def test_supplemental_inventory_uses_repository_lock_for_custom_inventory(
+    tmp_path: Path,
+) -> None:
+    """Resolve the default analysis lock independently of an inventory fixture path."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_custom_inventory_default_lock",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(
+        (repo_root / "supply-chain" / "supplemental-component-inventory.json").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py",
+    )
+
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    [
+        (
+            "955717e8-8726e21a.th",
+            "955717e8-00000000.th",
+            "filename does not match separator manifest",
+        ),
+        (
+            "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+            "a" * 64,
+            "checksum does not match separator manifest",
+        ),
+        ("size_bytes=84_141_911", "size_bytes=84_141_912", "sizeBytes does not match"),
+    ],
+)
+def test_supplemental_inventory_rejects_separator_manifest_drift(
+    tmp_path: Path,
+    old: str,
+    new: str,
+    message: str,
+) -> None:
+    """Cross-check code-owned model identity against the supplemental inventory."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        f"verify_supply_chain_model_drift_{message.split()[0]}",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    inventory_path = repo_root / "supply-chain" / "supplemental-component-inventory.json"
+    source_path = (
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py"
+    )
+    drifted_source = source_path.read_text(encoding="utf-8").replace(old, new, 1)
+    drifted_path = tmp_path / "audio_separator.py"
+    drifted_path.write_text(drifted_source, encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        drifted_path,
+    )
+
+    assert any(message in violation for violation in violations)
+
+
+def test_supplemental_inventory_rejects_tool_and_nonruntime_model_drift(
+    tmp_path: Path,
+) -> None:
+    """Bind yt-dlp to uv.lock, require both media tools, and validate every model."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_tool_inventory_drift",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    inventory = json.loads(
+        (repo_root / "supply-chain" / "supplemental-component-inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    inventory["packageManagedTools"][0]["version"] = "2026.7.3"
+    inventory["operatorProvidedTools"] = [
+        tool for tool in inventory["operatorProvidedTools"] if tool["name"] != "ffprobe"
+    ]
+    auxiliary_model = dict(inventory["modelArtifacts"][0])
+    auxiliary_model.update(
+        {
+            "name": "Auxiliary test model",
+            "runtimeModelName": "auxiliary-model",
+            "version": "test-signature",
+            "sizeBytes": True,
+        }
+    )
+    inventory["modelArtifacts"].append(auxiliary_model)
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        repo_root
+        / "services"
+        / "analysis-engine"
+        / "src"
+        / "bandscope_analysis"
+        / "separation"
+        / "audio_separator.py",
+        repo_root / "services" / "analysis-engine" / "uv.lock",
+    )
+
+    assert "supplemental inventory yt-dlp version does not match uv.lock" in violations
+    assert "supplemental inventory missing operator tool: ffprobe" in violations
+    assert (
+        "supplemental inventory runtime model auxiliary-model requires positive sizeBytes"
+        in violations
+    )
+
+
+def test_supplemental_inventory_rejects_non_object_root(tmp_path: Path) -> None:
+    """Diagnose an array-valued inventory instead of raising an attribute error."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_root_type",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text("[]", encoding="utf-8")
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    assert supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    ) == ["supplemental inventory must be an object"]
+
+
+def test_supplemental_inventory_rejects_empty_model_artifacts(tmp_path: Path) -> None:
+    """Reject an object that carries no artifact for the configured runtime model."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_empty",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text('{"modelArtifacts": []}', encoding="utf-8")
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    assert supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    ) == ["supplemental inventory modelArtifacts must not be empty"]
+
+
+def test_supplemental_inventory_rejects_boolean_size_and_invalid_fields(
+    tmp_path: Path,
+) -> None:
+    """Require real integer sizes and non-empty typed artifact metadata."""
+    supply_chain = load_module(
+        "scripts/checks/verify_supply_chain.py",
+        "verify_supply_chain_model_inventory_field_types",
+    )
+    inventory_path = tmp_path / "inventory.json"
+    inventory_path.write_text(
+        json.dumps(
+            {
+                "modelArtifacts": [
+                    {
+                        "name": "Hybrid Transformer Demucs",
+                        "runtimeModelName": "htdemucs",
+                        "version": "",
+                        "sourceUrl": "https://models.example/htdemucs.th",
+                        "license": [],
+                        "checksum": "sha256:" + ("a" * 64),
+                        "sizeBytes": True,
+                        "storagePath": "cache/checkpoints",
+                        "distribution": "runtime-cache",
+                        "releaseUsage": "local separation",
+                        "verification": "",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    separator_path = tmp_path / "audio_separator.py"
+    separator_path.write_text('model_name: str = "htdemucs"\n', encoding="utf-8")
+
+    violations = supply_chain.supplemental_inventory_violations(
+        inventory_path,
+        separator_path,
+    )
+
+    assert "supplemental inventory runtime model htdemucs requires positive sizeBytes" in violations
+    assert (
+        "supplemental inventory runtime model htdemucs requires non-empty string field: version"
+        in violations
+    )
+    assert (
+        "supplemental inventory runtime model htdemucs requires non-empty string field: license"
+        in violations
+    )
+    assert (
+        "supplemental inventory runtime model htdemucs requires non-empty string field: "
+        "verification" in violations
+    )
+
+
+def test_security_pattern_gate_accepts_only_verified_model_deserialization() -> None:
+    """Accept the exact verified checkpoint call while retaining the general pickle ban."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_verified_model_repo",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+
+    assert security_gates.security_pattern_violations(repo_root) == []
+
+
+def test_security_pattern_gate_prunes_excluded_directories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not descend into dependency and build trees during repository scans."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_pruned_directories",
+    )
+    excluded_file = tmp_path / ".venv" / "nested" / "ignored.py"
+    excluded_file.parent.mkdir(parents=True)
+    excluded_file.write_text("torch." + "load(untrusted)\n", encoding="utf-8")
+    source_file = tmp_path / "src" / "safe.py"
+    source_file.parent.mkdir()
+    source_file.write_text("value = 1\n", encoding="utf-8")
+    visited: list[Path] = []
+    original_is_file = Path.is_file
+
+    def tracked_is_file(path: Path) -> bool:
+        visited.append(path)
+        return original_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", tracked_is_file)
+
+    assert security_gates.security_pattern_violations(tmp_path) == []
+    assert not any(".venv" in path.parts for path in visited)
+
+
+@pytest.mark.parametrize(
+    "second_load",
+    [
+        "\ntorch." + "load(untrusted_checkpoint)\n",
+        "\ntorch." + "load (untrusted_checkpoint)\n",
+        "\nfrom torch import " + "load as untrusted_load\nuntrusted_load(checkpoint)\n",
+    ],
+)
+def test_security_pattern_gate_rejects_second_model_deserialization(
+    second_load: str,
+    tmp_path: Path,
+) -> None:
+    """Do not let the narrow verified-checkpoint rule hide another torch load site."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_second_model_load",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    target_path.write_text(
+        source_path.read_text(encoding="utf-8") + second_load,
+        encoding="utf-8",
+    )
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary."
+    ]
+
+
+def test_security_pattern_gate_rejects_unrestricted_verified_model_load(tmp_path: Path) -> None:
+    """Keep the inventoried model exception bound to PyTorch's restricted loader."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_unrestricted_model_load",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    unrestricted_source = source_path.read_text(encoding="utf-8").replace(
+        "weights_only=True",
+        "weights_only=False",
+        1,
+    )
+    target_path.write_text(unrestricted_source, encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
+def test_security_pattern_gate_rejects_expanded_checkpoint_allowlist(tmp_path: Path) -> None:
+    """Require review when a new reconstructable checkpoint global is introduced."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_expanded_checkpoint_allowlist",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    expanded_source = source_path.read_text(encoding="utf-8").replace(
+        "        model_class,\n",
+        "        model_class,\n        str,\n",
+        1,
+    )
+    target_path.write_text(expanded_source, encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
+def test_security_pattern_gate_binds_numpy_scalar_compatibility_import(
+    tmp_path: Path,
+) -> None:
+    """Keep the legacy pickle name mapped to NumPy's reviewed scalar callable."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_numpy_scalar_import",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    mutated_source = source_path.read_text(encoding="utf-8").replace(
+        "from numpy._core.multiarray import scalar as _numpy_scalar",
+        "_numpy_scalar = str",
+        1,
+    )
+    target_path.write_text(mutated_source, encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("api_name", "spacing"),
+    [
+        ("safe_" + "globals", ""),
+        ("safe_" + "globals", " "),
+        ("add_safe_" + "globals", ""),
+        ("add_safe_" + "globals", "\t"),
+    ],
+)
+def test_security_pattern_gate_rejects_additional_checkpoint_global_mutation(
+    api_name: str,
+    spacing: str,
+    tmp_path: Path,
+) -> None:
+    """Reject a second scoped or persistent PyTorch reconstruction allowlist."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        f"security_gates_additional_{api_name}",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    extra_allowlist = "\ntorch." + "serialization." + api_name + spacing + "([str])\n"
+    target_path.write_text(
+        source_path.read_text(encoding="utf-8") + extra_allowlist,
+        encoding="utf-8",
+    )
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals."
+    ]
+
+
+@pytest.mark.parametrize(
+    "alias_import",
+    [
+        "\nfrom torch." + "serialization import safe_globals as extra_safe_globals\n",
+        "\nfrom torch import " + "serialization as extra_serialization\n",
+    ],
+)
+def test_security_pattern_gate_rejects_checkpoint_api_alias_imports(
+    alias_import: str,
+    tmp_path: Path,
+) -> None:
+    """Reject standard import aliases that could bypass attribute-call matching."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_checkpoint_alias_import",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    target_path.write_text(
+        source_path.read_text(encoding="utf-8") + alias_import,
+        encoding="utf-8",
+    )
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals."
+    ]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        (
+            "# nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch\n"
+            "                    package = torch." + "load(  # nosec B614",
+            "# nosemgrep\n"
+            "                    package = torch." + "load(  # nosec B614\n"
+            "# nosemgrep: trailofbits.python.pickles-in-pytorch.pickles-in-pytorch",
+        ),
+        ("package = torch." + "load(  # nosec B614", "package = torch." + "load("),
+    ],
+)
+def test_security_pattern_gate_binds_suppressions_to_exact_model_load(
+    old: str,
+    new: str,
+    tmp_path: Path,
+) -> None:
+    """Keep both scanner exceptions exact, local, and single-purpose."""
+    security_gates = load_module(
+        "scripts/checks/security_gates.py",
+        "security_gates_moved_model_suppression",
+    )
+    repo_root = Path(__file__).resolve().parents[3]
+    source_path = repo_root / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path = tmp_path / security_gates.VERIFIED_MODEL_LOADER_PATH
+    target_path.parent.mkdir(parents=True)
+    source = source_path.read_text(encoding="utf-8")
+    assert old in source
+    target_path.write_text(source.replace(old, new, 1), encoding="utf-8")
+
+    violations = security_gates.security_pattern_violations(tmp_path)
+
+    assert violations == [
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not load untrusted pickle-style artifacts without a documented trust boundary.",
+        f"{security_gates.VERIFIED_MODEL_LOADER_PATH}: "
+        "Do not add or mutate PyTorch checkpoint reconstruction globals.",
+    ]
+
+
 def central_required_workflow_policy_text() -> str:
     """Return the repository policy text that delegates review automation centrally."""
     repo_root = Path(__file__).resolve().parents[3]
@@ -1275,9 +1819,7 @@ def test_workflow_concurrency_cancels_only_superseded_pr_heads() -> None:
         workflow = (workflows_dir / workflow_name).read_text(encoding="utf-8")
         assert "concurrency:" in workflow, workflow_name
         assert "cancel-in-progress: false" in workflow, workflow_name
-        assert "contents: read" in workflow or "permissions: read-all" in workflow, (
-            workflow_name
-        )
+        assert "contents: read" in workflow or "permissions: read-all" in workflow, workflow_name
 
     assert "pull_request:" not in (workflows_dir / "release.yml").read_text(encoding="utf-8")
 
@@ -5131,3 +5673,211 @@ def test_opencode_strix_lookup_reports_missing_actions_read_scope() -> None:
     assert_local_review_workflows_removed()
     assert "Strix evidence lookup" in policy
     assert "Actions read access" in policy
+
+
+@pytest.mark.parametrize("nonempty", [True, False])
+def test_umx_smoke_source_guard_before_model_factory(
+    monkeypatch: pytest.MonkeyPatch, nonempty: bool
+) -> None:
+    """Exercise the real smoke main with stubs only; no native runtime or payloads."""
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    smoke = load_module(
+        "services/analysis-engine/tests/run_open_unmix_candidate_smoke.py",
+        "umx_smoke_source_guard",
+    )
+    events = []
+
+    class FactoryReached(Exception):
+        pass
+
+    def factory(**kwargs):
+        events.append("factory")
+        raise FactoryReached
+
+    def forbidden_clear():
+        events.append("clear")
+
+    def forbidden_checkpoint(*args, **kwargs):
+        pytest.fail("checkpoint serialization must not be reached by stub guard tests")
+
+    fake_torch = ModuleType("torch")
+    fake_torch.set_num_threads = lambda count: None
+    fake_torch.manual_seed = lambda seed: None
+    fake_torch.serialization = SimpleNamespace(
+        get_safe_globals=lambda: [object] if nonempty else [],
+        clear_safe_globals=forbidden_clear,
+    )
+    fake_torch.save = forbidden_checkpoint
+    fake_torch.load = forbidden_checkpoint
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "openunmix", ModuleType("openunmix"))
+    monkeypatch.setitem(sys.modules, "openunmix.model", SimpleNamespace(OpenUnmix=factory))
+    monkeypatch.setitem(
+        sys.modules, "openunmix.utils", SimpleNamespace(bandwidth_to_max_bin=lambda **kw: 1487)
+    )
+    monkeypatch.setenv("TORCH_DEVICE_BACKEND_AUTOLOAD", "0")
+    monkeypatch.delenv("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", raising=False)
+    monkeypatch.setattr(smoke.sys, "addaudithook", lambda hook: None)
+    if nonempty:
+        with pytest.raises(smoke.CandidateRejected, match="^candidate_safe_globals_rejected$"):
+            smoke.main()
+        assert events == []
+    else:
+        with pytest.raises(FactoryReached):
+            smoke.main()
+        assert events == ["factory"]
+
+
+UMX_REFERENCE_PATHS = (
+    "services/analysis-engine/tests/open_unmix_candidate.py",
+    "services/analysis-engine/tests/test_open_unmix_candidate.py",
+    "services/analysis-engine/tests/run_open_unmix_candidate_smoke.py",
+)
+
+
+@pytest.mark.parametrize("relative_path", UMX_REFERENCE_PATHS)
+def test_security_pattern_gate_recognizes_exact_umx_source(
+    tmp_path: Path, relative_path: str
+) -> None:
+    """Parse reviewed reference/fake/nonmutating smoke source, never execute it."""
+    security_gates = load_module("scripts/checks/security_gates.py", "umx_exact_source_gate")
+    root = Path(__file__).resolve().parents[3]
+    target = tmp_path / relative_path
+    target.parent.mkdir(parents=True)
+    target.write_bytes((root / relative_path).read_bytes())
+    assert security_gates.security_pattern_violations(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    ("source_index", "old", "new"),
+    [
+        (0, "weights_only=True", "weights_only=False"),
+        (0, ", weights_only=True", ""),
+        (0, "weights_only=True", "weights_only=flag"),
+        (0, "", "\ntorch." + "load(blob, weights_only=True)\n"),
+        (0, "", "\nfrom torch import " + "load as other_load\nother_load(blob)\n"),
+        (0, "", "\ntorch." + "serialization.add_safe_globals([str])\n"),
+        (0, "", "\ntorch." + "serialization.safe_globals([str])\n"),
+        (0, "", "\ntorch." + "serialization.clear_safe_globals()\n"),
+        (
+            0,
+            "if torch." + "serialization.get_safe_globals():",
+            "if not torch." + "serialization.get_safe_globals():",
+        ),
+        (0, 'raise CandidateRejected("candidate_safe_globals_rejected")', "pass"),
+        (0, "hashlib.sha256(payload).hexdigest() != receipt.sha256", "False"),
+        (0, "not 0 < receipt.size_bytes <= _MAX_CHECKPOINT_BYTES", "False"),
+        (0, "type(payload) is not bytes", "False"),
+        (0, "strict=True", "strict=False"),
+        (0, 'REFERENCE_PACKAGE_VERSION = "1.3.0"', 'REFERENCE_PACKAGE_VERSION = "1.4.0"'),
+        (1, "torch = SimpleNamespace(", "import torch\n    fake = SimpleNamespace("),
+        (1, "", "\nimport torch\ntorch." + "load(blob)\n"),
+        (2, "if initial_safe_globals:", "if not initial_safe_globals:"),
+        (2, 'raise CandidateRejected("candidate_safe_globals_rejected")', "pass"),
+        (2, "", "\ntorch." + "serialization.clear_safe_globals()\n"),
+        (2, "", "\nfrom torch import " + "serialization as unsafe\n"),
+    ],
+)
+def test_security_pattern_gate_revokes_semantically_changed_umx_source(
+    tmp_path: Path, source_index: int, old: str, new: str
+) -> None:
+    """Negative fixtures are source data only, not deserialization or native execution."""
+    gate = load_module("scripts/checks/security_gates.py", "umx_mutated_source_gate")
+    root = Path(__file__).resolve().parents[3]
+    path = UMX_REFERENCE_PATHS[source_index]
+    source = (root / path).read_text(encoding="utf-8")
+    if old:
+        assert old in source
+        changed = source.replace(old, new, 1)
+    else:
+        changed = source + new
+    assert changed != source
+    target = tmp_path / path
+    target.parent.mkdir(parents=True)
+    target.write_text(changed, encoding="utf-8")
+    assert gate.security_pattern_violations(tmp_path)
+
+
+@pytest.mark.parametrize("target_path", ["src/copied.py", "tests/arbitrary.py"])
+def test_security_pattern_gate_does_not_trust_umx_path_copies(
+    tmp_path: Path, target_path: str
+) -> None:
+    """An identical helper or arbitrary test never inherits the exact-path pin."""
+    gate = load_module("scripts/checks/security_gates.py", "umx_path_copy_gate")
+    root = Path(__file__).resolve().parents[3]
+    target = tmp_path / target_path
+    target.parent.mkdir(parents=True)
+    target.write_bytes((root / UMX_REFERENCE_PATHS[0]).read_bytes())
+    assert gate.security_pattern_violations(tmp_path)
+
+
+@pytest.mark.parametrize("source_index", [0, 1, 2])
+def test_security_pattern_gate_accepts_umx_format_and_comment_only_edits(
+    tmp_path: Path, source_index: int
+) -> None:
+    """Complete AST equivalence allows formatting and innocuous comments only."""
+    gate = load_module("scripts/checks/security_gates.py", "umx_format_gate")
+    root = Path(__file__).resolve().parents[3]
+    path = UMX_REFERENCE_PATHS[source_index]
+    source = (root / path).read_text(encoding="utf-8")
+    target = tmp_path / path
+    target.parent.mkdir(parents=True)
+    target.write_text("# harmless review comment\n\n" + source + "\n", encoding="utf-8")
+    assert gate.security_pattern_violations(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        "shell=" + "True",
+        "subprocess." + "run('unsafe')",
+        "curl https://example.invalid/script | " + "sh",
+        "innerHTML" + "=untrusted",
+        "pickle." + "load(blob)",
+        "from pickle import " + "load as unsafe",
+    ],
+)
+def test_security_pattern_gate_keeps_unrelated_rules_on_umx_comments(
+    tmp_path: Path, marker: str
+) -> None:
+    """AST-neutral comments cannot suppress unrelated full-text security rules."""
+    gate = load_module("scripts/checks/security_gates.py", "umx_comment_rule_gate")
+    root = Path(__file__).resolve().parents[3]
+    path = UMX_REFERENCE_PATHS[0]
+    source = (root / path).read_text(encoding="utf-8")
+    target = tmp_path / path
+    target.parent.mkdir(parents=True)
+    target.write_text(source + "\n# " + marker + "\n", encoding="utf-8")
+    assert len(gate.security_pattern_violations(tmp_path)) == 1
+
+
+@pytest.mark.parametrize("failure", [SyntaxError, ValueError, RecursionError])
+def test_security_pattern_gate_rejects_umx_ast_parse_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: type[Exception]
+) -> None:
+    """A parser failure revokes recognition and preserves the original regex findings."""
+    gate = load_module("scripts/checks/security_gates.py", "umx_parse_failure_gate")
+    root = Path(__file__).resolve().parents[3]
+    path = UMX_REFERENCE_PATHS[0]
+    target = tmp_path / path
+    target.parent.mkdir(parents=True)
+    target.write_bytes((root / path).read_bytes())
+
+    def fail_parse(*args, **kwargs):
+        raise failure("source parse rejected")
+
+    monkeypatch.setattr(gate.ast, "parse", fail_parse)
+    assert len(gate.security_pattern_violations(tmp_path)) == 2
+
+
+def test_security_pattern_gate_rejects_invalid_umx_syntax(tmp_path: Path) -> None:
+    """Actually malformed source must remain unrecognized without execution."""
+    gate = load_module("scripts/checks/security_gates.py", "umx_invalid_syntax_gate")
+    root = Path(__file__).resolve().parents[3]
+    path = UMX_REFERENCE_PATHS[0]
+    target = tmp_path / path
+    target.parent.mkdir(parents=True)
+    target.write_text((root / path).read_text() + "\ndef broken(\n", encoding="utf-8")
+    assert len(gate.security_pattern_violations(tmp_path)) == 2

@@ -67,30 +67,49 @@ def test_cli_returns_succeeded_job_status_for_valid_request() -> None:
     assert cast(Any, response["result"])["title"] == "Late Night Set"
 
 
-def test_cli_returns_succeeded_job_status_for_valid_local_audio_request(tmp_path) -> None:
-    """Ensure the CLI accepts the local-audio intake request shape."""
-    audio_path = tmp_path / "late-night-set.wav"
-    write_short_wav(audio_path)
-    payload = {
-        "jobId": "job-local-1",
-        "request": {
-            "sourceKind": "local_audio",
-            "projectId": "project-1",
-            "sourceLabel": "late-night-set.wav",
-            "roleFocus": ["bass-guitar"],
-            "localSource": {
-                "sourcePath": str(audio_path),
-                "fileName": "late-night-set.wav",
-                "extension": "wav",
-                "fileSizeBytes": audio_path.stat().st_size,
-            },
-        },
-    }
+@pytest.mark.parametrize("progress", [False, True], ids=["json", "jsonl"])
+@pytest.mark.parametrize("mode", ["synthetic_success", "native_failure"])
+def test_cli_local_transport_is_deterministic(tmp_path, progress, mode) -> None:
+    """Real CLI/API/worker/pipeline contract, not installed-model acceptance."""
+    from cli_transport_fixture import local_payload, run_transport
 
-    response = run_cli(payload)
-
-    assert response["jobId"] == "job-local-1"
-    assert response["state"] == "succeeded"
+    completed, observed = run_transport(
+        tmp_path, local_payload(tmp_path), mode=mode, progress=progress
+    )
+    assert completed.returncode == 0, completed.stderr
+    updates = [json.loads(line) for line in completed.stdout.splitlines()]
+    terminal = updates[-1]
+    assert terminal["jobId"] == "cli-contract-job"
+    assert observed["trace"].count("native.separator.separate") == 1
+    assert observed["trace"].count("native.queue.close") == 1
+    assert observed["trace"].count("native.queue.join_thread") == 1
+    if mode == "synthetic_success":
+        assert terminal["state"] == "succeeded" and "error" not in terminal
+        assert terminal["result"]["id"] == "analyzed-song"
+        assert terminal["progressStage"] == "ready" and terminal["progressPercent"] == 100
+        if progress:
+            assert [u["progressStage"] for u in updates] == [
+                "decode",
+                "separate",
+                "analyze",
+                "persist",
+                "ready",
+            ]
+    else:
+        assert terminal["state"] == "failed"
+        assert terminal["error"] == {
+            "code": "engine_unavailable",
+            "message": "Stem separation failed",
+        }
+        assert terminal["progressStage"] == "separate" and terminal["progressPercent"] == 45
+        assert not any("result" in u or u["state"] == "succeeded" for u in updates)
+        assert "private-native-detail" not in completed.stdout + completed.stderr
+        if progress:
+            assert [(u["state"], u["progressStage"]) for u in updates] == [
+                ("running", "decode"),
+                ("running", "separate"),
+                ("failed", "separate"),
+            ]
 
 
 def test_cli_returns_failed_status_for_invalid_request() -> None:
@@ -361,7 +380,7 @@ def test_cli_main_temporal_analyzer_mock_success(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
-    """Ensure the temporal analyzer injection block succeeds."""
+    """Ensure the temporal analyzer injection block succeeds without running separation."""
     audio_path = tmp_path / "test.wav"
     write_short_wav(audio_path)
     stdin = io.StringIO(
@@ -384,12 +403,30 @@ def test_cli_main_temporal_analyzer_mock_success(
         )
     )
     stdout = io.StringIO()
+    analyzed_paths: list[str] = []
 
     class FakeAnalyzerSuccess:
         def analyze(self, path):
+            analyzed_paths.append(path)
             return {"bpm": 120.0, "beats": []}
 
+    def fake_run_analysis_job(
+        job_id: str,
+        request: object,
+        requested_at: str,
+    ) -> dict[str, object]:
+        assert job_id == "job-audio-success"
+        assert isinstance(request, dict)
+        assert request["sourceKind"] == "local_audio"
+        return {
+            "jobId": job_id,
+            "state": "succeeded",
+            "requestedAt": requested_at,
+            "updatedAt": requested_at,
+        }
+
     monkeypatch.setattr(cli, "TemporalAnalyzer", FakeAnalyzerSuccess)
+    monkeypatch.setattr(cli, "run_analysis_job", fake_run_analysis_job)
     monkeypatch.setattr(
         "bandscope_analysis.ranges.pitch_tracker.PitchTracker.track",
         lambda self, y, sr: None,
@@ -405,6 +442,7 @@ def test_cli_main_temporal_analyzer_mock_success(
     assert cli.main() == 0
     res = json.loads(stdout.getvalue())
     assert res["jobId"] == "job-audio-success"
+    assert analyzed_paths == [str(audio_path)]
 
 
 def test_cli_main_progress_jsonl_streams_status_updates(

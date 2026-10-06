@@ -88,9 +88,30 @@ The initial result will return the existing demo rehearsal song fixture through 
 
 ## Security Notes
 
-- Attack surface: React invoke payloads, Rust command handlers, Python subprocess stdin/stdout.
-- Trust boundary: frontend -> Tauri IPC -> Python engine subprocess.
-- Realistic threats: malformed payload injection, unknown IPC command use, accidental path leakage, raw subprocess error exposure.
-- Mitigations: explicit command allowlist, JSON shape validation in all layers, in-memory job store only, redacted error mapping, subprocess argument arrays only.
-- Remaining risk: the engine still returns a demo payload, so later audio-backed work must preserve the same validation discipline when real file paths arrive.
-- Test points: reject malformed request shapes, reject unknown job ids, verify subprocess errors map to typed safe failures, verify no local HTTP listener is introduced.
+### Attack surface
+
+React invoke payloads, Rust command handlers, and Python subprocess stdin/stdout.
+
+### Trust boundary
+
+Frontend -> Tauri IPC -> Python engine subprocess.
+
+### Realistic threats
+
+Malformed payload injection, unknown IPC command use, accidental path leakage, and raw subprocess
+error exposure.
+
+### Mitigations
+
+Explicit command allowlist, JSON shape validation in all layers, in-memory job store only, redacted
+error mapping, and subprocess argument arrays only.
+
+### Remaining risk
+
+The engine still returns a demo payload, so later audio-backed work must preserve the same
+validation discipline when real file paths arrive.
+
+### Test points
+
+Reject malformed request shapes, reject unknown job IDs, verify subprocess errors map to typed safe
+failures, and verify no local HTTP listener is introduced.

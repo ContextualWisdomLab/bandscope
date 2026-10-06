@@ -1,30 +1,56 @@
 {
-  "version": 1,
+  "version": 2,
   "generatedBy": "repo-maintained inventory",
-  "bundledBinaries": [
+  "packageManagedTools": [
     {
       "name": "yt-dlp",
-      "version": ">=2026.3.17",
+      "version": "2026.7.4",
+      "minimumVersion": "2026.7.4",
       "sourceUrl": "https://pypi.org/project/yt-dlp/",
       "license": "Unlicense",
       "storagePath": "services/analysis-engine/uv.lock",
-      "releaseUsage": "Used by analysis-engine to extract audio from YouTube URLs."
+      "distribution": "python-package",
+      "releaseUsage": "Used by the analysis engine to extract public YouTube audio after strict URL validation."
+    }
+  ],
+  "operatorProvidedTools": [
+    {
+      "name": "ffmpeg",
+      "version": "operator-managed supported release",
+      "sourceUrl": "https://ffmpeg.org/download.html",
+      "license": "LGPL-2.1-or-later or GPL-2.0-or-later, depending on build configuration",
+      "storagePath": "operator-configured absolute executable path; not bundled by BandScope",
+      "distribution": "operator-provided",
+      "releaseUsage": "Required by yt-dlp audio extraction and media decoding; release/live preflight verifies the exact absolute path and full executable SHA-256 and records ffmpeg -version plus trusted package provenance."
+    },
+    {
+      "name": "ffprobe",
+      "version": "same trusted package/build as ffmpeg",
+      "sourceUrl": "https://ffmpeg.org/download.html",
+      "license": "LGPL-2.1-or-later or GPL-2.0-or-later, depending on build configuration",
+      "storagePath": "operator-configured absolute executable path beside ffmpeg; not bundled by BandScope",
+      "distribution": "operator-provided",
+      "releaseUsage": "yt-dlp may invoke ffprobe when extracting audio; release/live preflight verifies its sibling path, full SHA-256, version output, and shared trusted package provenance before ffmpeg_location is passed."
     }
   ],
   "modelArtifacts": [
     {
-      "name": "bandsplit-v1-profile",
-      "version": "1.0.0",
-      "sourceUrl": "local-repo://services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json",
-      "license": "Proprietary",
-      "checksum": "sha256:ced4ae5c9077aace1694b6fafee1877e46e836e293545dcb6ea06cb579984254",
-      "storagePath": "services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json",
-      "releaseUsage": "Local-first lightweight profile used by analysis-engine stem separation.",
-      "verification": "SHA256 verified in bandscope_analysis.separation.audio_separator.AudioStemSeparator._load_model_profile"
+      "name": "Hybrid Transformer Demucs four-source weights",
+      "runtimeModelName": "htdemucs",
+      "version": "demucs-4.0.1-signature-955717e8",
+      "sourceUrl": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th",
+      "license": "No separate model-weight redistribution grant identified; trusted external provisioning only, not bundled",
+      "checksum": "sha256:8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+      "sizeBytes": 84141911,
+      "storagePath": "trusted provisioning places exact 955717e8-8726e21a.th in the user-scoped torch.hub checkpoints cache or supplies its absolute BANDSCOPE_HTDEMUCS_MODEL_PATH; not committed or bundled",
+      "distribution": "pre-provisioned-runtime-cache",
+      "releaseUsage": "Loaded locally on supported platforms to separate vocals, bass, drums, and other stems.",
+      "verification": "BandScope rejects missing, symlinked, non-regular, incorrectly sized, or full-SHA-mismatched cache entries and deserializes the same 84,141,911 verified bytes only after SHA-256 8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4 passes. Runtime network fallback is forbidden."
     }
   ],
   "notes": [
-    "Add ffmpeg, yt-dlp, model weights, or sidecar assets here before they ship.",
-    "Track source URL, version, checksum, license, storage path, and release usage for every item."
+    "The retired bandsplit-v1 FFT profile is not a production separator artifact and must not reappear.",
+    "Track source URL, version, full checksum, byte size, license, distribution, storage path, and release usage for every model artifact.",
+    "External provisioning does not authorize redistribution; release packaging must fail if it attempts to bundle an artifact without an explicit license decision."
   ]
 }
