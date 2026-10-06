@@ -61,3 +61,7 @@
 ## 2026-07-13 - Array.from mapping optimization
 **Learning:** Using `Array.from({ length: N }).map(...)` creates an intermediate array of `undefined` values which requires memory allocation and garbage collection, adding O(N) unnecessary overhead in frequently re-rendered UI components.
 **Action:** Use `Array.from({ length: N }, (_, index) => ...)` to map elements directly during array creation, avoiding intermediate allocations.
+
+## 2026-10-06 - Replace .filter().map() with .reduce() for React children
+**Learning:** Chaining `.filter().map()` inside a React render function allocates an intermediate array, forcing unnecessary GC work.
+**Action:** Replace `.filter().map()` with a single `.reduce()` or a loop that conditionally pushes nodes into a pre-allocated array.
