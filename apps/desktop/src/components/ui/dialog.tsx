@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Tooltip, TooltipTrigger, TooltipContent } from "./tooltip"
 
 /** Render a modal dialog root. */
 function Dialog(props: DialogPrimitive.Root.Props) {
@@ -46,14 +47,21 @@ function DialogContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close
-          data-slot="dialog-close"
-          className="focus-visible:ring-ring/50 absolute top-4 right-4 rounded-xs opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-[3px] disabled:pointer-events-none"
-          title="Close"
-        >
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+        <Tooltip>
+          <TooltipTrigger
+            delay={0}
+            render={
+              <DialogPrimitive.Close
+                data-slot="dialog-close"
+                className="focus-visible:ring-ring/50 absolute top-4 right-4 rounded-xs opacity-70 outline-none transition-opacity hover:opacity-100 focus-visible:ring-[3px] disabled:pointer-events-none"
+              />
+            }
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent>Close</TooltipContent>
+        </Tooltip>
       </DialogPrimitive.Popup>
     </DialogPrimitive.Portal>
   )
