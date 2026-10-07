@@ -1,3 +1,6 @@
 ## 2024-05-19 - Replace HTML disabled with aria-disabled="true" for Accessible Tooltips
 **Learning:** Native HTML `disabled` attributes completely hide elements from screen readers and block all pointer/hover events, preventing tooltips from functioning for disabled elements.
 **Action:** Replace `disabled` with `aria-disabled="true"`, enforce block click handlers via `e.preventDefault()`, and add a title tooltip directly to the element to maintain full tooltip accessibility and keyboard focus support for visually impaired and mouse users.
+## 2025-10-07 - TooltipTrigger aria-label composition
+**Learning:** When refactoring Base UI `TooltipTrigger` components to replace nested buttons or handle screen reader duplicate announcements, `TooltipTrigger` does not natively support `asChild`. By utilizing the `render` prop on `TooltipTrigger` along with `aria-label`, we can provide explicit accessible text and allow the underlying primitive (like `DialogPrimitive.Close`) to render effectively without redundant `sr-only` descendants or hydration errors.
+**Action:** Always compose Base UI's `<TooltipTrigger render={<Primitive />} />` along with direct `aria-label` declarations (and `delay={0}` for tests) for icon-only action elements, removing inner accessible text spans that cause duplicated output.
