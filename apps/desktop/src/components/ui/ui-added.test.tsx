@@ -136,6 +136,10 @@ describe("added ui primitives (runtime render)", () => {
     expect(
       document.querySelector('[data-slot="dialog-content"]')
     ).toBeTruthy()
+    const closeBtn = document.querySelector('[data-slot="dialog-close"]')
+    expect(closeBtn).toBeTruthy()
+    expect(closeBtn?.getAttribute("title")).toBeNull()
+    expect(closeBtn?.getAttribute("aria-label")).toBe("Close")
   })
 
   it("Select renders a trigger with its value", () => {
