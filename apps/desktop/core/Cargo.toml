@@ -11,16 +11,28 @@ path = "src/root.rs"
 
 [features]
 process_output_test_helper = []
+transcription_test_helper = []
 
 [[bin]]
 name = "bandscope-process-output-test-helper"
 path = "tests/fixtures/process_output_test_helper.rs"
 required-features = ["process_output_test_helper"]
 
+[[bin]]
+name = "bandscope-transcription-test-helper"
+path = "tests/fixtures/transcription_test_helper.rs"
+required-features = ["transcription_test_helper"]
+
+[[test]]
+name = "transcription_process"
+path = "tests/transcription_process.rs"
+required-features = ["transcription_test_helper"]
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 
 [dependencies]
+base64 = "=0.22.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 time = { version = "0.3", features = ["formatting", "macros"] }

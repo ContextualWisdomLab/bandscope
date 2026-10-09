@@ -22,7 +22,11 @@ export default defineConfig({
       include: [
         "src/App.tsx",
         "src/lib/export.ts",
+        "src/lib/transcription.ts",
         "src/i18n/index.ts",
+        "src/i18n/transcription.ts",
+        "src/features/workspace/TranscriptionPanel.tsx",
+        "src/features/workspace/GrooveMap.tsx",
         "src/features/score/ScoreViewer.tsx",
         "src/features/score/ScoreView.tsx",
         "src/features/score/scoreStorage.ts"

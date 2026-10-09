@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-transcription-midi"
+description = "Enables the save_transcription_midi command without any pre-configured scope."
+commands.allow = ["save_transcription_midi"]
+
+[[permission]]
+identifier = "deny-save-transcription-midi"
+description = "Denies the save_transcription_midi command without any pre-configured scope."
+commands.deny = ["save_transcription_midi"]

@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-10-09",
+  "component": "basic-pitch",
+  "version": "0.4.0",
+  "packageUrl": "pkg:pypi/basic-pitch@0.4.0",
+  "upstreamSource": "https://github.com/spotify/basic-pitch/tree/9991303bba609a3b93089d13ec80d1d495083596",
+  "upstreamTag": "v0.4.0",
+  "modelCard": "https://huggingface.co/spotify/basic-pitch",
+  "license": "Apache-2.0",
+  "wheel": {
+    "url": "https://files.pythonhosted.org/packages/99/0e/3a36d22562daeb0ae3c78ac78da3f8dba96543c5576ed57d4acb8ddbab5b/basic_pitch-0.4.0-py2.py3-none-any.whl",
+    "sizeBytes": 758279,
+    "checksum": "sha256:738adb503aae7fdfc7d1e1511aa0ce35052315f260a19531ef4c356708425db0"
+  },
+  "measurement": "Hashes and sizes read from the installed lock-pinned wheel files on 2026-10-09; no model binary is copied into the repository.",
+  "modelAssets": [
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp/saved_model.pb",
+      "sizeBytes": 1084140,
+      "checksum": "sha256:eaa25c91c431c91100c416a2c018663f4c635f28fa19529c4ff5e14c18aa29c9",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp/variables/variables.data-00000-of-00001",
+      "sizeBytes": 219309,
+      "checksum": "sha256:f5d12cd7245fecea0c956c963751f3519c263615ea954b5948d5e8c9c3376f9b",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp/variables/variables.index",
+      "sizeBytes": 4794,
+      "checksum": "sha256:356aa1a00095cf2dba17386144e8b289cb04195ae090aa7f324312b08220115e",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.mlpackage/Data/com.apple.CoreML/model.mlmodel",
+      "sizeBytes": 123027,
+      "checksum": "sha256:af7bf7d49bc167e0bf0c30aa2ca6b432c3e10df048d2dd4173ff3a738c020858",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.mlpackage/Data/com.apple.CoreML/weights/weight.bin",
+      "sizeBytes": 145956,
+      "checksum": "sha256:691a6b63c7ddcdde0ee131ff3986dcb1250df47cd738612efde966ba9b4c99cd",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.mlpackage/Manifest.json",
+      "sizeBytes": 617,
+      "checksum": "sha256:c1fa5ef8acc34703edcd4e90e9a8640bd4673d9f3a68753c3b9d1ca0365e2928",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.onnx",
+      "sizeBytes": 230444,
+      "checksum": "sha256:2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec",
+      "runtimeUsage": "CPU ONNX inference after byte verification"
+    },
+    {
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.tflite",
+      "sizeBytes": 204448,
+      "checksum": "sha256:3db297d54af8e01c6e5618245c956b1d71b6a2b978cb2dedb527173186552676",
+      "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+    }
+  ],
+  "retainedNotices": [
+    {
+      "wheelPath": "basic_pitch-0.4.0.dist-info/LICENSE",
+      "retainedPath": "supply-chain/third-party/basic-pitch-0.4.0/LICENSE",
+      "sizeBytes": 11384,
+      "checksum": "sha256:929c910bae2152fa87199a5d0660e09263419b7eee6d4b301d05ee2aaf211c37",
+      "modifications": "none"
+    },
+    {
+      "wheelPath": "basic_pitch-0.4.0.dist-info/NOTICE",
+      "retainedPath": "supply-chain/third-party/basic-pitch-0.4.0/NOTICE",
+      "sizeBytes": 1034,
+      "checksum": "sha256:b810e55c0e3b520fabb45fc2ccc74880187bf84e309971968541cc812dcde905",
+      "modifications": "none"
+    }
+  ],
+  "knownVulnerabilityChecks": [
+    {
+      "package": "basic-pitch",
+      "version": "0.4.0",
+      "checkedOn": "2026-10-09",
+      "service": "PyPI version JSON",
+      "queryUrl": "https://pypi.org/pypi/basic-pitch/0.4.0/json",
+      "result": "vulnerabilities array empty"
+    },
+    {
+      "package": "mido",
+      "version": "1.3.3",
+      "checkedOn": "2026-10-09",
+      "service": "PyPI version JSON",
+      "queryUrl": "https://pypi.org/pypi/mido/1.3.3/json",
+      "result": "vulnerabilities array empty"
+    },
+    {
+      "package": "onnxruntime",
+      "version": "1.30.0",
+      "checkedOn": "2026-10-09",
+      "service": "PyPI version JSON",
+      "queryUrl": "https://pypi.org/pypi/onnxruntime/1.30.0/json",
+      "result": "vulnerabilities array empty"
+    },
+    {
+      "package": "onnxruntime",
+      "version": "1.23.2",
+      "checkedOn": "2026-10-09",
+      "service": "PyPI version JSON",
+      "queryUrl": "https://pypi.org/pypi/onnxruntime/1.23.2/json",
+      "result": "vulnerabilities array empty"
+    },
+    {
+      "package": "onnxruntime",
+      "version": "1.30.0",
+      "checkedOn": "2026-10-09",
+      "service": "OSV",
+      "queryUrl": "https://api.osv.dev/v1/query",
+      "query": {
+        "package": {
+          "ecosystem": "PyPI",
+          "name": "onnxruntime"
+        },
+        "version": "1.30.0"
+      },
+      "result": "empty response object"
+    },
+    {
+      "package": "onnxruntime",
+      "version": "1.23.2",
+      "checkedOn": "2026-10-09",
+      "service": "OSV",
+      "queryUrl": "https://api.osv.dev/v1/query",
+      "query": {
+        "package": {
+          "ecosystem": "PyPI",
+          "name": "onnxruntime"
+        },
+        "version": "1.23.2"
+      },
+      "result": "empty response object"
+    }
+  ],
+  "securityReviewLimit": "Dated package/version feed observations only. They do not replace full-environment and final-merge-ref security gates or establish absence of vulnerabilities."
+}

@@ -13,6 +13,8 @@ mod owned_process;
 mod process_output;
 mod publication_identity;
 mod score_pdf;
+mod transcription;
+mod transcription_export;
 
 pub use audio_resource::{
     copy_bounded_local_audio, copy_bounded_local_audio_with_receipt,
@@ -30,3 +32,8 @@ pub use publication_identity::{
 };
 pub use runtime_core::*;
 pub use score_pdf::read_validated_score_pdf;
+pub use transcription::{
+    run_transcription_process, TranscriptionDraft, TranscriptionLease, TranscriptionState,
+    BASIC_PITCH_MODEL_SHA256, MAX_TRANSCRIPTION_AUDIO_BYTES, TRANSCRIPTION_TIMEOUT,
+};
+pub use transcription_export::{write_midi_atomically, TranscriptionExportState};
