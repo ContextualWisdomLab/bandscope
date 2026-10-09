@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod local_audio_publication;
+mod transcription;
+mod transcription_export;
 
 use bandscope_desktop_core::*;
 use local_audio_publication::commit_local_audio_publication;
@@ -16,6 +18,8 @@ use std::{
 };
 use tauri::{Emitter, Manager, Runtime};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use transcription::{cancel_transcription, transcribe_recording};
+use transcription_export::save_transcription_midi;
 
 /// Native-only cache of verified local-audio publication identities.
 ///
@@ -1313,12 +1317,17 @@ fn main() {
         .manage(AppState::default())
         .manage(LocalAudioPublicationIdentityState::default())
         .manage(AnalysisJobCancellationRegistry::default())
+        .manage(TranscriptionState::default())
+        .manage(TranscriptionExportState::default())
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
             import_youtube_url,
             start_analysis_job,
             get_analysis_job_status,
             cancel_analysis_job,
+            transcribe_recording,
+            cancel_transcription,
+            save_transcription_midi,
             save_project,
             load_project,
             attach_score_pdf,

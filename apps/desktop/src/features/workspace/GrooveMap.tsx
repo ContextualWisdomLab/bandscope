@@ -1,119 +1,85 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import type { TranscriptionNote } from "@bandscope/shared-types";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { midiPitchForNoteName } from "@/lib/transcription";
+import { createTranscriptionTranslator } from "@/i18n/transcription";
+import type { Locale } from "@/i18n";
 
 const EMPTY_NOTES: TranscriptionNote[] = [];
 
-/** Documented. */
 interface GrooveMapProps {
   notes?: TranscriptionNote[];
+  durationSeconds?: number;
   isLoading?: boolean;
+  locale?: Locale;
 }
 
-/** Documented. */
-function GrooveMapComponent({ notes, isLoading }: GrooveMapProps) {
+/** Show only occupied pitch lanes; note lengths and positions use the recording's real seconds. */
+function GrooveMapComponent({ notes, durationSeconds, isLoading, locale }: GrooveMapProps) {
+  const t = useMemo(() => createTranscriptionTranslator(locale), [locale]);
+  const [showNoteList, setShowNoteList] = useState(false);
   const renderedNotes = notes ?? EMPTY_NOTES;
-
-  // Find max offset to determine timeline width
   const maxTime = useMemo(() => {
-    return renderedNotes.reduce((max, n) => Math.max(max, n.offset), 10);
-  }, [renderedNotes]);
-
-  // Unique pitches to determine vertical lanes (avoiding 88-key piano roll)
+    const lastOffset = renderedNotes.reduce((max, note) => Math.max(max, note.offset), 0.01);
+    return Number.isFinite(durationSeconds) && (durationSeconds ?? 0) > 0 ? Math.max(durationSeconds!, lastOffset) : lastOffset;
+  }, [renderedNotes, durationSeconds]);
   const uniquePitches = useMemo(() => {
-    // Performance: Use a loop to populate the Set to avoid allocating an intermediate array from .map()
     const pitches = new Set<string>();
-    for (const note of renderedNotes) {
-      pitches.add(note.pitch);
-    }
-    return Array.from(pitches).sort();
+    for (const note of renderedNotes) pitches.add(note.pitch);
+    return Array.from(pitches).sort((left, right) => (midiPitchForNoteName(right) ?? -1) - (midiPitchForNoteName(left) ?? -1));
   }, [renderedNotes]);
-
-  const pitchIndexMap = useMemo(() => {
-    const map = new Map<string, number>();
-    uniquePitches.forEach((pitch, index) => map.set(pitch, index));
-    return map;
-  }, [uniquePitches]);
+  const pitchIndexMap = useMemo(() => new Map(uniquePitches.map((pitch, index) => [pitch, index])), [uniquePitches]);
 
   if (isLoading) {
-    return (
-      <div
-        aria-live="polite"
-        className="mt-4 flex items-center justify-between rounded-lg border border-teal-300/20 bg-slate-950/72 p-6 shadow-inner shadow-cyan-950/40"
-      >
-        <span className="flex items-center font-medium text-teal-100">
-          <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-          Checking the bass line... 45%
-        </span>
-        <Button variant="outline" size="sm" className="border-teal-300/20 bg-teal-300/10 text-teal-100 hover:bg-teal-300/20 hover:text-white">
-          Cancel
-        </Button>
-      </div>
-    );
+    return <p role="status" className="mt-4 text-sm leading-6 text-slate-200">{t("mapLoading")}</p>;
   }
 
   if (renderedNotes.length === 0) {
-    return (
-      <div
-        className="mt-4 rounded-lg border border-dashed border-cyan-200/15 bg-slate-950/60 p-6 text-center text-sm text-slate-400"
-      >
-        No bass line transcription yet. Use it when you want to check the groove before rehearsal.
-      </div>
-    );
+    return <p className="mt-4 text-sm leading-6 text-slate-400">{t("mapEmpty")}</p>;
   }
 
   return (
-    <div
-      className="relative mt-4 overflow-x-auto rounded-lg border border-cyan-200/15 bg-slate-950/80 p-4 shadow-inner shadow-cyan-950/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-      role="region"
-      tabIndex={0}
-      aria-label="Bass transcription groove map"
-    >
-      <div className="sr-only">
-        Transcription complete. {renderedNotes.length} notes analyzed.
-      </div>
-      <p className="mb-3 text-xs font-black uppercase tracking-[0.22em] text-cyan-200">
-        {renderedNotes.length} notes mapped for rehearsal
-      </p>
-      
-      <div style={{ position: "relative", minWidth: "100%", height: `${uniquePitches.length * 40}px` }}>
-        {/* Render horizontal lanes for unique pitches */}
-        {uniquePitches.map((pitch, index) => (
-          <div
-            key={pitch}
-            className="absolute inset-x-0 flex h-10 items-center border-b border-cyan-100/10 pl-2 text-xs font-semibold text-slate-400"
-            style={{ top: `${index * 40}px` }}
-          >
-            {pitch}
+    <div className="mt-4 min-w-0">
+      <p className="mb-2 text-sm font-medium text-cyan-200">{t("mapCount", { count: renderedNotes.length })}</p>
+      <div role="region" tabIndex={0} aria-label={t("mapTitle")}
+        className="relative max-h-80 overflow-auto rounded-lg border border-slate-700 bg-slate-950 p-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">
+        <div aria-hidden="true" style={{ minWidth: `${Math.max(300, Math.min(2400, maxTime * 20))}px` }}>
+          <div className="ml-12 flex justify-between pb-2 text-xs tabular-nums text-slate-400">
+            {[0, 0.25, 0.5, 0.75, 1].map(fraction => <span key={fraction}>{(maxTime * fraction).toFixed(1)} s</span>)}
           </div>
-        ))}
-
-        {/* Render note blocks */}
-        {renderedNotes.map((note, index) => {
-          const pitchIndex = pitchIndexMap.get(note.pitch) ?? 0;
-          const leftPercent = (note.onset / maxTime) * 100;
-          const widthPercent = ((note.offset - note.onset) / maxTime) * 100;
-          const noteLabel = `${note.pitch} (${note.onset.toFixed(2)}s - ${note.offset.toFixed(2)}s)`;
-
-          return (
-            <div
-              key={index}
-              className="absolute h-6 rounded bg-gradient-to-r from-teal-300 via-cyan-300 to-violet-300 shadow-[0_0_18px_rgba(94,234,212,0.28)]"
-              style={{
-                top: `${pitchIndex * 40 + 8}px`,
-                left: `${leftPercent}%`,
-                width: `${widthPercent}%`
-              }}
-              title={noteLabel}
-            >
-              <span className="sr-only">
-                {noteLabel}
-              </span>
+          <div className="relative" style={{ height: `${uniquePitches.length * 32}px` }}>
+            {uniquePitches.map((pitch, index) => <div key={pitch}
+              className="absolute inset-x-0 flex h-8 items-center border-b border-slate-800 text-xs font-medium text-slate-300"
+              style={{ top: `${index * 32}px` }}><span className="w-12 shrink-0">{pitch}</span></div>)}
+            <div className="absolute inset-y-0 left-12 right-0">
+              {renderedNotes.map((note, index) => <div key={index}
+                className="absolute h-5 rounded-sm bg-cyan-300"
+                style={{
+                  top: `${(pitchIndexMap.get(note.pitch) ?? 0) * 32 + 6}px`,
+                  left: `${(note.onset / maxTime) * 100}%`,
+                  width: `${((note.offset - note.onset) / maxTime) * 100}%`
+                }}
+                title={`${note.pitch} (${note.onset.toFixed(2)}–${note.offset.toFixed(2)} s)`}
+              />)}
             </div>
-          );
-        })}
+          </div>
+        </div>
       </div>
+      <details className="mt-2 text-sm text-slate-300" onToggle={event => setShowNoteList(event.currentTarget.open)}>
+        <summary className="min-h-11 cursor-pointer content-center rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300">{t("noteList")}</summary>
+        {showNoteList && <div className="max-h-64 overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300" tabIndex={0} role="region" aria-label={t("noteList")}>
+          <table className="w-full text-left text-xs tabular-nums">
+            <caption className="sr-only">{t("mapCount", { count: renderedNotes.length })}</caption>
+            <thead><tr>
+              <th scope="col" className="p-2">{t("pitch")}</th>
+              <th scope="col" className="p-2">{t("onset")}</th>
+              <th scope="col" className="p-2">{t("offset")}</th>
+            </tr></thead>
+            <tbody>{renderedNotes.map((note, index) => <tr key={index} className="border-t border-slate-800">
+              <td className="p-2">{note.pitch}</td><td className="p-2">{note.onset.toFixed(2)}</td><td className="p-2">{note.offset.toFixed(2)}</td>
+            </tr>)}</tbody>
+          </table>
+        </div>}
+      </details>
     </div>
   );
 }

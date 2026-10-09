@@ -3,6 +3,7 @@ import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type Rehear
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
+import { TranscriptionPanel } from "./TranscriptionPanel";
 import { PracticeProgress } from "./PracticeProgress";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
@@ -150,7 +151,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     if (!activeRole) return undefined;
     return roleMap.get(activeRole);
   }, [activeRole, roleMap]);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
   const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
@@ -355,6 +355,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SongStructure sections={song.sections} t={t} />
 
+          <TranscriptionPanel key={song.id} />
+
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -406,27 +408,6 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   >
                     Solo / mute others
                   </Button>
-                  {canTranscribeBass ? (
-                    <Button
-                      type="button"
-                      title="Transcribe part"
-                      variant="outline"
-                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
-                      onClick={preventUnavailableAction}
-                      variant="outline"
-                      className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  )}
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">

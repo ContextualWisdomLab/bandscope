@@ -1,0 +1,77 @@
+name: basic-pitch-midi
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/core/Cargo.toml"
+      - "apps/desktop/core/src/transcription.rs"
+      - "apps/desktop/core/src/transcription_export.rs"
+      - "apps/desktop/core/src/root.rs"
+      - "apps/desktop/core/tests/transcription_process.rs"
+      - "apps/desktop/core/tests/fixtures/transcription_test_helper.rs"
+      - "apps/desktop/src-tauri/**"
+      - "apps/desktop/src/**"
+      - ".github/workflows/basic-pitch-midi.yml"
+  push:
+    branches: [develop, main]
+    paths:
+      - "apps/desktop/core/**"
+      - "apps/desktop/src-tauri/**"
+      - ".github/workflows/basic-pitch-midi.yml"
+
+permissions:
+  contents: read
+
+env:
+  GIT_CONFIG_COUNT: "1"
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: develop
+
+jobs:
+  process-contract:
+    name: test / basic-pitch / process / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Verify draft admission and single-job ownership
+        run: cargo +1.97.1 test --locked --manifest-path apps/desktop/core/Cargo.toml --lib transcription
+      - name: Exercise actual child cancellation, deadlines, and bounded pipes
+        run: cargo +1.97.1 test --locked --manifest-path apps/desktop/core/Cargo.toml --features transcription_test_helper --test transcription_process
+
+  native-bridge:
+    name: check / basic-pitch / native / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "22.22.3"
+          package-manager-cache: false
+      - name: Activate pinned npm runtime
+        run: corepack enable npm
+      - name: Verify pinned npm runtime
+        run: npm run check:npm-runtime
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Build frontend prerequisite for Tauri context
+        run: npm run build --workspace @bandscope/desktop
+      - name: Install Rust 1.97.1
+        run: rustup toolchain install 1.97.1 --profile minimal
+      - name: Compile native picker and IPC registration
+        run: cargo +1.97.1 check --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Verify native MIDI filename handling
+        run: cargo +1.97.1 test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml --bin bandscope-desktop transcription_export::tests

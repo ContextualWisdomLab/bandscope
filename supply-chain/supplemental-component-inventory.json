@@ -21,6 +21,68 @@
       "storagePath": "services/analysis-engine/src/bandscope_analysis/separation/model_weights/bandsplit-v1.json",
       "releaseUsage": "Local-first lightweight profile used by analysis-engine stem separation.",
       "verification": "SHA256 verified in bandscope_analysis.separation.audio_separator.AudioStemSeparator._load_model_profile"
+    },
+    {
+      "name": "basic-pitch-icassp-2022-onnx",
+      "version": "0.4.0",
+      "sourceUrl": "https://pypi.org/project/basic-pitch/0.4.0/",
+      "packageUrl": "pkg:pypi/basic-pitch@0.4.0",
+      "license": "Apache-2.0",
+      "checksum": "sha256:2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec",
+      "sizeBytes": 230444,
+      "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.onnx",
+      "releaseUsage": "Installed with the pinned Basic Pitch wheel for offline, CPU-only local recording-to-MIDI drafts. Only this ONNX representation is loaded.",
+      "verification": "bandscope_analysis.transcription.basic_pitch_backend._verified_model_bytes checks distribution version, exact size and hard-coded SHA-256; _load_session consumes the same retained byte buffer.",
+      "provenancePath": "supply-chain/third-party/basic-pitch-0.4.0/provenance.json",
+      "noticePaths": [
+        "supply-chain/third-party/basic-pitch-0.4.0/LICENSE",
+        "supply-chain/third-party/basic-pitch-0.4.0/NOTICE"
+      ],
+      "additionalPackagedAssets": [
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp/saved_model.pb",
+          "sizeBytes": 1084140,
+          "checksum": "sha256:eaa25c91c431c91100c416a2c018663f4c635f28fa19529c4ff5e14c18aa29c9",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        },
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp/variables/variables.data-00000-of-00001",
+          "sizeBytes": 219309,
+          "checksum": "sha256:f5d12cd7245fecea0c956c963751f3519c263615ea954b5948d5e8c9c3376f9b",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        },
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp/variables/variables.index",
+          "sizeBytes": 4794,
+          "checksum": "sha256:356aa1a00095cf2dba17386144e8b289cb04195ae090aa7f324312b08220115e",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        },
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.mlpackage/Data/com.apple.CoreML/model.mlmodel",
+          "sizeBytes": 123027,
+          "checksum": "sha256:af7bf7d49bc167e0bf0c30aa2ca6b432c3e10df048d2dd4173ff3a738c020858",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        },
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.mlpackage/Data/com.apple.CoreML/weights/weight.bin",
+          "sizeBytes": 145956,
+          "checksum": "sha256:691a6b63c7ddcdde0ee131ff3986dcb1250df47cd738612efde966ba9b4c99cd",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        },
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.mlpackage/Manifest.json",
+          "sizeBytes": 617,
+          "checksum": "sha256:c1fa5ef8acc34703edcd4e90e9a8640bd4673d9f3a68753c3b9d1ca0365e2928",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        },
+        {
+          "storagePath": "basic_pitch/saved_models/icassp_2022/nmp.tflite",
+          "sizeBytes": 204448,
+          "checksum": "sha256:3db297d54af8e01c6e5618245c956b1d71b6a2b978cb2dedb527173186552676",
+          "runtimeUsage": "Inactive asset retained by the unmodified wheel; not loaded by BandScope transcription"
+        }
+      ],
+      "packagingNote": "Scoped runtime exclusions do not strip the other model representations from the wheel. Preserve the listed assets in the release inventory unless packaging explicitly removes them and updates this record."
     }
   ],
   "notes": [
