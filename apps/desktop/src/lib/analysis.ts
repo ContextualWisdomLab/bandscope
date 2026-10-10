@@ -38,6 +38,7 @@ const UNSUPPORTED_LOCAL_AUDIO_MESSAGE = "Choose a WAV, MP3, FLAC, or M4A file to
 const SAFE_LOCAL_AUDIO_MESSAGES = new Set([
   UNSUPPORTED_LOCAL_AUDIO_MESSAGE,
   "Could not read the selected audio file.",
+  "Could not prepare the selected audio for playback.",
   "Could not prepare the local project workspace.",
   "Could not prepare the local cache workspace.",
   "Could not prepare the local temp workspace."
@@ -231,13 +232,15 @@ export async function selectLocalAudioSource(): Promise<LocalAudioSelectionResul
       bootstrap: parseProjectBootstrapSummary(response)
     };
   } catch (error) {
+    const nativeMessage =
+      error instanceof Error ? error.message : (typeof error === "string" ? error : null);
     return {
       ok: false,
       error: {
         code: "invalid_request",
         message:
-          error instanceof Error && SAFE_LOCAL_AUDIO_MESSAGES.has(error.message)
-            ? error.message
+          nativeMessage !== null && SAFE_LOCAL_AUDIO_MESSAGES.has(nativeMessage)
+            ? nativeMessage
             : UNSUPPORTED_LOCAL_AUDIO_MESSAGE
       }
     };

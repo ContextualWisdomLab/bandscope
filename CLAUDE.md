@@ -41,8 +41,8 @@ npm --workspace @bandscope/desktop exec vitest run src/lib/export.test.ts   # on
 npm run dev --workspace @bandscope/desktop                 # Vite dev server (browser fallback mode)
 npm run storybook --workspace @bandscope/desktop           # component workbench
 
-uv run --project services/analysis-engine pytest tests/test_chords.py       # one Python test file (no coverage gate)
-uv run --project services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100   # full Python gate
+uv run --directory services/analysis-engine pytest tests/test_chords.py       # one Python test file (no coverage gate)
+uv run --directory services/analysis-engine pytest --cov=src/bandscope_analysis --cov-report=term-missing --cov-fail-under=100   # full Python gate
 ```
 
 ## Architecture
@@ -51,7 +51,7 @@ BandScope is a local-first desktop app for rehearsal prep: it turns a song into 
 
 Three layers, decoupled through shared contracts:
 
-- `apps/desktop` — Tauri 2 + Vite + React 19 shell (Tailwind 4, Base UI, Storybook). Feature screens live in `src/features/` (home, workspace, chords, ranges, player, settings). The ready workspace names tonight's first playable range and the next instrument check. `src/lib/analysis.ts` and `src/lib/job_runner.ts` call typed Tauri IPC commands, with a browser fallback that serves demo data when not running inside Tauri.
+- `apps/desktop` — Tauri 2 + Vite + React 19 shell (Tailwind 4, Base UI, Storybook). Feature screens live in `src/features/` (home, workspace, chords, ranges, player, settings). The workspace `RehearsalPlayer` owns tonight's first section loop and count-in clock. It does not decode local audio bytes in React; after native admission, its browser media element plays the authorized source through a scoped Tauri asset URL. The ready workspace also names tonight's first playable range and the next instrument check. `src/lib/analysis.ts` and `src/lib/job_runner.ts` call typed Tauri IPC commands, with a browser fallback that serves demo data when not running inside Tauri.
 - `apps/desktop/src-tauri/src/main.rs` — the Rust orchestration boundary. Tauri commands (`start_analysis_job`, `get_analysis_job_status`, `select_local_audio_source`, `import_youtube_url`) validate untrusted input (project IDs, file paths, URLs) and spawn the Python engine as a subprocess. There is no loopback HTTP listener and no network path for local analysis.
 - `services/analysis-engine` — Python package `bandscope_analysis` (librosa/numpy). Entry point `cli.py` reads a JSON job request on stdin and prints a structured job-status JSON envelope on stdout (`--progress-jsonl` streams progress lines). `api.py` orchestrates the pipeline across the `separation`, `sections`, `roles`, `chords`, `ranges`, `temporal`, `transcription`, and `youtube` modules.
 

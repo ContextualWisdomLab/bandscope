@@ -1,13 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod playback_protocol;
+
 use bandscope_desktop_core::*;
+use playback_protocol::{playback_authority_uri, PlaybackAuthority, PLAYBACK_SCHEME};
 use rfd::FileDialog;
 use serde_json::{json, Value};
 use std::{
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    sync::{atomic::Ordering, mpsc},
+    sync::{atomic::Ordering, mpsc, Arc},
     thread,
     time::Instant,
 };
@@ -315,6 +318,15 @@ fn lookup_bootstrap_source(
         .ok()
         .and_then(|sources| sources.get(project_id).cloned())
         .ok_or_else(|| "Analysis job source was not found. Choose local audio again.".to_string())
+}
+
+/// Return a renderer-safe bootstrap while retaining the native source only in
+/// BandScope's process-local analysis and playback authority stores.
+fn renderer_bootstrap_summary(
+    mut summary: ProjectBootstrapSummaryPayload,
+) -> Result<ProjectBootstrapSummaryPayload, String> {
+    summary.source.source_path = playback_authority_uri(&summary.project_id)?;
+    Ok(summary)
 }
 
 fn drain_analysis_status_updates(
@@ -637,6 +649,7 @@ fn get_analysis_job_status(job_id: String, state: tauri::State<'_, AppState>) ->
 fn select_local_audio_source(
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    playback_authority: tauri::State<'_, Arc<PlaybackAuthority>>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
     let path = FileDialog::new()
         .add_filter("Audio", &AUDIO_EXTENSIONS)
@@ -656,9 +669,10 @@ fn select_local_audio_source(
         temp_root: temp_root.to_string_lossy().into_owned(),
         source,
     };
+    playback_authority.activate(&summary.project_id, &summary.source)?;
     store_bootstrap_source(&state, summary.clone());
 
-    Ok(summary)
+    renderer_bootstrap_summary(summary)
 }
 
 #[tauri::command]
@@ -666,6 +680,7 @@ async fn import_youtube_url(
     url: String,
     app: tauri::AppHandle<impl Runtime>,
     state: tauri::State<'_, AppState>,
+    playback_authority: tauri::State<'_, Arc<PlaybackAuthority>>,
 ) -> Result<ProjectBootstrapSummaryPayload, String> {
     if !is_supported_youtube_url(&url) {
         return Err("Only standard YouTube URLs are supported.".to_string());
@@ -721,8 +736,9 @@ async fn import_youtube_url(
                 temp_root: temp_root.to_string_lossy().into_owned(),
                 source,
             };
+            playback_authority.activate(&summary.project_id, &summary.source)?;
             store_bootstrap_source(&state, summary.clone());
-            return Ok(summary);
+            return renderer_bootstrap_summary(summary);
         }
         return Err(youtube_missing_metadata_error(&parsed));
     }
@@ -866,8 +882,15 @@ fn remove_score_pdf(
 }
 
 fn main() {
+    let playback_authority = Arc::new(PlaybackAuthority::default());
+    let protocol_authority = Arc::clone(&playback_authority);
+
     tauri::Builder::default()
         .manage(AppState::default())
+        .manage(playback_authority)
+        .register_uri_scheme_protocol(PLAYBACK_SCHEME, move |_context, request| {
+            protocol_authority.respond(request)
+        })
         .invoke_handler(tauri::generate_handler![
             select_local_audio_source,
             import_youtube_url,

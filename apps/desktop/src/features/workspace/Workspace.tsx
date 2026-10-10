@@ -1,9 +1,11 @@
-import { useState, useMemo, memo, type MouseEvent } from "react";
+import { useState, useMemo, memo, useEffect, type MouseEvent } from "react";
 import { parseProjectBootstrapSummary, type ProjectBootstrapSummary, type RehearsalSong, type RehearsalRole } from "@bandscope/shared-types";
 import { RoleSwitcher } from "./RoleSwitcher";
 import { SectionRoadmap } from "./SectionRoadmap";
 import { GrooveMap } from "./GrooveMap";
 import { PracticeProgress } from "./PracticeProgress";
+import { isPlayableAudioSource, RehearsalPlayer } from "./RehearsalPlayer";
+import { resolveLoopWindows } from "./rehearsalTransport";
 import { fillRangeCopy, firstRangeSqueeze } from "./firstRangeSqueeze";
 import { createTranslator, detectPreferredLocale } from "../../i18n";
 import { generateCueSheetCsv, generateChartSummaryJson, generateMetadataHandoffJson, sanitizeFilename } from "../../lib/export";
@@ -71,8 +73,37 @@ function safeProjectBootstrapSummary(value: ProjectBootstrapSummary | null): Pro
   }
 }
 
-/** Documented. */
-const SongStructure = memo(function SongStructure({ sections, t }: { sections: RehearsalSong["sections"]; t: Translator }) {
+/** Focus one renderer-owned roadmap occurrence after an explicit timeline action. */
+function focusWorkspaceSection(sectionIndex: number): void {
+  const sectionCard = document.getElementById(`workspace-section-card-${sectionIndex}`);
+  if (!(sectionCard instanceof HTMLElement)) {
+    return;
+  }
+  const prefersReducedMotion =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (typeof sectionCard.scrollIntoView === "function") {
+    sectionCard.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }
+  sectionCard.focus();
+}
+
+/** Render renderer-position section actions without creating a second transport store. */
+const SongStructure = memo(function SongStructure({
+  sections,
+  t,
+  selectedSectionIndex,
+  onSelectSection,
+}: {
+  sections: RehearsalSong["sections"];
+  t: Translator;
+  selectedSectionIndex: number | null;
+  onSelectSection: (sectionIndex: number) => void;
+}) {
   return (
     <section className="rounded-3xl border border-cyan-300/20 bg-slate-950/72 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.24)]">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -84,21 +115,37 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
         role="region"
         tabIndex={0}
         className="overflow-x-auto rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,18,35,0.96),rgba(2,6,23,0.98))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-        aria-label="Scrollable song structure timeline"
+        aria-label={t("workspaceSongStructureTimelineRegionAria")}
       >
         <div
           className="grid min-w-[720px]"
           data-testid="song-structure-grid"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, sections.length)}, minmax(8rem, 1fr))` }}
         >
-          {sections.map((section) => (
-            <div key={section.id} className="border-r border-white/10 bg-cyan-300/[0.05] px-3 py-3 last:border-r-0">
-              <p className="text-sm font-black text-white">
-                {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
-              </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
-            </div>
-          ))}
+          {sections.map((section, sectionIndex) => {
+            const selected = selectedSectionIndex === sectionIndex;
+            return (
+              <div
+                key={`${section.id}-${sectionIndex}`}
+                className={`border-r border-white/10 px-3 py-3 last:border-r-0 ${
+                  selected ? "bg-cyan-300/15" : "bg-cyan-300/[0.05]"
+                }`}
+              >
+                <button
+                  type="button"
+                  data-song-structure-section-index={sectionIndex}
+                  aria-pressed={selected}
+                  onClick={() => onSelectSection(sectionIndex)}
+                  className="min-h-11 w-full rounded-lg px-1 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                >
+                  <p className="text-sm font-black text-white">
+                    {section.label} · {formatTimelineTime(section.timeRange.start)}–{formatTimelineTime(section.timeRange.end)}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-400">{section.groove}</p>
+                </button>
+              </div>
+            );
+          })}
         </div>
 
         <div className="relative min-w-[720px] border-t border-white/10 px-3 py-6" aria-hidden="true">
@@ -121,7 +168,21 @@ const SongStructure = memo(function SongStructure({ sections, t }: { sections: R
 /** Documented. */
 export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: WorkspaceProps) {
   const [activeRole, setActiveRole] = useState<string | null>(null);
+  const [loopStartNonce, setLoopStartNonce] = useState(0);
+  const [loopedSectionIndex, setLoopedSectionIndex] = useState<number | null>(null);
+  const [sectionSelectionRequest, setSectionSelectionRequest] = useState<{
+    sectionIndex: number;
+    requestId: number;
+  } | null>(null);
   const t = useMemo(() => createTranslator(detectPreferredLocale()), []);
+  const parsedSourceBootstrap = useMemo(
+    () => safeProjectBootstrapSummary(sourceBootstrap),
+    [sourceBootstrap],
+  );
+  const hasLocalAudio = parsedSourceBootstrap !== null;
+  const hasPlayableAudio =
+    hasLocalAudio &&
+    isPlayableAudioSource(parsedSourceBootstrap?.source.sourcePath ?? null);
 
   // Extract all unique roles from the song's sections
   const roleMap = useMemo(() => {
@@ -136,6 +197,14 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     return map;
   }, [song]);
 
+  const resolvedActiveRole = activeRole && roleMap.has(activeRole) ? activeRole : null;
+
+  useEffect(() => {
+    if (activeRole && !roleMap.has(activeRole)) {
+      setActiveRole(null);
+    }
+  }, [activeRole, roleMap]);
+
   const allRoles = useMemo(() => {
     // Performance: Avoid O(N) allocation of intermediate array from Array.from() before mapping
     const roles: { id: string; name: string }[] = [];
@@ -147,11 +216,10 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   // Performance: use the cached roleMap so activeRoleDetails does not rescan sections and roles on every render.
   const activeRoleDetails = useMemo(() => {
-    if (!activeRole) return undefined;
-    return roleMap.get(activeRole);
-  }, [activeRole, roleMap]);
-  const canTranscribeBass = activeRoleDetails?.name.toLowerCase().includes("bass") ?? false;
-  const firstRange = useMemo(() => firstRangeSqueeze(song, activeRole), [activeRole, song]);
+    if (!resolvedActiveRole) return undefined;
+    return roleMap.get(resolvedActiveRole);
+  }, [resolvedActiveRole, roleMap]);
+  const firstRange = useMemo(() => firstRangeSqueeze(song, resolvedActiveRole), [resolvedActiveRole, song]);
   const firstRangeCopy = firstRange
     ? fillRangeCopy(
         t(firstRange.overlapWarning ? "workspaceFirstRangeClash" : "workspaceFirstRangeCheck"),
@@ -166,13 +234,13 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
   /** Handle the practice progress change internally by immutably updating the song state. */
   const handlePracticeProgressChange = (newProgress: number) => {
-    if (!activeRole || !onSongUpdate) return;
+    if (!resolvedActiveRole || !onSongUpdate) return;
 
     // Performance: Use shallow copying to avoid expensive structuredClone
     const nextSong = {
       ...song,
       sections: song.sections.map(section => {
-        const roleIndex = section.roles.findIndex(r => r.id === activeRole);
+        const roleIndex = section.roles.findIndex(r => r.id === resolvedActiveRole);
         if (roleIndex === -1) return section;
 
         const nextRoles = [...section.roles];
@@ -211,12 +279,12 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
     [collaborationApprovals.length, collaborationAssignments.length, collaborationComments.length]
   );
   const activeRoleAssignments = useMemo(
-    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === activeRole),
-    [activeRole, collaborationAssignments]
+    () => collaborationAssignments.filter(assignment => assignment.roleId === undefined || assignment.roleId === resolvedActiveRole),
+    [resolvedActiveRole, collaborationAssignments]
   );
   const activeRoleComments = useMemo(
-    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === activeRole),
-    [activeRole, collaborationComments]
+    () => collaborationComments.filter(comment => comment.roleId === undefined || comment.roleId === resolvedActiveRole),
+    [resolvedActiveRole, collaborationComments]
   );
   const roleHarmonicExplanation =
     nonBlankText(activeRoleDetails?.harmonicExplanation) ??
@@ -225,6 +293,37 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
   const roleTranspositionPlan =
     nonBlankText(activeRoleDetails?.transpositionPlan) ??
     nonBlankText(activeRoleDetails?.simplification);
+
+  /** Route one timeline occurrence through the canonical player selection state. */
+  const requestSectionSelection = (sectionIndex: number): void => {
+    if (
+      !Number.isSafeInteger(sectionIndex) ||
+      sectionIndex < 0 ||
+      sectionIndex >= song.sections.length
+    ) {
+      return;
+    }
+    const requestedLoopIsAdmitted = resolveLoopWindows(song).some(
+      (loop) => loop.sourceIndex === sectionIndex,
+    );
+    const requestedLoopIsInActiveRole = resolvedActiveRole
+      ? resolveLoopWindows(song, resolvedActiveRole).some(
+          (loop) => loop.sourceIndex === sectionIndex,
+        )
+      : true;
+    if (
+      resolvedActiveRole &&
+      requestedLoopIsAdmitted &&
+      !requestedLoopIsInActiveRole
+    ) {
+      setActiveRole(null);
+    }
+    focusWorkspaceSection(sectionIndex);
+    setSectionSelectionRequest((current) => ({
+      sectionIndex,
+      requestId: (current?.requestId ?? 0) + 1,
+    }));
+  };
 
   /** Documented. */
   const handleExportCueSheet = () => {
@@ -353,7 +452,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
             </section>
           </div>
 
-          <SongStructure sections={song.sections} t={t} />
+          <SongStructure
+            sections={song.sections}
+            t={t}
+            selectedSectionIndex={loopedSectionIndex}
+            onSelectSection={requestSectionSelection}
+          />
+
+          <RehearsalPlayer
+            song={song}
+            onSongUpdate={onSongUpdate}
+            onSelectedSectionIndexChange={setLoopedSectionIndex}
+            sectionSelectionRequest={sectionSelectionRequest}
+            hasLocalAudio={hasLocalAudio}
+            audioSourcePath={parsedSourceBootstrap?.source.sourcePath ?? null}
+            activeRole={resolvedActiveRole}
+            activeRoleName={resolvedActiveRole ? activeRoleDetails?.name ?? resolvedActiveRole : null}
+            startNonce={loopStartNonce}
+          />
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -363,15 +479,15 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
               </div>
               <RoleSwitcher
                 roles={allRoles}
-                activeRole={activeRole}
+                activeRole={resolvedActiveRole}
                 onRoleChange={setActiveRole}
                 />
             </div>
 
-            {activeRole && (
+            {resolvedActiveRole && (
               <div className="mb-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
                 <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-200">Stem Player</p>
-                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? activeRole}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-100">{activeRoleDetails?.name ?? resolvedActiveRole}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -386,14 +502,24 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   </Button>
                   <Button
                     type="button"
-                    aria-disabled={true}
-                    aria-label="Loop section coming soon"
-                    title="Loop section coming soon"
-                    onClick={preventUnavailableAction}
+                    aria-label={t("workspaceLoopThisSection")}
+                    aria-disabled={!hasPlayableAudio}
+                    title={t("workspaceLoopThisSection")}
+                    onClick={(event) => {
+                      if (!hasPlayableAudio) {
+                        preventUnavailableAction(event);
+                        return;
+                      }
+                      setLoopStartNonce((current) => current + 1);
+                    }}
                     variant="outline"
-                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 text-slate-400 opacity-70"
+                    className={
+                      hasPlayableAudio
+                        ? "min-h-11 border-cyan-300/30 bg-cyan-300/10 font-semibold text-cyan-50 hover:bg-cyan-300/20 hover:text-white"
+                        : "min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-400 opacity-70"
+                    }
                   >
-                    Loop section
+                    {t("workspaceLoopThisSection")}
                   </Button>
                   <Button
                     type="button"
@@ -406,27 +532,16 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
                   >
                     Solo / mute others
                   </Button>
-                  {canTranscribeBass ? (
-                    <Button
-                      type="button"
-                      title="Transcribe part"
-                      variant="outline"
-                      className="min-h-11 border-emerald-300/20 bg-emerald-300/10 font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-slate-500"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      aria-disabled={true}
-                      title={`${activeRoleDetails?.name ?? "This role"} transcription is coming soon. Bass is ready first.`}
-                      onClick={preventUnavailableAction}
-                      variant="outline"
-                      className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
-                    >
-                      Transcribe Bass
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    aria-disabled={true}
+                    title={`${activeRoleDetails?.name ?? "This role"} transcription is not available yet.`}
+                    onClick={preventUnavailableAction}
+                    variant="outline"
+                    className="min-h-11 cursor-not-allowed border-white/10 bg-white/5 font-semibold text-slate-500 opacity-70"
+                  >
+                    Transcribe Bass
+                  </Button>
                 </div>
                 <div className="mt-4 grid gap-3 lg:grid-cols-2">
                   <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3">
@@ -504,7 +619,8 @@ export function Workspace({ song, sourceBootstrap = null, onSongUpdate }: Worksp
 
           <SectionRoadmap
             song={song}
-            activeRole={activeRole}
+            activeRole={resolvedActiveRole}
+            loopedSectionIndex={loopedSectionIndex}
             onSongUpdate={onSongUpdate}
           />
           </section>
