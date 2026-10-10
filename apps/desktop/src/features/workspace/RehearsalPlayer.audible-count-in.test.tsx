@@ -13,7 +13,7 @@ const originalAudioContext = Object.getOwnPropertyDescriptor(
   window,
   "AudioContext",
 );
-const audioSourcePath = "/Users/test/Music/rehearsal.wav";
+const audioSourcePath = "bandscope-project://project-100-1";
 
 type FakeOscillator = {
   connect: ReturnType<typeof vi.fn>;
@@ -30,6 +30,14 @@ type PlayableAudioMocks = {
   oscillators: FakeOscillator[];
 };
 
+function admitDuration(audio: HTMLAudioElement, duration = 60) {
+  Object.defineProperty(audio, "duration", {
+    configurable: true,
+    value: duration,
+  });
+  fireEvent.loadedMetadata(audio);
+}
+
 function installPlayableAudioMocks(): PlayableAudioMocks {
   const oscillators: FakeOscillator[] = [];
   const closeAudioContext = vi.fn(async () => undefined);
@@ -40,7 +48,7 @@ function installPlayableAudioMocks(): PlayableAudioMocks {
   Object.defineProperty(window, "__TAURI_INTERNALS__", {
     configurable: true,
     value: {
-      convertFileSrc: vi.fn((path: string) => `asset://localhost/${path}`),
+      convertFileSrc: vi.fn((path: string, protocol: string) => `${protocol}://localhost/${path}`),
     },
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
@@ -123,6 +131,7 @@ it("sounds the transport count-in without replaying a beat when playback rate ch
     />,
   );
 
+  admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement);
   fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
 
   expect(oscillators).toHaveLength(1);
@@ -166,6 +175,7 @@ it("keeps audible count-in available across Strict Mode effect replay", () => {
     </StrictMode>,
   );
 
+  admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement);
   fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
 
   expect(oscillators).toHaveLength(1);
@@ -184,6 +194,7 @@ it("closes the count-in audio context when the mounted player unmounts", () => {
     />,
   );
 
+  admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement);
   fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
   expect(oscillators).toHaveLength(1);
 

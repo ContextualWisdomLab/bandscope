@@ -4,7 +4,7 @@ import {
   act,
   createEvent,
   fireEvent,
-  render,
+  render as rtlRender,
   screen,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -22,7 +22,7 @@ const originalPreservesPitch = Object.getOwnPropertyDescriptor(
   "preservesPitch",
 );
 const tauriConfigPath = resolve(process.cwd(), "src-tauri/tauri.conf.json");
-const audioSourcePath = "/Users/test/Music/rehearsal.wav";
+const audioSourcePath = "bandscope-project://project-100-1";
 
 function setNavigatorLanguage(language: string) {
   Object.defineProperty(navigator, "language", {
@@ -31,13 +31,38 @@ function setNavigatorLanguage(language: string) {
   });
 }
 
-function installPlayableAudioMocks() {
-  const convertFileSrc = vi.fn((path: string) => `asset://localhost/${path}`);
+function admitDuration(audio: HTMLAudioElement, duration: number) {
+  Object.defineProperty(audio, "duration", {
+    configurable: true,
+    value: duration,
+  });
+  fireEvent.loadedMetadata(audio);
+}
+
+function renderWithPlayableAudio(...args: Parameters<typeof rtlRender>): ReturnType<typeof rtlRender> {
+  const renderResult = rtlRender(...args);
+  const audio = renderResult.container.querySelector(
+    '[data-testid="rehearsal-loop-audio"]',
+  ) as HTMLAudioElement | null;
+  if (audio) {
+    act(() => {
+      admitDuration(audio, 5_000_000_000);
+    });
+  }
+  return renderResult;
+}
+
+const render = renderWithPlayableAudio;
+
+function installPlayableAudioMocks(duration = 60) {
+  const convertFileSrc = vi.fn((path: string, protocol: string) => `${protocol}://localhost/${path}`);
   Object.defineProperty(window, "__TAURI_INTERNALS__", {
     configurable: true,
     value: { convertFileSrc },
   });
-  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(function (this: HTMLMediaElement) {
+    admitDuration(this, duration);
+  });
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   Object.defineProperty(HTMLMediaElement.prototype, "preservesPitch", {
     configurable: true,
@@ -88,9 +113,10 @@ describe("RehearsalPlayer", () => {
     const sources = mediaDirective?.trim().split(/\s+/).slice(1) ?? [];
 
     expect(sources).toEqual(
-      expect.arrayContaining(["asset:", "http://asset.localhost"]),
+      expect.arrayContaining(["bandscope-playback:", "http://bandscope-playback.localhost"]),
     );
     expect(sources).not.toContain("*");
+    expect(sources).not.toContain("asset:");
     expect(sources).not.toContain("http:");
     expect(sources).not.toContain("https:");
   });
@@ -440,6 +466,7 @@ describe("RehearsalPlayer", () => {
         audioSourcePath={audioSourcePath}
       />,
     );
+    admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement, 60);
     fireEvent.click(
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
@@ -538,10 +565,10 @@ describe("RehearsalPlayer", () => {
       "rehearsal-loop-audio",
     ) as HTMLAudioElement;
     expect(convertFileSrc).toHaveBeenCalledWith(
-      "/Users/test/Music/rehearsal.wav",
-      "asset",
+      "project-100-1",
+      "bandscope-playback",
     );
-    expect(audio.src).toContain("asset://localhost/");
+    expect(audio.src).toContain("bandscope-playback://localhost/project-100-1");
 
     fireEvent.click(
       screen.getByRole("button", { name: /Start the count-in/i }),
@@ -699,12 +726,14 @@ describe("RehearsalPlayer", () => {
   it("caps long media boundary timers before the browser timeout limit", () => {
     setNavigatorLanguage("en-US");
     vi.useFakeTimers();
-    const convertFileSrc = vi.fn((path: string) => `asset://localhost/${path}`);
+    const convertFileSrc = vi.fn((path: string, protocol: string) => `${protocol}://localhost/${path}`);
     Object.defineProperty(window, "__TAURI_INTERNALS__", {
       configurable: true,
       value: { convertFileSrc },
     });
-    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(function (this: HTMLMediaElement) {
+      admitDuration(this, 10 + 2_147_483_648);
+    });
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
     const song = createDemoRehearsalSong();

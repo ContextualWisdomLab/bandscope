@@ -7,13 +7,13 @@ const originalTauriInternals = Object.getOwnPropertyDescriptor(
   window,
   "__TAURI_INTERNALS__",
 );
-const audioSourcePath = "/Users/test/Music/rehearsal.wav";
+const audioSourcePath = "bandscope-project://project-100-1";
 
 function installPlayableAudioMocks() {
   Object.defineProperty(window, "__TAURI_INTERNALS__", {
     configurable: true,
     value: {
-      convertFileSrc: vi.fn((path: string) => `asset://localhost/${path}`),
+      convertFileSrc: vi.fn((path: string, protocol: string) => `${protocol}://localhost/${path}`),
     },
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});

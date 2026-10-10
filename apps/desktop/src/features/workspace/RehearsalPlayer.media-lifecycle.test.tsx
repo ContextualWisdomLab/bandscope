@@ -7,17 +7,25 @@ const originalTauriInternals = Object.getOwnPropertyDescriptor(
   window,
   "__TAURI_INTERNALS__",
 );
-const audioSourcePath = "/Users/test/Music/rehearsal.wav";
+const audioSourcePath = "bandscope-project://project-100-1";
 
 function installAudioBoundary() {
   Object.defineProperty(window, "__TAURI_INTERNALS__", {
     configurable: true,
     value: {
-      convertFileSrc: vi.fn((path: string) => `asset://localhost/${path}`),
+      convertFileSrc: vi.fn((path: string, protocol: string) => `${protocol}://localhost/${path}`),
     },
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+}
+
+function admitDuration(audio: HTMLAudioElement, duration = 60) {
+  Object.defineProperty(audio, "duration", {
+    configurable: true,
+    value: duration,
+  });
+  fireEvent.loadedMetadata(audio);
 }
 
 function renderPlayableSong() {
@@ -28,6 +36,7 @@ function renderPlayableSong() {
       audioSourcePath={audioSourcePath}
     />,
   );
+  admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement);
 }
 
 describe("RehearsalPlayer media lifecycle", () => {
@@ -96,7 +105,7 @@ describe("RehearsalPlayer media lifecycle", () => {
       screen.getByRole("button", { name: /Start the count-in/i }),
     );
     fireEvent.click(screen.getByRole("button", { name: /Pause/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Resume/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
     expect(play).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId("rehearsal-loop-next-action")).toHaveTextContent(
       /Count in/i,

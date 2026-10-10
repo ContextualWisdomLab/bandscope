@@ -12,7 +12,7 @@ const originalPreservesPitch = Object.getOwnPropertyDescriptor(
   HTMLMediaElement.prototype,
   "preservesPitch",
 );
-const audioSourcePath = "/Users/test/Music/rehearsal.wav";
+const audioSourcePath = "bandscope-project://project-100-1";
 
 function installPlayableAudioMocks() {
   Object.defineProperty(navigator, "language", {
@@ -22,7 +22,7 @@ function installPlayableAudioMocks() {
   Object.defineProperty(window, "__TAURI_INTERNALS__", {
     configurable: true,
     value: {
-      convertFileSrc: vi.fn((path: string) => `asset://localhost/${path}`),
+      convertFileSrc: vi.fn((path: string, protocol: string) => `${protocol}://localhost/${path}`),
     },
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
@@ -33,6 +33,14 @@ function installPlayableAudioMocks() {
     writable: true,
     value: false,
   });
+}
+
+function admitDuration(audio: HTMLAudioElement, duration = 60) {
+  Object.defineProperty(audio, "duration", {
+    configurable: true,
+    value: duration,
+  });
+  fireEvent.loadedMetadata(audio);
 }
 
 afterEach(() => {
@@ -74,6 +82,7 @@ it("preserves cumulative progress through a count-in beat across repeated speed 
     />,
   );
 
+  admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement);
   fireEvent.click(screen.getByRole("button", { name: /Start the count-in/i }));
   act(() => {
     vi.advanceTimersByTime(400);

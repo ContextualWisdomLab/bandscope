@@ -44,12 +44,20 @@ function installPlayableAudioMocks() {
   Object.defineProperty(window, "__TAURI_INTERNALS__", {
     configurable: true,
     value: {
-      convertFileSrc: (path: string) => `asset://localhost/${path}`,
+      convertFileSrc: (path: string, protocol: string) => `${protocol}://localhost/${path}`,
     },
   });
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+}
+
+function admitDuration(audio: HTMLAudioElement, duration = 60) {
+  Object.defineProperty(audio, "duration", {
+    configurable: true,
+    value: duration,
+  });
+  fireEvent.loadedMetadata(audio);
 }
 
 describe("Workspace", () => {
@@ -222,6 +230,7 @@ describe("Workspace", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Start selected section loop" }),
     );
+    admitDuration(screen.getByTestId("rehearsal-loop-audio") as HTMLAudioElement);
 
     expect(
       screen.getByTestId("rehearsal-loop-next-action").textContent,
