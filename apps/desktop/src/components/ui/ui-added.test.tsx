@@ -167,6 +167,20 @@ describe("added ui primitives (runtime render)", () => {
     expect(screen.getByText("도움말")).toBeTruthy()
   })
 
+  it("Dialog close button shows Tooltip", async () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>테스트</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+    const closeBtn = document.querySelector('[data-slot="dialog-close"]')
+    expect(closeBtn).toBeTruthy()
+    expect(closeBtn).not.toHaveAttribute("title")
+    expect(closeBtn).toHaveAttribute("aria-label", "Close")
+  })
+
   it("Breadcrumb renders links, current page and separator", () => {
     const { container } = render(
       <Breadcrumb>
