@@ -47,7 +47,7 @@ function DialogContent({
         {...props}
       >
         {children}
-        <Tooltip delay={0}>
+        <Tooltip>
           <TooltipTrigger
             render={
               <DialogPrimitive.Close
@@ -56,6 +56,7 @@ function DialogContent({
               />
             }
             aria-label="Close"
+            delay={0}
           >
             <X className="size-4" />
           </TooltipTrigger>
