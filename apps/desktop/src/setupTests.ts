@@ -3,6 +3,10 @@ import * as matchers from "@testing-library/jest-dom/matchers";
 
 expect.extend(matchers);
 
+if (typeof HTMLMediaElement !== "undefined") {
+  HTMLMediaElement.prototype.load = vi.fn();
+}
+
 // jsdom does not implement matchMedia; components that read the OS colour
 // scheme (e.g. sonner's theme="system") need it stubbed in tests.
 if (typeof window !== "undefined" && !window.matchMedia) {
