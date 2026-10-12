@@ -136,6 +136,11 @@ describe("added ui primitives (runtime render)", () => {
     expect(
       document.querySelector('[data-slot="dialog-content"]')
     ).toBeTruthy()
+
+    // Verify the tooltip triggers correctly replace native title attribute
+    const closeBtn = document.querySelector('[data-slot="dialog-close"]')
+    expect(closeBtn).toBeTruthy()
+    expect(closeBtn?.getAttribute('title')).toBeNull()
   })
 
   it("Select renders a trigger with its value", () => {
