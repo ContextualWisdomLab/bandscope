@@ -43,7 +43,6 @@ import {
   selectLocalAudioSource,
   startAnalysisJob
 } from "./lib/analysis";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./components/ui/tooltip";
 import { createTranslator, detectPreferredLocale, type TranslationKey } from "./i18n";
 import { ScoreView } from "./features/score/ScoreView";
 import { Workspace } from "./features/workspace/Workspace";
@@ -563,7 +562,7 @@ export function App() {
 
           <nav aria-label={t("primaryRehearsalViewsAriaLabel")} className="space-y-2">
             {NAV_ITEMS.map((item) => {
-              const { label, enabled, active } = navButtonState(item);
+              const { label, enabled, active, title } = navButtonState(item);
               const { icon: Icon, view } = item;
 
               return (
@@ -572,6 +571,7 @@ export function App() {
                   type="button"
                   aria-current={active ? "page" : undefined}
                   aria-disabled={enabled ? undefined : true}
+                  title={title}
                   onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
                   className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
@@ -611,38 +611,26 @@ export function App() {
             </div>
 
             <div className="flex items-center justify-between text-slate-400">
-              <Tooltip delay={0}>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-disabled={true}
-                      onClick={preventUnavailableAction}
-                      className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                    />
-                  }
-                  aria-label={t("settingsComingSoon")}
-                >
-                  <Settings className="size-5" aria-hidden="true" />
-                </TooltipTrigger>
-                <TooltipContent>{t("settingsComingSoon")}</TooltipContent>
-              </Tooltip>
-              <Tooltip delay={0}>
-                <TooltipTrigger
-                  render={
-                    <button
-                      type="button"
-                      aria-disabled={true}
-                      onClick={preventUnavailableAction}
-                      className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                    />
-                  }
-                  aria-label={t("helpComingSoon")}
-                >
-                  <CircleHelp className="size-5" aria-hidden="true" />
-                </TooltipTrigger>
-                <TooltipContent>{t("helpComingSoon")}</TooltipContent>
-              </Tooltip>
+              <button
+                type="button"
+                aria-disabled={true}
+                aria-label={t("settingsComingSoon")}
+                title={t("settingsComingSoon")}
+                onClick={preventUnavailableAction}
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <Settings className="size-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-disabled={true}
+                aria-label={t("helpComingSoon")}
+                title={t("helpComingSoon")}
+                onClick={preventUnavailableAction}
+                className="inline-flex cursor-not-allowed items-center justify-center rounded-xl p-2 text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+              >
+                <CircleHelp className="size-5" aria-hidden="true" />
+              </button>
             </div>
           </div>
         </aside>
@@ -650,7 +638,7 @@ export function App() {
         <main id="main-content" className="max-h-screen min-w-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
           <nav aria-label={t("compactRehearsalViewsAriaLabel")} className="mb-4 flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/72 p-2 backdrop-blur-xl lg:hidden">
             {NAV_ITEMS.map((item) => {
-              const { label, enabled, active } = navButtonState(item);
+              const { label, enabled, active, title } = navButtonState(item);
               const { icon: Icon, view } = item;
 
               return (
@@ -660,6 +648,7 @@ export function App() {
                   aria-current={active ? "page" : undefined}
                   aria-label={`${label} ${t("compactViewSuffix")}`}
                   aria-disabled={enabled ? undefined : true}
+                  title={title}
                   onClick={enabled && view ? () => handleNavSelect(view) : blockInactiveNavActivation}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 ${
                     active
@@ -720,21 +709,15 @@ export function App() {
                         aria-describedby={selectionError && selectionErrorSource === "youtube" ? "selection-error" : undefined}
                       />
                       {youtubeUrl && !analysisInFlight && !isStarting && !isImporting ? (
-                        <Tooltip delay={0}>
-                          <TooltipTrigger
-                            render={
-                              <button
-                                type="button"
-                                onClick={handleClearYoutubeUrl}
-                                className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
-                              />
-                            }
-                            aria-label={t("clearYoutubeUrl")}
-                          >
-                            <X className="size-4" aria-hidden="true" />
-                          </TooltipTrigger>
-                          <TooltipContent>{t("clearYoutubeUrl")}</TooltipContent>
-                        </Tooltip>
+                        <button
+                          type="button"
+                          onClick={handleClearYoutubeUrl}
+                          className="absolute right-1 top-1/2 inline-flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                          aria-label={t("clearYoutubeUrl")}
+                          title={t("clearYoutubeUrl")}
+                        >
+                          <X className="size-4" aria-hidden="true" />
+                        </button>
                       ) : null}
                     </div>
                   </div>

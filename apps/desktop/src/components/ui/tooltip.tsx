@@ -10,9 +10,9 @@ function TooltipProvider(props: TooltipPrimitive.Provider.Props) {
 }
 
 /** Render a tooltip root, wrapping its trigger and content. */
-function Tooltip({ delay, ...props }: TooltipPrimitive.Root.Props & { delay?: number }) {
+function Tooltip(props: TooltipPrimitive.Root.Props) {
   return (
-    <TooltipProvider delay={delay}>
+    <TooltipProvider>
       <TooltipPrimitive.Root {...props} />
     </TooltipProvider>
   )

@@ -225,7 +225,7 @@ describe("App", () => {
     for (const name of ["Import", "Export"]) {
       const navButton = within(primaryNav).getByRole("button", { name });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
-      expect(navButton).not.toHaveAttribute("title");
+      expect(navButton).toHaveAttribute("title", "Coming soon");
       expect(navButton).not.toBeDisabled();
     }
     fireEvent.click(within(primaryNav).getByRole("button", { name: "Import" }));
@@ -236,7 +236,7 @@ describe("App", () => {
     for (const name of ["Import", "Export"]) {
       const navButton = within(compactNav).getByRole("button", { name: `${name} compact view` });
       expect(navButton).toHaveAttribute("aria-disabled", "true");
-      expect(navButton).not.toHaveAttribute("title");
+      expect(navButton).toHaveAttribute("title", "Coming soon");
       expect(navButton).not.toBeDisabled();
     }
     fireEvent.click(within(compactNav).getByRole("button", { name: "Import compact view" }));
